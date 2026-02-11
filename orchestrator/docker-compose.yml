@@ -1,0 +1,99 @@
+services:
+  gateway_frontend:
+    build: ./gateway-frontend
+    ports:
+      - "8848:3000"
+    environment:
+      - ENABLE_SEARCH=${ENABLE_SEARCH:-0}
+      - ENABLE_ANALYSIS=${ENABLE_ANALYSIS:-0}
+      - ENABLE_DRUGTOXDB=${ENABLE_DRUGTOXDB:-0}
+    networks: ["public", "private"]
+
+  gateway_backend:
+    build: ./gateway-backend
+    expose:
+      - "8000"
+    environment:
+      - ENABLE_SEARCH=${ENABLE_SEARCH:-0}
+      - ENABLE_ANALYSIS=${ENABLE_ANALYSIS:-0}
+      - ENABLE_DRUGTOXDB=${ENABLE_DRUGTOXDB:-0}
+    networks: ["private"]
+
+  # ---------------------------
+  # SEARCH (Next.js + Python)
+  # ---------------------------
+  search_frontend:
+    profiles: ["search"]
+    build:
+      context: ../askFDALabel_search/frontend
+    tmpfs:
+      - /tmp  
+    environment:
+      - NEXT_CACHE_DIR=/app/.next-cache
+      - PORT=4102
+    volumes:
+      - ../askFDALabel_search/frontend:/app     
+    command: ["npm", "run", "dev", "--", "-p", "4102", "-H", "0.0.0.0"]
+    expose:
+      - "4102"
+    networks: ["private"]
+
+  search_backend:
+    profiles: ["search"]
+    build:
+      context: ../askFDALabel_search/backend
+    environment:
+      - PORT=5102
+    command: ["python", "app.py"]
+    expose:
+      - "5102"
+    networks: ["private"]
+
+  # ---------------------------
+  # DRUGTOXDB (Vite/React + Python)
+  # ---------------------------
+  drugtoxdb_frontend:
+    profiles: ["drugtoxdb"]
+    build:
+      context: ../askDrugTox_db/frontend
+    environment:
+      - PORT=4101
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "4101"]
+    expose:
+      - "4101"
+    networks: ["private"]
+
+  drugtoxdb_backend:
+    profiles: ["drugtoxdb"]
+    build:
+      context: ../askDrugTox_db/backend
+    volumes:
+      - ../askDrugTox_db/data:/data:ro
+    environment:
+      - PORT=5101
+      - DRUGTOX_DB_PATH=/data/drugtox.db
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5101"]
+    expose:
+      - "5101"
+    networks: ["private"]
+
+  # ---------------------------
+  # ANALYSIS (Flask templates app.py)
+  # ---------------------------
+  analysis_web:
+    profiles: ["analysis"]
+    build:
+      context: ../askFDALabel_analysis
+    environment:
+      - PORT=5200
+      - FLASK_RUN_PORT=5200
+      - FLASK_RUN_HOST=0.0.0.0
+    command: ["python", "app.py"]
+    expose:
+      - "5200"
+    networks: ["private"]
+
+networks:
+  public:
+  private:
+    internal: true

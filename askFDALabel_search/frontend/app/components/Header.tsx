@@ -1,0 +1,123 @@
+import React, { useEffect, useRef } from 'react';
+import { useSearchContext } from '../context/SearchContext';
+import '../globals.css';
+
+const Header: React.FC = () => {
+  const { searchMode, setSearchMode } = useSearchContext();
+  const bookmarkletRef = useRef<HTMLAnchorElement>(null);
+
+  useEffect(() => {
+    if (bookmarkletRef.current) {
+      // Fetch + Eval approach to bypass CSP blocking of script.src
+      const code = "javascript:(async function(){try{const r=await fetch('https://ncshpcgpu01:8845/drug-snippet/drug_snippet.js?t='+Date.now());const t=await r.text();const s=document.createElement('script');s.textContent=t;document.body.appendChild(s);}catch(e){alert('Failed to load: '+e)}})();";
+      bookmarkletRef.current.setAttribute('href', code);
+    }
+  }, []);
+
+  return (
+    <header className="navbar">
+      <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <a href="/" className="logo-link">ask<span>FDALabel</span><span className="beta-badge">DEV</span></a>
+        ||
+        <button 
+          onClick={() => window.open('http://ncshpcgpu01:8844', '_blank')}
+          style={{
+            backgroundColor: '#0077cc',
+            color: 'white',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '0.9rem'
+          }}
+        >
+          Open Analysis App
+        </button>
+      </div>
+      <div className="header-controls" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div className="mode-switch" style={{ display: 'flex', alignItems: 'center', fontSize: '0.9rem', padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+            <span style={{ marginRight: '8px', color: searchMode === 'v1' ? '#0077cc' : '#94a3b8', fontWeight: searchMode === 'v1' ? 'bold' : 'normal' }}>V1</span>
+            <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '34px', height: '20px' }}>
+              <input 
+                type="checkbox" 
+                checked={searchMode === 'v2'}
+                onChange={() => setSearchMode(searchMode === 'v1' ? 'v2' : 'v1')}
+                style={{ opacity: 0, width: 0, height: 0 }}
+              />
+              <span className="slider round" style={{ 
+                position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, 
+                backgroundColor: searchMode === 'v2' ? '#0077cc' : '#ccc', 
+                transition: '.4s', borderRadius: '34px' 
+              }}>
+                <span style={{ 
+                  position: 'absolute', content: "", height: '14px', width: '14px', left: '3px', bottom: '3px', 
+                  backgroundColor: 'white', transition: '.4s', borderRadius: '50%',
+                  transform: searchMode === 'v2' ? 'translateX(14px)' : 'translateX(0)'
+                }}></span>
+              </span>
+            </label>
+            <span style={{ marginLeft: '8px', color: searchMode === 'v2' ? '#0077cc' : '#94a3b8', fontWeight: searchMode === 'v2' ? 'bold' : 'normal' }}>Agentic (V2)</span>
+        </div>
+        <nav className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div className="bookmarklet-container" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <a 
+              ref={bookmarkletRef}
+              href="#"
+              className="bookmarklet-button"
+              style={{
+                backgroundColor: '#eab308', /* yellow-500 */
+                color: '#fff',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                textDecoration: 'none',
+                fontSize: '0.85rem',
+                fontWeight: 'bold',
+                cursor: 'grab',
+                border: '1px solid #ca8a04',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+              onClick={(e) => {
+                // Allow dragging, but prevent navigation if clicked
+                if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
+              }}
+              title="Drag this button to your bookmarks bar!"
+            >
+              💊 Drug Snippet
+            </a>
+            <div className="bookmarklet-tooltip" style={{
+              visibility: 'hidden',
+              position: 'absolute',
+              top: '120%',
+              right: '0',
+              backgroundColor: '#1e293b',
+              color: '#fff',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              fontSize: '0.75rem',
+              width: '240px',
+              textAlign: 'center',
+              zIndex: 100,
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+              opacity: 0,
+              transition: 'opacity 0.2s',
+              lineHeight: '1.4'
+            }}>
+              <p style={{ margin: '0 0 8px 0' }}>Step 1: Drag this to your bookmarks bar.</p>
+              <p style={{ margin: '0 0 8px 0' }}>Step 2: On Elsa Page, click the bookmark. </p>
+              <p style={{ margin: '0 0 8px 0' }}>If successful, you will see <i style={{ color: '#eab308' }}>"Drug Snippet: Monitoring active..."</i> in the console.</p>
+            </div>
+            <style jsx>{`
+              .bookmarklet-container:hover .bookmarklet-tooltip {
+                visibility: visible !important;
+                opacity: 1 !important;
+              }
+            `}</style>
+          </div>
+          <a target="_blank" rel="noreferrer" href="https://nctr-crs.fda.gov/fdalabel/ui/search">Link to FDALabel</a>
+        </nav>
+      </div>
+    </header>
+  );
+};
+
+export default Header;

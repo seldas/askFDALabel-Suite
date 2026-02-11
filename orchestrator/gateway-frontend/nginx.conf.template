@@ -1,0 +1,45 @@
+events {}
+
+http {
+  server {
+    listen 3000;
+
+    location = / {
+      root /usr/share/nginx/html;
+      try_files /index.html =404;
+    }
+
+    location = /search {
+      return 301 /search/;
+    }
+
+    # Search UI (Next) under /search/
+    location /search/ {
+      proxy_pass http://search_frontend:4102;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Analysis (Flask templates) under /analysis/
+    location /analysis/ {
+      proxy_set_header X-Forwarded-Prefix /analysis;
+      proxy_pass http://analysis_web:5200;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location /static/ {
+      return 302 /analysis$request_uri;
+    }
+
+    # DrugToxDB UI under /drugtoxdb/
+    location /drugtoxdb/ {
+      proxy_pass http://drugtoxdb_frontend:4101;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+  }
+}

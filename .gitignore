@@ -1,0 +1,29 @@
+# Credentials and SSL
+cert.pem
+key.pem
+*.key
+*.crt
+*.pem
+
+# Python
+venv/
+__pycache__/
+.ipynb_checkpoints/
+*.py[cod]
+*$py.class
+.env
+
+# Node/Frontend
+node_modules/
+dist/
+.env.local
+
+# System
+.DS_Store
+Thumbs.db
+
+# archive_folder
+OLD_VER_2025/
+tmp/
+downloads/
+uploads/

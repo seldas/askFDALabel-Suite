@@ -1,0 +1,13 @@
+Flask
+requests
+python-dotenv
+google-genai
+Flask-SQLAlchemy
+Flask-Migrate
+Flask-Login
+gunicorn
+psycopg2-binary
+flashtext
+openai
+openpyxl
+oracledb

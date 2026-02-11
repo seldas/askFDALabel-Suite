@@ -1,0 +1,11 @@
+.env
+*.db
+instance/
+__pycache__/
+venv/
+.DS_Store
+data/annotations.json
+data/uploads/
+dev.log
+nohup.out
+*.pem
