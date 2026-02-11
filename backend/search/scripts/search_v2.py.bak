@@ -1,0 +1,1585 @@
+import os
+import re
+import json
+import logging
+import datetime
+import uuid
+import sys
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+# Add parent directory to path to import backend modules if needed
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import oracledb
+from dotenv import load_dotenv
+from openai import OpenAI
+from collections import defaultdict
+from html import unescape
+
+from scripts.prompt_search_v2 import *
+
+try:
+    from call_llm import safe_llm_call
+    from file_util import process_uploaded_file, process_image
+except ImportError:
+    # Fallback if running from a different context
+    from backend.call_llm import safe_llm_call
+    from backend.file_util import process_uploaded_file, process_image
+
+load_dotenv()
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("search_v2")
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def clean_xml_content(content: Any) -> str:
+    """
+    Remove XML/HTML tags and clean up content for display.
+    Preserves highlight markers (<b>, <mark>) if present.
+    """
+    if not content:
+        return ""
+    content = str(content)
+    content = re.sub(r"<(?!/?(?:b|mark)\b)[^>]+>", " ", content)
+    content = unescape(content)
+    content = re.sub(r"\s+", " ", content).strip()
+    return content
+
+def lob_to_string_limited(value: Any, max_length: int = 5000) -> Optional[str]:
+    """Convert LOB (or value) to cleaned string with length limit."""
+    if value is None:
+        return None
+    try:
+        if hasattr(value, "read"):
+            content = value.read()
+            if isinstance(content, bytes):
+                content = content.decode("utf-8", errors="ignore")
+            content = clean_xml_content(content)
+        else:
+            content = clean_xml_content(str(value))
+
+        if len(content) > max_length:
+            return content[:max_length] + "..."
+        return content
+    except Exception as e:
+        return f"[Error reading LOB: {str(e)}]"
+
+def convert_oracle_to_filtered_results(oracle_results: List[Dict[str, Any]], keywords: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    """
+    Convert Oracle search results to filtered_results format.
+    Handles LOB objects, cleans XML content, and extracts context snippets.
+    """
+    filtered_results: Dict[str, Dict[str, Any]] = defaultdict(dict)
+    visited = set()
+
+    if not oracle_results:
+        return filtered_results
+
+    def extract_setid_from_link(spl_link: Optional[str]) -> Optional[str]:
+        if not spl_link:
+            return None
+        match = re.search(r"setid=([a-f0-9-]{36})", spl_link, re.IGNORECASE)
+        return match.group(1) if match else None
+
+    def safe_get(d: Dict[str, Any], *keys: str) -> Any:
+        for key in keys:
+            val = d.get(key)
+            if val is not None:
+                return lob_to_string_limited(val) if hasattr(val, "read") else val
+        return None
+
+    for result in oracle_results:
+        result_dict = {str(k).upper(): v for k, v in (result or {}).items()}
+
+        set_id = safe_get(result_dict, "SET_ID", "SETID", "SPL_GUID", "SPLGUID")
+        if not set_id:
+            set_id = extract_setid_from_link(result_dict.get("SPL_LINK"))
+
+        if not set_id or set_id in visited:
+            continue
+
+        has_section_code = result_dict.get("LOINC_CODE") or result_dict.get("SECTION_CODE")
+        if has_section_code:
+            section_title = safe_get(result_dict, "SECTION_TITLE", "TITLE")
+            section_content = f"Detailed Evidence in {section_title} - TBD" if section_title else "Detailed Evidence - TBD"
+        else:
+            section_content = "Detailed Evidence - TBD"
+
+        filtered_results[set_id] = {
+            "set_id": set_id,
+            "keywords": re.sub(r";\s*", "%7c", keywords) if keywords else "",
+            "section_code": safe_get(result_dict, "LOINC_CODE", "SECTION_CODE", "SEC_CODE") or "",
+            "similarity_score": 0,
+            "section_content": section_content,
+            "PRODUCT_NAMES": safe_get(result_dict, "PRODUCT_NAMES", "PRODUCTNAMES", "PRODUCT_TITLE", "DRUG NAME (BRAND - GENERIC)"),
+            "GENERIC_NAMES": safe_get(result_dict, "PRODUCT_NORMD_GENERIC_NAMES", "GENERIC_NAMES", "PRODUCT_GENERIC_NAMES"),
+            "COMPANY": safe_get(result_dict, "AUTHOR_ORG_NORMD_NAME", "COMPANY", "MANUFACTURER", "AUTHOR_ORG"),
+            "APPR_NUM": safe_get(result_dict, "APPR_NUM", "APPROVAL_NUM", "APPLICATION_NUM"),
+            "ACT_INGR_NAMES": safe_get(result_dict, "ACT_INGR_NAMES", "ACTIVE_INGREDIENTS", "INGREDIENTS"),
+            "MARKET_CATEGORIES": safe_get(result_dict, "MARKET_CATEGORIES", "MARKETING_CATEGORIES", "APPLICATION_TYPE"),
+            "DOCUMENT_TYPE": safe_get(result_dict, "DOCUMENT_TYPE", "DOC_TYPE", "LABEL_TYPE"),
+            "Routes": safe_get(result_dict, "ROUTES_OF_ADMINISTRATION", "ROUTES", "ROUTE"),
+            "DOSAGE_FORMS": safe_get(result_dict, "DOSAGE_FORMS", "DOSAGEFORMS", "FORMULATION"),
+            "EPC": safe_get(result_dict, "EPC", "PHARMACOLOGIC_CLASS", "PHARM_CLASS"),
+            "NDC_CODES": safe_get(result_dict, "NDC_CODES", "NDC", "PRODUCT_NDC"),
+            "SPL_ID": safe_get(result_dict, "SPL_ID", "SPLID"),
+            "REVISED_DATE": safe_get(result_dict, "REVISED_DATE", "REVISION_DATE"),
+            "INITIAL_APPROVAL_YEAR": safe_get(result_dict, "INITIAL_APPROVAL_YEAR", "APPROVAL_YEAR"),
+            "SPL_LINK": result_dict.get("SPL_LINK"),
+            "SECTION_TITLE": safe_get(result_dict, "SECTION_TITLE", "TITLE"),
+        }
+
+        visited.add(set_id)
+
+    return filtered_results
+
+BIND_NAME_RE = re.compile(r":([A-Za-z_][A-Za-z0-9_]*)")
+
+def prune_unused_binds(sql: str, binds: Dict[str, Any]) -> Dict[str, Any]:
+    placeholders = set(BIND_NAME_RE.findall(sql))
+    return {k: v for k, v in binds.items() if k in placeholders}
+
+# -----------------------------
+# Heuristic Parsing
+# -----------------------------
+UUID_RE = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE)
+SPL_ID_RE = re.compile(r"\bSPL[\s_-]*ID\b[:\s]*([0-9]{1,10})\b", re.IGNORECASE)
+NDC_RE = re.compile(r"\bNDC\b[:\s]*([0-9]{4,5}-[0-9]{3,4})\b", re.IGNORECASE)
+LOINC_RE = re.compile(r"\bLOINC\b[:\s]*([0-9]{4,5}-[0-9])\b", re.IGNORECASE)
+
+COUNT_HINT_RE = re.compile(r"\b(how many|count|number of|total)\b", re.IGNORECASE)
+COMPARE_HINT_RE = re.compile(r"\b(compare|difference|vs\.?|versus)\b", re.IGNORECASE)
+LIST_SECTIONS_RE = re.compile(r"\b(list|show|what are)\b.*\b(sections|section codes|loinc)\b", re.IGNORECASE)
+
+COMMON_SECTION_ALIASES = {
+    "boxed warning": "34066-1",
+    "warnings and precautions": "43685-7",
+    "warnings": "34071-1",
+    "adverse reactions": "34084-4",
+    "contraindications": "34070-3",
+    "indications": "34067-9",
+    "dosage and administration": "34068-7",
+}
+
+def extract_first_uuid(text: str) -> Optional[str]:
+    m = UUID_RE.search(text or "")
+    return m.group(0) if m else None
+
+def extract_spl_id(text: str) -> Optional[int]:
+    m = SPL_ID_RE.search(text or "")
+    return int(m.group(1)) if m else None
+
+def extract_ndc(text: str) -> Optional[str]:
+    m = NDC_RE.search(text or "")
+    return m.group(1) if m else None
+
+def extract_loinc(text: str) -> Optional[str]:
+    m = LOINC_RE.search(text or "")
+    return m.group(1) if m else None
+
+def infer_section_loinc_codes(user_query: str) -> List[str]:
+    q = (user_query or "").lower()
+    hits = []
+    for k, loinc in COMMON_SECTION_ALIASES.items():
+        if k in q:
+            hits.append(loinc)
+    loinc_explicit = extract_loinc(user_query)
+    if loinc_explicit:
+        hits.append(loinc_explicit)
+    # de-dupe preserve order
+    seen = set()
+    out = []
+    for x in hits:
+        if x and x not in seen:
+            seen.add(x)
+            out.append(x)
+    return out
+
+def is_count_query(user_query: str) -> bool:
+    return bool(COUNT_HINT_RE.search(user_query or ""))
+
+def is_compare_query(user_query: str) -> bool:
+    return bool(COMPARE_HINT_RE.search(user_query or ""))
+
+def is_list_sections_query(user_query: str) -> bool:
+    return bool(LIST_SECTIONS_RE.search(user_query or ""))
+
+# -----------------------------
+# Content-needed heuristics (NEW)
+# -----------------------------
+
+def _merge_unique(existing: Optional[List[str]], new: List[str]) -> List[str]:
+    existing = existing or []
+    seen = set()
+    out = []
+    for x in existing + (new or []):
+        if x and x not in seen:
+            seen.add(x)
+            out.append(x)
+    return out
+
+# High-confidence mapping to SPL section LOINC codes (from SECTION_TYPE table / section_type.xlsx)
+TOPIC_TO_LOINC = {
+    # warnings
+    "boxed_warning": ["34066-1"],                       # BOXED WARNING SECTION
+    "warnings_precautions": ["43685-7", "34071-1"],     # WARNINGS AND PRECAUTIONS / WARNINGS
+
+    # safety / efficacy
+    "adverse_reactions": ["34084-4"],                   # ADVERSE REACTIONS SECTION
+    "contraindications": ["34070-3"],                   # CONTRAINDICATIONS SECTION
+    "indications": ["34067-9"],                         # INDICATIONS & USAGE SECTION
+    "drug_interactions": ["34073-7", "34074-5"],        # DRUG INTERACTIONS / DRUG & LAB TEST INTERACTIONS
+
+    # dosing
+    "dosage_admin": ["34068-7"],                        # DOSAGE & ADMINISTRATION SECTION
+    "dosage_forms_strengths": ["43678-2"],              # DOSAGE FORMS & STRENGTHS SECTION
+
+    # special pops
+    "pregnancy": ["42228-7"],                           # PREGNANCY SECTION
+    "lactation": ["77290-5"],                           # LACTATION SECTION
+    "use_in_specific_pops": ["43684-0"],                # USE IN SPECIFIC POPULATIONS SECTION
+    "pediatric": ["34081-0"],                           # PEDIATRIC USE SECTION
+    "geriatric": ["34082-8"],                           # GERIATRIC USE SECTION
+}
+
+# Regex triggers to decide if question requires label text evidence
+CONTENT_REQUIRED_PATTERNS: List[Tuple[re.Pattern, List[str]]] = [
+    # AE
+    (re.compile(r"\b(adverse (events?|reactions?)|side effects?|aEs?)\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["adverse_reactions"]),
+    # indications
+    (re.compile(r"\b(indications?\b|indications?\s*(and|&)\s*(usage|use))\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["indications"]),
+    # interactions
+    (re.compile(r"\b(drug[-\s]*drug\s+interactions?|drug\s+interactions?|interactions?)\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["drug_interactions"]),
+    # contraindications
+    (re.compile(r"\b(contraindications?)\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["contraindications"]),
+    # boxed warning
+    (re.compile(r"\b(boxed warning|black box( warning)?|box warning)\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["boxed_warning"]),
+    # warnings/precautions
+    (re.compile(r"\b(warnings?\s*(and|&)\s*precautions?|warnings?|precautions?)\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["warnings_precautions"]),
+    # dosing instructions (NOT dosage forms)
+    (re.compile(r"\b(dosage\b|dose\b|dosing\b|administration\b|how to take)\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["dosage_admin"]),
+    # strength specifically (not present in your metadata)
+    (re.compile(r"\b(strength(s)?|mg\b|mcg\b|g\b|units?\b)\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["dosage_forms_strengths"]),
+    # pregnancy/lactation
+    (re.compile(r"\b(pregnan(cy|t)|teratogenic|fetal)\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["pregnancy"]),
+    (re.compile(r"\b(lactation|breast[\s-]*feeding)\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["lactation"]),
+    # populations
+    (re.compile(r"\b(use in specific populations)\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["use_in_specific_pops"]),
+    (re.compile(r"\b(pediatric|paediatric|children)\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["pediatric"]),
+    (re.compile(r"\b(geriatric|elderly)\b", re.IGNORECASE),
+     TOPIC_TO_LOINC["geriatric"]),
+]
+
+# Patterns that usually can be answered from metadata-only fields
+METADATA_ONLY_PATTERNS = re.compile(
+    r"\b("
+    r"manufacturer|company|who makes|marketed by|labeler|author|"
+    r"set id|spl id|ndc|appr(_|\s)?num|nda|anda|bla|"
+    r"document type|label type|marketing categor(y|ies)|"
+    r"route(s)? of administration|route\b|dosage form(s)?\b|"
+    r"epc|pharmacologic class|revised date|revision date|initial approval year"
+    r")\b",
+    re.IGNORECASE
+)
+
+def detect_content_need(user_query: str) -> Tuple[bool, List[str], str]:
+    """
+    Returns:
+      (needs_label_text, inferred_loinc_codes, reason)
+    """
+    q = user_query or ""
+    inferred: List[str] = []
+    reasons = []
+
+    for pat, loincs in CONTENT_REQUIRED_PATTERNS:
+        if pat.search(q):
+            inferred = _merge_unique(inferred, loincs)
+            reasons.append(pat.pattern)
+
+    if inferred:
+        return True, inferred, "Matched content-required topic(s)."
+
+    return False, [], "No strong content-required topic detected."
+
+def is_metadata_only_question(user_query: str) -> bool:
+    # If it looks like a pure metadata query, we can avoid evidence fetch.
+    return bool(METADATA_ONLY_PATTERNS.search(user_query or ""))
+
+INGREDIENT_INTENT_RE = re.compile(
+    r"\b(active ingredient|ingredients?|contains|contained|substance|api\b)\b",
+    re.IGNORECASE
+)
+
+def user_explicitly_wants_ingredient_search(user_query: str) -> bool:
+    return bool(INGREDIENT_INTENT_RE.search(user_query or ""))
+
+# -----------------------------
+# Configuration
+# -----------------------------
+openai_api_key = os.getenv("LLM_KEY", "")
+openai_api_base = os.getenv("LLM_URL", "")
+llm_model_name = os.getenv("LLM_MODEL", "gpt-4")
+
+client = OpenAI(api_key=openai_api_key, base_url=openai_api_base)
+
+FDALabel_SERV = os.getenv("FDALabel_SERV")
+FDALabel_PORT = os.getenv("FDALabel_PORT")
+FDALabel_APP = os.getenv("FDALabel_APP")
+FDALabel_USER = os.getenv("FDALabel_USER")
+FDALabel_PSW = os.getenv("FDALabel_PSW")
+
+dsnStr = oracledb.makedsn(FDALabel_SERV, FDALabel_PORT, FDALabel_APP)
+
+def get_db_connection() -> oracledb.Connection:
+    return oracledb.connect(user=FDALabel_USER, password=FDALabel_PSW, dsn=dsnStr)
+
+DB_SCHEMA = os.getenv("FDALABEL_SCHEMA", "DRUGLABEL")
+
+T_DGV_SUM_SPL = f"{DB_SCHEMA}.DGV_SUM_SPL"
+T_SPL_SEC = f"{DB_SCHEMA}.SPL_SEC"
+T_SECTION_TYPE = f"{DB_SCHEMA}.SECTION_TYPE"
+T_DOCUMENT_TYPE = f"{DB_SCHEMA}.DOCUMENT_TYPE"
+T_DGV_SUM_SPL_ACT_INGR = f"{DB_SCHEMA}.DGV_SUM_SPL_ACT_INGR_NAME"
+T_DGV_SUM_SPL_EPC = f"{DB_SCHEMA}.DGV_SUM_SPL_EPC"
+T_SPL_SEC_MEDDRA_LLT_OCC = f"{DB_SCHEMA}.SPL_SEC_MEDDRA_LLT_OCC"
+
+# -----------------------------
+# SQL Templates
+# -----------------------------
+SQL_TEMPLATES = {
+    # 1) Generic metadata search (name/generic search + filters)
+    "metadata_search": f"""
+        SELECT * FROM (
+            SELECT DISTINCT 
+                r.SPL_ID, r.SET_ID, r.PRODUCT_NAMES, r.PRODUCT_NORMD_GENERIC_NAMES,
+                r.AUTHOR_ORG_NORMD_NAME, r.APPR_NUM, r.ACT_INGR_NAMES, r.MARKET_CATEGORIES,
+                r.DOCUMENT_TYPE, r.ROUTES_OF_ADMINISTRATION, r.DOSAGE_FORMS, r.EPC,
+                r.NDC_CODES, r.REVISED_DATE, r.INITIAL_APPROVAL_YEAR
+            FROM {T_DGV_SUM_SPL} r
+            WHERE 1=1
+              {{name_clause}}
+              {{filters}}
+            ORDER BY r.REVISED_DATE DESC NULLS LAST
+        ) WHERE ROWNUM <= :limit
+    """,
+
+    # 2) Content search across SPL_SEC (optionally section-limited)
+    "content_search": f"""
+        SELECT * FROM (
+            SELECT DISTINCT 
+                r.SPL_ID, r.SET_ID, r.PRODUCT_NAMES, r.PRODUCT_NORMD_GENERIC_NAMES,
+                r.AUTHOR_ORG_NORMD_NAME, r.APPR_NUM, r.ACT_INGR_NAMES, r.MARKET_CATEGORIES,
+                r.DOCUMENT_TYPE, r.ROUTES_OF_ADMINISTRATION, r.DOSAGE_FORMS, r.EPC,
+                r.NDC_CODES, r.REVISED_DATE,
+                s.LOINC_CODE, s.TITLE AS SECTION_TITLE,
+                SCORE(1) AS TEXT_SCORE
+            FROM {T_DGV_SUM_SPL} r
+            JOIN {T_SPL_SEC} s ON r.SPL_ID = s.SPL_ID
+            WHERE 1=1
+              {{name_clause}}
+              {{filters}}
+              AND CONTAINS(s.CONTENT_XML, :content_query, 1) > 0
+              {{section_clause}}
+            ORDER BY TEXT_SCORE DESC, r.REVISED_DATE DESC NULLS LAST
+        ) WHERE ROWNUM <= :limit
+    """,
+
+    # 3) Lookup by Set ID
+    "search_by_set_id": f"""
+        SELECT DISTINCT 
+            r.SPL_ID, r.SET_ID, r.PRODUCT_NAMES, r.PRODUCT_NORMD_GENERIC_NAMES,
+            r.AUTHOR_ORG_NORMD_NAME, r.APPR_NUM, r.ACT_INGR_NAMES, r.MARKET_CATEGORIES,
+            r.DOCUMENT_TYPE, r.ROUTES_OF_ADMINISTRATION, r.DOSAGE_FORMS, r.EPC,
+            r.NDC_CODES, r.REVISED_DATE, r.INITIAL_APPROVAL_YEAR
+        FROM {T_DGV_SUM_SPL} r
+        WHERE r.SET_ID = :set_id
+    """,
+
+    # 4) Lookup by SPL_ID
+    "search_by_spl_id": f"""
+        SELECT DISTINCT 
+            r.SPL_ID, r.SET_ID, r.PRODUCT_NAMES, r.PRODUCT_NORMD_GENERIC_NAMES,
+            r.AUTHOR_ORG_NORMD_NAME, r.APPR_NUM, r.ACT_INGR_NAMES, r.MARKET_CATEGORIES,
+            r.DOCUMENT_TYPE, r.ROUTES_OF_ADMINISTRATION, r.DOSAGE_FORMS, r.EPC,
+            r.NDC_CODES, r.REVISED_DATE, r.INITIAL_APPROVAL_YEAR
+        FROM {T_DGV_SUM_SPL} r
+        WHERE r.SPL_ID = :spl_id
+    """,
+
+    # 5) Lookup by NDC (substring match; good enough given "; " separated values)
+    "search_by_ndc": f"""
+        SELECT * FROM (
+            SELECT DISTINCT 
+                r.SPL_ID, r.SET_ID, r.PRODUCT_NAMES, r.PRODUCT_NORMD_GENERIC_NAMES,
+                r.AUTHOR_ORG_NORMD_NAME, r.APPR_NUM, r.ACT_INGR_NAMES, r.MARKET_CATEGORIES,
+                r.DOCUMENT_TYPE, r.ROUTES_OF_ADMINISTRATION, r.DOSAGE_FORMS, r.EPC,
+                r.NDC_CODES, r.REVISED_DATE, r.INITIAL_APPROVAL_YEAR
+            FROM {T_DGV_SUM_SPL} r
+            WHERE 1=1
+              AND INSTR(UPPER(r.NDC_CODES), UPPER(:ndc)) > 0
+              {{filters}}
+            ORDER BY r.REVISED_DATE DESC NULLS LAST
+        ) WHERE ROWNUM <= :limit
+    """,
+
+    # 6) Search by active ingredient name (normalized table)
+    "search_by_active_ingredient": f"""
+        SELECT * FROM (
+            SELECT DISTINCT 
+                r.SPL_ID, r.SET_ID, r.PRODUCT_NAMES, r.PRODUCT_NORMD_GENERIC_NAMES,
+                r.AUTHOR_ORG_NORMD_NAME, r.APPR_NUM, r.ACT_INGR_NAMES, r.MARKET_CATEGORIES,
+                r.DOCUMENT_TYPE, r.ROUTES_OF_ADMINISTRATION, r.DOSAGE_FORMS, r.EPC,
+                r.NDC_CODES, r.REVISED_DATE, r.INITIAL_APPROVAL_YEAR
+            FROM {T_DGV_SUM_SPL} r
+            JOIN {T_DGV_SUM_SPL_ACT_INGR} ai ON r.SPL_ID = ai.SPL_ID
+            WHERE 1=1
+              AND UPPER(ai.SUBSTANCE_NAME) LIKE UPPER(:substance)
+              {{filters}}
+            ORDER BY r.REVISED_DATE DESC NULLS LAST
+        ) WHERE ROWNUM <= :limit
+    """,
+
+    # 7) Search by EPC (normalized table)
+    "search_by_epc": f"""
+        SELECT * FROM (
+            SELECT DISTINCT 
+                r.SPL_ID, r.SET_ID, r.PRODUCT_NAMES, r.PRODUCT_NORMD_GENERIC_NAMES,
+                r.AUTHOR_ORG_NORMD_NAME, r.APPR_NUM, r.ACT_INGR_NAMES, r.MARKET_CATEGORIES,
+                r.DOCUMENT_TYPE, r.ROUTES_OF_ADMINISTRATION, r.DOSAGE_FORMS, r.EPC,
+                r.NDC_CODES, r.REVISED_DATE, r.INITIAL_APPROVAL_YEAR
+            FROM {T_DGV_SUM_SPL} r
+            JOIN {T_DGV_SUM_SPL_EPC} e ON r.SPL_ID = e.SPL_ID
+            WHERE 1=1
+              AND UPPER(e.EPC) LIKE UPPER(:epc)
+              {{filters}}
+            ORDER BY r.REVISED_DATE DESC NULLS LAST
+        ) WHERE ROWNUM <= :limit
+    """,
+
+    # 8) List sections for a Set ID (for UI + follow-ups)
+    "list_sections_for_set_id": f"""
+        SELECT DISTINCT
+            s.LOINC_CODE, s.TITLE, s.GUID, s.PARENT_SEC_GUID
+        FROM {T_SPL_SEC} s
+        JOIN {T_DGV_SUM_SPL} r ON r.SPL_ID = s.SPL_ID
+        WHERE r.SET_ID = :set_id
+        ORDER BY s.LOINC_CODE
+    """,
+
+    # 9) Aggregate overview (counts)
+    "aggregate_overview": f"""
+        SELECT
+            COUNT(DISTINCT r.SET_ID) AS LABEL_COUNT,
+            COUNT(DISTINCT r.PRODUCT_NORMD_GENERIC_NAMES) AS GENERIC_STR_COUNT,
+            COUNT(DISTINCT r.PRODUCT_NAMES) AS PRODUCT_STR_COUNT,
+            COUNT(DISTINCT r.AUTHOR_ORG_NORMD_NAME) AS COMPANY_COUNT
+        FROM {T_DGV_SUM_SPL} r
+        JOIN {T_SPL_SEC} s ON r.SPL_ID = s.SPL_ID
+        WHERE 1=1
+          {{name_clause}}
+          {{filters}}
+          AND CONTAINS(s.CONTENT_XML, :content_query, 1) > 0
+          {{section_clause}}
+    """,
+
+    # 10) Aggregate top generics
+    "aggregate_top_generics": f"""
+        SELECT * FROM (
+            SELECT
+                r.PRODUCT_NORMD_GENERIC_NAMES AS GENERIC_NAME,
+                COUNT(DISTINCT r.SET_ID) AS LABEL_COUNT
+            FROM {T_DGV_SUM_SPL} r
+            JOIN {T_SPL_SEC} s ON r.SPL_ID = s.SPL_ID
+            WHERE 1=1
+              {{name_clause}}
+              {{filters}}
+              AND CONTAINS(s.CONTENT_XML, :content_query, 1) > 0
+              {{section_clause}}
+            GROUP BY r.PRODUCT_NORMD_GENERIC_NAMES
+            ORDER BY LABEL_COUNT DESC
+        ) WHERE ROWNUM <= :limit
+    """,
+
+    # 11) Aggregate top companies
+    "aggregate_top_companies": f"""
+        SELECT * FROM (
+            SELECT
+                r.AUTHOR_ORG_NORMD_NAME AS COMPANY,
+                COUNT(DISTINCT r.SET_ID) AS LABEL_COUNT
+            FROM {T_DGV_SUM_SPL} r
+            JOIN {T_SPL_SEC} s ON r.SPL_ID = s.SPL_ID
+            WHERE 1=1
+              {{name_clause}}
+              {{filters}}
+              AND CONTAINS(s.CONTENT_XML, :content_query, 1) > 0
+              {{section_clause}}
+            GROUP BY r.AUTHOR_ORG_NORMD_NAME
+            ORDER BY LABEL_COUNT DESC
+        ) WHERE ROWNUM <= :limit
+    """,
+
+    # 12) Content+ingredient template
+    "content_search_by_active_ingredient": f"""
+    SELECT * FROM (
+        SELECT DISTINCT
+            r.SPL_ID, r.SET_ID, r.PRODUCT_NAMES, r.PRODUCT_NORMD_GENERIC_NAMES,
+            r.AUTHOR_ORG_NORMD_NAME, r.APPR_NUM, r.ACT_INGR_NAMES, r.MARKET_CATEGORIES,
+            r.DOCUMENT_TYPE, r.ROUTES_OF_ADMINISTRATION, r.DOSAGE_FORMS, r.EPC,
+            r.NDC_CODES, r.REVISED_DATE,
+            s.LOINC_CODE, s.TITLE AS SECTION_TITLE,
+            SCORE(1) AS TEXT_SCORE
+        FROM {T_DGV_SUM_SPL} r
+        JOIN {T_DGV_SUM_SPL_ACT_INGR} ai ON r.SPL_ID = ai.SPL_ID
+        JOIN {T_SPL_SEC} s ON r.SPL_ID = s.SPL_ID
+        WHERE 1=1
+          AND UPPER(ai.SUBSTANCE_NAME) LIKE UPPER(:substance)
+          AND CONTAINS(s.CONTENT_XML, :content_query, 1) > 0
+          {{filters}}
+          {{section_clause}}
+        ORDER BY TEXT_SCORE DESC, r.REVISED_DATE DESC NULLS LAST
+    ) WHERE ROWNUM <= :limit
+""",
+
+}
+
+
+# -----------------------------
+# SQL clause builders (NEW)
+# -----------------------------
+def escape_like(term: str) -> str:
+    # Escape %, _ and \ for LIKE ... ESCAPE '\'
+    return (term or "").replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+def build_or_like_clause(column: str, values: List[str], bind_prefix: str, binds: Dict[str, Any]) -> str:
+    """
+    Builds something like:
+    (UPPER(col) LIKE UPPER(:p0) ESCAPE '\\' OR UPPER(col) LIKE UPPER(:p1) ESCAPE '\\')
+    """
+    parts = []
+    for i, v in enumerate(values or []):
+        key = f"{bind_prefix}{i}"
+        binds[key] = f"%{escape_like(v)}%"
+        parts.append(f"UPPER({column}) LIKE UPPER(:{key}) ESCAPE '\\\\'")
+    if not parts:
+        return ""
+    return "(" + " OR ".join(parts) + ")"
+
+def build_contains_section_clause(section_loinc_codes: List[str], binds: Dict[str, Any]) -> str:
+    if not section_loinc_codes:
+        return ""
+    placeholders = []
+    for i, code in enumerate(section_loinc_codes):
+        k = f"sec_loinc_{i}"
+        binds[k] = code
+        placeholders.append(f":{k}")
+    return f" AND s.LOINC_CODE IN ({', '.join(placeholders)})"
+
+def build_filters_clause(filters: Dict[str, Any], binds: Dict[str, Any]) -> str:
+    """
+    Supported filters based on DGV_SUM_SPL schema:
+    - company (AUTHOR_ORG_NORMD_NAME)
+    - market_categories (MARKET_CATEGORIES)
+    - document_types (DOCUMENT_TYPE)
+    - routes (ROUTES_OF_ADMINISTRATION)
+    - dosage_forms (DOSAGE_FORMS)
+    - epc_terms (EPC)
+    - initial_approval_year_min/max (INITIAL_APPROVAL_YEAR)
+    - revised_date_min/max (REVISED_DATE)
+    """
+    if not filters:
+        return ""
+
+    clauses = []
+
+    company = filters.get("company")
+    if company:
+        binds["f_company"] = f"%{escape_like(company)}%"
+        clauses.append(" AND UPPER(r.AUTHOR_ORG_NORMD_NAME) LIKE UPPER(:f_company) ESCAPE '\\\\'")
+
+    mcats = filters.get("market_categories") or []
+    if mcats:
+        c = build_or_like_clause("r.MARKET_CATEGORIES", mcats, "f_mcat_", binds)
+        if c:
+            clauses.append(" AND " + c)
+
+    doctypes = filters.get("document_types") or []
+    if doctypes:
+        c = build_or_like_clause("r.DOCUMENT_TYPE", doctypes, "f_doctype_", binds)
+        if c:
+            clauses.append(" AND " + c)
+
+    routes = filters.get("routes") or []
+    if routes:
+        c = build_or_like_clause("r.ROUTES_OF_ADMINISTRATION", routes, "f_route_", binds)
+        if c:
+            clauses.append(" AND " + c)
+
+    forms = filters.get("dosage_forms") or []
+    if forms:
+        c = build_or_like_clause("r.DOSAGE_FORMS", forms, "f_form_", binds)
+        if c:
+            clauses.append(" AND " + c)
+
+    epc_terms = filters.get("epc_terms") or []
+    if epc_terms:
+        c = build_or_like_clause("r.EPC", epc_terms, "f_epc_", binds)
+        if c:
+            clauses.append(" AND " + c)
+
+    y_min = filters.get("initial_approval_year_min")
+    y_max = filters.get("initial_approval_year_max")
+    if y_min is not None:
+        binds["f_ymin"] = int(y_min)
+        clauses.append(" AND r.INITIAL_APPROVAL_YEAR >= :f_ymin")
+    if y_max is not None:
+        binds["f_ymax"] = int(y_max)
+        clauses.append(" AND r.INITIAL_APPROVAL_YEAR <= :f_ymax")
+
+    # Date filtering: expect YYYY-MM-DD strings
+    rd_min = filters.get("revised_date_min")
+    rd_max = filters.get("revised_date_max")
+    if rd_min:
+        binds["f_rdmin"] = rd_min
+        clauses.append(" AND r.REVISED_DATE >= TO_DATE(:f_rdmin, 'YYYY-MM-DD')")
+    if rd_max:
+        binds["f_rdmax"] = rd_max
+        clauses.append(" AND r.REVISED_DATE <= TO_DATE(:f_rdmax, 'YYYY-MM-DD')")
+
+    return "".join(clauses)
+
+# -----------------------------
+# State Management
+# -----------------------------
+class AgentState:
+    def __init__(self, payload: Dict[str, Any]):
+        self.meta = {
+            "session_id": str(uuid.uuid4()),
+            "created_at": datetime.datetime.now().isoformat()
+        }
+        self.conversation = {
+            "user_query": payload.get("query", ""),
+            "history": payload.get("chat_history", []) or []
+        }
+        self.intent = {}
+        self.retrieval = {
+            "plan": {},
+            "results": [],
+            "generated_sql": "" 
+        }
+        self.evidence = {
+            "snippets": []
+        }
+        self.answer = {
+            "response_text": "",
+            "is_final": False
+        }
+        self.reasoning = ""
+        self.agent_flow = []
+        self.trace_log = []
+        self.flags = {
+            "next_step": "planner", # Initial step
+            "terminate": False
+        }
+
+    def to_dict(self):
+        return self.__dict__
+
+# -----------------------------
+# Agents & Tools
+# -----------------------------
+def apply_plan_overrides(state: AgentState):
+    q = state.conversation.get("user_query", "") or ""
+
+    # Ensure structures exist
+    state.intent = state.intent or {}
+    state.intent.setdefault("slots", {})
+    slots = state.intent["slots"]
+
+    state.retrieval = state.retrieval or {}
+    state.retrieval.setdefault("plan", {})
+    plan = state.retrieval["plan"]
+
+    # Extract identifiers
+    set_id = extract_first_uuid(q)
+    spl_id = extract_spl_id(q)
+    ndc = extract_ndc(q)
+
+    # Common section inference (optional)
+    section_codes = infer_section_loinc_codes(q)
+
+    wants_list_sections = is_list_sections_query(q)
+
+    # -----------------------------
+    # 1) Identifier overrides (highest priority)
+    # -----------------------------
+    if set_id:
+        slots["set_id"] = set_id
+        plan.setdefault("filters", {})
+
+        if wants_list_sections:
+            state.intent["type"] = "list_sections"
+            plan["plan_type"] = "metadata_only"
+            plan["sql_template_hint"] = "list_sections_for_set_id"
+        else:
+            state.intent["type"] = "search"
+            plan["plan_type"] = "metadata_only"
+            plan["sql_template_hint"] = "search_by_set_id"
+
+        return
+
+    if spl_id:
+        slots["spl_id"] = spl_id
+        plan.setdefault("filters", {})
+        state.intent["type"] = "search"
+        plan["plan_type"] = "metadata_only"
+        plan["sql_template_hint"] = "search_by_spl_id"
+        return
+
+    if ndc:
+        slots["ndc"] = ndc
+        plan.setdefault("filters", {})
+        state.intent["type"] = "search"
+        plan["plan_type"] = "metadata_only"
+        plan["sql_template_hint"] = "search_by_ndc"
+        return
+
+    # -----------------------------
+    # 2) Aggregate/count override (force)
+    # -----------------------------
+    if is_count_query(q):
+        state.intent["type"] = "aggregate"
+        plan["plan_type"] = "aggregate"
+        plan["sql_template_hint"] = "aggregate_overview"
+        plan.setdefault("filters", {})
+
+        # If the user specified a section (e.g., boxed warning), capture it
+        if section_codes:
+            plan["section_loinc_codes"] = section_codes
+
+        # NOTE: no return here if you want compare to override aggregate in rare cases
+        # If you prefer count > compare, add `return` here.
+
+    # -----------------------------
+    # 3) Compare override
+    # -----------------------------
+    if is_compare_query(q):
+        state.intent["type"] = "compare"
+        plan["plan_type"] = "compare"
+        plan["sql_template_hint"] = "compare_flow"
+        # Compare often needs evidence; leave to planner/postprocess
+
+    # -----------------------------
+    # 4) Ingredient template safety:
+    # Do NOT use ingredient templates unless user explicitly requested it.
+    # And do NOT rewrite aggregate/compare/list_sections plans.
+    # -----------------------------
+    template = plan.get("sql_template_hint")
+    intent_type = state.intent.get("type")
+    plan_type = plan.get("plan_type")
+
+    if (
+        template in ("search_by_active_ingredient", "search_by_epc")
+        and not user_explicitly_wants_ingredient_search(q)
+        and intent_type not in ("aggregate", "compare", "list_sections")
+        and plan_type not in ("aggregate", "compare")
+    ):
+        # Prefer name-based search first
+        if plan.get("content_query") or plan.get("content_term"):
+            plan["sql_template_hint"] = "content_search"
+            plan["plan_type"] = "content_search"
+        else:
+            plan["sql_template_hint"] = "metadata_search"
+            plan["plan_type"] = "metadata_only"
+
+        state.trace_log.append(
+            "Planner Overrides: Switched ingredient-based template to name-based template (default behavior)."
+        )
+
+    state.retrieval["plan"] = plan
+
+
+def run_planner(state: AgentState):
+    """
+    Analyzes user query and decides on the search strategy.
+    Uses LLM planning + deterministic overrides (apply_plan_overrides)
+    so obvious cases (SET_ID, SPL_ID, NDC, count/compare hints, etc.) pick the best template.
+    """
+    logger.info("--- Running Planner ---")
+
+    # Prepare prompt
+    history_text = json.dumps(state.conversation["history"][-3:]) if state.conversation["history"] else "None"
+    prompt = (
+        PLANNER_PROMPT
+        .replace("{user_query}", state.conversation["user_query"])
+        .replace("{history}", history_text)
+    )
+
+    messages = [{"role": "system", "content": prompt}]
+    success, response_text = safe_llm_call(client, messages, temperature=0.0)
+
+    if not success:
+        logger.error("Planner LLM call failed.")
+        state.flags["next_step"] = "error"
+        return
+
+    try:
+        # --- Extract JSON safely ---
+        clean_json = (response_text or "").strip()
+        if "```json" in clean_json:
+            m = re.search(r"```json\s*(.*?)\s*```", clean_json, re.DOTALL)
+            clean_json = m.group(1) if m else clean_json
+        elif "```" in clean_json:
+            m = re.search(r"```\s*(.*?)\s*```", clean_json, re.DOTALL)
+            clean_json = m.group(1) if m else clean_json
+
+        plan_data = json.loads(clean_json)
+
+        # --- Normalize fields (backward compatible) ---
+        # Expected (new): { "intent": {..., "slots": {...}}, "retrieval": {...} }
+        # Legacy (old prompt): { "intent": {...}, "slots": {...}, "retrieval": {...} }
+        intent = plan_data.get("intent") or {}
+        retrieval_plan = plan_data.get("retrieval") or {}
+
+        # Merge legacy top-level "slots" into intent["slots"] if present
+        legacy_slots = plan_data.get("slots")
+        if legacy_slots and isinstance(legacy_slots, dict):
+            intent_slots = intent.get("slots") or {}
+            if not isinstance(intent_slots, dict):
+                intent_slots = {}
+            # legacy fills only missing keys
+            for k, v in legacy_slots.items():
+                intent_slots.setdefault(k, v)
+            intent["slots"] = intent_slots
+
+        # Ensure presence of nested dicts
+        intent.setdefault("slots", {})
+        retrieval_plan.setdefault("filters", {})
+
+        state.intent = intent
+        state.retrieval["plan"] = retrieval_plan
+
+        # --- Log initial plan (pre-override) ---
+        pre_intent_type = state.intent.get("type")
+        pre_plan_type = state.retrieval["plan"].get("plan_type")
+        pre_template = state.retrieval["plan"].get("sql_template_hint")
+
+        state.trace_log.append(
+            f"Planner: LLM intent='{pre_intent_type}' plan_type='{pre_plan_type}' template_hint='{pre_template}'."
+        )
+
+        # --- Deterministic overrides (NEW) ---
+        # This should be defined elsewhere (see earlier helper section).
+        # It can override intent/plan when identifiers or count/compare patterns are obvious.
+        apply_plan_overrides(state)
+
+        # --- Log final plan (post-override) ---
+        post_intent_type = state.intent.get("type")
+        post_plan_type = state.retrieval["plan"].get("plan_type")
+        post_template = state.retrieval["plan"].get("sql_template_hint")
+
+        if (pre_intent_type, pre_plan_type, pre_template) != (post_intent_type, post_plan_type, post_template):
+            state.trace_log.append(
+                "Planner: Overrides applied -> "
+                f"intent='{post_intent_type}', plan_type='{post_plan_type}', template_hint='{post_template}'."
+            )
+        else:
+            state.trace_log.append("Planner: No overrides applied.")
+
+        # --- Decide next step based on (possibly overridden) intent ---
+        intent_type = state.intent.get("type", "search")
+
+        if intent_type == "chitchat":
+            state.flags["next_step"] = "answer_composer"
+        elif intent_type == "clarification":
+            state.flags["next_step"] = "answer_composer"
+        elif intent_type in ["search", "qa", "list_sections"]:
+            state.flags["next_step"] = "db_executor"
+        elif intent_type == "aggregate":
+            # If you implemented an aggregate executor, route to it; otherwise fall back to db_executor
+            state.flags["next_step"] = "aggregate_executor"
+            # state.flags["next_step"] = "db_executor"
+        elif intent_type == "compare":
+            # If you implemented a compare executor, route to it; otherwise fall back
+            # state.flags["next_step"] = "compare_executor"
+            state.flags["next_step"] = "db_executor"
+        else:
+            state.flags["next_step"] = "answer_composer"
+
+    except Exception as e:
+        logger.error(f"Error parsing planner response: {e}")
+        state.flags["next_step"] = "error"
+
+
+def run_db_executor(state: AgentState):
+    logger.info("--- Running DB Executor ---")
+
+    plan = state.retrieval.get("plan", {}) or {}
+    template_key = plan.get("sql_template_hint")
+
+    # Back-compat fields
+    search_terms = plan.get("search_terms") or []
+    if not search_terms and plan.get("search_term"):
+        search_terms = [plan.get("search_term")]
+
+    content_query = plan.get("content_query") or plan.get("content_term") or ""
+    section_loinc_codes = plan.get("section_loinc_codes") or infer_section_loinc_codes(state.conversation["user_query"])
+    filters = plan.get("filters") or {}
+
+    # Limit policy
+    limit = plan.get("limit", 100)
+    try:
+        limit = int(limit)
+    except Exception:
+        limit = 100
+    limit = max(1, min(limit, 200))  # hard safety cap
+
+    # If planner didn’t pick a valid template, choose based on presence of content_query
+    if template_key not in SQL_TEMPLATES:
+        if content_query:
+            template_key = "content_search"
+        else:
+            template_key = "metadata_search"
+
+    sql_template = SQL_TEMPLATES[template_key]
+
+    binds: Dict[str, Any] = {"limit": limit}
+
+    # name_clause across product_names + generic_names
+    name_clause = ""
+    if search_terms:
+        # Build OR blocks for each term
+        or_blocks = []
+        for i, term in enumerate(search_terms):
+            k = f"q{i}"
+            binds[k] = f"%{escape_like(term)}%"
+            or_blocks.append(
+                f"(UPPER(r.PRODUCT_NAMES) LIKE UPPER(:{k}) ESCAPE '\\' "
+                f" OR UPPER(r.PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:{k}) ESCAPE '\\')"
+            )
+        name_clause = " AND (" + " OR ".join(or_blocks) + ")"
+
+    # filters
+    filters_clause = build_filters_clause(filters, binds)
+
+    # section clause (only used by content/aggregate templates that have alias s)
+    section_clause = build_contains_section_clause(section_loinc_codes, binds)
+
+    # content query binding (only needed if template references it)
+    if ":content_query" in sql_template:
+        binds["content_query"] = content_query or ""  # must exist for CONTAINS
+
+    # identifier binds
+    if template_key == "search_by_set_id":
+        binds["set_id"] = state.intent.get("slots", {}).get("set_id", "")
+    if template_key == "search_by_spl_id":
+        binds["spl_id"] = state.intent.get("slots", {}).get("spl_id", "")
+    if template_key == "search_by_ndc":
+        binds["ndc"] = state.intent.get("slots", {}).get("ndc", "")
+
+    # active ingredient / EPC binds
+    if template_key in ("search_by_active_ingredient", "content_search_by_active_ingredient"):
+        term = plan.get("substance_name") or (search_terms[0] if search_terms else "")
+        binds["substance"] = f"%{term}%"
+    if template_key == "search_by_epc":
+        term = (plan.get("epc_term") or (search_terms[0] if search_terms else ""))
+        binds["epc"] = f"%{escape_like(term)}%"
+
+    formatted_sql = sql_template.format(
+        name_clause=name_clause,
+        filters=filters_clause,
+        section_clause=section_clause
+    )
+    binds = prune_unused_binds(formatted_sql, binds)
+
+    state.retrieval["generated_sql"] = formatted_sql
+
+    con = None
+    try:
+        con = get_db_connection()
+        cursor = con.cursor()
+        logger.debug(f"Executing SQL: {formatted_sql} with binds {binds}")
+
+        cursor.execute(formatted_sql, binds)
+        columns = [col[0] for col in cursor.description]
+        cursor.rowfactory = lambda *args: dict(zip(columns, args))
+
+        rows = cursor.fetchall()
+        state.retrieval["results"] = rows
+
+        logger.info(f"DB returned {len(rows)} rows.")
+        state.trace_log.append(f"DB Executor: Executed '{template_key}' and found {len(rows)} results.")
+        state.flags["next_step"] = "postprocess"
+
+    except Exception as e:
+        logger.error(f"DB execution error: {e}")
+        state.retrieval["error"] = str(e)
+        state.trace_log.append(f"DB Executor: Error executing SQL: {str(e)}")
+        state.flags["next_step"] = "postprocess"
+    finally:
+        if con:
+            con.close()
+
+def run_postprocess(state: AgentState):
+    """
+    Evaluates results and decides whether we need to fetch label section content.
+    Key rule: if the user asks about AE/indication/interactions/etc., we must fetch label text.
+    """
+    logger.info("--- Running Postprocess ---")
+    results = state.retrieval.get("results", [])
+    plan = state.retrieval.get("plan", {}) or {}
+    intent = state.intent or {}
+    intent_type = intent.get("type", "search")
+
+    if not results:
+        fb = state.retrieval.setdefault("fallback", {})
+        ingredient_tried = bool(fb.get("ingredient_tried"))
+
+        # Determine if we have a "drug-like" search term to fall back with
+        search_terms = plan.get("search_terms") or ([plan.get("search_term")] if plan.get("search_term") else [])
+        search_terms = [t for t in search_terms if t and isinstance(t, str)]
+
+        current_template = plan.get("sql_template_hint")
+        name_based_templates = {"metadata_search", "content_search"}
+
+        # Only fallback if:
+        # - we have a search term
+        # - we used a name-based template
+        # - user did NOT explicitly request ingredient search already
+        # - we haven't tried ingredient fallback yet
+        if (
+            search_terms
+            and current_template in name_based_templates
+            and not user_explicitly_wants_ingredient_search(user_q)
+            and not ingredient_tried
+        ):
+            fb["ingredient_tried"] = True
+
+            # Choose correct fallback template depending on whether this was content search
+            has_content_query = bool(plan.get("content_query") or plan.get("content_term"))
+            if has_content_query:
+                # Recommended: use a dedicated content+ingredient template (see section 4 below)
+                plan["sql_template_hint"] = "content_search_by_active_ingredient"
+                plan["plan_type"] = "content_search"
+            else:
+                plan["sql_template_hint"] = "search_by_active_ingredient"
+                plan["plan_type"] = "metadata_only"
+
+            # Make sure substance bind can be built from the first search term
+            plan.setdefault("substance_name", search_terms[0])
+
+            state.retrieval["plan"] = plan
+            state.trace_log.append(
+                "Postprocess: No results from brand/generic name search; retrying using active-ingredient fallback."
+            )
+            state.flags["next_step"] = "db_executor"
+            return
+
+        # No fallback possible/allowed
+        state.trace_log.append("Postprocess: No results and no fallback applied; going to answer composer.")
+        state.flags["next_step"] = "answer_composer"
+        return
+
+    plan_type = plan.get("plan_type") or "metadata_only"
+
+    # Aggregate never needs per-label evidence snippets (unless you explicitly want examples)
+    if plan_type == "aggregate" or intent_type == "aggregate":
+        state.trace_log.append("Postprocess: Aggregate plan; skipping evidence fetch.")
+        state.flags["next_step"] = "answer_composer"
+        return
+
+    # Start from planner's decision, but allow override for content-heavy questions
+    needs_evidence = plan.get("needs_evidence")
+
+    # Default behavior if planner didn't specify
+    if needs_evidence is None:
+        # Only auto-fetch if it's already a content/section plan OR it’s QA/compare
+        needs_evidence = (plan_type in ["content_search", "section_content"]) or (intent_type in ["qa", "compare"])
+
+    # Heuristic override: certain topics cannot be answered from metadata-only
+    user_q = state.conversation.get("user_query", "") or ""
+    content_needed, inferred_loincs, reason = detect_content_need(user_q)
+
+    # If it is clearly a metadata-only question (manufacturer, NDC, routes, etc.), do NOT override
+    # unless planner already marked needs_evidence true.
+    if content_needed and not is_metadata_only_question(user_q):
+        if not needs_evidence:
+            state.trace_log.append(
+                f"Postprocess: Overriding needs_evidence=True due to content-heavy question. Reason: {reason}"
+            )
+        needs_evidence = True
+
+        # Ensure we have section codes to fetch (so evidence_fetcher can target sections)
+        if inferred_loincs:
+            plan["section_loinc_codes"] = _merge_unique(plan.get("section_loinc_codes"), inferred_loincs)
+            # keep intent slots in sync (optional, but helps debugging)
+            intent.setdefault("slots", {})
+            intent["slots"]["section_loinc_codes"] = _merge_unique(intent["slots"].get("section_loinc_codes"), inferred_loincs)
+
+            state.trace_log.append(
+                f"Postprocess: Inferred section_loinc_codes={plan['section_loinc_codes']} for evidence fetch."
+            )
+
+        # If we started with metadata_only but now require text, treat as section_content retrieval
+        if plan_type == "metadata_only":
+            plan["plan_type"] = "section_content"
+            state.trace_log.append("Postprocess: Upgraded plan_type metadata_only -> section_content due to QA detail need.")
+
+        # Persist updated plan/intent back to state
+        state.retrieval["plan"] = plan
+        state.intent = intent
+
+    # Final decision
+    if not needs_evidence:
+        state.trace_log.append("Postprocess: Evidence fetch not needed; going to answer composer.")
+        state.flags["next_step"] = "answer_composer"
+        return
+
+    state.trace_log.append("Postprocess: Evidence fetch needed; going to evidence_fetcher.")
+    state.flags["next_step"] = "evidence_fetcher"
+
+
+def run_evidence_fetcher(state: AgentState):
+    """
+    Fetches actual text content for the top results.
+
+    Behavior:
+    - If results include LOINC_CODE (from content_search), fetch that section (unless plan.section_loinc_codes is provided).
+    - If results do NOT include LOINC_CODE (metadata-only queries), fetch sections specified by plan.section_loinc_codes.
+    - Fetches up to N labels * M sections each (bounded for performance).
+    """
+    logger.info("--- Running Evidence Fetcher ---")
+
+    results = state.retrieval.get("results", []) or []
+    plan = state.retrieval.get("plan", {}) or {}
+    intent_slots = (state.intent or {}).get("slots", {}) or {}
+
+    # Limits (safe defaults)
+    max_labels = int(plan.get("evidence_limit", 3) or 3)
+    max_sections_per_label = int(plan.get("max_sections_per_label", 3) or 3)
+    max_chars_per_section = int(plan.get("max_chars_per_section", 1500) or 1500)
+
+    top_results = results[:max_labels]
+    snippets = []
+
+    # Prefer section codes from the plan (set by planner/postprocess); fallback to intent slots
+    requested_loincs = plan.get("section_loinc_codes") or intent_slots.get("section_loinc_codes") or []
+    # De-dupe while preserving order
+    seen_loinc = set()
+    requested_loincs = [x for x in requested_loincs if x and not (x in seen_loinc or seen_loinc.add(x))]
+
+    # Resolve SPL_SEC table name (supports your T_SPL_SEC constant if you use it)
+    spl_sec_table = globals().get("T_SPL_SEC", "SPL_SEC")
+
+    con = None
+    try:
+        con = get_db_connection()
+        cursor = con.cursor()
+
+        # Cache whether CONTENT_XML needs XMLSERIALIZE (XMLType) or can be selected directly (CLOB)
+        # None = unknown; True = use XMLSERIALIZE; False = select raw CONTENT_XML
+        content_xml_is_xmltype = None
+
+        def fetch_section(cursor, spl_id: Any, loinc: str):
+            """
+            Returns (loinc_code, title, content_value) where content_value may be a LOB or str.
+            Tries XMLSERIALIZE first; falls back to raw selection if needed.
+            Uses cached mode once determined.
+            """
+            nonlocal content_xml_is_xmltype
+
+            # Query variants
+            q_xml = f"""
+                SELECT s.LOINC_CODE, s.TITLE,
+                       XMLSERIALIZE(CONTENT s.CONTENT_XML AS CLOB) AS CONTENT_CLOB
+                FROM {spl_sec_table} s
+                WHERE s.SPL_ID = :spl_id AND s.LOINC_CODE = :loinc
+            """
+            q_raw = f"""
+                SELECT s.LOINC_CODE, s.TITLE, s.CONTENT_XML
+                FROM {spl_sec_table} s
+                WHERE s.SPL_ID = :spl_id AND s.LOINC_CODE = :loinc
+            """
+
+            binds = {"spl_id": spl_id, "loinc": loinc}
+
+            # If unknown or XMLType, try XMLSERIALIZE
+            if content_xml_is_xmltype in (None, True):
+                try:
+                    cursor.execute(q_xml, binds)
+                    row = cursor.fetchone()
+                    # If this succeeded, lock mode to XMLType
+                    content_xml_is_xmltype = True
+                    return row if row else (loinc, None, None)
+                except Exception as e:
+                    # If unknown, fall back and lock mode to raw
+                    if content_xml_is_xmltype is None:
+                        content_xml_is_xmltype = False
+                    else:
+                        # If we already believed XMLType but it failed, re-raise
+                        raise
+
+            # Raw mode
+            cursor.execute(q_raw, binds)
+            row = cursor.fetchone()
+            return row if row else (loinc, None, None)
+
+        for res in top_results:
+            set_id = res.get("SET_ID")
+            spl_id = res.get("SPL_ID")
+            product = res.get("PRODUCT_NAMES")
+
+            # Row might have LOINC_CODE if the initial query was content_search
+            row_loinc = res.get("LOINC_CODE") or res.get("SECTION_CODE")
+
+            # Determine which sections to fetch:
+            # - If plan explicitly requests sections, use those (plan wins).
+            # - Else, if row has a loinc (content search result), fetch that one.
+            target_loincs = requested_loincs[:] if requested_loincs else ([row_loinc] if row_loinc else [])
+
+            # De-dupe and cap per label
+            seen = set()
+            target_loincs = [x for x in target_loincs if x and not (x in seen or seen.add(x))]
+            target_loincs = target_loincs[:max_sections_per_label]
+
+            if not spl_id:
+                snippets.append({
+                    "set_id": set_id,
+                    "product": product,
+                    "text": "[No SPL_ID available; unable to fetch section content.]"
+                })
+                continue
+
+            if not target_loincs:
+                snippets.append({
+                    "set_id": set_id,
+                    "product": product,
+                    "text": "[No section specified and none inferred; section content not fetched.]"
+                })
+                continue
+
+            for loinc in target_loincs:
+                try:
+                    loinc_code, title, content_val = fetch_section(cursor, spl_id, loinc)
+                except Exception as e:
+                    logger.warning(f"Evidence Fetcher: Failed fetching SPL_ID={spl_id}, LOINC={loinc}: {e}")
+                    continue
+
+                if not content_val:
+                    # Section not found or empty; keep a small note (optional)
+                    snippets.append({
+                        "set_id": set_id,
+                        "product": product,
+                        "loinc_code": loinc,
+                        "section_title": title,
+                        "text": f"[Section not found or empty for LOINC {loinc}]"
+                    })
+                    continue
+
+                # Clean + truncate using your existing helper (handles LOB.read() and XML cleanup)
+                text = lob_to_string_limited(content_val, max_length=max_chars_per_section) or ""
+                # Add section header to make evidence self-describing (helps composer)
+                header = ""
+                if title or loinc_code:
+                    header = f"[{title or 'Section'} | LOINC {loinc_code or loinc}] "
+
+                snippets.append({
+                    "set_id": set_id,
+                    "spl_id": spl_id,
+                    "product": product,
+                    "loinc_code": loinc_code or loinc,
+                    "section_title": title,
+                    "text": header + text
+                })
+
+        state.evidence["snippets"] = snippets
+        state.trace_log.append(
+            f"Evidence Fetcher: Retrieved {len(snippets)} section snippet(s) "
+            f"from top {len(top_results)} label(s)."
+        )
+        state.flags["next_step"] = "answer_composer"
+
+    except Exception as e:
+        logger.error(f"Evidence fetch error: {e}")
+        state.trace_log.append(f"Evidence Fetcher: Error fetching text: {str(e)}")
+        state.flags["next_step"] = "answer_composer"
+    finally:
+        if con:
+            con.close()
+
+
+def run_answer_composer(state: AgentState):
+    """
+    Generates final response.
+    """
+    logger.info("--- Running Answer Composer ---")
+    
+    intent_type = state.intent.get("type")
+
+    if state.retrieval.get("aggregate"):
+        agg = state.retrieval["aggregate"]
+        ov = agg.get("overview", {})
+        top_generics = agg.get("top_generics", [])[:10]
+        top_companies = agg.get("top_companies", [])[:10]
+
+        # You can choose to NOT call LLM for this (less hallucination), or call with strict prompt.
+        lines = []
+        lines.append(f"Search term(s): {state.retrieval.get('plan', {}).get('search_terms') or state.retrieval.get('plan', {}).get('search_term')}")
+        lines.append(f"Content query: {agg.get('content_query')}")
+        if agg.get("section_loinc_codes"):
+            lines.append(f"Section filter (LOINC): {', '.join(agg['section_loinc_codes'])}")
+
+        lines.append("")
+        lines.append(f"- Matching labels (distinct Set IDs): {ov.get('LABEL_COUNT', 0)}")
+        lines.append(f"- Distinct generic-name strings: {ov.get('GENERIC_STR_COUNT', 0)}")
+        lines.append(f"- Distinct product-name strings: {ov.get('PRODUCT_STR_COUNT', 0)}")
+        lines.append(f"- Distinct companies: {ov.get('COMPANY_COUNT', 0)}")
+
+        if top_generics:
+            lines.append("\nTop generics (by distinct labels):")
+            for r in top_generics:
+                lines.append(f"  • {r.get('GENERIC_NAME')}: {r.get('LABEL_COUNT')} labels")
+
+        if top_companies:
+            lines.append("\nTop companies (by distinct labels):")
+            for r in top_companies:
+                lines.append(f"  • {r.get('COMPANY')}: {r.get('LABEL_COUNT')} labels")
+
+        state.answer["response_text"] = "\n".join(lines)
+        state.trace_log.append("Answer Composer: Returned aggregate summary (no full content fetch).")
+        state.flags["next_step"] = "reasoning_generator"
+        return
+
+    if intent_type == "chitchat":
+        # Simple polite response
+        state.answer["response_text"] = "Hello! I am AskFDALabel. I can help you search for drug information. How can I assist you today?"
+        state.trace_log.append("Answer Composer: Handled chitchat.")
+        state.flags["next_step"] = "reasoning_generator"
+        return
+
+    if intent_type == "clarification":
+        q = state.intent.get("clarifying_question", "Could you please provide more details?")
+        state.answer["response_text"] = q
+        state.trace_log.append(f"Answer Composer: Asked clarification: {q}")
+        state.flags["next_step"] = "reasoning_generator"
+        return
+
+    # Build evidence string
+    evidence_str = ""
+    
+    # 1. From Snippets (Content Search)
+    if state.evidence.get("snippets"):
+        for s in state.evidence["snippets"]:
+            evidence_str += f"Product: {s['product']} (Set ID: {s['set_id']})\nContent: {s['text']}...\n\n"
+            
+    # 2. From Metadata Results (Metadata Search)
+    elif state.retrieval.get("results"):
+        for r in state.retrieval["results"][:5]:
+            evidence_str += f"Product: {r.get('PRODUCT_NAMES')}\nGeneric: {r.get('PRODUCT_NORMD_GENERIC_NAMES')}\nManufacturer: {r.get('AUTHOR_ORG_NORMD_NAME')}\nSet ID: {r.get('SET_ID')}\n\n"
+            
+    else:
+        evidence_str = "No results found."
+
+    prompt = ANSWER_COMPOSER_PROMPT.replace("{user_query}", state.conversation["user_query"]).replace("{evidence}", evidence_str)
+    
+    messages = [{"role": "system", "content": prompt}]
+    success, response_text = safe_llm_call(client, messages, temperature=0.1)
+    
+    if success:
+        state.answer["response_text"] = response_text
+        state.trace_log.append("Answer Composer: Generated response from evidence.")
+    else:
+        state.answer["response_text"] = "I apologize, but I encountered an error generating the answer."
+        state.trace_log.append("Answer Composer: Failed to generate response.")
+        
+    state.flags["next_step"] = "reasoning_generator"
+
+def run_reasoning_generator(state: AgentState):
+    """
+    Generates a user-friendly summary of the agents' actions.
+    """
+    logger.info("--- Running Reasoning Generator ---")
+    
+    # Format trace log
+    trace_str = "\n".join([str(t) for t in state.trace_log])
+    
+    prompt = REASONING_PROMPT.replace("{user_query}", state.conversation["user_query"]).replace("{trace_log}", trace_str)
+    
+    messages = [{"role": "system", "content": prompt}]
+    success, response_text = safe_llm_call(client, messages, temperature=0.7)
+    
+    if success:
+        state.reasoning = response_text
+    else:
+        state.reasoning = "Performed search actions."
+        
+    state.flags["terminate"] = True
+
+def run_aggregate_executor(state: AgentState):
+    logger.info("--- Running Aggregate Executor ---")
+    plan = state.retrieval.get("plan", {}) or {}
+
+    # inputs
+    search_terms = plan.get("search_terms") or ([] if not plan.get("search_term") else [plan.get("search_term")])
+    content_query = plan.get("content_query") or plan.get("content_term") or ""
+    section_loinc_codes = plan.get("section_loinc_codes") or infer_section_loinc_codes(state.conversation["user_query"])
+    filters = plan.get("filters") or {}
+
+    top_n = 10
+    agg = (plan.get("aggregation") or {})
+    if agg.get("top_n"):
+        try:
+            top_n = int(agg["top_n"])
+        except Exception:
+            top_n = 10
+    top_n = max(1, min(top_n, 50))
+
+    binds: Dict[str, Any] = {"limit": top_n, "content_query": content_query}
+
+    # clauses
+    name_clause = ""
+    if search_terms:
+        or_blocks = []
+        for i, term in enumerate(search_terms):
+            k = f"q{i}"
+            binds[k] = f"%{escape_like(term)}%"
+            or_blocks.append(
+                f"(UPPER(r.PRODUCT_NAMES) LIKE UPPER(:{k}) ESCAPE '\\\\' "
+                f" OR UPPER(r.PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:{k}) ESCAPE '\\\\')"
+            )
+        name_clause = " AND (" + " OR ".join(or_blocks) + ")"
+
+    filters_clause = build_filters_clause(filters, binds)
+    section_clause = build_contains_section_clause(section_loinc_codes, binds)
+
+    # Run multiple aggregate queries
+    con = None
+    try:
+        con = get_db_connection()
+        cursor = con.cursor()
+
+        def run_tpl(key: str) -> List[Dict[str, Any]]:
+            sql = SQL_TEMPLATES[key].format(
+                name_clause=name_clause,
+                filters=filters_clause,
+                section_clause=section_clause
+            )
+            cursor.execute(sql, binds)
+            cols = [c[0] for c in cursor.description]
+            return [dict(zip(cols, row)) for row in cursor.fetchall()]
+
+        overview = run_tpl("aggregate_overview")
+        top_generics = run_tpl("aggregate_top_generics")
+        top_companies = run_tpl("aggregate_top_companies")
+
+        state.retrieval["aggregate"] = {
+            "overview": overview[0] if overview else {},
+            "top_generics": top_generics,
+            "top_companies": top_companies,
+            "content_query": content_query,
+            "section_loinc_codes": section_loinc_codes,
+            "filters": filters,
+        }
+        state.trace_log.append("Aggregate Executor: Computed overview + top generics + top companies.")
+        state.flags["next_step"] = "answer_composer"
+
+    except Exception as e:
+        logger.error(f"Aggregate execution error: {e}")
+        state.retrieval["error"] = str(e)
+        state.trace_log.append(f"Aggregate Executor: Error: {str(e)}")
+        state.flags["next_step"] = "answer_composer"
+    finally:
+        if con:
+            con.close()
+
+
+
+# -----------------------------
+# Controller (Orchestrator)
+# -----------------------------
+def run_controller(state: AgentState):
+    """
+    Main loop that routes control based on flags.
+    """
+    steps = 0
+    max_steps = 10
+    
+    while not state.flags["terminate"] and steps < max_steps:
+        current_step = state.flags["next_step"]
+        state.agent_flow.append(current_step)
+        
+        if current_step == "planner":
+            run_planner(state)
+        elif current_step == "db_executor":
+            run_db_executor(state)
+        elif current_step == "postprocess":
+            run_postprocess(state)
+        elif current_step == "evidence_fetcher":
+            run_evidence_fetcher(state)
+        elif current_step == "answer_composer":
+            run_answer_composer(state)
+        elif current_step == "reasoning_generator":
+            run_reasoning_generator(state)
+        elif current_step == "error":
+            state.answer["response_text"] = "An internal error occurred."
+            state.flags["terminate"] = True
+        elif current_step == "aggregate_executor":
+            run_aggregate_executor(state)
+        else:
+            logger.error(f"Unknown step: {current_step}")
+            state.flags["terminate"] = True
+            
+        steps += 1
+
+# -----------------------------
+# Public API
+# -----------------------------
+def search_v2(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+    """
+    Entry point for the V2 Search API.
+    """
+    try:
+        # Initialize State
+        state = AgentState(payload)
+        
+        # Run Workflow
+        run_controller(state)
+        
+        # Process results
+        raw_results = state.retrieval.get("results", [])
+        processed_results_dict = convert_oracle_to_filtered_results(raw_results)
+        final_results = list(processed_results_dict.values())
+        
+        # Format Output
+        response = {
+            "med_answer": state.answer["response_text"],
+            "debug_intent": state.intent,
+            "results": final_results,
+            "is_answerable": True,
+            "input_type": "T1",
+            "generated_sql": state.retrieval.get("generated_sql", ""),
+            "total_counts": len(final_results),
+            "suggestions": [],
+            "agent_flow": state.agent_flow,
+            "reasoning": state.reasoning
+        }
+        
+        return response, 200
+        
+    except Exception as e:
+        logger.error(f"Critical error in search_v2: {e}")
+        return {"error": str(e)}, 500
+
