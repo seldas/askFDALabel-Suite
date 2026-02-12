@@ -8,6 +8,22 @@ export default function HomePage() {
   const { session, loading, updateAiProvider, refreshSession } = useUser();
   const [showAiModal, setShowAiModal] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
+  const [isInternal, setIsInternal] = useState(false);
+
+  useEffect(() => {
+    const checkInternalStatus = async () => {
+      try {
+        const response = await fetch("/api/check-fdalabel", {
+          method: 'POST'
+        });
+        const data = await response.json();
+        setIsInternal(data.isInternal);
+      } catch (error) {
+        setIsInternal(false);
+      }
+    };
+    checkInternalStatus();
+  }, []);
 
   const handleConfigSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -135,11 +151,66 @@ export default function HomePage() {
 
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
+        gridTemplateColumns: 'repeat(3, 1fr)', 
         gap: '2rem',
         width: '100%',
         maxWidth: '1200px'
       }}>
+        {isInternal ? (
+          <AppCard 
+            title="FDALabel" 
+            description="Access official internal FDALabel search interfaces."
+            icon="🏛️"
+            color="#1e293b"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: 'auto' }}>
+              <a 
+                href="https://fdalabel.fda.gov/fdalabel/ui/search" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{
+                  display: 'block',
+                  textAlign: 'center',
+                  padding: '8px',
+                  backgroundColor: '#1e293b',
+                  color: 'white',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  textDecoration: 'none'
+                }}
+              >
+                FDA Version
+              </a>
+              <a 
+                href="https://fdalabel.fda.gov/fdalabel-r/ui/search" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{
+                  display: 'block',
+                  textAlign: 'center',
+                  padding: '8px',
+                  backgroundColor: '#334155',
+                  color: 'white',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  textDecoration: 'none'
+                }}
+              >
+                CDER-CBER Version
+              </a>
+            </div>
+          </AppCard>
+        ) : (
+          <AppCard 
+            title="FDALabel" 
+            description="Direct access to the official FDALabel public search interface."
+            href="https://nctr-crs.fda.gov/fdalabel/ui/search"
+            icon="🏛️"
+            color="#1e293b"
+          />
+        )}
         <AppCard 
           title="Agentic Search" 
           description="Semantically search across FDA drug labels with AI-powered reasoning."
@@ -153,6 +224,13 @@ export default function HomePage() {
           href="/dashboard"
           icon="📊"
           color="#8b5cf6"
+        />
+        <AppCard 
+          title="Label Compare" 
+          description="Side-by-side comparison of different drug labels and versions."
+          href="#"
+          icon="⚖️"
+          color="#ec4899"
         />
         <AppCard 
           title="DrugTox" 
@@ -249,34 +327,49 @@ export default function HomePage() {
   );
 }
 
-function AppCard({ title, description, href, icon, color }: { title: string, description: string, href: string, icon: string, color: string }) {
-  return (
-    <Link href={href} style={{ textDecoration: 'none' }}>
-      <div style={{ 
-        backgroundColor: 'white', 
-        padding: '2rem', 
-        borderRadius: '16px', 
-        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-        transition: 'transform 0.2s, box-shadow 0.2s',
-        cursor: 'pointer',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        borderTop: `6px solid ${color}`
-      }}
-      onMouseEnter={(e) => {
+function AppCard({ title, description, href, icon, color, children }: { title: string, description: string, href?: string, icon: string, color: string, children?: React.ReactNode }) {
+  const cardContent = (
+    <div style={{ 
+      backgroundColor: 'white', 
+      padding: '2rem', 
+      borderRadius: '16px', 
+      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+      transition: 'transform 0.2s, box-shadow 0.2s',
+      cursor: href ? 'pointer' : 'default',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      borderTop: `6px solid ${color}`,
+      position: 'relative'
+    }}
+    onMouseEnter={(e) => {
+      if (href) {
         e.currentTarget.style.transform = 'translateY(-4px)';
         e.currentTarget.style.boxShadow = '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)';
-      }}
-      onMouseLeave={(e) => {
+      }
+    }}
+    onMouseLeave={(e) => {
+      if (href) {
         e.currentTarget.style.transform = 'translateY(0)';
         e.currentTarget.style.boxShadow = '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)';
-      }}
-      >
-        <div style={{ fontSize: '2.5rem', marginBottom: '1.5rem' }}>{icon}</div>
-        <h2 style={{ color: '#1e293b', marginBottom: '0.75rem', fontSize: '1.5rem' }}>{title}</h2>
-        <p style={{ color: '#64748b', lineHeight: '1.5' }}>{description}</p>
-      </div>
-    </Link>
+      }
+    }}
+    >
+      <div style={{ fontSize: '2.5rem', marginBottom: '1.5rem' }}>{icon}</div>
+      <h2 style={{ color: '#1e293b', marginBottom: '0.75rem', fontSize: '1.5rem' }}>{title}</h2>
+      <p style={{ color: '#64748b', lineHeight: '1.5', marginBottom: children ? '1.5rem' : '0' }}>{description}</p>
+      {children}
+    </div>
   );
+
+  if (href) {
+    const isExternal = href.startsWith('http');
+    return (
+      <Link href={href} style={{ textDecoration: 'none' }} target={isExternal ? '_blank' : undefined} rel={isExternal ? 'noopener noreferrer' : undefined}>
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return cardContent;
 }

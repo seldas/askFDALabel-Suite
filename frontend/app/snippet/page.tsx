@@ -26,6 +26,24 @@ export default function SnippetPage() {
       padding: '20px',
       position: 'relative'
     }}>
+      <div style={{ position: 'absolute', top: '20px', left: '20px' }}>
+        <a href="/" style={{ 
+          textDecoration: 'none', 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px', 
+          padding: '10px 20px', 
+          borderRadius: '50px', 
+          border: '1px solid #e2e8f0', 
+          backgroundColor: 'white',
+          color: '#64748b', 
+          fontWeight: 700, 
+          fontSize: '0.9rem',
+          boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)'
+        }}>
+          <span>{"\uD83C\uDFE0"}</span> Suite Home
+        </a>
+      </div>
       <h1 style={{ color: '#1e293b', fontSize: '3rem', marginBottom: '2rem' }}>Snippet Store</h1>
 
 <div style={{ 

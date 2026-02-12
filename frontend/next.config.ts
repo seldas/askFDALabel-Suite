@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const BACKEND = process.env.BACKEND_URL ?? "http://ncshpcgpu01:8849";
+const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8849";
 
 const nextConfig: NextConfig = {
   async rewrites() {

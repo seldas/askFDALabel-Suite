@@ -105,11 +105,27 @@ export default function DashboardPage() {
     <main className="hp-main-layout">
       <DashboardClient />
       
+      <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 100 }}>
+        <a href="/" className="hp-nav-btn hp-btn-outline hp-nav-btn-lg" style={{ 
+          backgroundColor: 'white',
+          boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+          borderRadius: '50px',
+          padding: '8px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          textDecoration: 'none',
+          color: '#64748b',
+          fontWeight: 700,
+          fontSize: '0.85rem',
+          border: '1px solid #e2e8f0'
+        }}>
+          <span>{"\uD83C\uDFE0"}</span> Suite Home
+        </a>
+      </div>
+
       <div className="hp-container">
         <div className="hp-auth-nav">
-          <a href="/" className="hp-nav-btn hp-btn-outline hp-nav-btn-lg">
-            <span>{"\uD83C\uDFE0"}</span> Suite Home
-          </a>
 
           {!loading && session?.is_authenticated ? (
             <>
