@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function () {
+window.initFavorites = function() {
     // Favorites Dropdown Logic
     const favToggleBtn = document.getElementById('favorites-toggle-btn');
     const favMenu = document.getElementById('favorites-dropdown-menu');
@@ -266,5 +266,11 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => window.initFavorites());
+} else {
+    window.initFavorites();
+}
 

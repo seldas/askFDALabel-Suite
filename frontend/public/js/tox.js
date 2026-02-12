@@ -398,6 +398,13 @@ window.initToxAgents = function() {
         const terms = faersData.map(d => d.term);
         const counts = faersData.map(d => d.count);
 
+        if (typeof Chart !== 'undefined') {
+            const existingChart = Chart.getChart(canvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
+        }
+
         new Chart(ctx, {
             type: 'bar',
             data: {
@@ -671,6 +678,13 @@ window.initToxAgents = function() {
         const terms = faersData.map(d => d.term);
         const counts = faersData.map(d => d.count);
 
+        if (typeof Chart !== 'undefined') {
+            const existingChart = Chart.getChart(canvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
+        }
+
         new Chart(ctx, {
             type: 'bar',
             data: {
@@ -938,6 +952,13 @@ window.initToxAgents = function() {
         const ctx = canvas.getContext('2d');
         const terms = faersData.map(d => d.term);
         const counts = faersData.map(d => d.count);
+
+        if (typeof Chart !== 'undefined') {
+            const existingChart = Chart.getChart(canvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
+        }
 
         new Chart(ctx, {
             type: 'bar',

@@ -55,6 +55,7 @@ interface LabelData {
   set_id: string;
   metadata: any;
   saved_annotations: Annotation[];
+  user_id: number | null;
 }
 
 function SectionComponent({ section }: { section: Section }) {
@@ -421,10 +422,11 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       <div id="xml-content" style={{ display: 'none' }}>{data.label_xml_raw}</div>
       <Script id="label-data-init" strategy="afterInteractive">
         {`
-          window.currentSetId = "${data.set_id}";
-          window.currentDrugName = "${data.faers_drug_name}";
-          window.currentManufacturer = "${data.manufacturer_name}";
-          window.currentEffectiveTime = "${data.effective_time}";
+          window.currentSetId = ${JSON.stringify(data.set_id)};
+          window.currentDrugName = ${JSON.stringify(data.faers_drug_name)};
+          window.currentManufacturer = ${JSON.stringify(data.manufacturer_name)};
+          window.currentEffectiveTime = ${JSON.stringify(data.effective_time)};
+          window.currentUserId = ${data.user_id || 'null'};
           window.savedAnnotations = ${JSON.stringify(data.saved_annotations)};
         `}
       </Script>

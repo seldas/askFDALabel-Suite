@@ -1012,8 +1012,11 @@ window.initFaers = function() {
         });
 
         // 4. Render Chart
-        if (chartInstances['trendComparison']) {
-            chartInstances['trendComparison'].destroy();
+        if (typeof Chart !== 'undefined' && canvas) {
+            const existingChart = Chart.getChart(canvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
         }
 
         // If no terms selected, show artistic placeholder

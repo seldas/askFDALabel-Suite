@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function () {
+window.initChat = function() {
     // Chatbox Functionality
     const chatBubble = document.getElementById('chat-bubble');
     const chatbox = document.getElementById('chatbox');
@@ -698,4 +698,10 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => window.initChat());
+} else {
+    window.initChat();
+}

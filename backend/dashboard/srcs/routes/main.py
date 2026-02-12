@@ -450,7 +450,8 @@ def view_label(set_id):
             'label_xml_raw': label_xml_raw,
             'set_id': set_id,
             'metadata': metadata,
-            'saved_annotations': saved_annotations
+            'saved_annotations': saved_annotations,
+            'user_id': current_user.id if current_user.is_authenticated else None
         })
 
     return render_template('results.html', 

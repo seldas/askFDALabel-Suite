@@ -73,6 +73,7 @@ def session():
     if current_user.is_authenticated:
         return jsonify({
             'is_authenticated': True,
+            'id': current_user.id,
             'username': current_user.username,
             'ai_provider': current_user.ai_provider,
             'custom_gemini_key': current_user.custom_gemini_key,

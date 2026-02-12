@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function () {
+window.initFaers = function() {
     // --- FAERS Dashboard Logic ---
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -1012,8 +1012,11 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         // 4. Render Chart
-        if (chartInstances['trendComparison']) {
-            chartInstances['trendComparison'].destroy();
+        if (typeof Chart !== 'undefined' && canvas) {
+            const existingChart = Chart.getChart(canvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
         }
 
         // If no terms selected, show artistic placeholder
@@ -1374,6 +1377,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const ctx = document.getElementById('meddraStatsChart').getContext('2d');
 
+        if (typeof Chart !== 'undefined') {
+            const existingChart = Chart.getChart(document.getElementById('meddraStatsChart'));
+            if (existingChart) {
+                existingChart.destroy();
+            }
+        }
+
         const chart = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -1613,5 +1623,11 @@ document.addEventListener('DOMContentLoaded', function () {
         URL.revokeObjectURL(url);
     }
 
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => window.initFaers());
+} else {
+    window.initFaers();
+}
 
