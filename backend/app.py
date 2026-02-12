@@ -1,16 +1,19 @@
 import os
 import logging
+from pathlib import Path
 from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
+
+# Calculate the path to the root .env
+env_path = Path(__file__).resolve().parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # Import Dashboard app factory
 from dashboard.srcs import create_app as create_dashboard_app
 # Import Blueprints for Search and DrugTox
 from search.blueprint import search_bp
 from drugtox.blueprint import drugtox_bp
-
-load_dotenv()
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
