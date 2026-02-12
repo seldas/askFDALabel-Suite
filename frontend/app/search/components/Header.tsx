@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { useSearchContext } from '../context/SearchContext';
-import '../globals.css';
 
 const Header: React.FC = () => {
   const { searchMode, setSearchMode } = useSearchContext();
@@ -17,22 +16,9 @@ const Header: React.FC = () => {
   return (
     <header className="navbar">
       <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <a href="/" className="logo-link">ask<span>FDALabel</span><span className="beta-badge">DEV</span></a>
-        ||
-        <button 
-          onClick={() => window.open('http://ncshpcgpu01:8844', '_blank')}
-          style={{
-            backgroundColor: '#0077cc',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '0.9rem'
-          }}
-        >
-          Open Analysis App
-        </button>
+        <a href="/" className="hp-nav-btn hp-btn-outline" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '50px', border: '1px solid #e2e8f0', color: '#64748b', fontWeight: 700, fontSize: '0.85rem' }}>
+          <span>&#127968;</span> Suite Home
+        </a>
       </div>
       <div className="header-controls" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <div className="mode-switch" style={{ display: 'flex', alignItems: 'center', fontSize: '0.9rem', padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>

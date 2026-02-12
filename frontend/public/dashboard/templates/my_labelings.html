@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Projects - AskFDALabel</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="index-body my-projects-page">
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <div class="project-sidebar">
+            <div style="margin-bottom: 25px;">
+                <a href="{{ url_for('main.index') }}" class="button" style="width: 100%; box-sizing: border-box; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white !important; border: none; box-shadow: 0 4px 6px rgba(220, 38, 38, 0.15); justify-content: center; gap: 8px;">
+                    <span style="font-size: 1.1em;">&#8592;</span> Back to Home
+                </a>
+                <div style="margin-top: 15px; text-align: center;">
+                    <a href="javascript:void(0)" onclick="openPreferencesModal()" style="color: #6f42c1; font-weight: 600; text-decoration: none; font-size: 0.9em; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                        <span>&#9881;</span> User Preferences
+                    </a>
+                </div>
+            </div>
+
+            <div class="sidebar-header">
+                <h2>Projects</h2>
+                <button id="btn-create-project" class="btn-new-project" title="New Project (Max 5)" onclick="openCreateModal()">+</button>
+            </div>
+            
+            <ul class="project-list" id="project-list">
+                <!-- Populated by JS -->
+                <li class="project-item active">
+                    <span>Default Project <span class="role-badge role-owner">Owner</span></span>
+                </li>
+            </ul>
+
+            <div class="import-section">
+                <div style="font-size: 0.85em; font-weight: 600; color: #495057; margin-bottom: 5px;">Import Project</div>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="import-code" class="import-input" placeholder="Paste share code...">
+                    <button class="btn-new-project" style="border-radius: 6px; width: auto; padding: 0 10px;" title="Import" onclick="importProject()">&#128229;</button>
+                </div>
+                <div style="margin-top: 5px;">
+                    <label style="font-size: 0.8em; color: #666; display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="import-sync" style="margin-right: 5px;" onchange="toggleSyncNotice(this)"> 
+                        Sync (Shared Access)
+                        <span class="info-icon-tooltip" title="Unchecked: Creates a personal copy (Fork). Changes are yours only.&#10;Checked: Joins the project as an editor. You see and make changes to the original list.">&#9432;</span>
+                    </label>
+                    <div id="sync-notice" style="display: none; font-size: 0.75em; color: #007bff; margin-top: 4px; margin-left: 20px; font-weight: 500; animation: fadeIn 0.2s ease;">
+                        &#10024; You will join this project as a contributor and collaborate on the same data.
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top: auto;">
+                <p style="text-align: center; color: #adb5bd; font-size: 0.8em;">AskFDALabel &copy; 2026</p>
+            </div>
+        </div>
+
+        <!-- Main Workspace -->
+        <div class="main-workspace">
+            <div class="workspace-header">
+                <div class="workspace-title">
+                    <h1 id="current-project-title">Default Project</h1>
+                    <div id="current-project-desc" class="workspace-meta">My default workspace</div>
+                </div>
+                <div class="workspace-actions">
+                    <button class="btn-action btn-outline" onclick="openLabelImportModal()" style="margin-right: 5px;">&#128229; Import Labels</button>
+                    <button class="btn-action btn-outline" onclick="exportProject()">&#128279; Share</button>
+                </div>
+            </div>
+
+            <div class="workspace-controls-bar" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #dee2e6; margin-bottom: 25px;">
+                <div class="workspace-tabs" style="border-bottom: none; margin-bottom: 0;">
+                    <div class="workspace-tab active" onclick="switchTab('labels')">Saved Labels (<span id="count-labels">0</span>)</div>
+                    <div class="workspace-tab" onclick="switchTab('comparisons')">Comparisons (<span id="count-comps">0</span>)</div>
+                </div>
+                
+                <div class="workspace-actions-group">
+                    <div id="actions-labels">
+                        <button class="btn-action btn-outline" onclick="openMoveModal('label')" style="display: none;">Move Selected</button>
+                        <button class="btn-action btn-outline" style="color: #dc3545; border-color: #ffc9c9;" onclick="deleteSelected('label')">Remove Selected</button>
+                    </div>
+                    <div id="actions-comparisons" style="display: none;">
+                        <button class="btn-action btn-outline" onclick="openMoveModal('comparison')" style="display: none;">Move Selected</button>
+                        <button class="btn-action btn-outline" style="color: #dc3545; border-color: #ffc9c9;" onclick="deleteSelected('comparison')">Remove Selected</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-labels" class="view-section">
+                <div class="data-table-container">
+                    <table class="data-table" id="table-labels">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;"><input type="checkbox" onchange="toggleSelectAll(this, 'table-labels')"></th>
+                                <th>Brand Name</th>
+                                <th>Set ID</th>
+                                <th>Manufacturer</th>
+                                <th>Saved</th>
+                                <th>Contributor</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody><!-- Populated by JS --></tbody>
+                    </table>
+                </div>
+                <div id="empty-labels" class="empty-project" style="display: none;">
+                    <h3>No saved labels in this project.</h3>
+                    <p>Go to the search page to add some.</p>
+                </div>
+            </div>
+
+            <div id="view-comparisons" class="view-section" style="display: none;">
+                <div class="data-table-container">
+                    <table class="data-table" id="table-comps">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;"><input type="checkbox" onchange="toggleSelectAll(this, 'table-comps')"></th>
+                                <th>Title</th>
+                                <th>Labels</th>
+                                <th>Saved</th>
+                                <th>Contributor</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody><!-- Populated by JS --></tbody>
+                    </table>
+                </div>
+                <div id="empty-comps" class="empty-project" style="display: none;">
+                    <h3>No comparisons in this project.</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="preferencesModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="close" onclick="closeModal('preferencesModal')">&times;</span>
+            <h2 style="color: #6f42c1; display: flex; align-items: center; gap: 10px;">
+                <span>&#9881;</span> User Preferences
+            </h2>
+            <p style="color: #6c757d; margin-bottom: 20px;">Configure your personal settings and AI connections.</p>
+
+            <form id="preferencesForm" onsubmit="submitPreferences(event)">
+                <div style="margin-bottom: 25px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 10px; color: #495057;">AI Provider</label>
+                    <div style="display: flex; gap: 15px;">
+                        <label class="provider-option {{ 'active' if current_user.ai_provider == 'gemini' else '' }}" style="flex: 1; padding: 10px; border: 2px solid #e9ecef; border-radius: 12px; cursor: pointer; text-align: center; transition: all 0.2s;" id="opt-gemini">
+                            <input type="radio" name="ai_provider" value="gemini" {{ 'checked' if current_user.ai_provider == 'gemini' else '' }} onchange="updateProviderUI()" style="display:none;">
+                            <strong>state-of-the-art AI</strong>
+                            <div style="font-size: 0.8em; margin-top: 5px;">Default optimized engine</div>
+                        </label>
+                        <label class="provider-option {{ 'active' if current_user.ai_provider == 'openai' else '' }}" style="flex: 1; padding: 10px; border: 2px solid #e9ecef; border-radius: 12px; cursor: pointer; text-align: center; transition: all 0.2s;" id="opt-openai">
+                            <input type="radio" name="ai_provider" value="openai" {{ 'checked' if current_user.ai_provider == 'openai' else '' }} onchange="updateProviderUI()" style="display:none;">
+                            <strong>OpenAI-Compatible</strong>
+                            <div style="font-size: 0.8em; margin-top: 5px;">Custom endpoints (vLLM, Local)</div>
+                        </label>
+                        <label class="provider-option {{ 'active' if current_user.ai_provider == 'elsa' else '' }}" style="flex: 1; padding: 10px; border: 2px solid #e9ecef; border-radius: 12px; cursor: pointer; text-align: center; transition: all 0.2s;" id="opt-elsa">
+                            <input type="radio" name="ai_provider" value="elsa" {{ 'checked' if current_user.ai_provider == 'elsa' else '' }} onchange="updateProviderUI()" style="display:none;">
+                            <strong>Elsa</strong>
+                            <div style="font-size: 0.8em; margin-top: 5px;">FDA Internal AI Assistant</div>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="gemini-config" style="display: {{ 'block' if current_user.ai_provider == 'gemini' else 'none' }};">
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px;">Custom Gemini API Key</label>
+                        <input type="password" name="custom_gemini_key" class="import-input" placeholder="Leave empty to use system default" value="{{ current_user.custom_gemini_key or '' }}">
+                        <p style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">Get your own key from <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #007bff;">Google AI Studio</a>.</p>
+                    </div>
+                </div>
+
+                <div id="openai-config" style="display: {{ 'block' if current_user.ai_provider == 'openai' else 'none' }};">
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px;">API Key</label>
+                        <input type="password" name="openai_api_key" class="import-input" value="{{ current_user.openai_api_key or '' }}">
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px;">Base URL (Endpoint)</label>
+                        <input type="text" name="openai_base_url" class="import-input" placeholder="e.g. http://localhost:8000/v1" value="{{ current_user.openai_base_url or '' }}">
+                        <p style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">Keep empty if using official OpenAI servers.</p>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px;">Model Name</label>
+                        <input type="text" name="openai_model_name" class="import-input" placeholder="e.g. gpt-4o or meta-llama/Llama-3-70b" value="{{ current_user.openai_model_name or '' }}">
+                    </div>
+                </div>
+
+                <div id="elsa-config" style="display: {{ 'block' if current_user.ai_provider == 'elsa' else 'none' }};">
+                    <div style="padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; border-left: 4px solid #6f42c1;">
+                        <div style="display: flex; align-items: start; gap: 15px;">
+                            <div style="font-size: 2em; color: #6f42c1;">ℹ️</div>
+                            <div>
+                                <h4 style="margin: 0 0 10px 0; color: #495057; font-size: 1.1em;">Using System Default Configuration</h4>
+                                <p style="margin: 0; color: #6c757d; font-size: 0.9em; line-height: 1.5;">
+                                    Elsa uses FDA's internal API credentials and model settings. No additional configuration is required. 
+                                    The system will automatically connect to the secure FDA Elsa endpoint with pre-configured authentication.
+                                </p>
+                                <div style="margin-top: 12px; padding: 10px; background-color: rgba(111, 66, 193, 0.1); border-radius: 6px;">
+                                    <p style="margin: 0; font-size: 0.85em; color: #495057;">
+                                        <strong>Note:</strong> This option is only available to authenticated FDA users with proper access credentials.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn-action btn-outline" onclick="closeModal('preferencesModal')" style="margin-right: 10px;">Cancel</button>
+                    <button type="submit" class="btn-action btn-primary" style="padding: 10px 25px;">Save Preferences</button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+    <div id="createModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('createModal')">&times;</span>
+            <h2>Create New Project</h2>
+            <input type="text" id="new-project-title" class="import-input" placeholder="Project Title (e.g. Oncology Research)" style="margin-top: 15px;">
+            <textarea id="new-project-desc" class="import-input" placeholder="Description (Optional)" style="height: 80px;"></textarea>
+            <button class="btn-action btn-primary" style="width: 100%; margin-top: 10px;" onclick="createProject()">Create</button>
+        </div>
+    </div>
+
+    <div id="renameModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('renameModal')">&times;</span>
+            <h2>Rename Project</h2>
+            <input type="hidden" id="rename-id">
+            <input type="text" id="rename-title" class="import-input" style="margin-top: 15px;">
+            <button class="btn-action btn-primary" style="width: 100%; margin-top: 10px;" onclick="submitRename()">Save</button>
+        </div>
+    </div>
+    
+    <div id="moveModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('moveModal')">&times;</span>
+            <h2>Move Items</h2>
+            <p>Select target project:</p>
+            <select id="move-target-project" class="import-input" style="margin-top: 10px;">
+                <!-- Populated by JS -->
+            </select>
+            <input type="hidden" id="move-type">
+            <button class="btn-action btn-primary" style="width: 100%; margin-top: 10px;" onclick="submitMove()">Move</button>
+        </div>
+    </div>
+
+    <div id="importLabelsModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('importLabelsModal')">&times;</span>
+            <h2>Import Labels to Project</h2>
+            <p><small style="color: #64748b;">Supported formats: .txt (Set IDs list) or <span class="dashed-underline" onclick="toggleImportExplanation()" title="Click to learn how to bulk-import results from FDA's advanced search tool.">FDALabel export</span><span class="help-badge" onclick="toggleImportExplanation()" title="Click for details about FDALabel integration.">?</span>.</small></p>
+            
+            <div id="import-explanation" class="import-explanation">
+                <strong>About FDALabel Export</strong><br>
+                The <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" style="color: #007bff; font-weight: 600;">FDALabel website</a> is a powerful tool for advanced searches on drug labeling. 
+                Simply export your results as an Excel file (.xlsx) and upload it here to instantly unlock deep AI-powered analysis for multiple labels at once!
+            </div>
+
+            <div style="margin-top: 20px;">
+                <div id="import-drop-zone" class="upload-drop-zone" onclick="document.getElementById('importLabelsFile').click()">
+                    <span style="font-size: 2em; color: #94a3b8; display: block; margin-bottom: 5px;">&#128193;</span>
+                    <p><strong>Click to upload</strong> or drag file here</p>
+                    <input type="file" id="importLabelsFile" accept=".txt,.xlsx" style="display: none;">
+                </div>
+                
+                <div id="import-file-info" class="file-info-box">
+                    <span style="font-size: 1.2em;">&#128196;</span>
+                    <div id="import-file-name" class="file-info-name">filename.txt</div>
+                    <span class="file-info-remove" onclick="resetImportFile(event)" title="Remove file">&times;</span>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px; text-align: center;">
+                <span style="color: #007bff; cursor: pointer; font-size: 0.9em; text-decoration: underline;" onclick="toggleImportTextInput()">Or paste Set IDs manually...</span>
+            </div>
+
+            <div id="import-text-container" style="display: none; margin-top: 10px; animation: fadeIn 0.2s;">
+                <textarea id="importLabelsInput" class="import-textarea" style="width: 100%; height: 100px; padding: 10px; border: 1px solid #ced4da; border-radius: 6px;" placeholder="Paste Set IDs here (e.g. ae678685-680c-4467-8e6f-7067d5e46305), one per line or comma-separated."></textarea>
+            </div>
+
+            <div id="importLabelsStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
+            <button id="importLabelsSubmitBtn" class="btn-action btn-primary" style="width: 100%; margin-top: 15px; padding: 12px;" onclick="submitLabelImport()">Import Labels</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/xlsx.full.min.js') }}"></script>
+    <script>
+        let projects = [];
+        let currentProjectId = null;
+        let currentData = { favorites: [], comparisons: [] };
+        const currentUsername = "{{ current_user.username }}"; // Injected by Jinja
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProjects();
+        });
+
+        // ... (rest of existing script) ...
+
+        /* --- Label Import Logic --- */
+        function openLabelImportModal() {
+            document.getElementById('importLabelsModal').style.display = 'block';
+            document.getElementById('importLabelsInput').value = '';
+            document.getElementById('import-text-container').style.display = 'none'; // Hide text input by default
+            document.getElementById('import-explanation').style.display = 'none'; // Hide explanation by default
+            resetImportFile();
+            document.getElementById('importLabelsStatus').innerHTML = '';
+            document.getElementById('importLabelsSubmitBtn').disabled = false;
+        }
+        
+        function toggleImportExplanation() {
+            const exp = document.getElementById('import-explanation');
+            exp.style.display = exp.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function toggleImportTextInput() {
+            const container = document.getElementById('import-text-container');
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                document.getElementById('importLabelsInput').focus();
+            } else {
+                container.style.display = 'none';
+            }
+        }
+        
+        function resetImportFile(event) {
+            if (event) event.stopPropagation();
+            document.getElementById('importLabelsFile').value = '';
+            document.getElementById('import-file-info').style.display = 'none';
+            document.getElementById('import-drop-zone').style.display = 'block';
+        }
+
+        // Initialize Drag and Drop
+        const importDropZone = document.getElementById('import-drop-zone');
+        const importFileInput = document.getElementById('importLabelsFile');
+        
+        if (importDropZone && importFileInput) {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                importDropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                importDropZone.addEventListener(eventName, () => importDropZone.classList.add('drag-over'), false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                importDropZone.addEventListener(eventName, () => importDropZone.classList.remove('drag-over'), false);
+            });
+
+            importDropZone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    importFileInput.files = files;
+                    handleImportFileSelection(files[0]);
+                }
+            }, false);
+
+            importFileInput.addEventListener('change', (e) => {
+                if (importFileInput.files.length > 0) {
+                    handleImportFileSelection(importFileInput.files[0]);
+                }
+            });
+        }
+
+        function handleImportFileSelection(file) {
+            const fileName = file.name.toLowerCase();
+            if (!fileName.endsWith('.txt') && !fileName.endsWith('.xlsx')) {
+                alert("Invalid file format. Please upload .txt or .xlsx");
+                resetImportFile();
+                return;
+            }
+            document.getElementById('import-file-name').textContent = file.name;
+            document.getElementById('import-drop-zone').style.display = 'none';
+            document.getElementById('import-file-info').style.display = 'flex';
+        }
+
+        async function submitLabelImport() {
+            const inputEl = document.getElementById('importLabelsInput');
+            const fileEl = document.getElementById('importLabelsFile');
+            const statusDiv = document.getElementById('importLabelsStatus');
+            const submitBtn = document.getElementById('importLabelsSubmitBtn');
+            
+            let text = inputEl.value;
+            const file = fileEl.files[0];
+            let fileIds = [];
+
+            if (file) {
+                try {
+                    const fileName = file.name.toLowerCase();
+                    if (fileName.endsWith('.xlsx')) {
+                        fileIds = await readExcelFile(file);
+                    } else if (fileName.endsWith('.txt')) {
+                        const content = await readFileContent(file);
+                        fileIds = content.split(/[\n,]+/).map(s => s.trim());
+                    } else {
+                        statusDiv.innerHTML = '<span style="color:red">Unsupported file format. Please upload .txt or .xlsx</span>';
+                        return;
+                    }
+                } catch (e) {
+                    console.error(e);
+                    statusDiv.innerHTML = '<span style="color:red">Error reading file.</span>';
+                    return;
+                }
+            }
+
+            // Combine text input and file IDs
+            let rawIds = text.split(/[\n,]+/).map(s => s.trim());
+            if (fileIds.length > 0) {
+                rawIds = rawIds.concat(fileIds);
+            }
+            
+            // Clean up
+            rawIds = [...new Set(rawIds.map(s => s.replace(/['"]+/g, '')).filter(s => s.length > 0))];
+            
+            if (rawIds.length === 0) {
+                statusDiv.innerHTML = '<span style="color:red">Please enter at least one Set ID or upload a valid file.</span>';
+                return;
+            }
+
+            statusDiv.innerHTML = '<span style="color:blue">Processing... please wait.</span>';
+            submitBtn.disabled = true;
+
+            try {
+                // Use existing favorite_all logic? Or a specific bulk import route?
+                // The existing /import_favorites route adds to user favorites, but we need to add to specific PROJECT.
+                // However, /import_favorites assumes adding to user's list. 
+                // Let's check app.py /import_favorites implementation.
+                // It does NOT seem to take project_id currently.
+                // I need to use a route that supports project_id.
+                // I can use /favorite_all if I format the request correctly?
+                // /favorite_all takes 'batch_id_search' string (comma separated) and 'project_id'.
+                
+                const batchString = rawIds.join(',');
+                
+                const response = await fetch('/favorite_all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        batch_id_search: batchString,
+                        project_id: currentProjectId
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusDiv.innerHTML = `<span style="color:green">Success! Added ${data.added_count} labels to this project.</span>`;
+                    setTimeout(() => {
+                        closeModal('importLabelsModal');
+                        selectProject(currentProjectId); // Refresh
+                    }, 1500);
+                } else {
+                    statusDiv.innerHTML = `<span style="color:red">Error: ${data.error}</span>`;
+                    submitBtn.disabled = false;
+                }
+            } catch (err) {
+                console.error(err);
+                statusDiv.innerHTML = '<span style="color:red">Failed to connect to server.</span>';
+                submitBtn.disabled = false;
+            }
+        }
+
+        function readFileContent(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => resolve(event.target.result);
+                reader.onerror = (error) => reject(error);
+                reader.readAsText(file);
+            });
+        }
+
+        function readExcelFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const json = XLSX.utils.sheet_to_json(worksheet);
+                        
+                        const items = [];
+                        json.forEach(row => {
+                            let set_id = null;
+                            const getValue = (keys) => {
+                                for (let k of Object.keys(row)) {
+                                    const normK = k.toLowerCase().trim();
+                                    if (keys.some(key => normK === key.toLowerCase())) {
+                                        return row[k];
+                                    }
+                                }
+                                return null;
+                            };
+                            set_id = getValue(['SET ID', 'Set ID', 'set_id']);
+                            if (set_id) items.push(String(set_id).trim());
+                        });
+                        resolve(items);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                reader.onerror = (error) => reject(error);
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+
+        // ... (loadProjects, renderSidebar, selectProject remain same) ...
+
+        async function loadProjects() {
+            try {
+                const res = await fetch('/api/projects');
+                const data = await res.json();
+                projects = data.projects || [];
+                
+                renderSidebar();
+                
+                // Select first project if none selected
+                if (projects.length > 0 && !currentProjectId) {
+                    selectProject(projects[0].id);
+                } else if (currentProjectId) {
+                    // Re-select to update UI
+                    selectProject(currentProjectId);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function renderSidebar() {
+            const list = document.getElementById('project-list');
+            list.innerHTML = '';
+            
+            const ownedCount = projects.filter(p => p.role === 'owner').length;
+            document.getElementById('btn-create-project').disabled = ownedCount >= 5;
+
+            projects.forEach((p, index) => {
+                const li = document.createElement('li');
+                li.className = `project-item ${p.id === currentProjectId ? 'active' : ''}`;
+                li.onclick = () => selectProject(p.id);
+                li.dataset.id = p.id;
+                
+                // Drag and Drop Attributes (Only for owned, non-default projects)
+                if (p.role === 'owner' && !p.is_default) {
+                    li.draggable = true;
+                    li.addEventListener('dragstart', handleDragStart);
+                    li.addEventListener('dragover', handleDragOver);
+                    li.addEventListener('drop', handleDrop);
+                    li.addEventListener('dragend', handleDragEnd);
+                }
+                
+                let actionsHtml = '';
+                if (p.role === 'owner') {
+                    // Don't allow deleting/renaming the Default (Not Grouped) project easily via this UI, or restrict it?
+                    // The user asked to rename it to "Not Grouped". 
+                    // Let's hide delete/rename for "Not Grouped" to be safe or just delete.
+                    if (!p.is_default) {
+                        actionsHtml = `
+                            <div class="project-actions">
+                                <button class="project-action-btn" title="Rename" onclick="openRenameModal(event, ${p.id}, '${p.title.replace(/'/g, "\'")}')">&#9998;</button>
+                                <button class="project-action-btn delete" title="Delete" onclick="deleteProject(event, ${p.id})">&times;</button>
+                            </div>
+                        `;
+                    }
+                }
+
+                const roleBadge = p.role === 'owner' 
+                    ? '<span class="role-badge role-owner">Owner</span>' 
+                    : '<span class="role-badge role-editor">Contributor</span>';
+                
+                // Pin icon for default
+                const pinIcon = p.is_default ? '<span style="font-size:0.8em; margin-right:5px;">&#128204;</span>' : '';
+
+                li.innerHTML = `
+                    <div style="display: flex; align-items: center; overflow: hidden;">
+                        ${pinIcon}
+                        <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.title}</span>
+                        ${roleBadge}
+                    </div>
+                    ${actionsHtml}
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        // --- Drag and Drop Logic ---
+        let dragSrcEl = null;
+
+        function handleDragStart(e) {
+            dragSrcEl = this;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', this.innerHTML);
+            this.classList.add('dragging');
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDrop(e) {
+            if (e.stopPropagation) e.stopPropagation();
+            if (dragSrcEl !== this) {
+                // Swap items in DOM
+                // But easier to reorder array and re-render?
+                // Let's reorder the 'projects' array locally then save.
+                
+                const srcId = parseInt(dragSrcEl.dataset.id);
+                const destId = parseInt(this.dataset.id);
+                
+                const srcIndex = projects.findIndex(p => p.id === srcId);
+                const destIndex = projects.findIndex(p => p.id === destId);
+                
+                if (srcIndex > -1 && destIndex > -1) {
+                    // Move src to dest
+                    const [movedItem] = projects.splice(srcIndex, 1);
+                    projects.splice(destIndex, 0, movedItem);
+                    renderSidebar();
+                    saveProjectOrder();
+                }
+            }
+            return false;
+        }
+
+        function handleDragEnd() {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.project-list li').forEach(item => item.classList.remove('over'));
+        }
+        
+        async function saveProjectOrder() {
+            // Get IDs of owned projects in current order
+            // Filter out default project from reorder list? 
+            // The API logic: "Not Grouped" is pinned. We reorder the "others".
+            // So we send the list of IDs excluding Not Grouped.
+            
+            const orderedIds = projects
+                .filter(p => p.role === 'owner' && !p.is_default)
+                .map(p => p.id);
+                
+            try {
+                await fetch('/api/projects/reorder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: orderedIds })
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        async function selectProject(id) {
+            currentProjectId = id;
+            renderSidebar(); // Update active class
+            
+            const project = projects.find(p => p.id === id);
+            if(project) {
+                document.getElementById('current-project-title').textContent = project.title;
+                document.getElementById('current-project-desc').textContent = project.role === 'owner' ? 'Managed by you' : 'Shared with you';
+            }
+
+            // Fetch data for this project
+            try {
+                const res = await fetch(`/api/my_favorites?project_id=${id}`);
+                currentData = await res.json();
+                renderWorkspace();
+            } catch(err) { console.error(err); }
+        }
+
+        function renderWorkspace() {
+            document.getElementById('count-labels').textContent = currentData.favorites.length;
+            document.getElementById('count-comps').textContent = currentData.comparisons.length;
+
+            // Labels Table
+            const labelsTbody = document.querySelector('#table-labels tbody');
+            labelsTbody.innerHTML = '';
+            // Reset Select All
+            const labelSelectAll = document.querySelector('#table-labels thead input');
+            if(labelSelectAll) labelSelectAll.checked = false;
+
+            if (currentData.favorites.length === 0) {
+                document.getElementById('empty-labels').style.display = 'block';
+                document.querySelector('#table-labels').style.display = 'none';
+            } else {
+                document.getElementById('empty-labels').style.display = 'none';
+                document.querySelector('#table-labels').style.display = 'table';
+                
+                currentData.favorites.forEach(fav => {
+                    const isOwner = fav.added_by === currentUsername;
+                    const disabledAttr = isOwner ? '' : 'disabled';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="text-align:center;"><input type="checkbox" class="row-checkbox" value="${fav.set_id}" ${disabledAttr}></td>
+                        <td><strong>${fav.brand_name || 'N/A'}</strong></td>
+                        <td><a href="/label/${fav.set_id}">${fav.set_id}</a></td>
+                        <td>${fav.manufacturer_name || '-'}</td>
+                        <td>${new Date(fav.timestamp).toLocaleDateString()}</td>
+                        <td><span style="font-size: 0.85em; color: #666; background: #f8f9fa; padding: 2px 6px; border-radius: 4px;">${fav.added_by}</span></td>
+                        <td><a href="/label/${fav.set_id}" class="btn-action btn-outline" style="padding: 4px 10px; text-decoration: none;" >View</a></td>
+                    `;
+                    labelsTbody.appendChild(tr);
+                });
+            }
+
+            // Comparisons Table
+            const compTbody = document.querySelector('#table-comps tbody');
+            compTbody.innerHTML = '';
+             // Reset Select All
+            const compSelectAll = document.querySelector('#table-comps thead input');
+            if(compSelectAll) compSelectAll.checked = false;
+
+            if (currentData.comparisons.length === 0) {
+                document.getElementById('empty-comps').style.display = 'block';
+                document.querySelector('#table-comps').style.display = 'none';
+            } else {
+                document.getElementById('empty-comps').style.display = 'none';
+                document.querySelector('#table-comps').style.display = 'table';
+                
+                currentData.comparisons.forEach(comp => {
+                    const isOwner = comp.added_by === currentUsername;
+                    const disabledAttr = isOwner ? '' : 'disabled';
+                    const tr = document.createElement('tr');
+                    const params = comp.set_ids.map(id => `set_ids=${id}`).join('&');
+                    tr.innerHTML = `
+                        <td style="text-align:center;"><input type="checkbox" class="row-checkbox" value="${comp.id}" ${disabledAttr}></td>
+                        <td><strong>${comp.title || 'Comparison'}</strong></td>
+                        <td>${comp.set_ids.length} items</td>
+                        <td>${new Date(comp.timestamp).toLocaleDateString()}</td>
+                        <td><span style="font-size: 0.85em; color: #666; background: #f8f9fa; padding: 2px 6px; border-radius: 4px;">${comp.added_by}</span></td>
+                        <td><a href="/compare?${params}" class="btn-action btn-outline" style="padding: 4px 10px; text-decoration: none;" target="_blank">View</a></td>
+                    `;
+                    compTbody.appendChild(tr);
+                });
+            }
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.workspace-tab').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.view-section').forEach(el => el.style.display = 'none');
+            
+            // Toggle Action Buttons
+            document.getElementById('actions-labels').style.display = 'none';
+            document.getElementById('actions-comparisons').style.display = 'none';
+
+            if (tab === 'labels') {
+                document.querySelectorAll('.workspace-tab')[0].classList.add('active');
+                document.getElementById('view-labels').style.display = 'block';
+                document.getElementById('actions-labels').style.display = 'block';
+            } else {
+                document.querySelectorAll('.workspace-tab')[1].classList.add('active');
+                document.getElementById('view-comparisons').style.display = 'block';
+                document.getElementById('actions-comparisons').style.display = 'block';
+            }
+        }
+        
+        function toggleSelectAll(source, tableId) {
+            const table = document.getElementById(tableId);
+            const checkboxes = table.querySelectorAll('tbody input.row-checkbox');
+            checkboxes.forEach(cb => {
+                if (!cb.disabled) {
+                    cb.checked = source.checked;
+                }
+            });
+        }
+
+        /* --- CRUD Actions --- */
+        // ... (createProject, deleteProject, etc. - ensure they are accessible)
+        
+        function openCreateModal() {
+            document.getElementById('createModal').style.display = 'block';
+            document.getElementById('new-project-title').focus();
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+        
+        // ... (rest of CRUD) ...
+        
+        /* --- Move Actions --- */
+        function openMoveModal(type) {
+            // Check selection
+            const tableId = type === 'label' ? 'table-labels' : 'table-comps';
+            const table = document.getElementById(tableId);
+            const selected = table.querySelectorAll('tbody input.row-checkbox:checked');
+            
+            if (selected.length === 0) return alert('Please select items to move.');
+            
+            // Populate select
+            const select = document.getElementById('move-target-project');
+            select.innerHTML = '';
+            
+            projects.forEach(p => {
+                if (p.id !== currentProjectId) {
+                     const opt = document.createElement('option');
+                     opt.value = p.id;
+                     opt.textContent = p.title;
+                     select.appendChild(opt);
+                }
+            });
+            
+            if (select.options.length === 0) return alert('No other projects available to move to.');
+            
+            document.getElementById('move-type').value = type;
+            document.getElementById('moveModal').style.display = 'block';
+        }
+        
+        async function submitMove() {
+            const type = document.getElementById('move-type').value;
+            const targetId = document.getElementById('move-target-project').value;
+            const tableId = type === 'label' ? 'table-labels' : 'table-comps';
+            const table = document.getElementById(tableId);
+            const selected = table.querySelectorAll('tbody input.row-checkbox:checked');
+            const ids = Array.from(selected).map(cb => cb.value);
+            
+            try {
+                const res = await fetch('/api/projects/move_items', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target_project_id: targetId,
+                        type: type,
+                        ids: ids,
+                        source_project_id: currentProjectId
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeModal('moveModal');
+                    // Refresh current project
+                    selectProject(currentProjectId); 
+                    alert(`Moved ${data.moved_count} items.`);
+                } else {
+                    alert(data.error);
+                }
+                        } catch(e) { console.error(e); }
+                    }
+            
+                    async function deleteSelected(type) {
+                        const tableId = type === 'label' ? 'table-labels' : 'table-comps';
+                        const table = document.getElementById(tableId);
+                        const selected = table.querySelectorAll('tbody input.row-checkbox:checked');
+                        
+                        if (selected.length === 0) return alert('Please select items to remove.');
+                        
+                        if (!confirm(`Are you sure you want to remove ${selected.length} items from this project?`)) return;
+                        
+                        const ids = Array.from(selected).map(cb => type === 'comparison' ? parseInt(cb.value) : cb.value);
+                        const endpoint = type === 'label' ? '/delete_favorites_bulk' : '/delete_favorite_comparisons_bulk';
+                        const payload = type === 'label' ? { set_ids: ids, project_id: currentProjectId } : { ids: ids, project_id: currentProjectId };
+            
+                        try {
+                            const res = await fetch(endpoint, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                                selectProject(currentProjectId); // Refresh
+                                alert(`Removed ${data.deleted_count} items.`);
+                            }
+                        } catch(e) { console.error(e); }
+                    }
+            
+                    async function createProject() {
+            const title = document.getElementById('new-project-title').value;
+            const desc = document.getElementById('new-project-desc').value;
+            
+            if (!title) return alert('Title is required');
+
+            try {
+                const res = await fetch('/api/projects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, description: desc })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    closeModal('createModal');
+                    document.getElementById('new-project-title').value = '';
+                    document.getElementById('new-project-desc').value = '';
+                    await loadProjects();
+                    selectProject(data.project.id);
+                } else {
+                    alert(data.error);
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        async function deleteProject(e, id) {
+            e.stopPropagation();
+            if (!confirm('Are you sure you want to delete this project? All saved data inside will be lost.')) return;
+            
+            try {
+                const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    if (currentProjectId === id) currentProjectId = null;
+                    loadProjects();
+                } else {
+                    alert(data.error);
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        function openRenameModal(e, id, currentTitle) {
+            e.stopPropagation();
+            document.getElementById('rename-id').value = id;
+            document.getElementById('rename-title').value = currentTitle;
+            document.getElementById('renameModal').style.display = 'block';
+        }
+
+        async function submitRename() {
+            const id = document.getElementById('rename-id').value;
+            const title = document.getElementById('rename-title').value;
+            
+            if (!title) return;
+
+            try {
+                const res = await fetch(`/api/projects/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeModal('renameModal');
+                    loadProjects();
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        /* --- Import/Export --- */
+
+        async function exportProject() {
+            if (!currentProjectId) return;
+            try {
+                const res = await fetch(`/api/projects/${currentProjectId}/export`, { method: 'POST' });
+                const data = await res.json();
+                
+                if (data.share_code) {
+                    prompt("Copy this Share Code to import elsewhere:", data.share_code);
+                } else {
+                    alert(data.error || 'Export failed');
+                }
+            } catch(e) { console.error(e); }
+        }
+
+                async function importProject() {
+
+                    const code = document.getElementById('import-code').value.trim();
+
+                    const sync = document.getElementById('import-sync').checked;
+
+                    
+
+                    if (!code) return alert('Please enter a share code');
+
+        
+
+                    try {
+
+                        const res = await fetch('/api/projects/import', {
+
+                            method: 'POST',
+
+                            headers: { 'Content-Type': 'application/json' },
+
+                            body: JSON.stringify({ share_code: code, sync: sync })
+
+                        });
+
+                        const data = await res.json();
+
+                        
+
+                        if (data.success) {
+
+                            document.getElementById('import-code').value = '';
+
+                            document.getElementById('import-sync').checked = false;
+
+                            document.getElementById('sync-notice').style.display = 'none'; // Reset notice
+
+                            alert(data.message);
+
+                            await loadProjects();
+
+                            selectProject(data.id);
+
+                        } else {
+
+                            alert(data.error);
+
+                        }
+
+                    } catch (e) { console.error(e); }
+
+                }
+
+        
+
+                function toggleSyncNotice(checkbox) {
+            const notice = document.getElementById('sync-notice');
+            if (notice) {
+                notice.style.display = checkbox.checked ? 'block' : 'none';
+            }
+        }
+
+        /* --- Preferences Modal Logic --- */
+        function openPreferencesModal() {
+            document.getElementById('preferencesModal').style.display = 'block';
+            updateProviderUI(); 
+        }
+
+        function updateProviderUI() {
+            // Check if element exists to avoid errors if modal not rendered
+            const checkedRadio = document.querySelector('input[name="ai_provider"]:checked');
+            if (!checkedRadio) return;
+            
+            const provider = checkedRadio.value;
+            document.getElementById('gemini-config').style.display = provider === 'gemini' ? 'block' : 'none';
+            document.getElementById('openai-config').style.display = provider === 'openai' ? 'block' : 'none';
+            document.getElementById('elsa-config').style.display = provider === 'elsa' ? 'block' : 'none';
+            
+            const optGemini = document.getElementById('opt-gemini');
+            const optOpenai = document.getElementById('opt-openai');
+            const optElsa = document.getElementById('opt-elsa');
+            
+            // Reset all options first
+            [optGemini, optOpenai, optElsa].forEach(opt => {
+                if (opt) {
+                    opt.classList.remove('active');
+                    opt.style.borderColor = '#e9ecef';
+                    opt.style.backgroundColor = 'transparent';
+                }
+            });
+            
+            // Highlight the selected provider
+            let selectedOpt = null;
+            if (provider === 'gemini') {
+                selectedOpt = optGemini;
+            } else if (provider === 'openai') {
+                selectedOpt = optOpenai;
+            } else if (provider === 'elsa') {
+                selectedOpt = optElsa;
+            }
+            
+            if (selectedOpt) {
+                selectedOpt.classList.add('active');
+                selectedOpt.style.borderColor = '#6f42c1';
+                selectedOpt.style.backgroundColor = '#f3f0ff';
+            }
+        }
+
+        async function submitPreferences(e) {
+            e.preventDefault();
+            const form = document.getElementById('preferencesForm');
+            const formData = new FormData(form);
+            const btn = form.querySelector('button[type="submit"]');
+            const originalText = btn.textContent;
+            
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            
+            try {
+                const res = await fetch('/preferences', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    // Show a temporary success message or alert
+                    // Using a custom small notification or just alert
+                    // For now, standard alert is fine or console
+                    const prevColor = btn.style.backgroundColor;
+                    btn.style.backgroundColor = '#28a745';
+                    btn.textContent = 'Saved!';
+                    
+                    setTimeout(() => {
+                        closeModal('preferencesModal');
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                        btn.style.backgroundColor = ''; // Reset
+                    }, 800);
+                } else {
+                    alert('Failed to save preferences.');
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error saving preferences.');
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
+
+        function makeDraggable(modalId) {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            const content = modal.querySelector('.modal-content');
+            const header = content.querySelector('h2'); 
+            
+            if (!header) return;
+            
+            header.style.cursor = 'grab';
+            
+            let isDragging = false;
+            let startX, startY, initialTranslateX = 0, initialTranslateY = 0;
+
+            header.addEventListener('mousedown', dragStart);
+
+            function dragStart(e) {
+                if (e.target.closest('.close')) return; 
+                
+                isDragging = true;
+                header.style.cursor = 'grabbing';
+                
+                startX = e.clientX;
+                startY = e.clientY;
+                
+                // Get current transform values
+                const style = window.getComputedStyle(content);
+                const matrix = new DOMMatrixReadOnly(style.transform);
+                initialTranslateX = matrix.m41;
+                initialTranslateY = matrix.m42;
+
+                document.addEventListener('mousemove', drag);
+                document.addEventListener('mouseup', dragEnd);
+            }
+
+            function drag(e) {
+                if (!isDragging) return;
+                e.preventDefault();
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                content.style.transform = `translate(${initialTranslateX + dx}px, ${initialTranslateY + dy}px)`;
+            }
+
+            function dragEnd() {
+                isDragging = false;
+                header.style.cursor = 'grab';
+                document.removeEventListener('mousemove', drag);
+                document.removeEventListener('mouseup', dragEnd);
+            }
+        }
+        
+        // Initialize draggable modals
+        document.addEventListener('DOMContentLoaded', () => {
+            makeDraggable('preferencesModal');
+        });
+    </script>
+</body>
+</html>

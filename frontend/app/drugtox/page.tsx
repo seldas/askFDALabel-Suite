@@ -343,6 +343,27 @@ export default function DrugToxPage() {
         '.MuiPaper-root': { boxShadow: '0 2px 12px rgba(0,0,0,0.05) !important' }
       }} />
       
+      <Box sx={{ width: '100%', maxWidth: 'lg', px: 2, pt: 2, display: 'flex', justifyContent: 'flex-start' }}>
+        <Button 
+          variant="outlined" 
+          onClick={() => window.location.href = '/'}
+          sx={{ 
+            borderRadius: '50px', 
+            textTransform: 'none', 
+            fontWeight: 700,
+            color: '#64748b',
+            borderColor: '#e2e8f0',
+            '&:hover': {
+              borderColor: '#6366f1',
+              backgroundColor: '#f8faff'
+            }
+          }}
+          startIcon={<span>&#127968;</span>}
+        >
+          Suite Home
+        </Button>
+      </Box>
+
       <Container maxWidth="lg" sx={{ py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Box sx={{ textAlign: 'center', mb: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
           <Typography variant="h2" sx={{ fontWeight: 900, color: '#1a237e', mb: 1, letterSpacing: '-1.5px' }}>askDrugTox</Typography>

@@ -1,6 +1,6 @@
 "use client"
 import { useState } from "react";
-import "./globals.css";
+import "./search_global.css";
 import Header from "./components/Header";
 import ChatPanel from "./components/ChatPanel";
 import Results from "./components/Results";

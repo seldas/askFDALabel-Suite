@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - AskFDALabel</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .auth-container {
+            max-width: 400px;
+            margin: 5% auto;
+            background: white;
+            padding: 2em;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .auth-container h2 {
+            margin-bottom: 1em;
+            color: #007bff;
+        }
+        .auth-form input {
+            width: 100%;
+            padding: 12px 20px;
+            margin-bottom: 1.2em;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .auth-form input:focus {
+            border-color: #007bff;
+        }
+        .auth-form button {
+            width: 100%;
+            padding: 12px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .auth-form button:hover {
+            background-color: #218838;
+            transform: translateY(-1px) scale(1.01);
+        }
+        .error-msg {
+            color: red;
+            margin-bottom: 1em;
+            font-size: 0.9em;
+        }
+        .auth-links {
+            margin-top: 1em;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body class="index-body">
+    <div class="auth-container">
+        <h2>Register</h2>
+        {% if error %}
+            <div class="error-msg">{{ error }}</div>
+        {% endif %}
+        <form class="auth-form" method="POST">
+            <input type="text" name="username" placeholder="Username" required 
+                   pattern="^[a-zA-Z0-9.@_\+-]+$" 
+                   title="Username can only contain letters, numbers, and . @ _ - + (no spaces)">
+            <input type="password" name="password" placeholder="Password" required>
+            <button type="submit">Register</button>
+        </form>
+        <div class="auth-links">
+            <p>Already have an account? <a href="{{ url_for('auth.login') }}">Login here</a></p>
+            <p><a href="{{ url_for('main.index') }}">Back to Home</a></p>
+        </div>
+    </div>
+</body>
+</html>

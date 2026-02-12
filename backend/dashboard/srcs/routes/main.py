@@ -313,10 +313,33 @@ def search():
 
     if not labels and page == 1:
         # No results found
+        if request.headers.get('Accept') == 'application/json' or request.args.get('json') == '1':
+            return jsonify({
+                "drug_name": drug_name_display,
+                "page_title": page_title,
+                "labels": [],
+                "total": 0,
+                "page": page,
+                "limit": limit,
+                "view": view
+            })
         return render_template('selection.html', drug_name=drug_name_display, page_title=page_title, labels=None, total=0, page=page, limit=limit, view=view)
 
     # If multiple results (or a batch search, or single result), show the selection page
     is_internal = FDALabelDBService.check_connectivity()
+    
+    if request.headers.get('Accept') == 'application/json' or request.args.get('json') == '1':
+        return jsonify({
+            "drug_name": drug_name_display,
+            "page_title": page_title,
+            "labels": labels,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "view": view,
+            "is_internal": is_internal
+        })
+
     return render_template('selection.html', drug_name=drug_name_display, page_title=page_title, labels=labels, total=total, page=page, limit=limit, view=view, is_internal=is_internal)
 
 
