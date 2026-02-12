@@ -1,8 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { useSearchContext } from '../context/SearchContext';
+import { useUser } from '../../context/UserContext';
 
 const Header: React.FC = () => {
   const { searchMode, setSearchMode } = useSearchContext();
+  const { session, loading, updateAiProvider } = useUser();
   const bookmarkletRef = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => {
@@ -21,6 +23,27 @@ const Header: React.FC = () => {
         </a>
       </div>
       <div className="header-controls" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        
+        {!loading && session?.is_authenticated && (
+          <div className="hp-ai-switcher" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '4px 12px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
+            <span style={{ fontSize: '0.85em', color: '#64748b', fontWeight: 600 }}>AI:</span>
+            <select 
+              value={session.ai_provider} 
+              onChange={(e) => updateAiProvider(e.target.value)}
+              style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.9em', fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}
+            >
+              {!session.is_internal && (
+                <>
+                  <option value="gemini">Gemini</option>
+                  <option value="gemma">Gemma 3</option>
+                </>
+              )}
+              <option value="openai">OpenAI</option>
+              {session.is_internal && <option value="elsa">ELSA</option>}
+            </select>
+          </div>
+        )}
+
         <div className="mode-switch" style={{ display: 'flex', alignItems: 'center', fontSize: '0.9rem', padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
             <span style={{ marginRight: '8px', color: searchMode === 'v1' ? '#0077cc' : '#94a3b8', fontWeight: searchMode === 'v1' ? 'bold' : 'normal' }}>V1</span>
             <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '34px', height: '20px' }}>
@@ -45,6 +68,18 @@ const Header: React.FC = () => {
             <span style={{ marginLeft: '8px', color: searchMode === 'v2' ? '#0077cc' : '#94a3b8', fontWeight: searchMode === 'v2' ? 'bold' : 'normal' }}>Agentic (V2)</span>
         </div>
         <nav className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          {!loading && !session?.is_authenticated ? (
+            <>
+              <a href="/api/dashboard/auth/login?next=/dashboard" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Login</a>
+              <a href="/api/dashboard/auth/register?next=/dashboard" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Register</a>
+            </>
+          ) : !loading && session?.is_authenticated && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '24px', height: '24px', background: '#6366f1', color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                {session.username?.[0].toUpperCase()}
+              </div>
+            </div>
+          )}
           <div className="bookmarklet-container" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <a 
               ref={bookmarkletRef}

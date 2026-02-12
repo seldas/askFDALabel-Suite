@@ -3,59 +3,21 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardClient from './DashboardClient';
-
-interface UserSession {
-  is_authenticated: boolean;
-  username?: string;
-  ai_provider?: string;
-  custom_gemini_key?: string;
-  openai_api_key?: string;
-  openai_base_url?: string;
-  openai_model_name?: string;
-  is_internal?: boolean;
-}
+import { useUser } from '../context/UserContext';
 
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [session, setSession] = useState<UserSession | null>(null);
-  const [configLoading, setConfigLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const router = useRouter();
-
-  useEffect(() => {
-    async function fetchSession() {
-      try {
-        const res = await fetch('/api/dashboard/auth/session');
-        const data = await res.json();
-        setSession(data);
-      } catch (e) {
-        console.error("Failed to fetch session", e);
-      }
-    }
-    fetchSession();
-  }, []);
+  const { session, loading, updateAiProvider, refreshSession } = useUser();
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [configLoading, setConfigLoading] = useState(false);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       router.push(`/dashboard/results?drug_name=${encodeURIComponent(searchQuery)}`);
-    }
-  };
-
-  const updateAiModel = async (provider: string) => {
-    try {
-      const res = await fetch('/api/dashboard/preferences', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ 'ai_provider': provider })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSession(prev => prev ? { ...prev, ai_provider: provider } : null);
-      }
-    } catch (e) {
-      console.error(e);
     }
   };
 
@@ -72,7 +34,8 @@ export default function DashboardPage() {
       const data = await res.json();
       if (data.success) {
         alert("Configuration saved!");
-        window.location.reload();
+        await refreshSession();
+        setShowAiModal(false);
       }
     } catch (e) {
       alert("Failed to save configuration");
@@ -131,13 +94,13 @@ export default function DashboardPage() {
             <span>{"\uD83C\uDFE0"}</span> Suite Home
           </a>
 
-          {session?.is_authenticated ? (
+          {!loading && session?.is_authenticated ? (
             <>
               <div className="hp-ai-switcher" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '5px 12px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
                 <span style={{ fontSize: '0.85em', color: '#64748b', fontWeight: 600 }}>AI:</span>
                 <select 
                   value={session.ai_provider} 
-                  onChange={(e) => updateAiModel(e.target.value)}
+                  onChange={(e) => updateAiProvider(e.target.value)}
                   style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.9em', fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}
                 >
                   {!session.is_internal && (
@@ -149,7 +112,13 @@ export default function DashboardPage() {
                   <option value="openai">OpenAI</option>
                   {session.is_internal && <option value="elsa">ELSA</option>}
                 </select>
-                <button id="ai-config-btn" title="AI Configuration" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>{"\u2699"}</button>
+                <button 
+                  onClick={() => setShowAiModal(true)}
+                  title="AI Configuration" 
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
+                >
+                  {"\u2699"}
+                </button>
               </div>
 
               <div className="hp-user-badge" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px' }}>
@@ -161,10 +130,10 @@ export default function DashboardPage() {
                 </span>
               </div>
             </>
-          ) : (
+          ) : !loading && (
             <>
-              <a href="/api/dashboard/auth/login" className="hp-nav-btn hp-btn-outline"><span>&#128100;</span> Login</a>
-              <a href="/api/dashboard/auth/register" className="hp-nav-btn hp-btn-outline"><span>✨</span> Register</a>
+              <a href="/api/dashboard/auth/login?next=/dashboard" className="hp-nav-btn hp-btn-outline"><span>&#128100;</span> Login</a>
+              <a href="/api/dashboard/auth/register?next=/dashboard" className="hp-nav-btn hp-btn-outline"><span>✨</span> Register</a>
             </>
           )}
           
@@ -292,12 +261,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {session?.is_authenticated && (
-        <div id="ai-config-modal" className="custom-modal" style={{ display: 'none' }}>
+      {showAiModal && session?.is_authenticated && (
+        <div id="ai-config-modal" className="custom-modal" style={{ display: 'flex' }}>
           <div className="custom-modal-content" style={{ maxWidth: '600px', height: 'auto' }}>
             <div className="custom-modal-header">
               <h3>AI Configuration</h3>
-              <span className="close-modal" id="close-ai-config" style={{ cursor: 'pointer' }}>&times;</span>
+              <span className="close-modal" id="close-ai-config" onClick={() => setShowAiModal(false)} style={{ cursor: 'pointer' }}>&times;</span>
             </div>
             <div className="custom-modal-body">
               <form id="ai-config-form" onSubmit={handleConfigSubmit}>

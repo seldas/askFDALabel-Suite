@@ -29,6 +29,7 @@ import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
 import GavelIcon from '@mui/icons-material/Gavel'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import FilterListIcon from '@mui/icons-material/FilterList'
+import { useUser } from '../context/UserContext'
 import debounce from 'lodash/debounce'
 
 // Interfaces
@@ -94,6 +95,7 @@ const API_BASE = '/api/drugtox';
 
 export default function DrugToxPage() {
   const theme = useTheme();
+  const { session, loading, updateAiProvider } = useUser();
   const [activeTab, setActiveTab] = useState(0); 
   const [inputValue, setInputValue] = useState('');
   const [options, setOptions] = useState<string[]>([]);
@@ -343,7 +345,7 @@ export default function DrugToxPage() {
         '.MuiPaper-root': { boxShadow: '0 2px 12px rgba(0,0,0,0.05) !important' }
       }} />
       
-      <Box sx={{ width: '100%', maxWidth: 'lg', px: 2, pt: 2, display: 'flex', justifyContent: 'flex-start' }}>
+      <Box sx={{ width: '100%', maxWidth: 'lg', px: 2, pt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Button 
           variant="outlined" 
           onClick={() => window.location.href = '/'}
@@ -362,6 +364,39 @@ export default function DrugToxPage() {
         >
           Suite Home
         </Button>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {!loading && session?.is_authenticated ? (
+            <>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, backgroundColor: '#fff', px: 1.5, py: 0.5, borderRadius: '20px', border: '1px solid #e2e8f0' }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>AI:</Typography>
+                <select 
+                  value={session.ai_provider} 
+                  onChange={(e) => updateAiProvider(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.8rem', fontWeight: 700, color: '#1a237e', cursor: 'pointer' }}
+                >
+                  {!session.is_internal && (
+                    <>
+                      <option value="gemini">Gemini</option>
+                      <option value="gemma">Gemma 3</option>
+                    </>
+                  )}
+                  <option value="openai">OpenAI</option>
+                  {session.is_internal && <option value="elsa">ELSA</option>}
+                </select>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: 'primary.main' }}>{session.username?.[0].toUpperCase()}</Avatar>
+                <Typography variant="caption" sx={{ fontWeight: 700 }}>{session.username}</Typography>
+              </Box>
+            </>
+          ) : !loading && (
+            <Stack direction="row" spacing={1}>
+              <Button size="small" variant="text" href="/api/dashboard/auth/login" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Login</Button>
+              <Button size="small" variant="text" href="/api/dashboard/auth/register" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Register</Button>
+            </Stack>
+          )}
+        </Box>
       </Box>
 
       <Container maxWidth="lg" sx={{ py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

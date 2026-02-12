@@ -10,7 +10,7 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect('/dashboard')
+        return redirect('/')
     
     # Retrieve next_page from query params (GET) or form data (POST)
     next_page = request.args.get('next') or request.form.get('next')
@@ -21,19 +21,16 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
             login_user(user)
-            # Safe redirect: check if next_page exists and is relative (not absolute URL to other site)
-            if next_page and not urlparse(next_page).netloc:
-                return redirect(next_page)
-            return redirect('/dashboard')
+            return redirect('/')
         else:
             return render_template('login.html', error='Invalid username or password', next=next_page)
             
-    return render_template('login.html', next=next_page)
+    return render_template('login.html')
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
-        return redirect('/dashboard')
+        return redirect('/')
     if request.method == 'POST':
         username = request.form.get('username').strip()
         password = request.form.get('password')
@@ -55,14 +52,14 @@ def register():
         db.session.commit()
         
         login_user(new_user)
-        return redirect('/dashboard')
+        return redirect('/')
     return render_template('register.html')
 
 @auth_bp.route('/logout')
 @login_required
 def logout():
     logout_user()
-    return redirect('/dashboard')
+    return redirect('/')
 
 @auth_bp.route('/session')
 def session():
