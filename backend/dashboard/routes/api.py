@@ -8,22 +8,22 @@ from datetime import datetime
 import logging
 import hashlib
 
-from dashboard.srcs.extensions import db
-from dashboard.srcs.models import (
+from dashboard.extensions import db
+from dashboard.models import (
     User, Project, Favorite, FavoriteComparison, Annotation, 
     LabelAnnotation, DiliAssessment, DictAssessment, DiriAssessment, ComparisonSummary,
     MeddraPT, MeddraMDHIER, MeddraSOC, MeddraHLT, MeddraLLT
 )
-from dashboard.srcs.services.fda_client import get_label_metadata, get_label_xml, get_faers_data, find_labels, find_labels_by_set_ids
-from dashboard.srcs.services.ai_handler import chat_with_document, summarize_comparison, generate_assessment, get_search_helper_response
-from dashboard.srcs.services.xml_handler import extract_metadata_from_xml
-from dashboard.srcs.services.pgx_handler import run_pgx_assessment
-from dashboard.srcs.prompts import (
+from dashboard.services.fda_client import get_label_metadata, get_label_xml, get_faers_data, find_labels, find_labels_by_set_ids
+from dashboard.services.ai_handler import chat_with_document, summarize_comparison, generate_assessment, get_search_helper_response
+from dashboard.services.xml_handler import extract_metadata_from_xml
+from dashboard.services.pgx_handler import run_pgx_assessment
+from dashboard.prompts import (
     DILI_prompt, DICT_prompt, DIRI_prompt, 
     DILI_PT_TERMS, DICT_PT_TERMS, DIRI_PT_TERMS)
-from dashboard.srcs.config import Config
+from dashboard.config import Config
 from sqlalchemy import func
-from dashboard.srcs.services.meddra_matcher import scan_label_for_meddra
+from dashboard.services.meddra_matcher import scan_label_for_meddra
 
 logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__)
@@ -212,7 +212,7 @@ def ai_chat():
         response_text = chat_with_document(current_user, user_message, history, xml_content, chat_type)
         return jsonify({'response': response_text})
     except Exception as e:
-        logger.error(f"Error calling AI API: {e}")
+        logger.error(f"Error calling AI API: {e}, {current_user}, {chat_type}")
         return jsonify({'error': f'AI API error: {str(e)}'}), 500
 
 @api_bp.route('/ai_search_help', methods=['POST'])
@@ -259,7 +259,7 @@ def search_count():
         _, total = find_labels(query, skip=0, limit=1)
         
         # Determine source
-        from dashboard.srcs.services.fdalabel_db import FDALabelDBService
+        from dashboard.services.fdalabel_db import FDALabelDBService
         source = "FDALabel" if FDALabelDBService.check_connectivity() else "OpenFDA"
         
         return jsonify({'count': total, 'source': source})
@@ -1058,8 +1058,17 @@ def api_check_favorites_batch():
     result = {}
     for sid in set_ids:
         result[sid] = found_ids.get(sid, False)
-        
-    return jsonify(result)
+
+@api_bp.route('/my_labelings', methods=['GET'])
+@login_required
+def get_my_labelings():
+    try:
+        # Implement logic to fetch user's projects or labelings
+        # For now, return a simple response
+        return jsonify({'success': True, 'message': 'My Labelings endpoint'})
+    except Exception as e:
+        logger.error(f"Error in get_my_labelings: {e}")
+        return jsonify({'error': 'Failed to fetch my labelings'}), 500
 
 # --- FAERS & Assessment ---
 @api_bp.route('/faers/<path:drug_name>')

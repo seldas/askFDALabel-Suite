@@ -605,8 +605,8 @@ window.initChat = function() {
         chatSend.addEventListener('click', sendMessage);
         chatInput.addEventListener('keypress', function (event) {
             if (event.key === 'Enter') {
-                eventpreventDefault();
-                sendMessage();
+            event.preventDefault();
+            sendMessage();
             }
         });
 

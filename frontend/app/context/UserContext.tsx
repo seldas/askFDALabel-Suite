@@ -29,6 +29,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchSession = useCallback(async () => {
     try {
       const res = await fetch('/api/dashboard/auth/session');
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
       const data = await res.json();
       setSession(data);
     } catch (e) {

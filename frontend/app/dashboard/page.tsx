@@ -13,8 +13,24 @@ export default function DashboardPage() {
   const { session, loading, updateAiProvider, refreshSession } = useUser();
   const [showAiModal, setShowAiModal] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
+  const [isInternal, setIsInternal] = useState(true);
 
-  const handleSearch = (e: React.FormEvent) => {
+  useEffect(() => {
+    const checkInternalStatus = async () => {
+      try {
+        const response = await fetch("/api/check-fdalabel", {
+          method: 'POST'
+        });
+        const data = await response.json();
+        setIsInternal(data.isInternal);
+      } catch (error) {
+        setIsInternal(false);
+      }
+    };
+    checkInternalStatus();
+  }, []);
+
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       router.push(`/dashboard/results?drug_name=${encodeURIComponent(searchQuery)}`);
@@ -73,7 +89,8 @@ export default function DashboardPage() {
     }
   };
 
-  const triggerFileInput = () => {
+  const triggerFileInput = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.xlsx';
@@ -189,13 +206,44 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="hp-ad-bar">
-            <div className="hp-source-header">
-              <img src="/dashboard/logo_FDALabel.jpg" alt="FDALabel Logo" className="hp-source-logo" />
-              <p className="hp-ad-text">🚀 <strong>Transform your workflow.</strong> Get your customized drug list from the <strong>FDALabel website</strong> first.</p>
+          <div className="hp-ad-bar" style={{
+            width: '100%',
+            maxWidth: '600px',
+            backgroundColor: '#f0f9ff',
+            padding: '1rem',
+            borderRadius: '0.5rem',
+            marginBottom: '2rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <div className="hp-source-header" style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <p style={{
+                margin: 0,
+                fontSize: '0.875rem',
+                color: '#1e293b'
+              }}>
+                🚀 <strong>Transform your workflow.</strong> Get your customized drug list from the <strong>FDALabel website</strong> first.
+              </p>
             </div>
-            <div className="hp-import-links">
-              <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer">FDALabel Public Version</a>
+            <div className="hp-import-links" style={{
+              display: 'flex',
+              gap: '1rem',
+              fontSize: '0.875rem'
+            }}>
+              {isInternal ? (
+                <>
+                  <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer">FDA Version</a>
+                  <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer">CDER-CBER version</a>
+                </>
+              ) : (
+                <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer">FDALabel Public Version</a>
+              )}
             </div>
           </div>
 

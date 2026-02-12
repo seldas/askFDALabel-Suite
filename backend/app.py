@@ -1,7 +1,7 @@
 import os
 import logging
 from pathlib import Path
-from flask import Flask, jsonify
+from flask import Blueprint, jsonify 
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -10,7 +10,7 @@ env_path = Path(__file__).resolve().parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
 # Import Dashboard app factory
-from dashboard.srcs import create_app as create_dashboard_app
+from dashboard import create_app as create_dashboard_app
 # Import Blueprints for Search and DrugTox
 from search.blueprint import search_bp
 from drugtox.blueprint import drugtox_bp
@@ -34,10 +34,17 @@ def create_unified_app():
     def health():
         return jsonify({"status": "healthy", "app": "askFDALabel-Suite"})
 
+    @app.route('/api/check-fdalabel', methods=['POST'])
+    def check_fdalabel():
+        from dashboard.services.fdalabel_db import FDALabelDBService
+        is_internal = FDALabelDBService.check_connectivity()
+        return jsonify({"isInternal": is_internal})
+    
     return app
 
 app = create_unified_app()
+   
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "5200"))
+    port = int(os.environ.get("PORT", "8849"))
     app.run(host="0.0.0.0", port=port, debug=True)

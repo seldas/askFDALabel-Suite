@@ -1,20 +1,18 @@
 import os
 from flask import Flask
-from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 
-from dashboard.srcs.config import Config
-from dashboard.srcs.extensions import db, migrate, login_manager
-from dashboard.srcs.models import User, Project, Favorite, FavoriteComparison, PgxBiomarker, PgxAssessment, PgxSynonym
+from pathlib import Path
+from dashboard.config import Config
+from dashboard.extensions import db, migrate, login_manager
+from dashboard.models import User, Project, Favorite, FavoriteComparison, PgxBiomarker, PgxAssessment, PgxSynonym
 
 def create_app(config_class=Config):
-    load_dotenv()
-
-    url_prefix = os.getenv("URL_PREFIX", "").rstrip("/")  # "" or "/analysis"
-
-    # Calculate absolute paths for templates and static files
+    env_path = Path(__file__).resolve().parent.parent.parent / '.env'
+    load_dotenv(dotenv_path=env_path)
+    
     base_dir = os.path.abspath(os.path.dirname(__file__))
-    project_root = os.path.abspath(os.path.join(base_dir, "..", "..", ".."))
+    project_root = os.path.abspath(os.path.join(base_dir, "..", ".."))
     template_dir = os.path.join(project_root, "frontend", "public", "dashboard", "templates")
     static_dir = os.path.join(project_root, "frontend", "public", "dashboard")
 
@@ -24,10 +22,6 @@ def create_app(config_class=Config):
         static_folder=static_dir,
         static_url_path='/api/dashboard/static',
     )
-
-    # If behind reverse proxy, this helps (safe even without proxy)
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-
     app.config.from_object(config_class)
 
     # Initialize Extensions
@@ -37,9 +31,9 @@ def create_app(config_class=Config):
     login_manager.login_view = "auth.login"
 
     # Register Blueprints
-    from dashboard.srcs.routes.auth import auth_bp
-    from dashboard.srcs.routes.main import main_bp
-    from dashboard.srcs.routes.api import api_bp
+    from dashboard.routes.auth import auth_bp
+    from dashboard.routes.main import main_bp
+    from dashboard.routes.api import api_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/dashboard/auth')
     app.register_blueprint(main_bp, url_prefix='/api/dashboard')
@@ -63,14 +57,14 @@ def create_app(config_class=Config):
 def check_meddra_data():
     """Checks if MedDRA tables are populated and warns the user if not."""
     try:
-        from dashboard.srcs.models import MeddraSOC
+        from dashboard.models import MeddraSOC
         count = MeddraSOC.query.count()
         if count == 0:
             print("\n" + "!"*60)
             print("WARNING: MedDRA dictionary data is not populated in the database.")
             print("FAERS analysis features will have limited details (N/A for SOC/HLT).")
             print("To fix this, please run:")
-            print("    python populate_meddra.py")
+            print("    python test/populate_meddra.py")
             print("!"*60 + "\n")
     except Exception as e:
         # Tables might not exist yet if migration hasn't run

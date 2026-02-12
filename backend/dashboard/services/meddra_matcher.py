@@ -1,7 +1,7 @@
 import logging
 from flashtext import KeywordProcessor
-from dashboard.srcs.models import MeddraPT, MeddraLLT
-from dashboard.srcs.extensions import db
+from dashboard.models import MeddraPT, MeddraLLT
+from dashboard.extensions import db
 
 logger = logging.getLogger(__name__)
 

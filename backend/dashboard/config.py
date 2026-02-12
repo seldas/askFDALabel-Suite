@@ -1,9 +1,24 @@
 import os
+from dotenv import load_dotenv
+from pathlib import Path
+
+env_path = Path(__file__).resolve().parent.parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 class Config:
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-this-in-production')
-    OPENFDA_API_KEY = os.getenv('OPENFDA_API_KEY')
-    
+    SECRET_KEY = os.getenv('SECRET_KEY', 'afd-psw-prod')
+
+    OPENFDA_API_KEY=os.getenv('OPENFDA_API_KEY','')
+
+    LLM_URL=os.getenv('LLM_URL','')
+    LLM_KEY=os.getenv('LLM_KEY','')
+    LLM_MODEL=os.getenv('LLM_MODEL','')
+
+    ELSA_API_NAME=os.getenv('ELSA_API_NAME','')
+    ELSA_API_KEY=os.getenv('ELSA_API_KEY','')
+    ELSA_MODEL_ID=os.getenv('ELSA_MODEL_ID','')
+    ELSA_MODEL_NAME=os.getenv('ELSA_MODEL_NAME','')
+
     # Production Database Configuration
     uri = os.getenv("DATABASE_URL")
     if uri and uri.startswith("postgres://"):

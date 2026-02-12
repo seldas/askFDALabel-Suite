@@ -3,9 +3,9 @@ import re
 import os
 import logging
 from datetime import datetime
-from dashboard.srcs.config import Config
-from dashboard.srcs.services.xml_handler import extract_metadata_from_xml
-from dashboard.srcs.services.fdalabel_db import FDALabelDBService
+from dashboard.config import Config
+from dashboard.services.xml_handler import extract_metadata_from_xml
+from dashboard.services.fdalabel_db import FDALabelDBService
 
 logger = logging.getLogger(__name__)
 

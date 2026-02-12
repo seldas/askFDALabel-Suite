@@ -1,9 +1,9 @@
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from srcs.extensions import db
-from srcs import create_app
-from srcs.models import (
+from backend.dashboard.srcs.extensions import db
+from backend.dashboard.srcs import create_app
+from backend.dashboard.srcs.models import (
     MeddraSOC, MeddraHLGT, MeddraHLT, MeddraPT, MeddraLLT, 
     MeddraMDHIER, MeddraSMQList, MeddraSMQContent
 )

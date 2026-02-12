@@ -157,6 +157,7 @@
 
 .hp-hero-subtitle {
     font-size: 1.4em;
+    text-align: center;
     color: #8d99ae;
     font-weight: 500;
     animation: hp-fade-up 1s ease-out 0.5s forwards;

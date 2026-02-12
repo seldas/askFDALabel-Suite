@@ -7,8 +7,8 @@ import json
 import logging
 import os
 import urllib3
-from dashboard.srcs.prompts import SEARCH_HELPER_PROMPT
-from dashboard.srcs.services.fdalabel_db import FDALabelDBService
+from dashboard.prompts import SEARCH_HELPER_PROMPT
+from dashboard.services.fdalabel_db import FDALabelDBService
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger(__name__)
@@ -32,22 +32,22 @@ class AIClientFactory:
 
         # FORCE Internal Default if in internal environment and trying to use external providers
         # This prevents Gemini/Gemma usage even if manually set
-        if is_internal and (user and user.ai_provider in ['gemini', 'gemma']):
+        if is_internal and (user and user.ai_provider not in ['elsa',]):
              # Override to Internal OpenAI/Llama
              client = OpenAI(
-                api_key=os.getenv("INTERNAL_VLLM_API_KEY", "no-key-required"),
-                base_url=os.getenv("INTERNAL_VLLM_BASE_URL", "http://localhost:8000/v1")
+                api_key=os.getenv("LLM_KEY", "no-key-required"),
+                base_url=os.getenv("LLM_URL", "http://localhost:8000/v1")
              )
-             return "openai", client, os.getenv("INTERNAL_VLLM_MODEL_NAME", "meta-llama/Llama-3-70b")
+             return "openai", client, os.getenv("LLM_MODEL", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8")
 
         if not user or not user.is_authenticated:
             if is_internal:
                 # Internal default: OpenAI/Llama (vLLM)
                 client = OpenAI(
-                    api_key=os.getenv("INTERNAL_VLLM_API_KEY", "no-key-required"),
-                    base_url=os.getenv("INTERNAL_VLLM_BASE_URL", "http://localhost:8000/v1")
+                    api_key=os.getenv("LLM_KEY", "no-key-required"),
+                    base_url=os.getenv("LLM_URL", "http://localhost:8000/v1")
                 )
-                return "openai", client, os.getenv("INTERNAL_VLLM_MODEL_NAME", "meta-llama/Llama-3-70b")
+                return "openai", client, os.getenv("LLM_MODEL", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8")
             else:
                 # External default: Gemini
                 return "gemini", genai.Client(api_key=default_gemini_key), "gemini-2.5-flash"
@@ -78,6 +78,7 @@ class AIClientFactory:
         
 def call_llm(user, system_prompt, user_message, history=None, model_override=None, **kwargs):
     provider, client, model = AIClientFactory.get_client(user)
+    print(provider, model)
     if model_override:
         model = model_override
 
@@ -206,7 +207,7 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
                     logger.warning("Gemini quota exceeded. Switching to Gemma 3 27B fallback.")
                     
                     if user and user.is_authenticated:
-                        from dashboard.srcs.extensions import db
+                        from dashboard.extensions import db
                         user.ai_provider = 'gemma'
                         db.session.commit()
                     

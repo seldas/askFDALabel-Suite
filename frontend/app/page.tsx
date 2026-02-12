@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useUser } from './context/UserContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function HomePage() {
   const { session, loading, updateAiProvider, refreshSession } = useUser();
@@ -104,7 +104,7 @@ export default function HomePage() {
           </>
         ) : (
           <>
-            <a href="/api/dashboard/auth/login?next=/dashboard" style={{ 
+            <a href="/api/dashboard/auth/login" style={{ 
               textDecoration: 'none', 
               color: '#6366f1', 
               fontSize: '0.85rem', 
@@ -114,7 +114,7 @@ export default function HomePage() {
               border: '1px solid #e0e7ff',
               backgroundColor: '#fff'
             }}>Login</a>
-            <a href="/api/dashboard/auth/register?next=/dashboard" style={{ 
+            <a href="/api/dashboard/auth/register" style={{ 
               textDecoration: 'none', 
               color: '#10b981', 
               fontSize: '0.85rem', 
@@ -132,7 +132,7 @@ export default function HomePage() {
       <p style={{ color: '#64748b', fontSize: '1.25rem', marginBottom: '3rem', textAlign: 'center', maxWidth: '600px' }}>
         A unified platform for drug label analysis, safety screening, and agentic search.
       </p>
-      
+
       <div style={{ 
         display: 'grid', 
         gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 

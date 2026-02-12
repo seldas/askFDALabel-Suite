@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev_https": "node server.js",
-    "dev": "next dev",
+    "dev": "next dev -p 8848",
     "dev:backend": "node scripts/start-backend.js",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:backend\"",
     "dev:all_https": "concurrently \"npm run dev_https\" \"npm run dev:backend\"",

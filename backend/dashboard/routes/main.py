@@ -6,28 +6,29 @@ import re
 import json
 from difflib import HtmlDiff
 
-from dashboard.srcs.extensions import db
-from dashboard.srcs.models import Favorite, Annotation, FavoriteComparison
-from dashboard.srcs.services.xml_handler import (
+from dashboard.extensions import db
+from dashboard.models import Favorite, Annotation, FavoriteComparison
+from dashboard.services.xml_handler import (
     parse_spl_xml,
     extract_metadata_from_xml,
     flatten_sections,
     get_aggregate_content
 )
-from dashboard.srcs.services.fda_client import (
+from dashboard.services.fda_client import (
     get_label_metadata,
     get_label_xml,
     find_labels,
     find_labels_by_set_ids
 )
-from dashboard.srcs.utils import (
+from dashboard.utils import (
     normalize_text_for_diff,
     extract_numeric_section_id,
     normalize_title_text,
     get_section_sort_key
 )
-from dashboard.srcs.config import Config
-from dashboard.srcs.services.fdalabel_db import FDALabelDBService
+from dashboard.config import Config
+import uuid
+from openpyxl import load_workbook
 
 main_bp = Blueprint('main', __name__)
 
@@ -116,9 +117,6 @@ def upload_label():
     except Exception as e:
         current_app.logger.error(f"Error processing upload: {e}")
         return jsonify({'error': f"Error processing file: {str(e)}"}), 500
-
-import uuid
-from openpyxl import load_workbook
 
 @main_bp.route('/import_fdalabel', methods=['POST'])
 def import_fdalabel():
@@ -266,7 +264,7 @@ def search():
     view = request.args.get('view')
     
     # Limitation Logic: OpenFDA = 10, FDALabel/Internal = 100000
-    from dashboard.srcs.services.fdalabel_db import FDALabelDBService
+    from dashboard.services.fdalabel_db import FDALabelDBService
     if FDALabelDBService.check_connectivity() or import_id:
         limit = 100000
     else:
@@ -301,14 +299,6 @@ def search():
              view = 'table'
         else:
              view = 'panel'
-
-    # Server-side favorite check removed to prevent cross-project confusion. 
-    # Client-side JS will update status based on active project.
-    # if labels and current_user.is_authenticated:
-    #     user_favs = Favorite.query.filter_by(user_id=current_user.id).all()
-    #     user_favorite_ids = {f.set_id for f in user_favs}
-    #     for label in labels:
-    #         label['is_favorite'] = label['set_id'] in user_favorite_ids
 
     if not labels and page == 1:
         # No results found

@@ -1,8 +1,8 @@
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
-from dashboard.srcs.extensions import db
-from dashboard.srcs.services.fdalabel_db import FDALabelDBService
+from dashboard.extensions import db
+from dashboard.services.fdalabel_db import FDALabelDBService
 
 def get_default_ai_provider():
     """

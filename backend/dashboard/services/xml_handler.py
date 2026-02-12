@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import logging
 import re
-from dashboard.srcs.utils import extract_numeric_section_id
+from dashboard.utils import extract_numeric_section_id
 
 logger = logging.getLogger(__name__)
 

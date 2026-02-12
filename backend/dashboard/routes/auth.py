@@ -2,8 +2,11 @@ import re
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 from flask_login import login_user, login_required, logout_user, current_user
 from urllib.parse import urlparse
-from dashboard.srcs.models import User
-from dashboard.srcs.extensions import db
+from dashboard.models import User
+from dashboard.extensions import db
+import logging
+
+logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -64,8 +67,12 @@ def logout():
 @auth_bp.route('/session')
 def session():
     """ Returns current user info as JSON. """
-    from dashboard.srcs.services.fdalabel_db import FDALabelDBService
-    is_internal = FDALabelDBService.check_connectivity()
+    from dashboard.services.fdalabel_db import FDALabelDBService
+    try:
+        is_internal = FDALabelDBService.check_connectivity()
+    except Exception as e:
+        logger.error(f"Error checking FDALabelDB connectivity: {e}")
+        is_internal = False
     
     if current_user.is_authenticated:
         return jsonify({
@@ -83,4 +90,3 @@ def session():
         'is_authenticated': False,
         'is_internal': is_internal
     })
-
