@@ -69,7 +69,7 @@ B) If user asks a QUESTION that needs what the label says for a specific drug/la
      * retrieval.sql_template_hint="metadata_search" (or "search_by_active_ingredient" when the drug term is an ingredient)
    - Always set retrieval.needs_evidence=true for QA.
    - If a section is specified (or inferred), populate retrieval.section_loinc_codes.
-   - Put the user’s concepts into intent.slots.content_terms (NOT retrieval.content_query).
+   - Put the user's concepts into intent.slots.content_terms (NOT retrieval.content_query).
    - For QA: retrieval.content_query MUST be "" (empty string). Snippet extraction is done by a fetcher agent after section text is retrieved.
    - NOTE: section_loinc_codes controls which section text to fetch; it does NOT imply an Oracle CONTAINS filter.
 
@@ -80,7 +80,7 @@ QA FALLBACK (when multiple labels match the drug):
   - then the fetcher agent will retrieve the specified section text for the top candidates and extract evidence snippets based on intent.slots.content_terms.
 
 --------------------------------------------------------------------
-CRITICAL NEW CASE: CONDITION-ONLY DRUG DISCOVERY (fixes “drugs that treat obesity” returning 0)
+CRITICAL NEW CASE: CONDITION-ONLY DRUG DISCOVERY (fixes "drugs that treat obesity" returning 0)
 These queries are NOT about a specific drug name; they are discovery queries.
 Examples:
 - "drugs that treat obesity"
@@ -98,7 +98,7 @@ For these:
 - retrieval.section_loinc_codes SHOULD default to ["34067-9"] unless user asked a different section.
 
 Content query expansion guidance (small + conservative):
-- You MAY expand common condition phrasing into 2–6 close variants that are very likely in labels.
+- You MAY expand common condition phrasing into 2-6 close variants that are very likely in labels.
 - Do NOT invent drug synonyms/brand names.
 - Keep it as OR terms suitable for Oracle Text CONTAINS.
 Examples (use only when clearly relevant):
@@ -215,7 +215,7 @@ You MUST follow these rules:
    [[{PRODUCT_OR_LABEL_NAME}]](#cite-{SET_ID})
    - If product name is missing, use [[Label]](#cite-{SET_ID})
 4) If the user asked for a list, keep it concise: show top 5-10 and offer to refine filters.
-5) If the user asked a QA question that needs wording, quote SHORT excerpts (1–2 sentences max) only if present in evidence.
+5) If the user asked a QA question that needs wording, quote SHORT excerpts (1-2 sentences max) only if present in evidence.
 6) If the evidence is aggregate/counts:
    - Report the counts clearly
    - Explain what the counting unit is (e.g., distinct SET_IDs / distinct generic name strings)
@@ -225,10 +225,10 @@ You MUST follow these rules:
 Answer in Markdown.
 
 Response structure:
-- Direct answer (1–3 paragraphs)
+- Direct answer (1-3 paragraphs)
 - Bullets/table for key results (if applicable)
-- “Sources” section with the citations you used (inline citations are still required)
-- “Next step” suggestion (1 sentence)
+- "Sources" section with the citations you used (inline citations are still required)
+- "Next step" suggestion (1 sentence)
 """
 
 REASONING_PROMPT = """
@@ -246,7 +246,7 @@ System Trace (chronological):
 Write Markdown with EXACTLY these sections and headings:
 
 ## Summary
-(2–3 sentences. What we did and why.)
+(2-3 sentences. What we did and why.)
 
 ## Interpretation
 - Intent:
@@ -260,7 +260,7 @@ Write Markdown with EXACTLY these sections and headings:
 - Whether ingredient fallback was used:
 
 ## Filters applied
-List filters as bullets. If none, say “No metadata filters were applied.”
+List filters as bullets. If none, say "No metadata filters were applied."
 
 ## Evidence fetching
 - Did we fetch label section text? (Yes/No)
@@ -273,7 +273,7 @@ List filters as bullets. If none, say “No metadata filters were applied.”
 - Any errors (if any):
 
 ## How to refine
-Give 2–3 concrete follow-up query ideas based on the execution summary.
+Give 2-3 concrete follow-up query ideas based on the execution summary.
 
 Rules:
 - Use ONLY the JSON + trace. Do not invent.
@@ -348,7 +348,7 @@ Section text:
 {section_text}
 
 Task:
-Extract up to 3 short snippets (each 1–2 sentences) that best match the content_terms and the user's question.
+Extract up to 3 short snippets (each 1-2 sentences) that best match the content_terms and the user's question.
 Rules:
 1) Copy snippets verbatim from the section text.
 2) Do NOT paraphrase.

@@ -48,7 +48,7 @@ def user_wants_non_rld(query: str) -> bool:
 def build_evidence_string(state) -> str:
     """
     Prefer fetched section snippets; otherwise fall back to top metadata rows.
-    Keep it short-ish so the answer model doesn’t get flooded.
+    Keep it short-ish so the answer model doesn't get flooded.
 
     NEW: If RLD labels exist, prioritize them unless the user explicitly asked for non-RLD.
     """
@@ -71,8 +71,8 @@ def build_evidence_string(state) -> str:
 
         out = []
         for s in filtered_snippets[:8]:
-            product = s.get("product") or "—"
-            set_id = s.get("set_id") or "—"
+            product = s.get("product") or "-"
+            set_id = s.get("set_id") or "-"
             loinc = s.get("loinc_code") or ""
             title = s.get("section_title") or ""
             header_bits = [b for b in [title, (f"LOINC {loinc}" if loinc else None)] if b]
@@ -90,7 +90,7 @@ def build_evidence_string(state) -> str:
             )
         return "\n\n".join(out).strip()
 
-    # 2) Metadata fallback (if evidence fetcher didn’t run / no sections found)
+    # 2) Metadata fallback (if evidence fetcher didn't run / no sections found)
     if results:
         # Filter for RLD if any exist and user didn't ask for non-RLD
         has_rld = any(str(r.get("RLD") or r.get("rld") or "").lower() == "yes" for r in results)
@@ -104,20 +104,20 @@ def build_evidence_string(state) -> str:
         out = []
         for r in filtered_results[:5]:
             # be tolerant to key variants
-            product = r.get("PRODUCT_NAMES") or r.get("product_names") or "—"
+            product = r.get("PRODUCT_NAMES") or r.get("product_names") or "-"
             generic = (
                 r.get("GENERIC_NAMES")
                 or r.get("PRODUCT_NORMD_GENERIC_NAMES")
                 or r.get("generic_names")
-                or "—"
+                or "-"
             )
             company = (
                 r.get("COMPANY")
                 or r.get("AUTHOR_ORG_NORMD_NAME")
                 or r.get("company")
-                or "—"
+                or "-"
             )
-            set_id = r.get("SET_ID") or r.get("set_id") or "—"
+            set_id = r.get("SET_ID") or r.get("set_id") or "-"
             out.append(
                 f"Product: {product}\n"
                 f"Generic: {generic}\n"
@@ -152,12 +152,12 @@ def _compose_aggregate_text(state) -> str:
     if top_generics:
         lines.append("\nTop generics (by distinct labels):")
         for r in top_generics:
-            lines.append(f"  • {r.get('GENERIC_NAME')}: {r.get('LABEL_COUNT')} labels")
+            lines.append(f"  * {r.get('GENERIC_NAME')}: {r.get('LABEL_COUNT')} labels")
 
     if top_companies:
         lines.append("\nTop companies (by distinct labels):")
         for r in top_companies:
-            lines.append(f"  • {r.get('COMPANY')}: {r.get('LABEL_COUNT')} labels")
+            lines.append(f"  * {r.get('COMPANY')}: {r.get('LABEL_COUNT')} labels")
 
     return "\n".join(lines).strip()
 

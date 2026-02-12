@@ -343,7 +343,7 @@ def run_evidence_fetcher(state):
                 read_cap = max_chars_for_qa if intent_type == "qa" else max_chars_default
 
                 # If budget is running low, reduce per-row read cap (still keep a floor)
-                # (This does NOT change window size; it just avoids reading huge LOB chunks we can’t use.)
+                # (This does NOT change window size; it just avoids reading huge LOB chunks we can't use.)
                 read_cap = int(max(800, min(read_cap, budget_left() + 3000)))
 
                 # Concatenate multiple rows for same LOINC, but keep it bounded
@@ -367,7 +367,7 @@ def run_evidence_fetcher(state):
                         combined_parts.append(f"\n\n=== {tkey} (LOINC {loinc_code or loinc}) ===\n")
                     combined_parts.append(raw_text)
 
-                    # If we’ve already read “enough” from multi-row sections, stop concatenating
+                    # If we've already read "enough" from multi-row sections, stop concatenating
                     if sum(len(p) for p in combined_parts) > (read_cap * 2):
                         break
 
@@ -445,7 +445,7 @@ def run_evidence_fetcher(state):
             "Evidence Fetcher: "
             f"Built {len(snippets)} snippet(s) across {labels_used} label(s), "
             f"content_windows={content_found_count}, "
-            f"chars_used≈{total_chars_used}/{max_total_chars}. "
+            f"chars_used~={total_chars_used}/{max_total_chars}. "
             f"Requested LOINCs={used_loincs or '[none]'}. "
             f"Caps: labels_soft={max_labels_soft}, labels_hard={max_labels_hard}, snippets_hard={max_snippets_hard}."
         )

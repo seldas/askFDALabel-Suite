@@ -1,16 +1,16 @@
 import re
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for
 from flask_login import login_user, login_required, logout_user, current_user
 from urllib.parse import urlparse
-from dashboard.srcs.models import User
-from dashboard.srcs.extensions import db
+from srcs.models import User
+from srcs.extensions import db
 
 auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect('/dashboard')
+        return redirect(url_for('main.index'))
     
     # Retrieve next_page from query params (GET) or form data (POST)
     next_page = request.args.get('next') or request.form.get('next')
@@ -24,7 +24,7 @@ def login():
             # Safe redirect: check if next_page exists and is relative (not absolute URL to other site)
             if next_page and not urlparse(next_page).netloc:
                 return redirect(next_page)
-            return redirect('/dashboard')
+            return redirect(url_for('main.index'))
         else:
             return render_template('login.html', error='Invalid username or password', next=next_page)
             
@@ -33,7 +33,7 @@ def login():
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
-        return redirect('/dashboard')
+        return redirect(url_for('main.index'))
     if request.method == 'POST':
         username = request.form.get('username').strip()
         password = request.form.get('password')
@@ -55,34 +55,11 @@ def register():
         db.session.commit()
         
         login_user(new_user)
-        return redirect('/dashboard')
+        return redirect(url_for('main.index'))
     return render_template('register.html')
 
 @auth_bp.route('/logout')
 @login_required
 def logout():
     logout_user()
-    return redirect('/dashboard')
-
-@auth_bp.route('/session')
-def session():
-    """ Returns current user info as JSON. """
-    from dashboard.srcs.services.fdalabel_db import FDALabelDBService
-    is_internal = FDALabelDBService.check_connectivity()
-    
-    if current_user.is_authenticated:
-        return jsonify({
-            'is_authenticated': True,
-            'username': current_user.username,
-            'ai_provider': current_user.ai_provider,
-            'custom_gemini_key': current_user.custom_gemini_key,
-            'openai_api_key': current_user.openai_api_key,
-            'openai_base_url': current_user.openai_base_url,
-            'openai_model_name': current_user.openai_model_name,
-            'is_internal': is_internal
-        })
-    return jsonify({
-        'is_authenticated': False,
-        'is_internal': is_internal
-    })
-
+    return redirect(url_for('main.index'))

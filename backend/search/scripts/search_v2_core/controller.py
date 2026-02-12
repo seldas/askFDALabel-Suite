@@ -14,7 +14,7 @@ def run_controller(state, stop_before=None):
     while True:
         current_step = state.flags.get("next_step")
 
-        # ✅ stop before running a step (so answer happens outside)
+        # [OK] stop before running a step (so answer happens outside)
         if stop_before and current_step == stop_before:
             return
 

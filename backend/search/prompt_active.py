@@ -3,7 +3,7 @@ You generate ONE single-sentence question a user might ask about FDA drug labeli
 
 Hard requirements:
 - Output ONLY the question text (no quotes, no bullet points).
-- Must be 8–22 words.
+- Must be 8-22 words.
 - Use a common drug name (e.g., ibuprofen, metformin, atorvastatin, amoxicillin, sertraline).
 - If you name a label section, use PLR section titles (e.g., "Dosage and Administration", "Warnings and Precautions", "Drug Interactions", "Indications and Usage").
 

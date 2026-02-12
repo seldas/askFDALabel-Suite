@@ -6,28 +6,28 @@ import re
 import json
 from difflib import HtmlDiff
 
-from dashboard.srcs.extensions import db
-from dashboard.srcs.models import Favorite, Annotation, FavoriteComparison
-from dashboard.srcs.services.xml_handler import (
+from srcs.extensions import db
+from srcs.models import Favorite, Annotation, FavoriteComparison
+from srcs.services.xml_handler import (
     parse_spl_xml,
     extract_metadata_from_xml,
     flatten_sections,
     get_aggregate_content
 )
-from dashboard.srcs.services.fda_client import (
+from srcs.services.fda_client import (
     get_label_metadata,
     get_label_xml,
     find_labels,
     find_labels_by_set_ids
 )
-from dashboard.srcs.utils import (
+from srcs.utils import (
     normalize_text_for_diff,
     extract_numeric_section_id,
     normalize_title_text,
     get_section_sort_key
 )
-from dashboard.srcs.config import Config
-from dashboard.srcs.services.fdalabel_db import FDALabelDBService
+from srcs.config import Config
+from srcs.services.fdalabel_db import FDALabelDBService
 
 main_bp = Blueprint('main', __name__)
 
@@ -38,8 +38,9 @@ def favicon():
 
 @main_bp.route('/')
 def index():
-    """ Redirects to the Next.js dashboard. """
-    return redirect('/dashboard')
+    """ Renders the main page with the search box. """
+    is_internal = FDALabelDBService.check_connectivity()
+    return render_template('index.html', is_internal=is_internal)
 
 
 @main_bp.route('/info')
@@ -266,7 +267,7 @@ def search():
     view = request.args.get('view')
     
     # Limitation Logic: OpenFDA = 10, FDALabel/Internal = 100000
-    from dashboard.srcs.services.fdalabel_db import FDALabelDBService
+    from srcs.services.fdalabel_db import FDALabelDBService
     if FDALabelDBService.check_connectivity() or import_id:
         limit = 100000
     else:
@@ -312,35 +313,10 @@ def search():
 
     if not labels and page == 1:
         # No results found
-        if request.headers.get('Accept') == 'application/json' or request.args.get('json') == '1':
-            return jsonify({
-                "drug_name": drug_name_display,
-                "page_title": page_title,
-                "labels": [],
-                "total": 0,
-                "page": page,
-                "limit": limit,
-                "view": view
-            })
         return render_template('selection.html', drug_name=drug_name_display, page_title=page_title, labels=None, total=0, page=page, limit=limit, view=view)
 
     # If multiple results (or a batch search, or single result), show the selection page
     is_internal = FDALabelDBService.check_connectivity()
-    
-    if request.headers.get('Accept') == 'application/json' or request.args.get('json') == '1':
-        return jsonify({
-            "drug_name": drug_name_display,
-            "page_title": page_title,
-            "labels": labels,
-            "total": total,
-            "page": page,
-            "limit": limit,
-            "view": view,
-            "is_internal": is_internal,
-            "batch_id_search": batch_id_search,
-            "import_id": import_id
-        })
-
     return render_template('selection.html', drug_name=drug_name_display, page_title=page_title, labels=labels, total=total, page=page, limit=limit, view=view, is_internal=is_internal)
 
 
@@ -425,33 +401,6 @@ def view_label(set_id):
     original_title = doc_title
     if "These highlights do not include all the information" in doc_title:
         original_title = re.sub(r'^These highlights do not include.*?safely and effectively\.\s*(See full prescribing information for.*?\.)?\s*', '', doc_title, flags=re.IGNORECASE | re.DOTALL).strip()
-
-    if request.headers.get('Accept') == 'application/json' or request.args.get('json') == '1':
-        return jsonify({
-            'drug_name': display_drug_name,
-            'brand_name': brand_name,
-            'generic_name': generic_name,
-            'original_title': original_title,
-            'faers_drug_name': faers_drug_name,
-            'manufacturer_name': manufacturer_name or '',
-            'effective_time': effective_time,
-            'label_format': label_format,
-            'ndc': ndc,
-            'application_number': application_number,
-            'version_number': version_number,
-            'document_type': document_type,
-            'has_boxed_warning': has_boxed_warning,
-            'clean_app_num': clean_app_num,
-            'original_search': drug_name_from_query,
-            'sections': sections, 
-            'fallback_html': fallback_html, 
-            'highlights': highlights, 
-            'table_of_contents': table_of_contents,
-            'label_xml_raw': label_xml_raw,
-            'set_id': set_id,
-            'metadata': metadata,
-            'saved_annotations': saved_annotations
-        })
 
     return render_template('results.html', 
                            drug_name=display_drug_name, 
@@ -709,4 +658,3 @@ def preferences():
     db.session.commit()
     
     return jsonify({'success': True, 'message': 'Preferences saved successfully!'})
-

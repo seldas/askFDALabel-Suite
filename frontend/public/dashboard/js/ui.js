@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 formData.forEach((value, key) => { payload[key] = value; });
 
                 try {
-                    const response = await fetch('/api/dashboard/preferences', {
+                    const response = await fetch('/preferences', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                         body: new URLSearchParams(payload)

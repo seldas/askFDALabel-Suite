@@ -44,7 +44,7 @@ class FDALabelDBService:
         conn = cls.get_connection()
         if conn:
             cls._is_connected = True
-            print("[SUCCESS] FDALabel Internal Database connected successfully.")
+            print("✅ FDALabel Internal Database connected successfully.")
             conn.close()
         else:
             cls._is_connected = False
@@ -55,7 +55,7 @@ class FDALabelDBService:
             user = current_app.config.get('FDALABEL_DB_USER')
             has_pwd = bool(current_app.config.get('FDALABEL_DB_PASSWORD'))
             
-            print(f"[ERROR] this database cannot be connected. Falling back to OpenFDA search.")
+            print(f"❌ this database cannot be connected. Falling back to OpenFDA search.")
             # print(f"   [Debug Info] Host: {host}, Port: {port}, Service: {service}, User: {user}, Password Set: {has_pwd}")
         
         return cls._is_connected

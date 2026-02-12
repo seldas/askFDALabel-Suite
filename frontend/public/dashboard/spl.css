@@ -1,0 +1,197 @@
+/* Default stylesheet for SPL R5 */
+
+/* Some HTML elements are included in this stylesheet, such as the ones that are part of the SPL schema. */
+/* It is up to the implementer to decide how to use them. */
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 10pt;
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-top: 1.5em;
+  margin-bottom: 1.5em;
+  width: 100%;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.95em;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+}
+
+tr {
+  vertical-align: top;
+  transition: background-color 0.2s ease;
+}
+
+tr:hover {
+  background-color: #f8f9ff;
+}
+
+td, th {
+  border: none;
+  border-bottom: 1px solid #f1f3f5;
+  padding: 12px 15px;
+  text-align: left;
+  line-height: 1.5;
+}
+
+th {
+  background-color: #f8fafc;
+  color: #495057;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.85em;
+  letter-spacing: 0.5px;
+}
+
+/* Remove border from last row */
+tr:last-child td {
+  border-bottom: none;
+}
+
+/* Handle nested tables (often found in SPL) */
+td table {
+  margin: 0.5em 0;
+  border: 1px solid #f1f3f5;
+  box-shadow: none;
+}
+
+p {
+  margin-top: 0;
+  margin-bottom: 0.75em;
+  text-align: justify;
+}
+
+p.First {
+  margin-top: 1.5em;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Helvetica', 'Arial', sans-serif;
+  font-weight: bold;
+}
+
+h1 {
+  font-size: 14pt;
+  margin-top: 2em;
+  margin-bottom: 1em;
+}
+
+h2 {
+  font-size: 12pt;
+  margin-top: 2em;
+  margin-bottom: 1em;
+}
+
+h3 {
+  font-size: 10pt;
+  margin-top: 2em;
+  margin-bottom: 1em;
+}
+
+h4, h5, h6 {
+  font-size: 10pt;
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+}
+
+ul {
+  list-style-type: disc;
+  margin-top: 0;
+  margin-bottom: 0.75em;
+}
+
+ol {
+  list-style-type: decimal;
+  margin-top: 0;
+  margin-bottom: 0.75em;
+}
+
+li {
+  margin-top: 0;
+  margin-bottom: 0.75em;
+}
+
+sub {
+  vertical-align: sub;
+  font-size: smaller;
+}
+
+sup {
+  vertical-align: super;
+  font-size: smaller;
+}
+
+div.Section {
+  margin-top: 1.5em;
+}
+
+div.Figure {
+  margin-top: 1.5em;
+  margin-bottom: 1.5em;
+}
+
+p.Figure {
+  margin-top: 0.75em;
+  margin-bottom: 0;
+  text-align: center;
+  font-style: italic;
+}
+
+div.Footnote {
+  margin-top: 1.5em;
+}
+
+p.Footnote {
+  margin-top: 0;
+  margin-bottom: 0;
+  font-size: 8pt;
+}
+
+span.Emphasis {
+  font-style: italic;
+}
+
+span.Bold {
+  font-weight: bold;
+}
+
+span.Underline {
+  text-decoration: underline;
+}
+
+table.Listing {
+  width: auto;
+}
+
+tr.Listing {
+  vertical-align: baseline;
+}
+
+td.Listing, th.Listing {
+  border-width: 0;
+  padding: 0 0.5em;
+}
+
+/* Styles for handling revised SPL schema elements. */
+/* See http://www.fda.gov/oc/datacouncil/spl.html for more information. */
+
+.DocumentTitle {
+  font-family: 'Helvetica', 'Arial', sans-serif;
+  font-size: 18pt;
+  font-weight: bold;
+  text-align: center;
+  margin-top: 1.5em;
+  margin-bottom: 1.5em;
+}
+
+.OddRow {
+  background-color: #CCCCCC;
+}
+
+.Highlight {
+  background-color: #FFFF00;
+}

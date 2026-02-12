@@ -18,7 +18,7 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from search.call_llm import safe_llm_call
 from search.prompt_active import prompt_boring
 
-# ✅ Import refactored logic from search.scripts/search_v1.py
+# [OK] Import refactored logic from search.scripts/search_v1.py
 from search.scripts.search_v1 import (
     search_v1 as search_v1_func,
     generate_answer_stream as generate_answer_stream_func,
@@ -134,13 +134,13 @@ def _humanize_trace(line: str) -> str:
     # Optional: convert noisy trace lines into friendly step labels
     s = (line or "").strip()
     if s.startswith("Planner:"):
-        return "Planning query strategy…"
+        return "Planning query strategy..."
     if "db_executor" in s.lower() or s.startswith("DB"):
-        return "Running database query…"
+        return "Running database query..."
     if "Evidence Fetcher" in s or "evidence" in s.lower():
-        return "Fetching label evidence…"
+        return "Fetching label evidence..."
     if "answer_composer" in s.lower() or "Composer" in s:
-        return "Composing answer…"
+        return "Composing answer..."
     # fallback: show raw trace line
     return s
 
@@ -192,7 +192,7 @@ def search_agentic_stream():
 
         def worker():
             try:
-                # ✅ stop BEFORE answer generation so we can stream tokens ourselves
+                # [OK] stop BEFORE answer generation so we can stream tokens ourselves
                 run_controller(state, stop_before="answer_composer")
             except Exception as e:
                 err["e"] = e
@@ -202,7 +202,7 @@ def search_agentic_stream():
         threading.Thread(target=worker, daemon=True).start()
 
         sent = 0
-        yield json.dumps({"type": "status", "text": "Starting agent run…"}) + "\n"
+        yield json.dumps({"type": "status", "text": "Starting agent run..."}) + "\n"
 
         # Stream trace/status while retrieval is running
         while not done.is_set():
@@ -222,8 +222,8 @@ def search_agentic_stream():
             yield json.dumps({"type": "error", "error": str(err["e"])}) + "\n"
             return
 
-        # ✅ Stream answer tokens
-        yield json.dumps({"type": "status", "text": "Writing answer…"}) + "\n"
+        # [OK] Stream answer tokens
+        yield json.dumps({"type": "status", "text": "Writing answer..."}) + "\n"
         yield json.dumps({"type": "answer_start"}) + "\n"
 
         answer_text = ""
@@ -242,12 +242,12 @@ def search_agentic_stream():
 
         yield json.dumps({"type": "answer_end"}) + "\n"
 
-        # ✅ Now generate reasoning AFTER we have the final answer text
+        # [OK] Now generate reasoning AFTER we have the final answer text
         try:
-            yield json.dumps({"type": "status", "text": "Finalizing reasoning…"}) + "\n"
+            yield json.dumps({"type": "status", "text": "Finalizing reasoning..."}) + "\n"
             run_reasoning_generator(state)
         except Exception:
-            # Don’t fail the whole stream if reasoning fails
+            # Don't fail the whole stream if reasoning fails
             pass
 
         resp, status = build_v2_response_from_state(state)
