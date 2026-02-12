@@ -8,27 +8,27 @@ from datetime import datetime
 import logging
 import hashlib
 
-from srcs.extensions import db
-from srcs.models import (
+from dashboard.srcs.extensions import db
+from dashboard.srcs.models import (
     User, Project, Favorite, FavoriteComparison, Annotation, 
     LabelAnnotation, DiliAssessment, DictAssessment, DiriAssessment, ComparisonSummary,
     MeddraPT, MeddraMDHIER, MeddraSOC, MeddraHLT, MeddraLLT
 )
-from srcs.services.fda_client import get_label_metadata, get_label_xml, get_faers_data, find_labels, find_labels_by_set_ids
-from srcs.services.ai_handler import chat_with_document, summarize_comparison, generate_assessment, get_search_helper_response
-from srcs.services.xml_handler import extract_metadata_from_xml
-from srcs.services.pgx_handler import run_pgx_assessment
-from srcs.prompts import (
+from dashboard.srcs.services.fda_client import get_label_metadata, get_label_xml, get_faers_data, find_labels, find_labels_by_set_ids
+from dashboard.srcs.services.ai_handler import chat_with_document, summarize_comparison, generate_assessment, get_search_helper_response
+from dashboard.srcs.services.xml_handler import extract_metadata_from_xml
+from dashboard.srcs.services.pgx_handler import run_pgx_assessment
+from dashboard.srcs.prompts import (
     DILI_prompt, DICT_prompt, DIRI_prompt, 
     DILI_PT_TERMS, DICT_PT_TERMS, DIRI_PT_TERMS)
-from srcs.config import Config
+from dashboard.srcs.config import Config
 from sqlalchemy import func
-from srcs.services.meddra_matcher import scan_label_for_meddra
+from dashboard.srcs.services.meddra_matcher import scan_label_for_meddra
 
 logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__)
 
-@api_bp.route('/api/meddra/scan_label/<set_id>')
+@api_bp.route('/meddra/scan_label/<set_id>')
 def scan_label_meddra(set_id):
     # 1. Get XML content
     xml_content = get_label_xml(set_id)
@@ -139,7 +139,7 @@ def enrich_faers_with_meddra(faers_list):
             
     return faers_list
 
-@api_bp.route('/api/suggest-drugs', methods=['GET'])
+@api_bp.route('/suggest-drugs', methods=['GET'])
 def suggest_drugs():
     query = request.args.get('q', '').strip()
     
@@ -215,7 +215,7 @@ def ai_chat():
         logger.error(f"Error calling AI API: {e}")
         return jsonify({'error': f'AI API error: {str(e)}'}), 500
 
-@api_bp.route('/api/ai_search_help', methods=['POST'])
+@api_bp.route('/ai_search_help', methods=['POST'])
 def ai_search_help():
     data = request.get_json()
     user_message = data.get('message')
@@ -248,7 +248,7 @@ def ai_search_help():
         logger.error(f"Error calling AI Search Helper: {e}")
         return jsonify({'error': f'AI API error: {str(e)}'}), 500
 
-@api_bp.route('/api/search_count', methods=['GET'])
+@api_bp.route('/search_count', methods=['GET'])
 def search_count():
     query = request.args.get('q')
     if not query:
@@ -259,7 +259,7 @@ def search_count():
         _, total = find_labels(query, skip=0, limit=1)
         
         # Determine source
-        from srcs.services.fdalabel_db import FDALabelDBService
+        from dashboard.srcs.services.fdalabel_db import FDALabelDBService
         source = "FDALabel" if FDALabelDBService.check_connectivity() else "OpenFDA"
         
         return jsonify({'count': total, 'source': source})
@@ -689,7 +689,7 @@ def favorite_all():
     })
 
 # --- Label Annotations ---
-@api_bp.route('/api/annotations/save', methods=['POST'])
+@api_bp.route('/annotations/save', methods=['POST'])
 @login_required
 def save_label_annotation():
     data = request.json
@@ -751,7 +751,7 @@ def save_label_annotation():
         'created_at': new_ann.created_at.isoformat()
     })
 
-@api_bp.route('/api/annotations/get/<set_id>')
+@api_bp.route('/annotations/get/<set_id>')
 @login_required
 def get_label_annotations(set_id):
     project_id = request.args.get('project_id', type=int)
@@ -782,7 +782,7 @@ def get_label_annotations(set_id):
         } for ann in annotations]
     })
 
-@api_bp.route('/api/annotations/delete', methods=['POST'])
+@api_bp.route('/annotations/delete', methods=['POST'])
 @login_required
 def delete_label_annotation():
     data = request.json
@@ -801,7 +801,7 @@ def delete_label_annotation():
     return jsonify({'success': True})
 
 # --- Projects ---
-@api_bp.route('/api/projects', methods=['GET', 'POST'])
+@api_bp.route('/projects', methods=['GET', 'POST'])
 @login_required
 def api_projects():
     if request.method == 'POST':
@@ -842,7 +842,7 @@ def api_projects():
         
     return jsonify({'projects': projects})
 
-@api_bp.route('/api/projects/reorder', methods=['POST'])
+@api_bp.route('/projects/reorder', methods=['POST'])
 @login_required
 def api_reorder_projects():
     data = request.json
@@ -859,7 +859,7 @@ def api_reorder_projects():
     db.session.commit()
     return jsonify({'success': True})
 
-@api_bp.route('/api/projects/<int:project_id>', methods=['PUT', 'DELETE'])
+@api_bp.route('/projects/<int:project_id>', methods=['PUT', 'DELETE'])
 @login_required
 def api_project_detail(project_id):
     project = Project.query.get_or_404(project_id)
@@ -881,7 +881,7 @@ def api_project_detail(project_id):
         db.session.commit()
         return jsonify({'success': True})
 
-@api_bp.route('/api/projects/<int:project_id>/export', methods=['POST'])
+@api_bp.route('/projects/<int:project_id>/export', methods=['POST'])
 @login_required
 def export_project(project_id):
     project = Project.query.get_or_404(project_id)
@@ -897,7 +897,7 @@ def export_project(project_id):
         
     return jsonify({'share_code': project.share_code})
 
-@api_bp.route('/api/projects/import', methods=['POST'])
+@api_bp.route('/projects/import', methods=['POST'])
 @login_required
 def import_project():
     data = request.json
@@ -951,7 +951,7 @@ def import_project():
         db.session.commit()
         return jsonify({'success': True, 'message': 'Project imported successfully.', 'id': new_proj.id})
 
-@api_bp.route('/api/projects/move_items', methods=['POST'])
+@api_bp.route('/projects/move_items', methods=['POST'])
 @login_required
 def api_move_items():
     data = request.json
@@ -995,7 +995,7 @@ def api_move_items():
     db.session.commit()
     return jsonify({'success': True, 'moved_count': count})
 
-@api_bp.route('/api/my_favorites')
+@api_bp.route('/my_favorites')
 @login_required
 def api_my_favorites():
     project_id = request.args.get('project_id', type=int)
@@ -1030,7 +1030,7 @@ def api_my_favorites():
 
     return jsonify({'favorites': favorites_list, 'comparisons': comparisons_list})
 
-@api_bp.route('/api/check_favorites_batch', methods=['POST'])
+@api_bp.route('/check_favorites_batch', methods=['POST'])
 def api_check_favorites_batch():
     if not current_user.is_authenticated:
         return jsonify({})
@@ -1062,7 +1062,7 @@ def api_check_favorites_batch():
     return jsonify(result)
 
 # --- FAERS & Assessment ---
-@api_bp.route('/api/faers/<path:drug_name>')
+@api_bp.route('/faers/<path:drug_name>')
 def api_faers_data(drug_name):
     limit = request.args.get('limit', default=20, type=int)
     data = get_faers_data(drug_name, limit=limit)
@@ -1079,7 +1079,7 @@ def api_faers_data(drug_name):
 
     return jsonify(data)
 
-@api_bp.route('/api/faers/trends', methods=['POST'])
+@api_bp.route('/faers/trends', methods=['POST'])
 def api_faers_trends():
     data = request.get_json()
     drug_name = data.get('drug_name')
@@ -1240,40 +1240,41 @@ def run_assessment_logic(set_id, assessment_model, prompt):
         return jsonify({'error': "Error processing request"}), 500
 
 
-@api_bp.route('/api/dili/faers/<set_id>')
+@api_bp.route('/dili/faers/<set_id>')
 def api_dili_faers(set_id):
     def check_fn(brand):
         return f'patient.drug.medicinalproduct:"{brand}" AND (patient.reaction.reactionmeddrapt:liver OR patient.reaction.reactionmeddrapt:hepatic)'
     return generic_assessment_route(set_id, DiliAssessment, DILI_PT_TERMS, DILI_prompt, check_fn)
 
-@api_bp.route('/api/dili/assess/<set_id>')
+@api_bp.route('/dili/assess/<set_id>')
 def api_dili_assess(set_id):
     return run_assessment_logic(set_id, DiliAssessment, DILI_prompt)
 
-@api_bp.route('/api/dict/faers/<set_id>')
+@api_bp.route('/dict/faers/<set_id>')
 def api_dict_faers(set_id):
     def check_fn(brand):
         return f'patient.drug.medicinalproduct:"{brand}" AND (patient.reaction.reactionmeddrapt:cardiac OR patient.reaction.reactionmeddrapt:heart OR patient.reaction.reactionmeddrapt:myocardial)'
     return generic_assessment_route(set_id, DictAssessment, DICT_PT_TERMS, DICT_prompt, check_fn)
 
-@api_bp.route('/api/dict/assess/<set_id>')
+@api_bp.route('/dict/assess/<set_id>')
 def api_dict_assess(set_id):
     return run_assessment_logic(set_id, DictAssessment, DICT_prompt)
 
-@api_bp.route('/api/diri/faers/<set_id>')
+@api_bp.route('/diri/faers/<set_id>')
 def api_diri_faers(set_id):
     def check_fn(brand):
         return f'patient.drug.medicinalproduct:"{brand}" AND (patient.reaction.reactionmeddrapt:renal OR patient.reaction.reactionmeddrapt:kidney)'
     return generic_assessment_route(set_id, DiriAssessment, DIRI_PT_TERMS, DIRI_prompt, check_fn)
 
-@api_bp.route('/api/diri/assess/<set_id>')
+@api_bp.route('/diri/assess/<set_id>')
 def api_diri_assess(set_id):
     return run_assessment_logic(set_id, DiriAssessment, DIRI_prompt)
 
-@api_bp.route('/api/pgx/assess/<set_id>')
+@api_bp.route('/pgx/assess/<set_id>')
 def api_pgx_assess(set_id):
     force_refresh = request.args.get('refresh') == 'true'
     result = run_pgx_assessment(set_id, force_refresh=force_refresh)
     if 'error' in result:
         return jsonify({'error': result['error']}), 500
     return jsonify(result)
+

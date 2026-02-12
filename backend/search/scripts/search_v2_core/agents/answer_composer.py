@@ -9,7 +9,7 @@ from ..llm import safe_llm_call
 from ..config import client
 
 try:
-    from scripts.prompt_search_v2 import ANSWER_COMPOSER_PROMPT
+    from search.scripts.prompt_search_v2 import ANSWER_COMPOSER_PROMPT
 except ImportError:
     from prompt_search_v2 import ANSWER_COMPOSER_PROMPT
 
@@ -211,3 +211,4 @@ def run_answer_composer(state):
         state.trace_log.append("Answer Composer: Failed to generate response.")
 
     state.flags["next_step"] = "reasoning_generator"
+

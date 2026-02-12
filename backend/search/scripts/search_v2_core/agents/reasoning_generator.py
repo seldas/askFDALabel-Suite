@@ -7,7 +7,7 @@ from ..helpers import build_debug_stats
 import json
 
 try:
-    from scripts.prompt_search_v2 import REASONING_PROMPT
+    from search.scripts.prompt_search_v2 import REASONING_PROMPT
 except ImportError:
     from prompt_search_v2 import REASONING_PROMPT
 
@@ -31,3 +31,4 @@ def run_reasoning_generator(state):
 
     state.reasoning = response_text if success else "Performed search actions."
     state.flags["terminate"] = True
+

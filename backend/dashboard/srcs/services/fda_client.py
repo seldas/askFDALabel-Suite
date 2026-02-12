@@ -3,9 +3,9 @@ import re
 import os
 import logging
 from datetime import datetime
-from srcs.config import Config
-from srcs.services.xml_handler import extract_metadata_from_xml
-from srcs.services.fdalabel_db import FDALabelDBService
+from dashboard.srcs.config import Config
+from dashboard.srcs.services.xml_handler import extract_metadata_from_xml
+from dashboard.srcs.services.fdalabel_db import FDALabelDBService
 
 logger = logging.getLogger(__name__)
 
@@ -426,3 +426,4 @@ def get_faers_data(drug_name, limit=20):
         return None
 
     return data
+

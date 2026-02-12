@@ -1,7 +1,7 @@
 import logging
 from flashtext import KeywordProcessor
-from srcs.models import MeddraPT, MeddraLLT
-from srcs.extensions import db
+from dashboard.srcs.models import MeddraPT, MeddraLLT
+from dashboard.srcs.extensions import db
 
 logger = logging.getLogger(__name__)
 
@@ -68,3 +68,4 @@ class MeddraMatcher:
 def scan_label_for_meddra(text):
     matcher = MeddraMatcher.get_instance()
     return matcher.scan_text(text)
+

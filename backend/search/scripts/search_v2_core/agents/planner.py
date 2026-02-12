@@ -13,7 +13,7 @@ from ..heuristics import (
 )
 
 try:
-    from scripts.prompt_search_v2 import PLANNER_PROMPT
+    from search.scripts.prompt_search_v2 import PLANNER_PROMPT
 except ImportError:
     from prompt_search_v2 import PLANNER_PROMPT
 
@@ -194,3 +194,4 @@ def run_planner(state):
     except Exception as e:
         logger.error(f"Error parsing planner response: {e}")
         state.flags["next_step"] = "error"
+

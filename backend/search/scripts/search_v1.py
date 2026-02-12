@@ -12,9 +12,9 @@ import oracledb
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from call_llm import safe_llm_call  # expected to exist in your project
-from file_util import process_uploaded_file, process_image  # expected to exist
-from scripts.prompt_search_v1 import prompt_query, prompt_answering  # expected to exist
+from search.call_llm import safe_llm_call  # expected to exist in your project
+from search.file_util import process_uploaded_file, process_image  # expected to exist
+from search.scripts.prompt_search_v1 import prompt_query, prompt_answering  # expected to exist
 
 load_dotenv()
 
@@ -39,7 +39,11 @@ FDALabel_APP = os.getenv("FDALabel_APP")
 FDALabel_USER = os.getenv("FDALabel_USER")
 FDALabel_PSW = os.getenv("FDALabel_PSW")
 
-dsnStr = oracledb.makedsn(FDALabel_SERV, FDALabel_PORT, FDALabel_APP)
+if FDALabel_SERV and FDALabel_PORT and FDALabel_APP:
+    dsnStr = oracledb.makedsn(FDALabel_SERV, FDALabel_PORT, FDALabel_APP)
+else:
+    dsnStr = None
+    logger.warning("Oracle DB environment variables missing. DB features will be disabled.")
 
 
 def get_db_connection() -> oracledb.Connection:
@@ -621,3 +625,4 @@ def convert_oracle_to_filtered_results(oracle_results: List[Dict[str, Any]], key
         visited.add(set_id)
 
     return filtered_results
+

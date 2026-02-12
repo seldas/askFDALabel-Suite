@@ -1,0 +1,1683 @@
+import React, { useState, useEffect } from 'react';
+import { useSearchContext } from '../context/SearchContext';
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
+import { saveAs } from 'file-saver';
+
+const section: { [code: string]: string } = {
+  "34066-1": "BOXED WARNING",
+  "34067-9": "1 INDICATIONS AND USAGE",
+  "34068-7": "2 DOSAGE AND ADMINISTRATION",
+  "43678-2": "3 DOSAGE FORMS & STRENGTHS",
+  "34070-3": "4 CONTRAINDICATIONS",
+  "43685-7": "5 WARNINGS & PRECAUTIONS",
+  "34084-4": "6 ADVERSE REACTIONS",
+  "34073-7": "7 DRUG INTERACTIONS",
+  "43684-0": "8 USE IN SPECIFIC POPULATIONS",
+  "42227-9": "9 DRUG ABUSE AND DEPENDENCE",
+  "34088-5": "10 OVERDOSAGE",
+  "34089-3": "11 DESCRIPTION",
+  "34090-1": "12 CLINICAL PHARMACOLOGY",
+  "43680-8": "13 NONCLINICAL TOXICOLOGY",
+  "34092-7": "14 CLINICAL STUDIES",
+  "34093-5": "15 REFERENCES",
+  "34069-5": "16 HOW SUPPLIED",
+  "34076-0": "17 PATIENT COUNSELING",
+};
+
+const sectionOptions = Object.entries(section).map(([code, name]) => ({
+  code,
+  name
+}));
+
+
+interface ResultsProps {
+  hasSearched: boolean;
+}
+
+interface ResultItem {
+  PRODUCT_NAMES: string;
+  GENERIC_NAMES: string;
+  COMPANY: string;
+  APPR_NUM: string;
+  ACT_INGR_NAMES: string;
+  MARKET_CATEGORIES: string;
+  DOCUMENT_TYPE: string;
+  Routes: string;
+  DOSAGE_FORMS: string;
+  EPC: string;
+  NDC_CODES: string;
+  set_id: string;
+  similarity_score: number;
+  keywords: string;
+  section_code: string;
+  section_content: string;
+  RLD?: string;   // 'Yes' means RLD (may be missing)
+}
+
+const SQLHighlighter = ({ sql }: { sql: string }) => {
+  const tokens = sql.split(/(\s+|\(|\)|'[^']*'|,|\bAND\b|\bOR\b|\bLIKE\b|=|>|<|\bNOT\b|\bCONTAINS\b)/i);
+
+  return (
+    <div style={{
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '4px 6px',
+      alignItems: 'center',
+      fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+      padding: '8px',
+      backgroundColor: '#fdfdfd',
+      borderRadius: '6px',
+      lineHeight: '1.6'
+    }}>
+      {tokens.map((token, i) => {
+        const t = token.trim();
+        if (!t) return null;
+
+        const upperT = t.toUpperCase();
+
+        if (upperT === 'AND' || upperT === 'OR' || upperT === 'NOT') {
+          const isOr = upperT === 'OR';
+          return (
+            <span key={i} style={{
+              backgroundColor: isOr ? '#fff1f2' : '#f8fafc',
+              color: isOr ? '#e11d48' : '#475569',
+              padding: '1px 6px',
+              borderRadius: '4px',
+              fontWeight: 700,
+              fontSize: '0.7rem',
+              border: `1px solid ${isOr ? '#fecdd3' : '#e2e8f0'}`,
+              boxShadow: '0 1px 1px rgba(0,0,0,0.02)'
+            }}>{upperT}</span>
+          );
+        }
+
+        if (t === '(' || t === ')') {
+          return (
+            <span key={i} style={{
+              color: '#3b82f6',
+              fontWeight: 800,
+              fontSize: '1.1rem',
+              padding: '0 2px'
+            }}>{t}</span>
+          );
+        }
+
+        if (t.startsWith("'") && t.endsWith("'")) {
+          return (
+            <span key={i} style={{
+              color: '#059669',
+              backgroundColor: '#f0fdf4',
+              padding: '0 4px',
+              borderRadius: '4px',
+              border: '1px solid #dcfce7',
+              fontSize: '0.85rem'
+            }}>{t}</span>
+          );
+        }
+
+        if (['=', 'LIKE', '>', '<', 'CONTAINS'].includes(upperT)) {
+          return (
+            <span key={i} style={{
+              color: '#7c3aed',
+              fontWeight: 600,
+              fontSize: '0.8rem',
+              textTransform: 'uppercase'
+            }}>{upperT}</span>
+          );
+        }
+
+        if (t.includes('.') || /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(t)) {
+          const isField = t.includes('.');
+          return (
+            <span key={i} style={{
+              color: isField ? '#1e40af' : '#334155',
+              fontWeight: isField ? 600 : 400,
+              fontSize: '0.85rem'
+            }}>{t}</span>
+          );
+        }
+
+        return <span key={i} style={{ color: '#64748b', fontSize: '0.85rem' }}>{t}</span>;
+      })}
+    </div>
+  );
+};
+
+const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
+  const {
+    setIds,
+    setSetIds,
+    setResults,
+    setTotalResults,
+    medAnswer,
+    results: resultsRaw,
+    totalResults: totalResultsRaw,
+    currentPage,
+    setCurrentPage,
+    searchTerm,
+    generatedSql,
+    setGeneratedSql,
+    setMedAnswer,
+    highlightedSetId,
+    searchMode,
+    agentFlow,
+    reasoning,
+
+    // optional richer debug payloads (won’t break if not populated)
+    debugIntent,
+    debugPlan,
+    debugStats,
+    traceLog,
+  } = useSearchContext();
+
+  const isV2 = searchMode === 'v2';
+  const isV1 = searchMode === 'v1';
+
+  // --- RLD Filtering Logic ---
+  const userWantsNonRLD = (query: string): boolean => {
+    const q = (query || "").toLowerCase();
+    const keywords = ["generic", "non-rld", "all labels", "every label", "any label", "including non-rld", "non rld", "not rld"];
+    return keywords.some(k => q.includes(k));
+  };
+
+  const wantsNonRLD = userWantsNonRLD(searchTerm);
+  const hasRLDInResults = (resultsRaw as ResultItem[]).some(r =>
+    String((r as any).RLD ?? (r as any).rld ?? '').toLowerCase() === 'yes'
+  );
+
+  const results = (hasRLDInResults && !wantsNonRLD)
+    ? (resultsRaw as ResultItem[]).filter(r =>
+        String((r as any).RLD ?? (r as any).rld ?? '').toLowerCase() === 'yes'
+      )
+    : (resultsRaw as ResultItem[]);
+
+  const totalResults = (hasRLDInResults && !wantsNonRLD)
+    ? results.length
+    : totalResultsRaw;
+
+  // --- Result limit warning (only show when we hit the backend cap) ---
+  const inferredLimitRaw =
+    (debugPlan && (debugPlan.limit ?? debugPlan.retrieval?.limit)) ??
+    (debugStats && (debugStats.limit ?? debugStats.retrieval_limit)) ??
+    null;
+
+  const inferredLimit = (() => {
+    const n = Number(inferredLimitRaw);
+    return Number.isFinite(n) && n > 0 ? n : 100; // fallback to your common cap
+  })();
+
+  // "Hit the limit" = backend returned as many rows as it's willing to return
+  const hitResultLimit = results.length >= inferredLimit;
+  const [showAgenticIntro, setShowAgenticIntro] = useState(false);
+  const [localResultsPerPage, setLocalResultsPerPage] = useState(10);
+  const handlePerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const next = parseInt(e.target.value, 10);
+    setLocalResultsPerPage(next);
+    setCurrentPage(1);
+  };
+
+  const [viewStyle, setViewStyle] = useState('table');
+
+  const [showReasoningPanel, setShowReasoningPanel] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  const [editingComplexIndex, setEditingComplexIndex] = useState<number | null>(null);
+
+  const [isExporting, setIsExporting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [refError, setRefError] = useState<string | null>(null);
+
+  
+  // Highlighting with pagination support
+  useEffect(() => {
+    if (highlightedSetId && results.length > 0) {
+      const index = results.findIndex(r => r.set_id === highlightedSetId);
+
+      if (index !== -1) {
+        setRefError(null);
+        const targetPage = Math.ceil((index + 1) / localResultsPerPage);
+
+        if (targetPage !== currentPage) {
+          setCurrentPage(targetPage);
+        }
+
+        const tryScroll = (attempts = 0) => {
+          const element = document.getElementById(`result-${highlightedSetId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.classList.add('highlight-pulse');
+            setTimeout(() => element.classList.remove('highlight-pulse'), 2000);
+          } else if (attempts < 5) {
+            setTimeout(() => tryScroll(attempts + 1), 100);
+          }
+        };
+
+        setTimeout(tryScroll, 100);
+      } else {
+        setRefError(`The reference (ID: ${highlightedSetId}) is no longer available in the current search results due to a recent query update.`);
+        const timer = setTimeout(() => setRefError(null), 8000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [highlightedSetId, results, localResultsPerPage, currentPage, setCurrentPage]);
+
+  // -----------------------
+  // SQL Editor State (V1 only)
+  // -----------------------
+  const [localSql, setLocalSql] = useState('');
+  const [isSqlRunning, setIsSqlRunning] = useState(false);
+
+  const [baseQuery, setBaseQuery] = useState('');
+  const [sqlSuffix, setSqlSuffix] = useState(''); // preserve ORDER BY / outer WHERE etc
+  const [conditions, setConditions] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Only parse/build conditions for V1 filter editing.
+    if (!isV1) return;
+
+    if (generatedSql) {
+      setLocalSql(generatedSql);
+      parseSqlToConditions(generatedSql);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generatedSql, isV1]);
+
+  const ensureLabelSectionCondition = (conds: any[]) => {
+    const has = conds.some(c => c.type === 'simple' && (c.field || '').toUpperCase() === 'S.LOINC_CODE');
+    if (has) return conds;
+
+    return [
+      ...conds,
+      {
+        id: conds.length,
+        type: 'simple',
+        field: 's.LOINC_CODE',
+        operator: 'IN',
+        value: [],
+        raw: '',
+        disabled: true
+      }
+    ];
+  };
+
+  /**
+   * Improved SQL parsing:
+   * - edits only the *first* WHERE block
+   * - preserves suffix like "ORDER BY ... ) WHERE ROWNUM <= ..."
+   */
+  const parseSqlToConditions = (sql: string) => {
+    try {
+      const whereIndex = sql.search(/\bWHERE\b/i);
+      if (whereIndex === -1) {
+        setBaseQuery(sql);
+        setSqlSuffix('');
+        setConditions([]);
+        return;
+      }
+
+      const base = sql.substring(0, whereIndex).trim();
+      const afterWhere = sql.substring(whereIndex + 5); // after "WHERE"
+
+      // Find end of the editable WHERE region
+      const endCandidates: number[] = [];
+      const orderIdx = afterWhere.search(/\bORDER\s+BY\b/i);
+      const groupIdx = afterWhere.search(/\bGROUP\s+BY\b/i);
+      const outerWhereIdx = afterWhere.search(/\)\s*WHERE\b/i);
+
+      if (orderIdx !== -1) endCandidates.push(orderIdx);
+      if (groupIdx !== -1) endCandidates.push(groupIdx);
+      if (outerWhereIdx !== -1) endCandidates.push(outerWhereIdx);
+
+      const endRel = endCandidates.length ? Math.min(...endCandidates) : afterWhere.length;
+
+      const whereOnly = afterWhere.substring(0, endRel).trim();
+      const suffix = afterWhere.substring(endRel); // keep everything else
+      setBaseQuery(base);
+      setSqlSuffix(suffix || '');
+
+      const parts = whereOnly.split(/\s+AND\s+(?![^()]*\))/i);
+
+      const parsedConditions = parts.map((part, index) => {
+        const trimmed = part.trim();
+
+        const simpleMatch = trimmed.match(/^(?:UPPER\s*\(\s*)?([a-zA-Z0-9_.]+)(?:\s*\))?\s+(=|LIKE|NOT\s+LIKE)\s+(?:UPPER\s*\(\s*)?'([^']*)'(?:\s*\))?$/i);
+        if (simpleMatch) {
+          return {
+            id: index,
+            type: 'simple',
+            field: simpleMatch[1],
+            operator: simpleMatch[2].toUpperCase(),
+            value: simpleMatch[3],
+            raw: trimmed
+          };
+        }
+
+        const inMatch = trimmed.match(/^(?:UPPER\s*\(\s*)?([a-zA-Z0-9_.]+)(?:\s*\))?\s+IN\s*\(\s*([^)]+?)\s*\)\s*$/i);
+        if (inMatch) {
+          const field = inMatch[1];
+          const listRaw = inMatch[2];
+          const values = Array.from(listRaw.matchAll(/'([^']*)'/g)).map(m => m[1]);
+          return {
+            id: index,
+            type: 'simple',
+            field,
+            operator: 'IN',
+            value: values,
+            raw: trimmed
+          };
+        }
+
+        const containsMatch = trimmed.match(/^CONTAINS\s*\(\s*s\.CONTENT_XML\s*,\s*'([^']*)'\s*\)\s*>\s*0$/i);
+        if (containsMatch) {
+          return {
+            id: index,
+            type: 'contains',
+            field: 's.CONTENT_XML',
+            operator: 'CONTAINS',
+            value: containsMatch[1],
+            raw: trimmed
+          };
+        }
+
+        return { id: index, type: 'complex', raw: trimmed };
+      });
+
+      setConditions(ensureLabelSectionCondition(parsedConditions));
+    } catch (e) {
+      console.error("Failed to parse SQL:", e);
+      setBaseQuery(sql);
+      setSqlSuffix('');
+      setConditions([]);
+    }
+  };
+
+  const reconstructSql = (base: string, currentConditions: any[]) => {
+    const activeConditions = currentConditions.filter(c => c.raw && c.raw.trim() && !c.disabled);
+
+    if (activeConditions.length === 0) {
+      const newSql = base + (sqlSuffix ? ` ${sqlSuffix.trimStart()}` : '');
+      setLocalSql(newSql);
+      setGeneratedSql(newSql);
+      return;
+    }
+
+    const whereString = activeConditions.map(c => c.raw.trim()).join(' AND ');
+    const newSql = `${base} WHERE ${whereString}${sqlSuffix ? ` ${sqlSuffix.trimStart()}` : ''}`;
+    setLocalSql(newSql);
+    setGeneratedSql(newSql);
+  };
+
+  const updateCondition = (index: number, updates: any) => {
+    const newConditions = [...conditions];
+    const oldCond = newConditions[index];
+    const newCond = { ...oldCond, ...updates };
+
+    if (newCond.type === 'simple') {
+      if (newCond.operator === 'IN' && Array.isArray(newCond.value)) {
+        const vals = Array.isArray(newCond.value) ? newCond.value : [];
+        if (vals.length === 0) {
+          newCond.disabled = true;
+          newCond.raw = '';
+        } else {
+          newCond.disabled = false;
+          const quoted = vals.map((v: string) => `'${v}'`).join(',');
+          newCond.raw = `${newCond.field} IN (${quoted})`;
+        }
+      } else if ((newCond.operator || '').includes('LIKE')) {
+        newCond.raw = `UPPER(${newCond.field}) ${newCond.operator} UPPER('${newCond.value}')`;
+      } else {
+        newCond.raw = `${newCond.field} ${newCond.operator} '${newCond.value}'`;
+      }
+    } else if (newCond.type === 'contains') {
+      newCond.raw = `CONTAINS(s.CONTENT_XML, '${newCond.value}') > 0`;
+    } else {
+      newCond.raw = updates.raw;
+    }
+
+    newConditions[index] = newCond;
+    setConditions(newConditions);
+    reconstructSql(baseQuery, newConditions);
+  };
+
+  const removeCondition = (index: number) => {
+    const newConditions = conditions.filter((_, i) => i !== index);
+    setConditions(newConditions);
+    reconstructSql(baseQuery, newConditions);
+  };
+
+  const handleRunSql = async () => {
+    if (!localSql.trim()) return;
+    setIsSqlRunning(true);
+    setRefError(null);
+
+    try {
+      const response = await fetch("/api/search/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ manual_sql: localSql }),
+      });
+
+      const jsonData = await response.json();
+
+      if (jsonData.error) {
+        alert(`Error: ${jsonData.error}`);
+        setIsSqlRunning(false);
+        return;
+      }
+
+      if (jsonData.results) {
+        const extractedIds = (jsonData.results || []).map((r: any) => r?.SET_ID || r?.set_id || "");
+        setSetIds(extractedIds);
+        setTotalResults(jsonData.total_counts);
+        setMedAnswer(jsonData.med_answer || "Query executed successfully.");
+        setGeneratedSql(localSql);
+        await fetchMetadata(1, jsonData.results);
+      } else {
+        setResults([]);
+        setTotalResults(0);
+        setSetIds([]);
+        setMedAnswer("No results found for this SQL query.");
+      }
+    } catch (error) {
+      console.error("Error running manual SQL:", error);
+      alert("An unexpected error occurred.");
+    } finally {
+      setIsSqlRunning(false);
+    }
+  };
+
+  const fetchMetadata = async (page: number, allSetIds: string[]) => {
+    try {
+      const response = await fetch("/api/search/get_metadata", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ set_ids: allSetIds }),
+      });
+
+      const data = await response.json();
+      if (data && data.results) {
+        setResults(data.results);
+        setTotalResults(data.results.length);
+        setCurrentPage(1);
+      } else {
+        setResults([]);
+        setTotalResults(0);
+      }
+    } catch (error) {
+      console.error("Error fetching metadata:", error);
+      setResults([]);
+      setTotalResults(0);
+    }
+  };
+
+  const handleItemSelection = (setId: string) => {
+    setSelectedItems(prevSelected => {
+      if (prevSelected.includes(setId)) return prevSelected.filter(id => id !== setId);
+      return [...prevSelected, setId];
+    });
+  };
+
+  const totalPages = Math.ceil(totalResults / localResultsPerPage);
+  const startIndex = (currentPage - 1) * localResultsPerPage;
+  const paginatedResults = results.slice(startIndex, startIndex + localResultsPerPage);
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allPaginatedIds = paginatedResults.map(r => r.set_id);
+      setSelectedItems(prev => [...new Set([...prev, ...allPaginatedIds])]);
+    } else {
+      const paginatedIdsSet = new Set(paginatedResults.map(r => r.set_id));
+      setSelectedItems(prev => prev.filter(id => !paginatedIdsSet.has(id)));
+    }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+
+  const handleJsonExport = async () => {
+    setIsExporting(true);
+    setShowExportMenu(false);
+
+    try {
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 16).replace(/[:T]/g, '-');
+
+      const resultsToExport = selectedItems.length > 0
+        ? results.filter(r => selectedItems.includes(r.set_id))
+        : results;
+
+      if (resultsToExport.length === 0) {
+        alert("No items to export. Please select at least one item.");
+        setIsExporting(false);
+        return;
+      }
+
+      const recordsToProcess = resultsToExport.slice(0, 5);
+      const setIdsToFetch = recordsToProcess.map(r => r.set_id);
+
+      const response = await fetch('/api/search/export_xml', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ set_ids: setIdsToFetch }),
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch XML content from backend.');
+
+      const xmlContentMap = await response.json();
+
+      const exportData = resultsToExport.map(result => ({
+        Product: result.PRODUCT_NAMES,
+        Generic: result.GENERIC_NAMES,
+        Company: result.COMPANY,
+        ApplicationNumber: result.APPR_NUM,
+        Ingredients: result.ACT_INGR_NAMES,
+        MarketCategory: result.MARKET_CATEGORIES,
+        DocumentType: result.DOCUMENT_TYPE,
+        Routes: result.Routes,
+        DosageForms: result.DOSAGE_FORMS,
+        EPC: result.EPC,
+        NDCCodes: result.NDC_CODES,
+        SetID: result.set_id,
+        XML_Content: xmlContentMap[result.set_id] || 'Not fetched (only top 5 are included)',
+      }));
+
+      const finalExportObject = {
+        exportInfo: {
+          timestamp: now.toISOString(),
+          userQuery: searchTerm,
+          aiRationale: medAnswer,
+        },
+        results: exportData,
+      };
+
+      const jsonString = JSON.stringify(finalExportObject, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
+      saveAs(blob, `askFDALabel_results_${timestamp}.json`);
+    } catch (error) {
+      console.error("Failed to export results:", error);
+      alert("Export failed. See console for details.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExcelExport = async () => {
+    setIsExporting(true);
+    setShowExportMenu(false);
+
+    try {
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 16).replace(/[:T]/g, '-');
+
+      const resultsToExport = selectedItems.length > 0
+        ? results.filter(r => selectedItems.includes(r.set_id))
+        : results;
+
+      if (resultsToExport.length === 0) {
+        alert("No items to export. Please select at least one item.");
+        setIsExporting(false);
+        return;
+      }
+
+      const setIdsToFetch = resultsToExport.map(r => r.set_id);
+
+      const response = await fetch('/api/search/export_excel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ set_ids: setIdsToFetch }),
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch Excel content from backend.');
+
+      const blob = await response.blob();
+      saveAs(blob, `askFDALabel_export_${timestamp}.xlsx`);
+    } catch (error) {
+      console.error("Failed to export Excel:", error);
+      alert("Excel export failed. See console for details.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Pagination buttons
+  const delta = 2;
+  const pageNumbers: (number | string)[] = [];
+
+  if (currentPage > 1 + delta) {
+    pageNumbers.push(1);
+    if (currentPage > 2 + delta) pageNumbers.push("...");
+  }
+
+  for (let i = Math.max(1, currentPage - delta); i <= Math.min(totalPages, currentPage + delta); i++) {
+    pageNumbers.push(i);
+  }
+
+  if (currentPage < totalPages - delta) {
+    if (currentPage < totalPages - delta - 1) pageNumbers.push("...");
+    pageNumbers.push(totalPages);
+  }
+
+  if (!hasSearched) {
+    return (
+      <div className="intro-section">
+        <h2 className="intro-title">👋 Warm Welcome from askFDALabel! </h2>
+
+        <div
+          style={{
+            margin: '0 auto 18px auto',
+            maxWidth: 980,
+            background: '#fff',
+            borderRadius: 14,
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 10px 24px rgba(15, 23, 42, 0.06)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Header / Toggle */}
+          <button
+            type="button"
+            onClick={() => setShowAgenticIntro(prev => !prev)}
+            aria-expanded={showAgenticIntro}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              padding: '14px 16px',
+              background: '#f8fafc',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+              <div style={{ fontWeight: 950, color: '#0f172a', fontSize: '1rem' }}>
+                How our agentic search works
+              </div>
+
+              {!showAgenticIntro && (
+                <div style={{ color: '#475569', fontSize: '0.9rem', marginTop: 2 }}>
+                  Click to expand the workflow diagram and a quick explanation.
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                color: '#0f172a',
+                fontWeight: 800,
+                fontSize: '0.9rem',
+              }}
+            >
+              <span>{showAgenticIntro ? 'Hide' : 'Show'}</span>
+              <span
+                aria-hidden
+                style={{
+                  display: 'inline-block',
+                  transform: showAgenticIntro ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 150ms ease',
+                }}
+              >
+                ▾
+              </span>
+            </div>
+          </button>
+
+          {/* Collapsible content */}
+          {showAgenticIntro && (
+            <div style={{ padding: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <img
+                  src="/flowchart_agent_v3.png"
+                  alt="askFDALabel agentic system flowchart"
+                  style={{
+                    width: '100%',
+                    height: 'auto',
+                    borderRadius: 12,
+                    border: '1px solid #eef2f7',
+                    background: '#f8fafc',
+                  }}
+                />
+
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 12,
+                    border: '1px solid #e2e8f0',
+                    background: '#fff',
+                  }}
+                >
+                  <div style={{ color: '#334155', lineHeight: 1.6, fontSize: '0.95rem' }}>
+                    askFDALabel uses a multi-step “agent” pipeline to plan the best strategy, retrieve evidence, and explain what it did:
+                    <ul style={{ margin: '8px 0 0 18px', color: '#334155' }}>
+                      <li><b>Planner</b> interprets your question using recent chat context and chooses a query strategy.</li>
+                      <li><b>DB Executor</b> runs the best SQL (metadata search, full-text section search, or aggregate/compare).</li>
+                      <li><b>Evidence Fetcher</b> pulls only the needed label sections to ground answers in text.</li>
+                      <li><b>Answer + Reasoning</b> generates a response and shows the plan/trace in the Reasoning panel.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+
+        <p className="no-results-disclaimer">
+          <strong>askFDALabel</strong>, an AI-powered regulatory research tool, searches over 3,000 Reference Listed Drugs (RLDs) and more than 150,000 product labels using data sourced from <a target="_blank" rel="noreferrer" href="https://nctr-crs.fda.gov/fdalabel/ui/search"><strong>FDALabel</strong></a>.
+          This data is based on Structured Product Labeling (SPL) submissions provided by manufacturers. The content may differ from the most current FDA-approved labeling available at Drugs@FDA and has not been independently verified by the FDA.
+        </p>
+
+        <p style={{ marginTop: '1rem' }}>
+          <a href="https://nctr-crs.fda.gov/fdalabel/ui/disclaimer" target="_blank" rel="noreferrer"><strong>Full FDALabel Disclaimer</strong></a>.
+        </p>
+
+        <p className="disclaimer-box">
+          <em>Note:</em> askFDALabel is currently under active development by the FDA's National Center for Toxicological Research (NCTR) and is intended for internal testing and evaluation only. Search results may be incomplete or contain inaccuracies due to ongoing system updates and refinement.
+        </p>
+      </div>
+    );
+  }
+
+  // Friendly names (for filter panel)
+  const getFriendlyName = (field: string) => {
+    const map: { [key: string]: string } = {
+      'r.PRODUCT_NAMES': 'Brand Name',
+      'r.AUTHOR_ORG_NORMD_NAME': 'Manufacturer',
+      'r.EPC': 'Pharm. Class',
+      's.LOINC_CODE': 'Label Section',
+      's.CONTENT_XML': 'Section Text',
+      'r.DOCUMENT_TYPE': 'Doc Type'
+    };
+    return map[field] || field;
+  };
+
+  // -----------------------
+  // Reasoning Panel (V2 only)
+  // -----------------------
+  const ReasoningPanel = () => {
+    const intentType =
+      (debugIntent && (debugIntent.type || debugIntent.intent?.type)) ||
+      '—';
+
+    const planType =
+      (debugPlan && (debugPlan.plan_type || debugPlan.retrieval?.plan_type)) ||
+      '—';
+
+    const templateHint =
+      (debugPlan && (debugPlan.sql_template_hint || debugPlan.retrieval?.sql_template_hint)) ||
+      '—';
+
+    const snippetsReturned =
+      (debugStats && (debugStats.snippets_returned ?? debugStats.snippet_count ?? debugStats.evidence_count)) ??
+      null;
+
+    const evidenceFetched =
+      snippetsReturned !== null ? (snippetsReturned > 0 ? 'Yes' : 'No') : '—';
+
+    return (
+      <div style={{ padding: 16, background: '#f8f9fa', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900, color: '#334155' }}>Reasoning</h3>
+          <button
+            onClick={() => setShowReasoningPanel(prev => !prev)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              color: '#0077cc',
+              textDecoration: 'underline'
+            }}
+          >
+            {showReasoningPanel ? '(Hide)' : '(Show)'}
+          </button>
+        </div>
+
+        {showReasoningPanel && (
+          <>
+            {/* Summary cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: '#fff' }}>
+                <div style={{ fontSize: 12, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Intent</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{intentType}</div>
+              </div>
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: '#fff' }}>
+                <div style={{ fontSize: 12, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Evidence fetched</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{evidenceFetched}</div>
+              </div>
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: '#fff' }}>
+                <div style={{ fontSize: 12, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Plan type</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{planType}</div>
+              </div>
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: '#fff' }}>
+                <div style={{ fontSize: 12, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>SQL template</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{templateHint}</div>
+              </div>
+            </div>
+
+            {/* Agent flow */}
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 900, textTransform: 'uppercase', marginBottom: 8 }}>
+                Agent flow
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {(agentFlow || []).map((step, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      padding: '4px 10px',
+                      background: '#eff6ff',
+                      color: '#1e40af',
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 800,
+                      border: '1px solid #dbeafe',
+                    }}
+                  >
+                    {step}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Narrative */}
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 900, textTransform: 'uppercase', marginBottom: 8 }}>
+                Explanation
+              </div>
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, lineHeight: 1.6 }}>
+                {reasoning
+                  ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{reasoning}</ReactMarkdown>
+                  : <em>No reasoning available.</em>
+                }
+              </div>
+            </div>
+
+            {/* Trace log (optional) */}
+            {(traceLog || []).length > 0 && (
+              <details style={{ marginTop: 16 }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 900, color: '#334155' }}>Show trace log</summary>
+                <div style={{ marginTop: 10, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 12 }}>
+                  <ul style={{ margin: 0, paddingLeft: 18, color: '#334155' }}>
+                    {traceLog.map((t, i) => (
+                      <li key={i} style={{ marginBottom: 6, fontSize: 13 }}>{t}</li>
+                    ))}
+                  </ul>
+                </div>
+              </details>
+            )}
+
+            {/* Generated SQL */}
+            {generatedSql && (
+              <details style={{ marginTop: 16 }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 900, color: '#334155' }}>Show generated SQL</summary>
+                <div style={{ marginTop: 10 }}>
+                  <SQLHighlighter sql={generatedSql} />
+                </div>
+              </details>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // -----------------------
+  // Filter Panel (V1 only)
+  // -----------------------
+  const FilterPanel = () => {
+    return (
+      <div className="sql-editor-container">
+        <div className="sql-editor-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>Active Filters</span>
+            <button
+              onClick={() => setShowFilterPanel(prev => !prev)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                color: '#0077cc',
+                textDecoration: 'underline'
+              }}
+            >
+              {showFilterPanel ? '(Hide)' : '(Show)'}
+            </button>
+          </div>
+
+          <button
+            className="sql-run-btn"
+            onClick={handleRunSql}
+            disabled={isSqlRunning}
+          >
+            {isSqlRunning ? 'Running...' : 'Update Results'}
+          </button>
+        </div>
+
+        {showFilterPanel && (
+          <div style={{ padding: '16px', backgroundColor: '#f8f9fa' }}>
+            {conditions.map((cond, i) => (
+              <div key={i} style={{ position: 'relative' }}>
+                {i > 0 && (
+                  <div style={{
+                    height: '24px',
+                    borderLeft: '2px dashed #cbd5e1',
+                    marginLeft: '24px',
+                    position: 'relative'
+                  }}>
+                    <span style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '-14px',
+                      transform: 'translateY(-50%)',
+                      backgroundColor: '#fff',
+                      padding: '2px 6px',
+                      fontSize: '0.7rem',
+                      fontWeight: 'bold',
+                      color: '#64748b',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px'
+                    }}>AND</span>
+                  </div>
+                )}
+
+                <div style={{
+                  display: 'flex',
+                  gap: '12px',
+                  alignItems: 'center',
+                  padding: '12px',
+                  backgroundColor: '#fff',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    backgroundColor: cond.type === 'complex' ? '#fff7ed' : '#eff6ff',
+                    color: cond.type === 'complex' ? '#c2410c' : '#1d4ed8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1rem'
+                  }}>
+                    {cond.type === 'contains' ? 'T' : cond.type === 'complex' ? '⚡' : 'F'}
+                  </div>
+
+                  {cond.type === 'simple' && (() => {
+                    const isLabelSection = (cond.field || '').toUpperCase() === 'S.LOINC_CODE';
+                    const selectedCodes: string[] = Array.isArray(cond.value)
+                      ? cond.value
+                      : (typeof cond.value === 'string' && cond.value ? [cond.value] : []);
+
+                    return (
+                      <>
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: '140px' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Field</span>
+                          <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#334155' }}>
+                            {getFriendlyName(cond.field)}
+                          </span>
+                        </div>
+
+                        {isLabelSection ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                            <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>
+                              Sections
+                            </span>
+
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: '8px',
+                                padding: '8px',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '8px',
+                                background: '#fff',
+                                minHeight: '44px',
+                                alignItems: 'flex-start'
+                              }}
+                            >
+                              {sectionOptions.map(({ code, name }) => {
+                                const isSelected = selectedCodes.includes(code);
+
+                                return (
+                                  <button
+                                    key={code}
+                                    type="button"
+                                    className="section-badge"
+                                    data-tooltip={name}
+                                    onClick={() => {
+                                      const next = isSelected
+                                        ? selectedCodes.filter(v => v !== code)
+                                        : [...selectedCodes, code];
+
+                                      updateCondition(i, {
+                                        operator: 'IN',
+                                        value: next,
+                                        disabled: next.length === 0
+                                      });
+                                    }}
+                                    style={{
+                                      cursor: 'pointer',
+                                      borderRadius: '999px',
+                                      padding: '6px 10px',
+                                      fontSize: '0.85rem',
+                                      border: `1px solid ${isSelected ? '#60a5fa' : '#cbd5e1'}`,
+                                      backgroundColor: isSelected ? '#eff6ff' : '#f8fafc',
+                                      color: isSelected ? '#1d4ed8' : '#334155',
+                                      fontWeight: isSelected ? 700 : 600,
+                                      boxShadow: isSelected ? '0 1px 2px rgba(29,78,216,0.15)' : 'none',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                  >
+                                    {code}
+                                  </button>
+                                );
+                              })}
+
+                              {selectedCodes.length === 0 && (
+                                <span style={{ color: '#94a3b8', fontStyle: 'italic', padding: '6px 4px' }}>
+                                  Select one or more sections
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ display: 'flex', flexDirection: 'column', width: '110px' }}>
+                              <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Condition</span>
+                              <select
+                                value={cond.operator}
+                                onChange={(e) => updateCondition(i, { operator: e.target.value })}
+                                style={{ padding: '6px', borderRadius: '6px', borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                              >
+                                <option value="=">Equals</option>
+                                <option value="LIKE">Contains</option>
+                                <option value="NOT LIKE">Excludes</option>
+                              </select>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                              <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Value</span>
+                              <input
+                                type="text"
+                                value={cond.value}
+                                onChange={(e) => updateCondition(i, { value: e.target.value })}
+                                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }}
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        <button
+                          onClick={() => removeCondition(i)}
+                          title="Remove condition"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '1.2rem', padding: '0 4px', marginLeft: '4px' }}
+                        >
+                          ✕
+                        </button>
+                      </>
+                    );
+                  })()}
+
+                  {cond.type === 'contains' && (
+                    <>
+                      <div className="filter-textsearch" style={{ flex: 1 }}>
+                        <div className="filter-textsearch__label">
+                          <span className="filter-textsearch__hint">section content</span>
+                        </div>
+
+                        <span className="filter-textsearch__op">contains</span>
+
+                        <div className="filter-textsearch__inputShell">
+                          <span className="filter-textsearch__icon">🔎</span>
+                          <input
+                            className="filter-textsearch__input"
+                            type="text"
+                            value={cond.value}
+                            onChange={(e) => updateCondition(i, { value: e.target.value })}
+                            placeholder="ibuprofen, aspirin, nausea..."
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => removeCondition(i)}
+                        title="Remove full text filter"
+                        className="filter-textsearch__remove"
+                      >
+                        ✕
+                      </button>
+                    </>
+                  )}
+
+                  {cond.type === 'complex' && (
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#c2410c', fontWeight: 700, textTransform: 'uppercase' }}>Advanced Logic (OR / Group)</span>
+                          <button
+                            onClick={() => setEditingComplexIndex(editingComplexIndex === i ? null : i)}
+                            style={{
+                              background: '#fef3c7',
+                              border: '1px solid #fcd34d',
+                              borderRadius: '4px',
+                              padding: '2px 8px',
+                              fontSize: '0.7rem',
+                              color: '#92400e',
+                              cursor: 'pointer',
+                              fontWeight: 600
+                            }}
+                          >
+                            {editingComplexIndex === i ? 'View Logic' : 'Edit Text'}
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => removeCondition(i)}
+                          title="Remove condition"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '1rem', fontWeight: 'bold' }}
+                        >
+                          Remove ✕
+                        </button>
+                      </div>
+
+                      {editingComplexIndex === i ? (
+                        <input
+                          type="text"
+                          value={cond.raw}
+                          onChange={(e) => updateCondition(i, { raw: e.target.value })}
+                          style={{ width: '100%', fontFamily: 'monospace', padding: '8px', borderRadius: '6px', border: '1px solid #fdba74', backgroundColor: '#fff7ed', color: '#9a3412', fontSize: '0.85rem' }}
+                          autoFocus
+                        />
+                      ) : (
+                        <div onClick={() => setEditingComplexIndex(i)} style={{ cursor: 'pointer' }}>
+                          <SQLHighlighter sql={cond.raw} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {conditions.length === 0 && (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', border: '2px dashed #e2e8f0', borderRadius: '8px' }}>
+                No active filters. Displaying all records.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="search-results">
+      {/* ✅ V2: show Reasoning panel ONLY (Filter panel is hidden) */}
+      {isV2 && <ReasoningPanel />}
+
+      {/* ✅ V1: show Filter panel ONLY (Reasoning panel is hidden) */}
+      {isV1 && <FilterPanel />}
+
+      {refError && (
+        <div
+          className="med-answer-container"
+          style={{
+            backgroundColor: '#fff2f0',
+            color: '#ff4d4f',
+            border: '1px solid #ffccc7',
+            borderRadius: '5px',
+            padding: '10px 15px',
+            marginBottom: '15px',
+            fontSize: '0.9rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}
+        >
+          <span>⚠️ {refError}</span>
+          <button
+            onClick={() => setRefError(null)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: '1.2rem' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {(setIds.length === 0 && results.length === 0) ? (
+        <div
+          className="med-answer-container"
+          style={{
+            backgroundColor: '#fffbe6',
+            color: '#664d03',
+            border: '1px solid #ffe58f',
+            borderRadius: '5px',
+            padding: '15px',
+            marginBottom: '20px'
+          }}
+        >
+          <div className="result-count" style={{ fontWeight: 'bold', textAlign: 'center' }}>
+            No results found for your active filters. Try adjusting the conditions above.
+          </div>
+        </div>
+      ) : (
+        <>
+        {hitResultLimit && (
+          <div
+            style={{
+              background: '#fffbe6',
+              border: '1px solid #ffe58f',
+              color: '#664d03',
+              borderRadius: 10,
+              padding: '10px 12px',
+              marginBottom: 10,
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+              lineHeight: 1.35
+            }}
+            role="note"
+          >
+            <div style={{ fontSize: 18, marginTop: 1 }}>⚠️</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 900 }}>
+                Result limit reached (showing the first {inferredLimit} matches).
+              </div>
+              <div style={{ fontSize: 13, marginTop: 2 }}>
+                Refine your query or add filters (section, company, doc type, etc.) to narrow results.
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="result-count">Displaying {paginatedResults.length} of {totalResults} results</div>
+
+          <div className="pagination-toolbar">
+            <div className="pagination">
+              {pageNumbers.map((page, i) => (
+                <button
+                  key={i}
+                  className={`page-button ${currentPage === page ? 'active' : ''}`}
+                  onClick={() => typeof page === 'number' && handlePageChange(page)}
+                  disabled={currentPage === page || page === '...'}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
+
+            <div className="controls-wrapper">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 10 }}>
+                <span style={{ fontSize: 13, color: '#475569', fontWeight: 700 }}>Per page</span>
+                <select
+                  value={localResultsPerPage}
+                  onChange={handlePerPageChange}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    background: '#fff',
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+
+              <div className="view-switcher">
+                <button
+                  onClick={() => setViewStyle('panel')}
+                  className={viewStyle === 'panel' ? 'active' : ''}
+                >
+                  Panel
+                </button>
+                <button
+                  onClick={() => setViewStyle('table')}
+                  className={viewStyle === 'table' ? 'active' : ''}
+                >
+                  Table
+                </button>
+              </div>
+
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <button
+                  className="export-button"
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  disabled={isExporting}
+                  title="Export options"
+                >
+                  {isExporting ? 'Exporting...' : 'Export ▼'}
+                </button>
+
+                {showExportMenu && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '4px',
+                    backgroundColor: 'white',
+                    borderRadius: '6px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                    border: '1px solid #e2e8f0',
+                    zIndex: 50,
+                    minWidth: '160px',
+                    overflow: 'hidden'
+                  }}>
+                    <button
+                      onClick={handleJsonExport}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '8px 16px',
+                        fontSize: '0.875rem',
+                        color: '#334155',
+                        backgroundColor: 'white',
+                        border: 'none',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #f1f5f9'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                    >
+                      JSON (Results + XML)
+                    </button>
+
+                    <button
+                      onClick={handleExcelExport}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '8px 16px',
+                        fontSize: '0.875rem',
+                        color: '#334155',
+                        backgroundColor: 'white',
+                        border: 'none',
+                        cursor: 'pointer'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                    >
+                      Excel (Template)
+                    </button>
+                  </div>
+                )}
+
+                {showExportMenu && (
+                  <div
+                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 40 }}
+                    onClick={() => setShowExportMenu(false)}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {viewStyle === 'panel' && paginatedResults.map((result, index) => {
+            const actualResultNumber = (currentPage - 1) * localResultsPerPage + index + 1;
+            const isHighlighted = result.set_id === highlightedSetId;
+
+            return (
+              <div
+                key={index}
+                id={`result-${result.set_id}`}
+                className={`result-item p-4 border-b border-gray-200 ${isHighlighted ? 'highlighted-result' : ''}`}
+                style={{
+                  position: 'relative',
+                  cursor: 'default',     // ✅ allow normal cursor + selection
+                  userSelect: 'text',    // ✅ ensure selectable
+                  border: isHighlighted ? '2px solid #0077cc' : '1px solid #e5e7eb',
+                  backgroundColor: isHighlighted ? '#f0f9ff' : '#ffffff',
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                <div
+                  draggable
+                  title="Drag this label into the question box"
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('application/json+drugdata', JSON.stringify(result));
+                    // optional but helpful: lets plain inputs accept a text drop too
+                    e.dataTransfer.setData('text/plain', `${result.PRODUCT_NAMES} (${result.GENERIC_NAMES}) [SET_ID: ${result.set_id}]`);
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 10,
+                    right: 10,
+                    padding: '4px 8px',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    background: '#ffffff',
+                    cursor: 'grab',
+                    userSelect: 'none',
+                    fontWeight: 800,
+                    color: '#334155',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)'
+                  }}
+                >
+                  ⠿
+                </div>
+                <input
+                    type="checkbox"
+                    className="item-checkbox"
+                    checked={selectedItems.includes(result.set_id)}
+                    onChange={() => handleItemSelection(result.set_id)}
+                    title="Select this item for export"
+                />
+
+                <div className="result-header mb-2">
+                  <h3 className="text-xl font-semibold text-blue-700 hover:underline">
+                    <a
+                      href={`https://fdalabel.fda.gov:8443/fdalabel/services/spl/set-ids/${result.set_id}/spl-doc?hl=${result.keywords}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {actualResultNumber}. {result.PRODUCT_NAMES}
+                    </a> - {result.GENERIC_NAMES}
+                  </h3>
+                </div>
+
+                <div className="result-metadata-fancy">
+                  <div className="metadata-grid">
+                    <div className="column left-column">
+                      <div className="meta-row"><span>Company:</span> {result.COMPANY}</div>
+                      <div className="meta-row"><span>Application #:</span> {result.APPR_NUM}</div>
+                      <div className="meta-row"><span>Active Ingredients:</span> {result.ACT_INGR_NAMES}</div>
+                      <div className="meta-row"><span>Market Categories:</span> {result.MARKET_CATEGORIES}</div>
+                      <div className="meta-row"><span>Document Type:</span> {result.DOCUMENT_TYPE}</div>
+                      <div className="meta-row">
+                        <span>RLD:</span>{' '}
+                        {String((result as any).RLD ?? (result as any).rld ?? '').toLowerCase() === 'yes' ? (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              marginLeft: 6,
+                              padding: '3px 10px',
+                              borderRadius: 999,
+                              background: '#ecfdf3',
+                              border: '1px solid #bbf7d0',
+                              color: '#166534',
+                              fontWeight: 900,
+                              fontSize: 12
+                            }}
+                          >
+                            Yes
+                          </span>
+                        ) : (
+                          <span style={{ color: '#94a3b8', marginLeft: 6 }}>—</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="column right-column">
+                      <div className="meta-row"><span>Routes:</span> {result.Routes}</div>
+                      <div className="meta-row"><span>Dosage Forms:</span> {result.DOSAGE_FORMS}</div>
+                      <div className="meta-row"><span>EPC Class:</span> {result.EPC}</div>
+                      <div className="meta-row"><span>NDC Codes:</span> {result.NDC_CODES}</div>
+                      <div className="meta-row"><span>FDALabel SET-ID:</span> {result.set_id}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {viewStyle === 'table' && (
+            <div className="table-container">
+              <table className="results-table">
+                <thead>
+                  <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        title="Select all items on this page"
+                        ref={el => {
+                          if (el) {
+                            const paginatedIds = new Set(paginatedResults.map(r => r.set_id));
+                            const selectedOnPage = selectedItems.filter(id => paginatedIds.has(id));
+                            el.checked = paginatedIds.size > 0 && selectedOnPage.length === paginatedIds.size;
+                            el.indeterminate = selectedOnPage.length > 0 && selectedOnPage.length < paginatedIds.size;
+                          }
+                        }}
+                        onChange={handleSelectAll}
+                      />
+                    </th>
+                    <th>#</th>
+                    <th>Product Name</th>
+                    <th>Generic Name</th>
+                    <th>Company</th>
+                    <th>Application #</th>
+                    <th>NDC</th>
+                    <th>RLD</th>
+                    <th style={{
+                      backgroundColor: '#f0f9ff',
+                      color: '#1e40af',
+                      fontWeight: 'bold',
+                      border: '1px solid #e2e8f0'
+                    }}>Analysis ↗</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedResults.map((result, index) => {
+                    const actualResultNumber = (currentPage - 1) * localResultsPerPage + index + 1;
+                    const isHighlighted = result.set_id === highlightedSetId;
+
+                    return (
+                      <tr
+                        key={index}
+                        id={`result-${result.set_id}`}
+                        style={{
+                          backgroundColor: isHighlighted ? '#e6f7ff' : 'inherit',
+                          fontWeight: isHighlighted ? '600' : 'normal'
+                        }}
+                      >
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <span
+                            draggable
+                            title="Drag this label into the question box"
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('application/json+drugdata', JSON.stringify(result));
+                              e.dataTransfer.setData('text/plain', `${result.PRODUCT_NAMES} (${result.GENERIC_NAMES}) [SET_ID: ${result.set_id}]`);
+                              e.dataTransfer.effectAllowed = 'copy';
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: 22,
+                              height: 22,
+                              marginRight: 8,
+                              borderRadius: 6,
+                              border: '1px solid #e2e8f0',
+                              background: '#fff',
+                              cursor: 'grab',
+                              userSelect: 'none',
+                              fontWeight: 800,
+                              color: '#334155'
+                            }}
+                          >
+                            ⠿
+                          </span>
+
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.includes(result.set_id)}
+                            onChange={() => handleItemSelection(result.set_id)}
+                          />
+                        </td>
+                        <td>{actualResultNumber}</td>
+                        <td>
+                          <a
+                            href={`https://fdalabel.fda.gov:8443/fdalabel/services/spl/set-ids/${result.set_id}/spl-doc?hl=${result.keywords}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {result.PRODUCT_NAMES}
+                          </a>
+                        </td>
+                        <td>{result.GENERIC_NAMES}</td>
+                        <td>{result.COMPANY}</td>
+                        <td>{result.APPR_NUM}</td>
+                        <td>{result.NDC_CODES.length > 25 ? `${result.NDC_CODES.substring(0, 25)}...` : result.NDC_CODES}</td>
+                        <td>
+                          {String((result as any).RLD ?? (result as any).rld ?? '')
+                            .toLowerCase() === 'yes' ? (
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '3px 8px',
+                                borderRadius: 999,
+                                background: '#ecfdf3',
+                                border: '1px solid #bbf7d0',
+                                color: '#166534',
+                                fontWeight: 900,
+                                fontSize: 12
+                              }}
+                            >
+                              Yes
+                            </span>
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          <a
+                            href={`http://ncshpcgpu01:8844/label/${result.set_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            View in App
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+export default Results;
+

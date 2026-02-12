@@ -6,28 +6,28 @@ import re
 import json
 from difflib import HtmlDiff
 
-from srcs.extensions import db
-from srcs.models import Favorite, Annotation, FavoriteComparison
-from srcs.services.xml_handler import (
+from dashboard.srcs.extensions import db
+from dashboard.srcs.models import Favorite, Annotation, FavoriteComparison
+from dashboard.srcs.services.xml_handler import (
     parse_spl_xml,
     extract_metadata_from_xml,
     flatten_sections,
     get_aggregate_content
 )
-from srcs.services.fda_client import (
+from dashboard.srcs.services.fda_client import (
     get_label_metadata,
     get_label_xml,
     find_labels,
     find_labels_by_set_ids
 )
-from srcs.utils import (
+from dashboard.srcs.utils import (
     normalize_text_for_diff,
     extract_numeric_section_id,
     normalize_title_text,
     get_section_sort_key
 )
-from srcs.config import Config
-from srcs.services.fdalabel_db import FDALabelDBService
+from dashboard.srcs.config import Config
+from dashboard.srcs.services.fdalabel_db import FDALabelDBService
 
 main_bp = Blueprint('main', __name__)
 
@@ -267,7 +267,7 @@ def search():
     view = request.args.get('view')
     
     # Limitation Logic: OpenFDA = 10, FDALabel/Internal = 100000
-    from srcs.services.fdalabel_db import FDALabelDBService
+    from dashboard.srcs.services.fdalabel_db import FDALabelDBService
     if FDALabelDBService.check_connectivity() or import_id:
         limit = 100000
     else:
@@ -658,3 +658,4 @@ def preferences():
     db.session.commit()
     
     return jsonify({'success': True, 'message': 'Preferences saved successfully!'})
+

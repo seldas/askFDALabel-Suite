@@ -1,8 +1,8 @@
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
-from srcs.extensions import db
-from srcs.services.fdalabel_db import FDALabelDBService
+from dashboard.srcs.extensions import db
+from dashboard.srcs.services.fdalabel_db import FDALabelDBService
 
 def get_default_ai_provider():
     """
@@ -275,3 +275,4 @@ class MeddraSMQContent(db.Model):
         db.Index('idx_smq_content_smq', 'smq_code'),
         db.Index('idx_smq_content_term', 'term_code'),
     )
+

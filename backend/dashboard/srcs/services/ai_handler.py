@@ -7,8 +7,8 @@ import json
 import logging
 import os
 import urllib3
-from srcs.prompts import SEARCH_HELPER_PROMPT
-from srcs.services.fdalabel_db import FDALabelDBService
+from dashboard.srcs.prompts import SEARCH_HELPER_PROMPT
+from dashboard.srcs.services.fdalabel_db import FDALabelDBService
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger(__name__)
@@ -206,7 +206,7 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
                     logger.warning("Gemini quota exceeded. Switching to Gemma 3 27B fallback.")
                     
                     if user and user.is_authenticated:
-                        from srcs.extensions import db
+                        from dashboard.srcs.extensions import db
                         user.ai_provider = 'gemma'
                         db.session.commit()
                     

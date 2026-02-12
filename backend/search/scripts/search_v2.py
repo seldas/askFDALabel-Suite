@@ -6,10 +6,10 @@ from typing import Any, Dict, Tuple
 # Keep your original sys.path behavior so backend.* imports work in submodules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scripts.search_v2_core.log import logger
-from scripts.search_v2_core.state import AgentState
-from scripts.search_v2_core.controller import run_controller
-from scripts.search_v2_core.helpers import convert_oracle_to_filtered_results, build_debug_stats
+from search.scripts.search_v2_core.log import logger
+from search.scripts.search_v2_core.state import AgentState
+from search.scripts.search_v2_core.controller import run_controller
+from search.scripts.search_v2_core.helpers import convert_oracle_to_filtered_results, build_debug_stats
 def search_v2(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
     """
     Entry point for the V2 Search API.
@@ -44,4 +44,5 @@ def search_v2(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
     except Exception as e:
         logger.error(f"Critical error in search_v2: {e}")
         return {"error": str(e)}, 500
+
 

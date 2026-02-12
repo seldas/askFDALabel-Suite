@@ -2,8 +2,8 @@ import re
 from flask import Blueprint, render_template, request, redirect, url_for
 from flask_login import login_user, login_required, logout_user, current_user
 from urllib.parse import urlparse
-from srcs.models import User
-from srcs.extensions import db
+from dashboard.srcs.models import User
+from dashboard.srcs.extensions import db
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -63,3 +63,4 @@ def register():
 def logout():
     logout_user()
     return redirect(url_for('main.index'))
+

@@ -1,14 +1,11 @@
 import os
 from flask import Flask
-from dotenv import load_dotenv
-
-from srcs.config import Config
-from srcs.extensions import db, migrate, login_manager
-from srcs.models import User, Project, Favorite, FavoriteComparison, PgxBiomarker, PgxAssessment, PgxSynonym
-import os
-from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
+
+from dashboard.srcs.config import Config
+from dashboard.srcs.extensions import db, migrate, login_manager
+from dashboard.srcs.models import User, Project, Favorite, FavoriteComparison, PgxBiomarker, PgxAssessment, PgxSynonym
 
 def create_app(config_class=Config):
     load_dotenv()
@@ -34,13 +31,13 @@ def create_app(config_class=Config):
     login_manager.login_view = "auth.login"
 
     # Register Blueprints
-    from srcs.routes.auth import auth_bp
-    from srcs.routes.main import main_bp
-    from srcs.routes.api import api_bp
+    from dashboard.srcs.routes.auth import auth_bp
+    from dashboard.srcs.routes.main import main_bp
+    from dashboard.srcs.routes.api import api_bp
 
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(main_bp)
-    app.register_blueprint(api_bp)
+    app.register_blueprint(auth_bp, url_prefix='/api/dashboard/auth')
+    app.register_blueprint(main_bp, url_prefix='/api/dashboard')
+    app.register_blueprint(api_bp, url_prefix='/api/dashboard')
 
     # Ensure data directories exist
     os.makedirs(app.config["DATA_DIR"], exist_ok=True)
@@ -60,7 +57,7 @@ def create_app(config_class=Config):
 def check_meddra_data():
     """Checks if MedDRA tables are populated and warns the user if not."""
     try:
-        from srcs.models import MeddraSOC
+        from dashboard.srcs.models import MeddraSOC
         count = MeddraSOC.query.count()
         if count == 0:
             print("\n" + "!"*60)

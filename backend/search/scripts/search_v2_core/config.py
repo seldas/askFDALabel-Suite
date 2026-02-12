@@ -23,7 +23,10 @@ FDALabel_APP = os.getenv("FDALabel_APP")
 FDALabel_USER = os.getenv("FDALabel_USER")
 FDALabel_PSW = os.getenv("FDALabel_PSW")
 
-dsnStr = oracledb.makedsn(FDALabel_SERV, FDALabel_PORT, FDALabel_APP)
+if FDALabel_SERV and FDALabel_PORT and FDALabel_APP:
+    dsnStr = oracledb.makedsn(FDALabel_SERV, FDALabel_PORT, FDALabel_APP)
+else:
+    dsnStr = None
 
 def get_db_connection() -> oracledb.Connection:
     return oracledb.connect(user=FDALabel_USER, password=FDALabel_PSW, dsn=dsnStr)

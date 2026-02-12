@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import logging
 import re
-from srcs.utils import extract_numeric_section_id
+from dashboard.srcs.utils import extract_numeric_section_id
 
 logger = logging.getLogger(__name__)
 
@@ -383,3 +383,4 @@ def flatten_sections(sections):
         if section.get('children'):
             flat_list.extend(flatten_sections(section['children']))
     return flat_list
+

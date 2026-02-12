@@ -1,10 +1,10 @@
 import json
 import logging
 import re
-from srcs.models import PgxBiomarker, PgxAssessment, PgxSynonym
-from srcs.extensions import db
-from srcs.services.fda_client import get_label_metadata, get_label_xml
-from srcs.services.ai_handler import generate_assessment
+from dashboard.srcs.models import PgxBiomarker, PgxAssessment, PgxSynonym
+from dashboard.srcs.extensions import db
+from dashboard.srcs.services.fda_client import get_label_metadata, get_label_xml
+from dashboard.srcs.services.ai_handler import generate_assessment
 import xml.etree.ElementTree as ET
 import uuid
 from flask_login import current_user
