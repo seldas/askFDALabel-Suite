@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function () {
+window.initToxAgents = function() {
     // --- Tox Agents Navigation ---
     const toxIndex = document.getElementById('tox-index');
     const diliModule = document.getElementById('dili-module');
@@ -1112,5 +1112,11 @@ document.addEventListener('DOMContentLoaded', function () {
             refreshBtn.addEventListener('click', () => loadPgxData(true));
         }
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => window.initToxAgents());
+} else {
+    window.initToxAgents();
+}
 

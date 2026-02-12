@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function () {
+window.initAnnotations = function() {
     /* --- Label Annotation Logic --- */
     const LabelAnnotationManager = {
         currentSelection: null,
@@ -407,5 +407,11 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     LabelAnnotationManager.init();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => window.initAnnotations());
+} else {
+    window.initAnnotations();
+}
 

@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function () {
+window.initFaers = function() {
     // --- FAERS Dashboard Logic ---
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -1613,5 +1613,11 @@ document.addEventListener('DOMContentLoaded', function () {
         URL.revokeObjectURL(url);
     }
 
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => window.initFaers());
+} else {
+    window.initFaers();
+}
 

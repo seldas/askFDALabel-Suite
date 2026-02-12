@@ -100,6 +100,32 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
     fetchData();
   }, [setId]);
 
+  useEffect(() => {
+    if (!loading && data) {
+      // Robust initialization: wait for scripts to be ready
+      let attempts = 0;
+      const interval = setInterval(() => {
+        const win = window as any;
+        attempts++;
+        
+        if (win.initUI && win.initFaers && win.initToxAgents && win.initChat && win.initAnnotations && win.initFavorites) {
+          win.initUI();
+          win.initFaers();
+          win.initToxAgents();
+          win.initChat();
+          win.initAnnotations();
+          win.initFavorites();
+          clearInterval(interval);
+        } else if (attempts > 50) { // Stop after 5 seconds
+          console.warn("Legacy scripts failed to load in time.");
+          clearInterval(interval);
+        }
+      }, 100);
+      
+      return () => clearInterval(interval);
+    }
+  }, [loading, data]);
+
   if (loading) return <div className="hp-main-layout"><div className="hp-container"><p>Loading label...</p></div></div>;
   if (error) return <div className="hp-main-layout"><div className="hp-container"><p>Error: {error}</p></div></div>;
   if (!data) return null;
@@ -112,7 +138,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           <div className="toc-header">
             <h2>Table of Contents</h2>
             <button id="toc-close-internal" onClick={() => setTocCollapsed(true)} title="Collapse Panel" style={{ background: 'none', border: 'none', fontSize: '1.5em', cursor: 'pointer' }}>
-                <span>&#171;</span>
+                <span>{"\u00AB"}</span>
             </button>
           </div>
           {data.table_of_contents && data.table_of_contents.length > 0 ? (
@@ -127,7 +153,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
         </div>
         <div className="sidebar-footer">
           <a href="/dashboard" className="button btn-sidebar-home">
-            <span>&#8962;</span> Return Home
+            <span>{"\u2302"}</span> Return Home
           </a>
         </div>
       </div>
@@ -158,7 +184,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
               <button className={`tab-btn ${activeTab === 'tox-view' ? 'active' : ''}`} onClick={() => setActiveTab('tox-view')} id="btn-tox-view" data-target="tox-view">🧪 Agents</button>
             </div>
 
-            <button id="favorites-toggle-btn" className="button btn-favorites"><span>&#128188;</span> My Projects</button>
+            <button id="favorites-toggle-btn" className="button btn-favorites"><span>{"\uD83D\uDCBC"}</span> My Projects</button>
           </div>
 
           <div className="label-header" style={{ marginBottom: '25px' }}>
@@ -169,7 +195,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                 </div>
                 <div style={{ marginLeft: '20px' }}>
                     <button id="favorite-btn" className="favorite-btn" title="Toggle Project" style={{ background:'none', border:'none', cursor:'pointer', fontSize: '1.8em', color: '#ccc', padding: 0 }}>
-                        &#9734;
+                        {"\u2606"}
                     </button>
                 </div>
              </div>
@@ -177,7 +203,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
              <div className="label-meta-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginTop: '15px', border: '1px solid #eee' }}>
                 {data.has_boxed_warning && (
                   <div className="meta-item" style={{ gridColumn: '1 / -1', backgroundColor: '#fff5f5', border: '1px solid #f5c6cb', borderRadius: '6px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '1.5em', color: '#dc3545' }}>&#9888;</span>
+                    <span style={{ fontSize: '1.5em', color: '#dc3545' }}>{"\u26A0"}</span>
                     <div>
                         <span style={{ display: 'block', fontSize: '0.75em', color: '#dc3545', textTransform: 'uppercase', fontWeight: 700 }}>Safety Alert</span>
                         <span style={{ fontWeight: 600, color: '#721c24' }}>Contains Boxed Warning</span>
@@ -287,11 +313,24 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
 
           <div id="tox-view" className={`tab-content ${activeTab === 'tox-view' ? 'active' : ''}`} style={{ display: activeTab === 'tox-view' ? 'block' : 'none' }}>
              <div id="tox-index" style={{ textAlign: 'center', padding: '50px 20px' }}>
+                <h2 style={{ color: '#333', marginBottom: '40px', fontWeight: 300 }}>Select an Agent</h2>
                 <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                   <button id="btn-agent-dili" className="agent-card">DILI</button>
-                   <button id="btn-agent-dict" className="agent-card">DICT</button>
-                   <button id="btn-agent-diri" className="agent-card">DIRI</button>
-                   <button id="btn-agent-pgx" className="agent-card">PGx</button>
+                   <button id="btn-agent-dili" className="agent-card">
+                      <h3 style={{ margin: 0, color: '#17a2b8', fontSize: '2em' }}>DILI</h3>
+                      <p style={{ margin: '10px 0 0', color: '#555' }}>Liver Injury</p>
+                   </button>
+                   <button id="btn-agent-dict" className="agent-card">
+                      <h3 style={{ margin: 0, color: '#dc3545', fontSize: '2em' }}>DICT</h3>
+                      <p style={{ margin: '10px 0 0', color: '#555' }}>Cardiotoxicity</p>
+                   </button>
+                   <button id="btn-agent-diri" className="agent-card">
+                      <h3 style={{ margin: 0, color: '#ffc107', fontSize: '2em' }}>DIRI</h3>
+                      <p style={{ margin: '10px 0 0', color: '#555' }}>Renal Injury</p>
+                   </button>
+                   <button id="btn-agent-pgx" className="agent-card">
+                      <h3 style={{ margin: 0, color: '#6610f2', fontSize: '2em' }}>PGx</h3>
+                      <p style={{ margin: '10px 0 0', color: '#555' }}>Genomics</p>
+                   </button>
                 </div>
              </div>
 
@@ -369,13 +408,13 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
 
       {/* Floating Action Buttons */}
       <div id="user-notes-btn" className="floating-action-btn" title="My Notes" style={{ bottom: '160px', backgroundColor: '#fd7e14' }}>
-        <span>&#128221;</span>
+        <span>{"\uD83D\uDDD2"}</span>
       </div>
       <div id="meddra-stats-btn" className="floating-action-btn" title="MedDRA Stats" style={{ bottom: '90px', backgroundColor: '#6f42c1' }}>
-        <span>&#128202;</span>
+        <span>{"\uD83D\uDCCA"}</span>
       </div>
       <div id="chat-bubble" className="floating-action-btn chat-bubble" title="AI Assistant" style={{ bottom: '20px', backgroundColor: '#007bff' }}>
-        <span>&#128172;</span>
+        <span>{"\uD83D\uDCAC"}</span>
       </div>
 
       {/* Hidden Data for JS */}
@@ -391,16 +430,16 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       </Script>
 
       {/* Legacy Scripts */}
-      <Script src="/js/chart.js" strategy="beforeInteractive" />
-      <Script src="/js/marked.min.js" strategy="beforeInteractive" />
-      <Script src="/js/utils.js" />
-      <Script src="/js/ui.js" />
-      <Script src="/js/favorites.js" />
-      <Script src="/js/session_manager.js" />
-      <Script src="/js/chat.js" />
-      <Script src="/js/annotations.js" />
-      <Script src="/js/faers.js" />
-      <Script src="/js/tox.js" />
+      <Script src="/api/dashboard/static/js/chart.js" strategy="afterInteractive" />
+      <Script src="/api/dashboard/static/js/marked.min.js" strategy="afterInteractive" />
+      <Script src="/api/dashboard/static/js/utils.js" strategy="afterInteractive" />
+      <Script src="/api/dashboard/static/js/ui.js" strategy="afterInteractive" />
+      <Script src="/api/dashboard/static/js/favorites.js" strategy="afterInteractive" />
+      <Script src="/api/dashboard/static/js/session_manager.js" strategy="afterInteractive" />
+      <Script src="/api/dashboard/static/js/chat.js" strategy="afterInteractive" />
+      <Script src="/api/dashboard/static/js/annotations.js" strategy="afterInteractive" />
+      <Script src="/api/dashboard/static/js/faers.js" strategy="afterInteractive" />
+      <Script src="/api/dashboard/static/js/tox.js" strategy="afterInteractive" />
 
       {/* Modals placeholders for ui.js */}
       <div id="user-notes-modal" className="custom-modal" style={{ display: 'none' }}>

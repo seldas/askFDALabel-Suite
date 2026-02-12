@@ -112,11 +112,11 @@ function ResultsContent() {
         {/* Navigation */}
         <div className="hp-auth-nav" style={{ justifyContent: 'space-between', marginBottom: '10px', borderBottom: '1px solid rgba(0,0,0,0.05)', paddingBottom: '10px' }}>
           <a href="/dashboard" className="hp-nav-btn hp-btn-outline" style={{ marginRight: 'auto' }}>
-            <span>&#8592;</span> Back Home
+            <span>{"\u2190"}</span> Back Home
           </a>
           {/* AI Switcher and Projects Placeholder */}
           <div style={{ display: 'flex', gap: '15px' }}>
-             <button className="hp-nav-btn hp-btn-outline"><span>&#128188;</span> My Projects</button>
+             <button className="hp-nav-btn hp-btn-outline"><span>{"\uD83D\uDCBC"}</span> My Projects</button>
           </div>
         </div>
 
@@ -143,11 +143,11 @@ function ResultsContent() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {selectedSetIds.size > 0 && (
               <button className="hp-nav-btn" style={{ backgroundColor: '#28a745', color: 'white' }}>
-                <span>&#9878;</span> Compare ({selectedSetIds.size})
+                <span>{"\u2696"}</span> Compare ({selectedSetIds.size})
               </button>
             )}
             <button onClick={toggleView} className="hp-nav-btn hp-btn-outline">
-              <span>{view === 'panel' ? '&#128203;' : '&#128187;'}</span> {view === 'panel' ? 'Table View' : 'Panel View'}
+              <span>{view === 'panel' ? "\uD83D\uDCCB" : "\uD83D\uDCBB"}</span> {view === 'panel' ? 'Table View' : 'Panel View'}
             </button>
           </div>
         </div>
@@ -177,14 +177,14 @@ function ResultsContent() {
                     
                     <div className="panel-meta-grid">
                       <div className="meta-item">
-                        <span className="meta-icon">&#127981;</span>
+                        <span className="meta-icon">{"\uD83C\uDFED"}</span>
                         <div>
                           <small>Manufacturer</small>
                           <span>{label.manufacturer_name}</span>
                         </div>
                       </div>
                       <div className="meta-item">
-                        <span className="meta-icon">&#128197;</span>
+                        <span className="meta-icon">{"\uD83D\uDCC5"}</span>
                         <div>
                           <small>Published</small>
                           <span>{label.effective_time}</span>
@@ -239,7 +239,7 @@ function ResultsContent() {
                 disabled={page <= 1}
                 className="hp-nav-btn hp-btn-outline"
               >
-                <span>&#8249;</span> Previous
+                <span>{"\u2039"}</span> Previous
               </button>
               
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -258,15 +258,15 @@ function ResultsContent() {
                 disabled={page * data.limit >= data.total}
                 className="hp-nav-btn hp-btn-outline"
               >
-                Next <span>&#8250;</span>
+                Next <span>{"\u203A"}</span>
               </button>
             </div>
           </>
         ) : null}
       </div>
       
-      <Script src="/js/session_manager.js" />
-      <Script src="/js/ui.js" />
+      <Script src="/api/dashboard/static/js/session_manager.js" strategy="afterInteractive" />
+      <Script src="/api/dashboard/static/js/ui.js" strategy="afterInteractive" />
     </div>
   );
 }

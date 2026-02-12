@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function () {
+window.initUI = function() {
     // --- Back to Top Button ---
     const scrollTopBtn = document.getElementById('scroll-top-btn');
     const scrollContainer = document.querySelector('.main-content') || window; 
@@ -645,4 +645,10 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
     setTimeout(initTableExtractor, 1500);
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => window.initUI());
+} else {
+    window.initUI();
+}

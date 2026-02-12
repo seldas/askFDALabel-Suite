@@ -19,6 +19,8 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [session, setSession] = useState<UserSession | null>(null);
   const [configLoading, setConfigLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -79,6 +81,46 @@ export default function DashboardPage() {
     }
   };
 
+  const handleExcelFile = async (file: File) => {
+    setUploading(true);
+    setUploadedFile(file);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/dashboard/import_fdalabel', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        const url = new URL(data.redirect_url, window.location.origin);
+        const importId = url.searchParams.get('import_id');
+        router.push(`/dashboard/results?import_id=${importId}`);
+      } else {
+        alert('Error: ' + data.error);
+        setUploadedFile(null);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('An error occurred while uploading the file.');
+      setUploadedFile(null);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const triggerFileInput = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx';
+    input.onchange = (e: any) => {
+      const file = e.target.files[0];
+      if (file) handleExcelFile(file);
+    };
+    input.click();
+  };
+
   return (
     <main className="hp-main-layout">
       <DashboardClient />
@@ -86,7 +128,7 @@ export default function DashboardPage() {
       <div className="hp-container">
         <div className="hp-auth-nav">
           <a href="/" className="hp-nav-btn hp-btn-outline">
-            <span>&#127968;</span> Suite Home
+            <span>{"\uD83C\uDFE0"}</span> Suite Home
           </a>
 
           {session?.is_authenticated ? (
@@ -107,7 +149,7 @@ export default function DashboardPage() {
                   <option value="openai">OpenAI</option>
                   {session.is_internal && <option value="elsa">ELSA</option>}
                 </select>
-                <button id="ai-config-btn" title="AI Configuration" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>&#9881;</button>
+                <button id="ai-config-btn" title="AI Configuration" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>{"\u2699"}</button>
               </div>
 
               <div className="hp-user-badge" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px' }}>
@@ -128,7 +170,7 @@ export default function DashboardPage() {
           
           <div className="hp-theme-container" style={{ position: 'relative' }}>
             <button id="theme-toggle-btn" className="hp-nav-btn hp-btn-outline">
-              <span>&#127928;</span> Theme
+              <span>{"\uD83C\uDFAD"}</span> Theme
             </button>
             <div id="theme-dropdown" style={{ display: 'none', position: 'absolute', top: '120%', right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', width: '150px', overflow: 'hidden', zIndex: 100 }}>
               <div className="theme-option" data-theme="modern" style={{ padding: '10px 15px', cursor: 'pointer' }}>✨ Modern</div>
@@ -140,8 +182,8 @@ export default function DashboardPage() {
 
           {session?.is_authenticated && (
             <>
-              <a href="/api/dashboard/my_labelings" className="hp-nav-btn hp-btn-outline" target="AskFDALabel_MyProjects"><span>&#128188;</span> My Projects</a>
-              <a href="/api/dashboard/auth/logout" className="hp-nav-btn hp-btn-outline"><span>&#8618;</span> Logout</a>
+              <a href="/api/dashboard/my_labelings" className="hp-nav-btn hp-btn-outline" target="AskFDALabel_MyProjects"><span>{"\uD83D\uDCBC"}</span> My Projects</a>
+              <a href="/api/dashboard/auth/logout" className="hp-nav-btn hp-btn-outline"><span>{"\u21AA"}</span> Logout</a>
             </>
           )}
         </div>
@@ -153,15 +195,28 @@ export default function DashboardPage() {
 
         <div className="hp-action-center">
           <div className="hp-import-row">
-            <div id="excel-upload-box" className="hp-upload-box">
+            <div 
+              id="excel-upload-box" 
+              className={`hp-upload-box ${uploading ? 'uploading' : ''}`}
+              onClick={triggerFileInput}
+              style={{ cursor: 'pointer' }}
+            >
               <div className="hp-icon-container">
-                <div className="hp-pill-animation">
-                  <div className="hp-pill-half hp-pill-indigo"></div>
-                  <div className="hp-pill-half hp-pill-sky"></div>
-                </div>
+                {uploading ? (
+                  <div className="loader" style={{ width: '40px', height: '40px', borderWidth: '4px', marginBottom: '20px' }}></div>
+                ) : (
+                  <div className="hp-pill-animation">
+                    <div className="hp-pill-half hp-pill-indigo"></div>
+                    <div className="hp-pill-half hp-pill-sky"></div>
+                  </div>
+                )}
               </div>
-              <div className="hp-upload-text">Import FDALabel Excel</div>
-              <div className="hp-upload-hint">Drag & drop or click to browse files</div>
+              <div className="hp-upload-text">
+                {uploading ? `Processing ${uploadedFile?.name}...` : 'Import FDALabel Excel'}
+              </div>
+              <div className="hp-upload-hint">
+                {uploading ? 'Analyzing labels...' : 'Drag & drop or click to browse files'}
+              </div>
             </div>
           </div>
 
@@ -195,22 +250,22 @@ export default function DashboardPage() {
 
         <div className="hp-features">
           <div className="hp-feature-card">
-            <span className="hp-feature-icon">&#128172;</span>
+            <span className="hp-feature-icon">{"\uD83D\uDCAC"}</span>
             <h3>Clinical Chat</h3>
             <p>Natural language interactions with full document citations.</p>
           </div>
           <div className="hp-feature-card">
-            <span className="hp-feature-icon">&#9878;</span>
+            <span className="hp-feature-icon">{"\u2696"}</span>
             <h3>Label Compare</h3>
             <p>Deep section alignment for PLR and non-PLR formats.</p>
           </div>
           <div className="hp-feature-card">
-            <span className="hp-feature-icon">&#128202;</span>
+            <span className="hp-feature-icon">{"\uD83D\uDCCA"}</span>
             <h3>PV Assistant</h3>
             <p>Visualize FAERS trends and identify real-world safety signals.</p>
           </div>
           <div className="hp-feature-card">
-            <span className="hp-feature-icon">&#129302;</span>
+            <span className="hp-feature-icon">{"\uD83E\uDD16"}</span>
             <h3>Safety Agents</h3>
             <p>Automated toxicity screening using specialized AI domain knowledge.</p>
           </div>
@@ -218,14 +273,14 @@ export default function DashboardPage() {
       </div>
 
       <div id="info-btn" className="floating-info-btn" style={{ cursor: 'pointer' }}>
-        <span>&#8505;</span>
+        <span>{"\u2139"}</span>
       </div>
 
       <div id="info-modal" className="custom-modal" style={{ display: 'none' }}>
         <div className="custom-modal-content info-modal-content">
           <span className="close-modal" id="close-info-modal" style={{ position: 'absolute', top: '15px', right: '20px', zIndex: 10, cursor: 'pointer' }}>&times;</span>
           <div className="index-hero-container" style={{ paddingTop: '20px', textAlign: 'center' }}>
-            <div className="hero-icon" style={{ fontSize: '3em', marginBottom: '0.2em' }}><span>&#8505;</span></div>
+            <div className="hero-icon" style={{ fontSize: '3em', marginBottom: '0.2em' }}><span>{"\u2139"}</span></div>
             <h1 style={{ fontSize: '2em' }}>About AskFDALabel</h1>
             <p className="hero-subtitle">Streamlining Drug Label Analysis for Professionals</p>
           </div>

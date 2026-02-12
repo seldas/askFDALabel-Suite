@@ -12,7 +12,7 @@ export default function DashboardClient() {
     const setTheme = (themeName: string) => {
       const link = document.getElementById('theme-stylesheet') as HTMLLinkElement;
       if (link) {
-        link.href = `/dashboard/themes/${themeName}.css`;
+        link.href = `/api/dashboard/static/themes/${themeName}.css`;
       }
       localStorage.setItem('askfdalabel-theme', themeName);
     };
