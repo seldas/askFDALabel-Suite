@@ -3838,6 +3838,25 @@ textarea.import-input {
     background-color: #ffffff; /* Ensure contrast */
 }
 
+/* Larger nav buttons (keeps your existing hp-nav-btn / hp-btn-outline styling) */
+.hp-nav-btn.hp-nav-btn-lg {
+  padding: 10px 16px;      /* bigger click target */
+  font-size: 0.95rem;      /* slightly larger text */
+  line-height: 1.1;
+  border-radius: 999px;    /* keeps the pill look */
+  min-height: 40px;        /* consistent height */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;                /* spacing between icon + text */
+}
+
+/* Optional: make the emoji/icon a touch bigger too */
+.hp-nav-btn.hp-nav-btn-lg > span {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+
 /* Specific Active Colors */
 #btn-agent-dili.active-agent { border-color: #17a2b8; background-color: #e0f7fa; }
 #btn-agent-dict.active-agent { border-color: #dc3545; background-color: #ffeef0; }

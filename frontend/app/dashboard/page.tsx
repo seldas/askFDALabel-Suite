@@ -107,7 +107,7 @@ export default function DashboardPage() {
       
       <div className="hp-container">
         <div className="hp-auth-nav">
-          <a href="/" className="hp-nav-btn hp-btn-outline">
+          <a href="/" className="hp-nav-btn hp-btn-outline hp-nav-btn-lg">
             <span>{"\uD83C\uDFE0"}</span> Suite Home
           </a>
 
@@ -149,13 +149,13 @@ export default function DashboardPage() {
             </>
           ) : !loading && (
             <>
-              <a href="/api/dashboard/auth/login?next=/dashboard" className="hp-nav-btn hp-btn-outline"><span>&#128100;</span> Login</a>
-              <a href="/api/dashboard/auth/register?next=/dashboard" className="hp-nav-btn hp-btn-outline"><span>✨</span> Register</a>
+              <a href="/api/dashboard/auth/login?next=/dashboard" className="hp-nav-btn hp-btn-outline hp-nav-btn-lg"><span>&#128100;</span> Login</a>
+              <a href="/api/dashboard/auth/register?next=/dashboard" className="hp-nav-btn hp-btn-outline hp-nav-btn-lg"><span>✨</span> Register</a>
             </>
           )}
           
           <div className="hp-theme-container" style={{ position: 'relative' }}>
-            <button id="theme-toggle-btn" className="hp-nav-btn hp-btn-outline">
+            <button id="theme-toggle-btn" className="hp-nav-btn hp-btn-outline hp-nav-btn-lg">
               <span>{"\uD83C\uDFAD"}</span> Theme
             </button>
             <div id="theme-dropdown" style={{ display: 'none', position: 'absolute', top: '120%', right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', width: '150px', overflow: 'hidden', zIndex: 100 }}>
@@ -174,18 +174,38 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="hp-hero">
-          <h1>AskFDALabel</h1>
-          <p className="hp-hero-subtitle">The Intelligence Layer for Drug Safety & Analysis</p>
-        </div>
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          padding: '2rem',
+          textAlign: 'center'
+        }}>
+          <div className="hp-hero">
+            <h1>AFDL Dashboard</h1>
+            <p className="hp-hero-subtitle">The Intelligence Layer for Drug Safety & Analysis</p>
+          </div>
 
-        <div className="hp-action-center">
-          <div className="hp-import-row">
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr',
+            gap: '2rem',
+            width: '100%',
+            maxWidth: '600px'
+          }}>
             <div 
               id="excel-upload-box" 
               className={`hp-upload-box ${uploading ? 'uploading' : ''}`}
               onClick={triggerFileInput}
-              style={{ cursor: 'pointer' }}
+              style={{ 
+                cursor: 'pointer',
+                padding: '2rem',
+                borderRadius: '16px',
+                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+                border: '1px solid #e2e8f0',
+                background: 'white'
+              }}
             >
               <div className="hp-icon-container">
                 {uploading ? (
@@ -197,114 +217,88 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
-              <div className="hp-upload-text">
+              <div className="hp-upload-text" style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                 {uploading ? `Processing ${uploadedFile?.name}...` : 'Import FDALabel Excel'}
               </div>
-              <div className="hp-upload-hint">
+              <div className="hp-upload-hint" style={{ color: '#64748b', fontSize: '0.875rem' }}>
                 {uploading ? 'Analyzing labels...' : 'Drag & drop or click to browse files'}
               </div>
             </div>
-          </div>
 
-          <div className="hp-ad-bar" style={{
-            width: '100%',
-            maxWidth: '600px',
-            backgroundColor: '#f0f9ff',
-            padding: '1rem',
-            borderRadius: '0.5rem',
-            marginBottom: '2rem',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
-            <div className="hp-source-header" style={{
+            <div style={{
+              width: '100%',
+              backgroundColor: '#f0f9ff',
+              padding: '1rem',
+              borderRadius: '0.5rem',
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               gap: '0.5rem'
             }}>
-              <p style={{
-                margin: 0,
-                fontSize: '0.875rem',
-                color: '#1e293b'
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
               }}>
-                🚀 <strong>Transform your workflow.</strong> Get your customized drug list from the <strong>FDALabel website</strong> first.
-              </p>
-            </div>
-            <div className="hp-import-links" style={{
-              display: 'flex',
-              gap: '1rem',
-              fontSize: '0.875rem'
-            }}>
-              {isInternal ? (
-                <>
-                  <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer">FDA Version</a>
-                  <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer">CDER-CBER version</a>
-                </>
-              ) : (
-                <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer">FDALabel Public Version</a>
-              )}
-            </div>
-          </div>
-
-          <div className="hp-secondary-search">
-            <span className="hp-search-label">Standard Search</span>
-            <form id="search-form" onSubmit={handleSearch}>
-              <div className="hp-search-wrapper">
-                <input 
-                  type="text" 
-                  id="drug-name-input" 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by name, Set ID, or NDC..." 
-                  required 
-                />
-                <button type="submit" className="hp-search-btn">Search</button>
+                <p style={{
+                  margin: 0,
+                  fontSize: '0.875rem',
+                  color: '#1e293b'
+                }}>
+                  🚀 <strong>Transform your workflow.</strong> Get your customized drug list from the <strong>FDALabel website</strong> first.
+                </p>
               </div>
-            </form>
-          </div>
-        </div>
+              <div style={{
+                display: 'flex',
+                gap: '1rem',
+                fontSize: '0.875rem'
+              }}>
+                {isInternal ? (
+                  <>
+                    <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer">FDA Version</a>
+                    <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer">CDER-CBER version</a>
+                  </>
+                ) : (
+                  <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer">FDALabel Public Version</a>
+                )}
+              </div>
+            </div>
 
-        <div className="hp-features">
-          <div className="hp-feature-card">
-            <span className="hp-feature-icon">{"\uD83D\uDCAC"}</span>
-            <h3>Clinical Chat</h3>
-            <p>Natural language interactions with full document citations.</p>
-          </div>
-          <div className="hp-feature-card">
-            <span className="hp-feature-icon">{"\u2696"}</span>
-            <h3>Label Compare</h3>
-            <p>Deep section alignment for PLR and non-PLR formats.</p>
-          </div>
-          <div className="hp-feature-card">
-            <span className="hp-feature-icon">{"\uD83D\uDCCA"}</span>
-            <h3>PV Assistant</h3>
-            <p>Visualize FAERS trends and identify real-world safety signals.</p>
-          </div>
-          <div className="hp-feature-card">
-            <span className="hp-feature-icon">{"\uD83E\uDD16"}</span>
-            <h3>Safety Agents</h3>
-            <p>Automated toxicity screening using specialized AI domain knowledge.</p>
-          </div>
-        </div>
-      </div>
-
-      <div id="info-btn" className="floating-info-btn" style={{ cursor: 'pointer' }}>
-        <span>{"\u2139"}</span>
-      </div>
-
-      <div id="info-modal" className="custom-modal" style={{ display: 'none' }}>
-        <div className="custom-modal-content info-modal-content">
-          <span className="close-modal" id="close-info-modal" style={{ position: 'absolute', top: '15px', right: '20px', zIndex: 10, cursor: 'pointer' }}>&times;</span>
-          <div className="index-hero-container" style={{ paddingTop: '20px', textAlign: 'center' }}>
-            <div className="hero-icon" style={{ fontSize: '3em', marginBottom: '0.2em' }}><span>{"\u2139"}</span></div>
-            <h1 style={{ fontSize: '2em' }}>About AskFDALabel</h1>
-            <p className="hero-subtitle">Streamlining Drug Label Analysis for Professionals</p>
-          </div>
-          <div className="info-content" style={{ textAlign: 'left', padding: '0 40px 40px' }}>
-            <p style={{ fontSize: '1.1em', color: '#495057', textAlign: 'center', maxWidth: '700px', margin: '0 auto 40px', lineHeight: '1.6' }}>
-              AskFDALabel is an intelligent tool designed to assist healthcare practitioners and safety reviewers in navigating complex regulatory documents.
-            </p>
+            <div style={{ width: '100%' }}>
+              <span style={{ fontSize: '1rem', color: '#1e293b', fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Standard Search</span>
+              <form id="search-form" onSubmit={handleSearch} style={{ width: '100%' }}>
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '0.5rem',
+                  width: '100%'
+                }}>
+                  <input 
+                    type="text" 
+                    id="drug-name-input" 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by name, Set ID, or NDC..." 
+                    required 
+                    style={{
+                      flex: 1,
+                      padding: '0.75rem',
+                      fontSize: '1rem',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #cbd5e1'
+                    }}
+                  />
+                  <button type="submit" style={{
+                    background: '#6366f1',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '0.5rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}>Search</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       </div>
@@ -361,7 +355,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
     </main>
   );
 }

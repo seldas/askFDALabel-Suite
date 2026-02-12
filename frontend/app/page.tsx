@@ -135,10 +135,10 @@ export default function HomePage() {
 
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
         gap: '2rem',
         width: '100%',
-        maxWidth: '1000px'
+        maxWidth: '1200px'
       }}>
         <AppCard 
           title="Agentic Search" 
@@ -160,6 +160,13 @@ export default function HomePage() {
           href="/drugtox"
           icon="🧪"
           color="#10b981"
+        />
+        <AppCard 
+          title="Snippet Store" 
+          description="Code snippets and bookmarklets for enhanced productivity."
+          href="/snippet"
+          icon="📋"
+          color="#f97316"
         />
       </div>
       

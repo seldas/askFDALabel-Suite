@@ -39,7 +39,7 @@ def create_unified_app():
         from dashboard.services.fdalabel_db import FDALabelDBService
         is_internal = FDALabelDBService.check_connectivity()
         return jsonify({"isInternal": is_internal})
-    
+
     return app
 
 app = create_unified_app()

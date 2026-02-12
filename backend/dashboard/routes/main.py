@@ -701,3 +701,34 @@ def preferences():
     
     return jsonify({'success': True, 'message': 'Preferences saved successfully!'})
 
+from dashboard.services.fdalabel_db import FDALabelDBService
+
+@main_bp.route("/snippet-preview", methods=["GET"])
+def snippet_preview():
+    """
+    Returns basic info (NDA, Set ID, etc.) for a given drug name to be shown in a tooltip.
+    """
+    drug_name = request.args.get("drug_name", "").strip()
+    if not drug_name:
+        return jsonify({"error": "Missing drug_name"}), 400
+
+    try:
+        drug_info = FDALabelDBService.get_drug_info(drug_name)
+        if drug_info is None:
+            return jsonify({"found": False, "drug_name": drug_name}), 200
+
+        data = {
+            "found": True,
+            "set_id": drug_info["set_id"],
+            "appr_num": drug_info["appr_num"],
+            "product_name": drug_info["product_name"],
+            "generic_name": drug_info["generic_name"],
+            "active_ingredients": drug_info["active_ingredients"],
+            "is_RLD": drug_info["is_RLD"],
+            "effective_date": drug_info["effective_date"]
+        }
+        return jsonify(data)
+
+    except Exception as e:
+        current_app.logger.error(f"Error in snippet_preview: {e}")
+        return jsonify({"error": str(e)}), 500
