@@ -10,78 +10,31 @@
 </head>
 <body class="hp-main-layout">
     <div class="hp-container">
-        <div class="hp-auth-nav">
-            {% if current_user.is_authenticated %}
-                <!-- Quick AI Switcher -->
-                <div class="hp-ai-switcher">
-                    <span style="font-size: 0.85em; color: #64748b; font-weight: 600;">AI:</span>
-                    <select id="quick-ai-switcher" onchange="updateAiModel(this.value)">
-                        {% if not is_internal %}
-                            <option value="gemini" {% if current_user.ai_provider == 'gemini' %}selected{% endif %}>Gemini</option>
-                            <option value="gemma" {% if current_user.ai_provider == 'gemma' %}selected{% endif %}>Gemma 3 27B</option>
-                        {% endif %}
-                        <option value="openai" {% if current_user.ai_provider == 'openai' %}selected{% endif %}>OpenAI</option>
-                        {% if is_internal %}
-                            <option value="elsa" {% if current_user.ai_provider == 'elsa' %}selected{% endif %}>ELSA</option>
-                        {% endif %}
-                    </select>
-                    <button id="ai-config-btn" title="AI Configuration">
-                        &#9881;
-                    </button>
-                </div>
+        <div class="hp-auth-nav" style="justify-content: flex-start; gap: 15px;">
+            <a href="/" class="hp-nav-btn hp-btn-outline" style="text-decoration: none; display: flex; align-items: center; gap: 8px;">
+                <span>🏠</span> Suite Home
+            </a>
 
-                <div class="hp-user-badge">
-                    <div class="hp-user-avatar">{{ current_user.username[0] }}</div>
-                    <span class="hp-welcome-text">Signed in as <strong>{{ current_user.username }}</strong></span>
-                </div>
-                <!-- Theme Switcher -->
-                <div class="hp-theme-container" style="position: relative;">
-                    <button id="theme-toggle-btn" class="hp-nav-btn hp-btn-outline" style="cursor: pointer;">
-                        <span>🎨</span> Theme
-                    </button>
-                    <div id="theme-dropdown" style="display: none; position: absolute; top: 120%; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 150px; overflow: hidden; z-index: 100;">
-                        <div class="theme-option" data-theme="default" style="padding: 10px 15px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px; border-top: 1px solid #f1f5f9;">
-                            <span>📄</span> Default
-                        </div>                        
-                        <div class="theme-option" data-theme="scientific" style="padding: 10px 15px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px; border-top: 1px solid #f1f5f9;">
-                            <span>🔬</span> Scientific
-                        </div>
-                        <div class="theme-option" data-theme="modern" style="padding: 10px 15px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px;">
-                            <span>✨</span> Modern
-                        </div>
-                        <div class="theme-option" data-theme="playful" style="padding: 10px 15px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px; border-top: 1px solid #f1f5f9;">
-                            <span>🎈</span> Playful
-                        </div>
+            <!-- Theme Switcher -->
+            <div class="hp-theme-container" style="position: relative;">
+                <button id="theme-toggle-btn" class="hp-nav-btn hp-btn-outline" style="cursor: pointer;">
+                    <span>🎨</span> Theme
+                </button>
+                <div id="theme-dropdown" style="display: none; position: absolute; top: 120%; left: 0; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 150px; overflow: hidden; z-index: 100;">
+                    <div class="theme-option" data-theme="default" style="padding: 10px 15px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px; border-top: 1px solid #f1f5f9;">
+                        <span>📄</span> Default
+                    </div>                        
+                    <div class="theme-option" data-theme="scientific" style="padding: 10px 15px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px; border-top: 1px solid #f1f5f9;">
+                        <span>🔬</span> Scientific
+                    </div>
+                    <div class="theme-option" data-theme="modern" style="padding: 10px 15px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px;">
+                        <span>✨</span> Modern
+                    </div>
+                    <div class="theme-option" data-theme="playful" style="padding: 10px 15px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px; border-top: 1px solid #f1f5f9;">
+                        <span>🎈</span> Playful
                     </div>
                 </div>
-
-                <a href="{{ url_for('main.my_labelings') }}" class="hp-nav-btn hp-btn-outline" target="AskFDALabel_MyProjects"><span>💼</span> My Projects</a>
-                <a href="{{ url_for('auth.logout') }}" class="hp-nav-btn hp-btn-outline"><span>↪️</span> Logout</a>
-            {% else %}
-                <!-- Theme Switcher (Public) -->
-                <div class="hp-theme-container" style="position: relative;">
-                    <button id="theme-toggle-btn" class="hp-nav-btn hp-btn-outline" style="cursor: pointer;">
-                        <span>🎨</span> Theme
-                    </button>
-                    <div id="theme-dropdown" style="display: none; position: absolute; top: 120%; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 150px; overflow: hidden; z-index: 100;">
-                        <div class="theme-option" data-theme="modern" style="padding: 10px 15px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px;">
-                            <span>✨</span> Modern
-                        </div>
-                        <div class="theme-option" data-theme="default" style="padding: 10px 15px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px; border-top: 1px solid #f1f5f9;">
-                            <span>📄</span> Default
-                        </div>
-                        <div class="theme-option" data-theme="playful" style="padding: 10px 15px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px; border-top: 1px solid #f1f5f9;">
-                            <span>🎈</span> Playful
-                        </div>
-                        <div class="theme-option" data-theme="scientific" style="padding: 10px 15px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px; border-top: 1px solid #f1f5f9;">
-                            <span>🔬</span> Scientific
-                        </div>
-                    </div>
-                </div>
-
-                <a href="{{ url_for('auth.login') }}" class="hp-nav-btn hp-btn-outline"><span>👤</span> Login</a>
-                <a href="{{ url_for('auth.register') }}" class="hp-nav-btn hp-btn-outline"><span>✨</span> Register</a>
-            {% endif %}
+            </div>
         </div>
 
         <div class="hp-hero">

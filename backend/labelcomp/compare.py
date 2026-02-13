@@ -25,10 +25,17 @@ def get_comparison_summary(user, set_ids, comparison_data, label_names, force_re
     # We only send sections that have differences to save tokens and focus the AI
     differing_sections = []
     for section in comparison_data:
-        if not section.get('is_same') and not section.get('is_empty'):
-            # For simplicity, we assume 2 labels here as per summarize_comparison logic
+        # Check if it's the simplified format from frontend (content1/content2)
+        if 'content1' in section and 'content2' in section:
+            differing_sections.append({
+                'title': section.get('title'),
+                'content1': section.get('content1') or 'N/A',
+                'content2': section.get('content2') or 'N/A'
+            })
+        # Or the full format from backend (contents list)
+        elif not section.get('is_same') and not section.get('is_empty'):
             contents = section.get('contents', [])
-            if len(contents) >= 2:
+            if contents and len(contents) >= 2:
                 differing_sections.append({
                     'title': section.get('title'),
                     'content1': contents[0] or 'N/A',
