@@ -192,7 +192,8 @@ export default function DashboardPage() {
     <main className="hp-main-layout" suppressHydrationWarning>
       <DashboardClient />
       
-      <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 100 }}>
+      {/* Header Controls */}
+      <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 100, display: 'flex', alignItems: 'center', gap: '12px' }}>
         <a href="/" className="hp-nav-btn hp-btn-outline" style={{ 
           backgroundColor: 'white',
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
@@ -229,9 +230,10 @@ export default function DashboardPage() {
           </div>
 
           <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-            gap: '3rem',
+            display: 'flex', 
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            gap: '2.5rem',
             width: '100%',
             maxWidth: '1000px',
             marginBottom: '4rem'
@@ -248,7 +250,7 @@ export default function DashboardPage() {
               className="dashboard-action-panel"
               style={{ 
                 cursor: 'pointer',
-                padding: '2rem 2.5rem',
+                padding: '1.5rem 2rem',
                 borderRadius: '24px',
                 boxShadow: showProjects ? '0 0 0 2px #6366f1, 0 10px 25px -5px rgba(0, 0, 0, 0.1)' : '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
                 border: '1px solid #e2e8f0',
@@ -258,23 +260,38 @@ export default function DashboardPage() {
                 alignItems: 'center',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 color: 'inherit',
-                minHeight: '280px'
+                minHeight: '240px',
+                width: '320px'
               }}
             >
-              <div style={{ fontSize: '4.5rem', marginBottom: '1.5rem', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))' }}>💼</div>
-              <div style={{ fontSize: '1.75rem', fontWeight: '700', color: '#1e293b', marginBottom: '1rem' }}>
+              <div style={{ 
+                width: '90px', 
+                height: '90px', 
+                background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '3rem',
+                marginBottom: '1.25rem',
+                boxShadow: '0 4px 15px rgba(99, 102, 241, 0.1)',
+                border: '1px solid #bae6fd'
+              }}>
+                💼
+              </div>
+              <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1e293b', marginBottom: '0.75rem' }}>
                 Existed Projects...
               </div>
-              <div style={{ color: '#64748b', fontSize: '1rem', lineHeight: '1.6', maxWidth: '280px' }}>
-                {showProjects ? 'Click to hide your projects' : 'Browse and manage your clinical research workspaces.'}
+              <div style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: '1.5', maxWidth: '240px' }}>
+                {showProjects ? 'Click to hide projects' : 'Browse your clinical workspaces.'}
               </div>
             </div>
 
-            {/* Panel 2: Create new from Import */}
+            {/* Panel 2: Create from Import */}
             <div 
               className={`dashboard-action-panel ${uploading ? 'uploading' : ''}`}
               style={{ 
-                padding: '2rem 2.5rem',
+                padding: '1.5rem 2rem',
                 borderRadius: '24px',
                 boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
                 border: '1px solid #e2e8f0',
@@ -285,18 +302,31 @@ export default function DashboardPage() {
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 position: 'relative',
                 overflow: 'hidden',
-                minHeight: '280px'
+                minHeight: '240px',
+                width: '500px'
               }}
             >
-              <div style={{ height: '4.5rem', display: 'flex', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div style={{ 
+                width: '90px', 
+                height: '90px', 
+                background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '3rem',
+                marginBottom: '1.25rem',
+                boxShadow: '0 4px 15px rgba(139, 92, 246, 0.1)',
+                border: '1px solid #ddd6fe'
+              }}>
                 {uploading ? (
-                  <div className="loader"></div>
+                  <div className="loader" style={{ width: '40px', height: '40px' }}></div>
                 ) : (
-                  <div style={{ fontSize: '4.5rem', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))' }}>✨</div>
+                  '✨'
                 )}
               </div>
-              <div style={{ fontSize: '1.75rem', fontWeight: '700', color: '#1e293b', marginBottom: '1rem' }}>
-                Create new from Import
+              <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1e293b', marginBottom: '1.25rem' }}>
+                Create from Import
               </div>
               
               <div style={{ 
@@ -304,7 +334,7 @@ export default function DashboardPage() {
                 gap: '10px', 
                 width: '100%', 
                 maxWidth: '460px', 
-                alignItems: 'flex-start', // Keeps items aligned to top if label scales
+                alignItems: 'flex-start',
                 justifyContent: 'center', 
                 margin: '0 auto 1.5rem auto' 
               }}>
@@ -332,6 +362,7 @@ export default function DashboardPage() {
                       color: '#1e293b',
                       boxSizing: 'border-box'
                     }}
+                    className="project-name-input"
                   />
                   <label 
                     htmlFor="new-project-input"
@@ -373,7 +404,7 @@ export default function DashboardPage() {
                   }}
                 >
                   <span style={{ fontSize: '1.1rem' }}>📊</span>
-                  {uploading ? 'Uploading...' : 'Select File'}
+                  {uploading ? '...' : 'Select File'}
                 </button>
               </div>
             </div>
@@ -494,7 +525,7 @@ export default function DashboardPage() {
                                 <div key={c.id} style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid #f1f5f9', background: '#fcfcfd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <div style={{ maxWidth: '75%' }}>
                                     <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e293b' }}>{c.title}</div>
-                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{c.set_ids.length} labels</div>
+                                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{c.set_ids.length} labels</div>
                                   </div>
                                   <a 
                                     href={`/labelcomp?${c.set_ids.map(id => `set_ids=${id}`).join('&')}`} 
@@ -537,16 +568,16 @@ export default function DashboardPage() {
           box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
         }
         .project-name-input:focus + label {
-          top: 0.4rem !important;
-          font-size: 0.7rem !important;
+          top: 0.3rem !important;
+          font-size: 0.65rem !important;
           color: #6366f1 !important;
         }
         .loader {
-          border: 5px solid #f3f3f3;
+          border: 4px solid #f3f3f3;
           border-radius: 50%;
-          border-top: 5px solid #6366f1;
-          width: 50px;
-          height: 50px;
+          border-top: 4px solid #6366f1;
+          width: 40px;
+          height: 40px;
           animation: spin 1s linear infinite;
         }
         @keyframes spin {

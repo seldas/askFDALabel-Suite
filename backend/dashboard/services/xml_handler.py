@@ -341,8 +341,17 @@ def parse_spl_xml(xml_string, set_id=None):
                     'content_html': content_html
                 })
 
-        # Generate Table of Contents from all top-level sections
-        table_of_contents = [{'title': s['title'], 'id': s['id']} for s in sections if s and s.get('title') and s.get('id')]
+        # Generate Table of Contents from all sections recursively
+        def build_toc(section_list):
+            toc = []
+            for s in section_list:
+                if s and s.get('title') and s.get('id'):
+                    toc.append({'title': s['title'], 'id': s['id']})
+                    if s.get('children'):
+                        toc.extend(build_toc(s['children']))
+            return toc
+
+        table_of_contents = build_toc(sections)
 
         # Prepend Highlights to Table of Contents if highlights exist
         if highlights:
