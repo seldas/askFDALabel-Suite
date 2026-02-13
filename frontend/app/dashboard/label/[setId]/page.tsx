@@ -363,9 +363,8 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             </div>
 
             <div id="tox-view" className={`tab-content ${activeTab === 'tox-view' ? 'active' : ''}`} style={{ display: activeTab === 'tox-view' ? 'block' : 'none' }}>
-                <div id="tox-index" style={{ textAlign: 'center', padding: '50px 20px' }}>
-                    <h2 style={{ color: '#333', marginBottom: '40px', fontWeight: 300 }}>Select an Agent</h2>
-                    <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <div id="tox-index" style={{ textAlign: 'center', padding: '20px' }}>
+                    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
                     <button id="btn-agent-dili" className="agent-card">
                         <h3 style={{ margin: 0, color: '#17a2b8', fontSize: '2em' }}>DILI</h3>
                         <p style={{ margin: '10px 0 0', color: '#555' }}>Liver Injury</p>

@@ -408,16 +408,29 @@ def view_label(set_id):
             'is_public': getattr(ann, 'is_public', False)
         })
 
-    # Fetch metadata to get details for the title and FAERS search
-    metadata = get_label_metadata(set_id, import_id=import_id)
+    # Directly extract metadata from the XML we just fetched/read
+    # This is more robust than get_label_metadata which might hit openFDA and return N/A
+    metadata = extract_metadata_from_xml(label_xml_raw)
     
+    # If our local parser failed but we have a set_id, try fallback to DB/API for augmentation
+    if not metadata or (metadata.get('brand_name') == 'Unknown Drug' and metadata.get('generic_name') == 'Unknown Generic'):
+        ext_metadata = get_label_metadata(set_id, import_id=import_id)
+        if ext_metadata:
+            if not metadata: 
+                metadata = ext_metadata
+            else:
+                # Merge: prioritize DB/API data if XML parse was incomplete
+                for k, v in ext_metadata.items():
+                    if not metadata.get(k) or metadata.get(k) in ['N/A', 'Unknown Drug', 'Unknown Generic', 'Unknown Manufacturer']:
+                        metadata[k] = v
+
     brand_name = metadata.get('brand_name') if metadata and metadata.get('brand_name') != 'N/A' else None
     generic_name = metadata.get('generic_name') if metadata and metadata.get('generic_name') != 'N/A' else None
     manufacturer_name = metadata.get('manufacturer_name') if metadata and metadata.get('manufacturer_name') != 'N/A' else None
     effective_time = metadata.get('effective_time') if metadata else ''
     label_format = metadata.get('label_format') if metadata else None
-    ndc = metadata.get('ndc') if metadata else None
-    application_number = metadata.get('application_number') if metadata else None
+    ndc = metadata.get('ndc', 'N/A') if metadata else 'N/A'
+    application_number = metadata.get('application_number', 'N/A') if metadata else 'N/A'
     version_number = metadata.get('version_number') if metadata else None
     document_type = metadata.get('document_type') if metadata else None
     has_boxed_warning = metadata.get('has_boxed_warning') if metadata else False

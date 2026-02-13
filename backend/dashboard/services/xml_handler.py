@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def extract_metadata_from_xml(xml_string):
     """
-    Parses an XML string to extract metadata: set_id, brand_name, manufacturer_name, effective_time, label_format.
+    Parses an SPL XML string to extract metadata using a robust, namespace-agnostic approach.
     """
     if not xml_string:
         return None
@@ -16,189 +16,164 @@ def extract_metadata_from_xml(xml_string):
     try:
         # 0. Cleanup and Basic Parsing
         xml_string_cleaned = ''.join(c for c in xml_string if c.isprintable() or c in '\n\r\t')
-        
-        ns = {'spl': 'urn:hl7-org:v3'}
         try:
             root = ET.fromstring(xml_string_cleaned)
         except ET.ParseError:
             root = ET.fromstring(xml_string_cleaned.strip())
 
-        def find_el(path):
-            return root.find(path, ns)
-        
-        def find_all_els(path):
-            return root.findall(path, ns)
+        # Helper to find tags regardless of namespace
+        def get_tag_local(full_tag):
+            return full_tag.split('}')[-1] if '}' in full_tag else full_tag
+
+        def find_nodes_by_local_name(parent, local_name):
+            return [n for n in parent.iter() if get_tag_local(n.tag) == local_name]
 
         # 1. Set ID
-        set_id_node = find_el('./spl:setId')
-        if set_id_node is None:
-            set_id_node = find_el('.//spl:setId')
-        set_id = set_id_node.get('root') if set_id_node is not None else None
+        set_id = "N/A"
+        set_id_nodes = find_nodes_by_local_name(root, 'setId')
+        if set_id_nodes:
+            set_id = set_id_nodes[0].get('root', 'N/A')
         
         # 2. Effective Time
-        effective_time_node = find_el('./spl:effectiveTime')
-        if effective_time_node is None:
-            effective_time_node = find_el('.//spl:effectiveTime')
+        effective_time = "N/A"
+        eff_nodes = find_nodes_by_local_name(root, 'effectiveTime')
+        if eff_nodes:
+            val = eff_nodes[0].get('value', '')
+            try:
+                effective_time = datetime.strptime(val[:8], '%Y%m%d').strftime('%B %d, %Y')
+            except: pass
             
-        effective_time_str = effective_time_node.get('value') if effective_time_node is not None else ''
-        try:
-            effective_time = datetime.strptime(effective_time_str[:8], '%Y%m%d').strftime('%B %d, %Y')
-        except (ValueError, TypeError):
-            effective_time = "N/A"
-            
-        # 2b. Version Number
-        version_node = find_el('./spl:versionNumber')
-        if version_node is None:
-            version_node = find_el('.//spl:versionNumber')
-        version_number = version_node.get('value') if version_node is not None else "1"
+        # 3. Version & Doc Type
+        version = "1"
+        v_nodes = find_nodes_by_local_name(root, 'versionNumber')
+        if v_nodes: version = v_nodes[0].get('value', '1')
 
-        # 2c. Document Type
-        doc_code_node = find_el('./spl:code')
-        document_type = doc_code_node.get('displayName') if doc_code_node is not None else "Label"
-        if "HUMAN PRESCRIPTION DRUG LABEL" in document_type.upper():
-            document_type = "Prescription (Rx)"
-        elif "OTC" in document_type.upper():
-            document_type = "OTC"
+        doc_type = "Label"
+        c_nodes = find_nodes_by_local_name(root, 'code')
+        # Look for the first 'code' that is a direct child of document (root)
+        for c in c_nodes:
+            # Simple check: root code usually has a displayName and is early in the doc
+            if c.get('displayName'):
+                dt = c.get('displayName')
+                if "HUMAN PRESCRIPTION" in dt.upper(): doc_type = "Prescription (Rx)"
+                elif "OTC" in dt.upper(): doc_type = "OTC"
+                else: doc_type = dt
+                break
 
-        # 3. Manufacturer (Improved recursive search)
-        manufacturer_name = "Unknown Manufacturer"
-        # Search all representedOrganization nodes and pick the first one with a non-empty name
-        org_nodes = find_all_els('.//spl:representedOrganization')
-        for org in org_nodes:
-            name_node = org.find('./spl:name', ns)
-            if name_node is not None:
-                text = "".join(name_node.itertext()).strip()
-                if text:
-                    manufacturer_name = text
+        # 4. Manufacturer (Broad search)
+        manufacturer = "Unknown Manufacturer"
+        # Search all nodes that might contain a name, looking specifically for organization names
+        possible_orgs = find_nodes_by_local_name(root, 'representedOrganization') + \
+                        find_nodes_by_local_name(root, 'assignedOrganization') + \
+                        find_nodes_by_local_name(root, 'representedRegisteredOrganization')
+        
+        for org in possible_orgs:
+            # Check for a name child anywhere inside this organization node
+            name_nodes = find_nodes_by_local_name(org, 'name')
+            if name_nodes:
+                text = "".join(name_nodes[0].itertext()).strip()
+                if text and len(text) > 2:
+                    manufacturer = text
                     break
         
-        # 4. Brand Name & Generic Name
+        # 5. Brand & Generic Name
         brand_name = "Unknown Drug"
         generic_name = "Unknown Generic"
         
-        # Search all manufacturedProduct levels
-        product_nodes = find_all_els('.//spl:manufacturedProduct/spl:manufacturedProduct')
-        if not product_nodes:
-            product_nodes = find_all_els('.//spl:manufacturedProduct')
+        # Find the primary manufacturedMaterial or manufacturedProduct
+        # We look for the one that has a name and genericMedicine
+        material_nodes = find_nodes_by_local_name(root, 'manufacturedMaterial')
+        if not material_nodes:
+            material_nodes = find_nodes_by_local_name(root, 'manufacturedProduct')
 
-        if product_nodes:
-            # Use the first one for primary metadata
-            node = product_nodes[0]
+        for mat in material_nodes:
+            # Try to find name child
+            n_nodes = [n for n in mat if get_tag_local(n.tag) == 'name']
+            if n_nodes and brand_name == "Unknown Drug":
+                brand_name = "".join(n_nodes[0].itertext()).strip()
             
-            # Brand Name
-            name_node = node.find('./spl:name', ns)
-            if name_node is not None:
-                brand_name = "".join(name_node.itertext()).strip()
+            # Try to find genericMedicine -> name
+            gen_nodes = find_nodes_by_local_name(mat, 'genericMedicine')
+            if gen_nodes:
+                gn_nodes = [n for n in gen_nodes[0] if get_tag_local(n.tag) == 'name']
+                if gn_nodes:
+                    generic_name = "".join(gn_nodes[0].itertext()).strip()
             
-            # Generic Name
-            generic_node = node.find('./spl:asEntityWithGeneric/spl:genericMedicine/spl:name', ns)
-            if generic_node is not None:
-                generic_name = "".join(generic_node.itertext()).strip()
-            
-            if generic_name == "Unknown Generic" or not generic_name:
-                ingr_nodes = node.findall('.//spl:activeIngredient/spl:activeMedicine/spl:name', ns)
-                if ingr_nodes:
-                    generic_name = ", ".join(["".join(ingr.itertext()).strip() for ingr in ingr_nodes])
+            if brand_name != "Unknown Drug" and generic_name != "Unknown Generic":
+                break
 
-        # CLEANING for UI and FAERS
-        def clean_drug_name(name):
-            if not name or name == "Unknown Generic" or name == "Unknown Drug":
-                return name
-            
+        # Fallback for Generic Name from Active Ingredients
+        if generic_name == "Unknown Generic":
+            act_nodes = find_nodes_by_local_name(root, 'activeIngredient')
+            ingr_names = []
+            for act in act_nodes:
+                sub_nodes = find_nodes_by_local_name(act, 'activeMedicine')
+                if not sub_nodes: sub_nodes = find_nodes_by_local_name(act, 'ingredientSubstance')
+                if sub_nodes:
+                    name_nodes = [n for n in sub_nodes[0] if get_tag_local(n.tag) == 'name']
+                    if name_nodes:
+                        ingr_names.append("".join(name_nodes[0].itertext()).strip())
+            if ingr_names:
+                generic_name = ", ".join(ingr_names)
+
+        # 6. Cleaning for UI and FAERS
+        def clean_name(name):
+            if not name or name in ["Unknown Generic", "Unknown Drug"]: return name
             if "highlights do not include" in name.lower():
                 m = re.search(r'\(([^)]+)\)', name)
-                if m: return m.group(1).strip()
-                return "Unknown Generic"
-
+                return m.group(1).strip() if m else "Unknown Generic"
+            # Remove Strengths/Units
             n = re.sub(r'\d+(\.\d+)?\s*(mg|mcg|g|ml|%|unit|iu)\b.*$', '', name, flags=re.IGNORECASE).strip()
+            # Remove Forms
             n = re.sub(r'\s+(tablet|capsule|injection|cream|ointment|gel|solution|suspension|spray|inhaler|powder).*$', '', n, flags=re.IGNORECASE).strip()
-            n = re.sub(r'\(.*?\)', '', n).strip()
-            return n
+            return re.sub(r'\(.*?\)', '', n).strip()
 
-        generic_name_cleaned = clean_drug_name(generic_name)
-        brand_name_cleaned = clean_drug_name(brand_name)
+        generic_clean = clean_name(generic_name)
+        faers_search_name = generic_clean.split(',')[0].strip() if generic_clean else ""
 
-        faers_search_name = generic_name_cleaned
-        if faers_search_name and ',' in faers_search_name:
-            faers_search_name = faers_search_name.split(',')[0].strip()
+        # 7. Boxed Warning & Format
+        has_boxed = False
+        is_plr = False
+        if find_nodes_by_local_name(root, 'excerpt'): is_plr = True
         
-        # 5. Label Format
-        has_warnings_precautions = False
-        has_description = False
-        has_warnings = False
-        has_boxed_warning = False
-        
-        for section in find_all_els('.//spl:section'):
-            code_node = section.find('./spl:code', ns)
-            if code_node is not None:
-                code = code_node.get('code')
-                title_node = section.find('./spl:title', ns)
-                title = "".join(title_node.itertext()).strip().lower() if title_node is not None else ""
-                
-                if code == '34066-1' or 'boxed warning' in title or 'box warning' in title:
-                    has_boxed_warning = True
-
-                if code == '43685-7':
-                    has_warnings_precautions = True
-                elif code == '34071-1':
-                    if 'precautions' in title: has_warnings_precautions = True
-                    if 'warnings' in title and 'precautions' not in title: has_warnings = True
-                
-                if code == '34089-3' or 'description' in title: has_description = True
-
-        has_highlights = find_el('.//spl:excerpt') is not None
-                    
-        label_format = 'non-PLR'
-        if has_warnings_precautions or has_highlights:
-            label_format = 'PLR'
-        elif has_description and has_warnings:
-            label_format = 'non-PLR'
-        elif has_warnings_precautions: 
-             label_format = 'PLR'
-             
-        # 6. NDCs and Application Numbers
-        ndc_set = set()
-        app_num_set = set()
-        
-        for elem in root.iter():
-            # NDC OID
-            if elem.get('codeSystem') == '2.16.840.1.113883.6.69':
-                val = elem.get('code')
-                if val: ndc_set.add(val)
+        for sec in find_nodes_by_local_name(root, 'section'):
+            code_nodes = [n for n in sec if get_tag_local(n.tag) == 'code']
+            title_nodes = [n for n in sec if get_tag_local(n.tag) == 'title']
+            title_text = "".join(title_nodes[0].itertext()).strip().lower() if title_nodes else ""
+            code_val = code_nodes[0].get('code', '') if code_nodes else ""
             
-            # Application Number OID
+            if code_val == '34066-1' or 'boxed warning' in title_text: has_boxed = True
+            if code_val == '43685-7' or ('precautions' in title_text and 'warnings' in title_text): is_plr = True
+
+        # 8. NDCs and Application Numbers (OID Search)
+        ndcs = set()
+        apps = set()
+        for elem in root.iter():
+            # NDC
+            if elem.get('codeSystem') == '2.16.840.1.113883.6.69':
+                v = elem.get('code'); 
+                if v: ndcs.add(v)
+            # App Num
             if elem.get('root') == '2.16.840.1.113883.3.150':
-                val = elem.get('extension')
-                if val: app_num_set.add(val)
-
-        try:
-            full_text_norm = " ".join("".join(root.itertext()).split())
-            matches = re.finditer(r'NDC(?:[:#\s]+)?(\d{4,5}\s*-\s*\d{3,4}\s*-\s*\d{1,2})', full_text_norm, re.IGNORECASE)
-            for m in matches:
-                clean_ndc = re.sub(r'\s+', '', m.group(1))
-                ndc_set.add(clean_ndc)
-        except Exception as e:
-            logger.warning(f"Text extraction of NDC failed: {e}")
-
-        ndc = ", ".join(sorted(list(ndc_set))) if ndc_set else "N/A"
-        app_num = ", ".join(sorted(list(app_num_set))) if app_num_set else "N/A"
+                v = elem.get('extension');
+                if v: apps.add(v)
 
         return {
             'set_id': set_id,
             'brand_name': brand_name,
             'generic_name': generic_name,
-            'manufacturer_name': manufacturer_name,
+            'manufacturer_name': manufacturer,
             'effective_time': effective_time,
-            'label_format': label_format,
-            'ndc': ndc,
-            'application_number': app_num,
-            'version_number': version_number,
-            'document_type': document_type,
-            'has_boxed_warning': has_boxed_warning,
+            'label_format': 'PLR' if is_plr else 'non-PLR',
+            'ndc': ", ".join(sorted(list(ndcs))) if ndcs else "N/A",
+            'application_number': ", ".join(sorted(list(apps))) if apps else "N/A",
+            'version_number': version,
+            'document_type': doc_type,
+            'has_boxed_warning': has_boxed,
             'faers_search_name': faers_search_name
         }
     except Exception as e:
-        logger.error(f"Error extracting metadata from XML: {e}")
+        logger.error(f"Metadata extraction error: {e}")
         return None
 
 def to_html(element, media_map=None, set_id=None):
@@ -211,97 +186,106 @@ def to_html(element, media_map=None, set_id=None):
         ref_id = element.get('referencedObject')
         filename = media_map.get(ref_id) if media_map else None
         html = "".join([to_html(child, media_map, set_id) for child in element])
-        img_html = f'<img src="https://dailymed.nlm.nih.gov/dailymed/image.cfm?setid={set_id}&name={filename}" alt="{filename}" class="spl-image" style="max-width: 100%; height: auto; display: block; margin: 10px auto;" />' if filename and set_id else ""
-        return f'<div class="spl-figure" style="text-align: center; margin: 20px 0;">{img_html}{html}</div>{element.tail or ""}'
-    attrs_list = []
-    class_list = []
+        img_url = f"https://dailymed.nlm.nih.gov/dailymed/image.cfm?setid={set_id}&name={filename}" if filename and set_id else ""
+        return f'<div class="spl-figure" style="text-align: center; margin: 20px 0;">{f"<img src=\'{img_url}\' style=\'max-width:100%\'/>" if img_url else ""}{html}</div>{element.tail or ""}'
+    attrs = []
     for k, v in element.attrib.items():
-        if 'xmlns' not in k:
-            if html_tag == 'a' and k == 'href': attrs_list.append(f'{k}="{v}"')
-            elif k == 'styleCode':
-                style_map = {'bold': 'Bold', 'italic': 'Emphasis', 'underline': 'Underline'}
-                for style in v.split(' '):
-                    if style.lower() in style_map: class_list.append(style_map[style.lower()])
-    if class_list: attrs_list.append(f'class="{" ".join(class_list)}"')
-    attrs = ' '.join(attrs_list)
+        if html_tag == 'a' and k == 'href': attrs.append(f'href="{v}"')
+        if k == 'styleCode':
+            styles = [s.lower() for s in v.split(' ')]
+            classes = []
+            if 'bold' in styles: classes.append('Bold')
+            if 'italic' in styles: classes.append('Emphasis')
+            if 'underline' in styles: classes.append('Underline')
+            if classes: attrs.append(f'class="{" ".join(classes)}"')
     html = (element.text or '') + "".join([to_html(child, media_map, set_id) for child in element])
-    if html_tag not in ['br']: return f"<{html_tag} {attrs}>{html}</{html_tag}>{element.tail or ''}"
-    else: return f"<{html_tag} {attrs}/>{element.tail or ''}"
-
-def extract_media_map(root, ns):
-    media_map = {}
-    for media in root.findall('.//spl:observationMedia', ns):
-        mid = media.get('ID')
-        value = media.find('./spl:value', ns)
-        if value is not None:
-            ref = value.find('./spl:reference', ns)
-            if ref is not None:
-                filename = ref.get('value')
-                if mid and filename: media_map[mid] = filename
-    return media_map
-
-def parse_component(component_element, ns, media_map=None, set_id=None):
-    section_element = component_element.find('./spl:section', ns)
-    if section_element is None: return None
-    title_element = section_element.find('./spl:title', ns)
-    text_element = section_element.find('./spl:text', ns)
-    title = "".join(title_element.itertext()).strip() if title_element is not None else ""
-    content_html = to_html(text_element, media_map, set_id) if text_element is not None else ""
-    section_id = section_element.get('ID')
-    numeric_id = extract_numeric_section_id(title)
-    children = [parse_component(child_comp, ns, media_map, set_id) for child_comp in section_element.findall('./spl:component', ns) if parse_component(child_comp, ns, media_map, set_id) is not None]
-    return {'id': section_id, 'numeric_id': numeric_id, 'title': title, 'content': content_html.strip(), 'children': children, 'is_boxed_warning': title.strip().upper().startswith('WARNING:')}
+    if html_tag == 'br': return f"<br/>{element.tail or ''}"
+    return f"<{html_tag} {' '.join(attrs)}>{html}</{html_tag}>{element.tail or ''}"
 
 def parse_spl_xml(xml_string, set_id=None):
-    if not xml_string: return "Error Parsing", [], None, None, []
+    if not xml_string: return "Error", [], None, None, []
     try:
-        ns = {'spl': 'urn:hl7-org:v3'}
-        xml_string_cleaned = ''.join(c for c in xml_string if c.isprintable() or c in '\n\r\t')
-        root = ET.fromstring(xml_string_cleaned)
-        media_map = extract_media_map(root, ns)
-        doc_title_element = root.find('.//spl:title', ns)
-        doc_title = "".join(doc_title_element.itertext()).strip() if doc_title_element is not None else "Unknown Drug"
-        structured_body = root.find('.//spl:structuredBody', ns)
-        if structured_body is None:
-            first_text_element = root.find('.//spl:text', ns)
-            if first_text_element is not None:
-                fallback_html = to_html(first_text_element, media_map, set_id)
-                return doc_title, [], (fallback_html if fallback_html.strip() else None), None, []
-            return doc_title, [], None, None, []
-        sections = [parse_component(comp, ns, media_map, set_id) for comp in structured_body.findall('./spl:component', ns) if parse_component(comp, ns, media_map, set_id) is not None]
+        xml_cleaned = ''.join(c for c in xml_string if c.isprintable() or c in '\n\r\t')
+        root = ET.fromstring(xml_cleaned.strip())
+        def local(t): return t.split('}')[-1]
+        
+        media_map = {}
+        for m in root.iter():
+            if local(m.tag) == 'observationMedia':
+                mid = m.get('ID')
+                for val in m:
+                    if local(val.tag) == 'value':
+                        for ref in val:
+                            if local(ref.tag) == 'reference':
+                                fname = ref.get('value')
+                                if mid and fname: media_map[mid] = fname
+
+        doc_title = "Unknown Drug"
+        title_nodes = [n for n in root if local(n.tag) == 'title']
+        if title_nodes: doc_title = "".join(title_nodes[0].itertext()).strip()
+
+        sections = []
         highlights = []
-        sections_with_excerpts = root.findall('.//spl:section[spl:excerpt]', ns)
-        for section in sections_with_excerpts:
-            title_element = section.find('./spl:title', ns)
-            title = "".join(title_element.itertext()).strip() if title_element is not None else "Untitled Section"
-            highlight_node = section.find('.//spl:highlight', ns)
-            if highlight_node is not None:
-                highlights.append({'source_section_title': title, 'content_html': to_html(highlight_node, media_map, set_id)})
-        def build_toc(section_list):
-            toc = []
-            for s in section_list:
-                if s and s.get('title') and s.get('id'):
-                    toc.append({'title': s['title'], 'id': s['id']})
-                    if s.get('children'): toc.extend(build_toc(s['children']))
-            return toc
-        table_of_contents = build_toc(sections)
-        if highlights: table_of_contents.insert(0, {'title': 'Highlights of Prescribing Information', 'id': 'highlights-section'})
-        return doc_title, sections, None, highlights, table_of_contents
+        def parse_sec(sec_el):
+            t_nodes = [n for n in sec_el if local(n.tag) == 'title']
+            txt_nodes = [n for n in sec_el if local(n.tag) == 'text']
+            title = "".join(t_nodes[0].itertext()).strip() if t_nodes else ""
+            content = to_html(txt_nodes[0], media_map, set_id) if txt_nodes else ""
+            
+            # Check for highlights in this section
+            if any(local(child.tag) == 'excerpt' for child in sec_el):
+                for exc in [c for c in sec_el if local(c.tag) == 'excerpt']:
+                    for hl in [c for c in exc if local(c.tag) == 'highlight']:
+                        highlights.append({'source_section_title': title, 'content_html': to_html(hl, media_map, set_id)})
+
+            children = []
+            for comp in [c for c in sec_el if local(c.tag) == 'component']:
+                for sub in [c for c in comp if local(c.tag) == 'section']:
+                    children.append(parse_sec(sub))
+            return {'id': sec_el.get('ID'), 'numeric_id': extract_numeric_section_id(title), 'title': title, 'content': content, 'children': children, 'is_boxed_warning': title.upper().startswith('WARNING:')}
+
+        for sb in [n for n in root.iter() if local(n.tag) == 'structuredBody']:
+            for comp in [c for c in sb if local(c.tag) == 'component']:
+                for sec in [c for c in comp if local(c.tag) == 'section']:
+                    sections.append(parse_sec(sec))
+
+        if not sections:
+            txt_nodes = [n for n in root if local(n.tag) == 'text']
+            if txt_nodes: return doc_title, [], to_html(txt_nodes[0], media_map, set_id), None, []
+
+        def build_toc(sl):
+            res = []
+            for s in sl:
+                if s['title'] and s['id']:
+                    res.append({'title': s['title'], 'id': s['id']})
+                    res.extend(build_toc(s['children']))
+            return res
+        toc = build_toc(sections)
+        if highlights: toc.insert(0, {'title': 'Highlights of Prescribing Information', 'id': 'highlights-section'})
+        return doc_title, sections, None, highlights, toc
     except Exception as e:
-        logger.error(f"XML parsing error: {e}")
-    return "Error Parsing", [], None, None, []
+        logger.error(f"XML parse error: {e}")
+    return "Error", [], None, None, []
 
 def get_aggregate_content(section):
+    """
+    Recursively collects content from a section and its children.
+    Children that have their own numeric section IDs are skipped, as they 
+    will be compared independently.
+    """
     content = section.get('content', '')
     for child in section.get('children', []):
+        # Check if the child has its own numeric ID
         if not extract_numeric_section_id(child.get('title', '')):
-            if child.get('title'): content += f"<h4>{child['title']}</h4>"
+            if child.get('title'):
+                # Add child title as a sub-header if it exists
+                content += f"<h4>{child['title']}</h4>"
             content += get_aggregate_content(child)
     return content
 
 def flatten_sections(sections):
-    flat_list = []
-    for section in sections:
-        flat_list.append(section)
-        if section.get('children'): flat_list.extend(flatten_sections(section['children']))
-    return flat_list
+    res = []
+    for s in sections:
+        res.append(s)
+        if s.get('children'): res.extend(flatten_sections(s['children']))
+    return res
