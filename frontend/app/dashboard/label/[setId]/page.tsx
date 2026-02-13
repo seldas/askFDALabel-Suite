@@ -127,8 +127,8 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
     }
   }, [loading, data]);
 
-  if (loading) return <div className="hp-main-layout"><div className="hp-container"><p>Loading label...</p></div></div>;
-  if (error) return <div className="hp-main-layout"><div className="hp-container"><p>Error: {error}</p></div></div>;
+  if (loading) return <div className="hp-main-layout"><div className="hp-container"><div className="loader" style={{margin:'50px auto'}}></div><p style={{textAlign:'center'}}>Loading label...</p></div></div>;
+  if (error) return <div className="hp-main-layout"><div className="hp-container"><p style={{color:'red', textAlign:'center'}}>Error: {error}</p></div></div>;
   if (!data) return null;
 
   return (
@@ -186,6 +186,9 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             </div>
 
             <button id="favorites-toggle-btn" className="button btn-favorites"><span>{"\uD83D\uDCBC"}</span> My Projects</button>
+            <div id="favorites-dropdown-menu" className="favorites-dropdown-menu">
+                <div id="favorites-dropdown-content"><div className="dropdown-loading">Loading...</div></div>
+            </div>
           </div>
 
           <div className="label-header" style={{ marginBottom: '25px' }}>

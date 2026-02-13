@@ -496,7 +496,7 @@ export default function DashboardPage() {
                                     <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e293b' }}>{f.brand_name}</div>
                                     <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{f.manufacturer_name}</div>
                                   </div>
-                                  <a href={`/api/dashboard/label/${f.set_id}`} target="_blank" style={{ fontSize: '0.8rem', color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}>View &rarr;</a>
+                                  <a href={`/dashboard/label/${f.set_id}`} target="_blank" style={{ fontSize: '0.8rem', color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}>View &rarr;</a>
                                 </div>
                               ))}
                             </div>
