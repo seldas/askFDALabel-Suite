@@ -142,58 +142,58 @@ def import_fdalabel():
             return jsonify({'success': False, 'error': 'The Excel file is empty.'}), 400
             
         columns = rows[0]
-        # Create a mapping of column name to index
-        col_map = {name: i for i, name in enumerate(columns) if name}
+        # Create a mapping of column name to index, normalizing whitespace
+        col_map = {str(name).strip(): i for i, name in enumerate(columns) if name}
         
-        required_cols = ['SET ID', 'Trade Name']
-        missing = [c for c in required_cols if c not in col_map]
-        if missing:
-            return jsonify({'success': False, 'error': f'Missing required columns: {", ".join(missing)}'}), 400
+        # Helper to get value from multiple possible column names
+        def get_val_flex(row, candidates):
+            for c in candidates:
+                if c in col_map:
+                    idx = col_map[c]
+                    if idx < len(row) and row[idx] is not None:
+                        return str(row[idx]).strip()
+            return 'n/a'
 
-        # Helper to safely get value
-        def get_val(row, col_name):
-            idx = col_map.get(col_name)
-            if idx is not None and idx < len(row) and row[idx] is not None:
-                return str(row[idx]).strip()
-            return 'N/A'
+        # Check for SET ID (essential)
+        set_id_candidates = ['SET ID', 'SET_ID', 'Set ID']
+        has_set_id = any(c in col_map for c in set_id_candidates)
+        
+        if not has_set_id:
+            return jsonify({'success': False, 'error': 'Missing required column: SET ID'}), 400
 
         labels = []
         for row in rows[1:]:
-            if not row[col_map['SET ID']]:
+            set_id = get_val_flex(row, set_id_candidates)
+            if not set_id or set_id.lower() == 'n/a':
                 continue
-                
-            set_id = str(row[col_map['SET ID']]).strip()
             
             # Map Excel columns to our label structure
-            brand_name = get_val(row, 'Trade Name')
-            generic_name = get_val(row, 'Generic/Proper Name(s)')
-            company = get_val(row, 'Company')
-            effective_date = get_val(row, 'SPL Effective Date (YYYY/MM/DD)')
-            app_num = get_val(row, 'Application Number(s)')
-            labeling_type = get_val(row, 'Labeling Type')
-            ndcs = get_val(row, 'NDC(s)')
+            brand_name = get_val_flex(row, ['Trade Name', 'PRODUCT_NAMES', 'trade name', 'Product Names'])
+            generic_name = get_val_flex(row, ['Generic/Proper Name(s)', 'PRODUCT_NORMD_GENERIC_NAMES', 'generic name', 'Generic Name'])
+            company = get_val_flex(row, ['Company', 'AUTHOR_ORG_NORMD_NAME', 'manufacturer', 'Manufacturer', 'AUTHOR_ORG_NAME'])
+            effective_date = get_val_flex(row, ['SPL Effective Date (YYYY/MM/DD)', 'EFF_TIME', 'effective date', 'Effective Date'])
+            app_num = get_val_flex(row, ['Application Number(s)', 'APPR_NUM', 'application number', 'Approval Number'])
+            labeling_type = get_val_flex(row, ['Labeling Type', 'LABELING_TYPE', 'labeling type', 'Doc Type'])
+            ndcs = get_val_flex(row, ['NDC(s)', 'NDC_CODES', 'ndc', 'NDC'])
+            marketing_category = get_val_flex(row, ['Marketing Category', 'MARKET_CATEGORIES', 'marketing category'])
             
             # Additional FDALabel specific columns
-            dosage_forms = get_val(row, 'Dosage Form(s)')
-            routes = get_val(row, 'Route(s) of Administration')
-            marketing_category = get_val(row, 'Marketing Category')
-            epc = get_val(row, 'Established Pharmacologic Class(es)')
-            initial_approval = get_val(row, 'Initial U.S. Approval')
-            marketing_dates = get_val(row, 'Marketing Date(s) (YYYY/MM/DD)')
-            active_ingredient_unii = get_val(row, 'Active Ingredient UNII(s)')
-            active_ingredients = get_val(row, 'Active Ingredient(s)')
-            active_moiety_name = get_val(row, 'Active Moiety Name(s)')
-            active_moiety_unii = get_val(row, 'Active Moiety UNII(s)')
-            fdalabel_link = get_val(row, 'FDALabel Link')
-            dailymed_spl_link = get_val(row, 'DailyMed SPL Link')
-            dailymed_pdf_link = get_val(row, 'DailyMed PDF Link')
-
-            # Determine format - removed as requested, using Marketing Category instead
-            label_format = None
+            dosage_forms = get_val_flex(row, ['Dosage Form(s)', 'DOSAGE_FORMS'])
+            routes = get_val_flex(row, ['Route(s) of Administration', 'ROUTES'])
+            epc = get_val_flex(row, ['Established Pharmacologic Class(es)', 'EPC'])
+            active_ingredients = get_val_flex(row, ['Active Ingredient(s)', 'ACTIVE_INGREDIENTS', 'ACT_INGR_NAMES'])
             
-            # Simplified product type
-            prod_type = 'Rx' if 'PRESCRIPTION' in labeling_type.upper() else 'OTC'
-            if 'OTC' in labeling_type.upper(): prod_type = 'OTC'
+            # Links
+            fdalabel_link = get_val_flex(row, ['FDALabel Link'])
+            dailymed_spl_link = get_val_flex(row, ['DailyMed SPL Link'])
+            dailymed_pdf_link = get_val_flex(row, ['DailyMed PDF Link'])
+
+            # Simplified product type for UI badges
+            labeling_type_upper = (labeling_type or "").upper()
+            marketing_category_upper = (marketing_category or "").upper()
+            prod_type = 'Rx'
+            if 'OTC' in labeling_type_upper or 'OTC' in marketing_category_upper:
+                prod_type = 'OTC'
 
             labels.append({
                 'set_id': set_id,
@@ -201,7 +201,7 @@ def import_fdalabel():
                 'generic_name': generic_name,
                 'manufacturer_name': company,
                 'effective_time': effective_date,
-                'label_format': label_format,
+                'label_format': None,
                 'labeling_type': labeling_type,
                 'application_number': app_num,
                 'product_type': prod_type,
@@ -210,17 +210,32 @@ def import_fdalabel():
                 'dosage_forms': dosage_forms,
                 'routes': routes,
                 'epc': epc,
-                'initial_approval': initial_approval,
-                'marketing_dates': marketing_dates,
-                'active_ingredient_unii': active_ingredient_unii,
                 'active_ingredients': active_ingredients,
-                'active_moiety_name': active_moiety_name,
-                'active_moiety_unii': active_moiety_unii,
                 'fdalabel_link': fdalabel_link,
                 'dailymed_spl_link': dailymed_spl_link,
                 'dailymed_pdf_link': dailymed_pdf_link,
                 'source': 'excel'
             })
+
+        if not labels:
+            return jsonify({'success': False, 'error': 'No valid labels found in the Excel file.'}), 400
+
+        # Store in temporary file
+        import_id = str(uuid.uuid4())
+        import_filename = f"import_{import_id}.json"
+        import_path = os.path.join(Config.UPLOAD_FOLDER, import_filename)
+        
+        with open(import_path, 'w', encoding='utf-8') as f:
+            json.dump(labels, f)
+
+        return jsonify({
+            'success': True, 
+            'redirect_url': url_for('main.search', import_id=import_id)
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error importing Excel: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
         if not labels:
             return jsonify({'success': False, 'error': 'No valid labels found in the Excel file.'}), 400
@@ -278,6 +293,23 @@ def search():
                 all_imported_labels = json.load(f)
             total = len(all_imported_labels)
             labels = all_imported_labels[skip : skip + limit]
+            
+            # Enrich with favorite status if user logged in
+            if current_user.is_authenticated:
+                active_project_id = None # Logic to determine project? 
+                # For now we check the "Not Grouped" or a specified project if we had one
+                # Usually selection.html JS handles the "check favorites batch" call later, 
+                # but if we want it correct on first load:
+                
+                # Check favorites for these SET_IDs in any of user's projects (or primary)
+                # Let's just set them all to False and let the JS update it to be safe, 
+                # or do a batch check here.
+                set_ids = [l['set_id'] for l in labels]
+                favs = Favorite.query.filter(Favorite.user_id == current_user.id, Favorite.set_id.in_(set_ids)).all()
+                fav_ids = {f.set_id for f in favs}
+                for l in labels:
+                    l['is_favorite'] = l['set_id'] in fav_ids
+
             drug_name_display = "Excel Import"
             page_title = "Imported FDALabel Results"
         else:

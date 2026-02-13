@@ -110,7 +110,7 @@
                                             {{ label.label_format or 'Unknown Format' }}
                                         </span>
                                     {% endif %}
-                                    <button type="button" class="favorite-btn-selection" onclick="toggleFavoriteFromSelection(this, '{{ label.set_id }}', '{{ label.brand_name|replace("'", "\\'") }}', '{{ label.manufacturer_name|replace("'", "\\'") }}', '{{ label.effective_time }}')" title="Toggle Project" style="background: none; border: none; font-size: 1.5em; cursor: pointer; color: {% if label.is_favorite %}#ffc107{% else %}#ccc{% endif %}; padding: 0;">
+                                    <button type="button" class="favorite-btn-selection" onclick="toggleFavoriteFromSelection(this, '{{ label.set_id }}', '{{ label.brand_name|replace("'", "\\'") }}', '{{ label.manufacturer_name|replace("'", "\\'") }}', '{{ label.effective_time }}', '{{ request.args.get('import_id', '') }}')" title="Toggle Project" style="background: none; border: none; font-size: 1.5em; cursor: pointer; color: {% if label.is_favorite %}#ffc107{% else %}#ccc{% endif %}; padding: 0;">
                                         {% if label.is_favorite %}&#9733;{% else %}&#9734;{% endif %}
                                     </button>
                                 </div>
@@ -206,7 +206,7 @@
                                             <input type="checkbox" name="set_ids" value="{{ label.set_id }}" class="compare-checkbox" onchange="handleSelectionChange()">
                                         </td>
                                         <td style="text-align: center;">
-                                            <button type="button" class="favorite-btn-selection" onclick="toggleFavoriteFromSelection(this, '{{ label.set_id }}', '{{ label.brand_name|replace("'", "\\'") }}', '{{ label.manufacturer_name|replace("'", "\\'") }}', '{{ label.effective_time }}')" title="Toggle Project" style="background: none; border: none; font-size: 1.2em; cursor: pointer; color: {% if label.is_favorite %}#ffc107{% else %}#ccc{% endif %};">
+                                            <button type="button" class="favorite-btn-selection" onclick="toggleFavoriteFromSelection(this, '{{ label.set_id }}', '{{ label.brand_name|replace("'", "\\'") }}', '{{ label.manufacturer_name|replace("'", "\\'") }}', '{{ label.effective_time }}', '{{ request.args.get('import_id', '') }}')" title="Toggle Project" style="background: none; border: none; font-size: 1.2em; cursor: pointer; color: {% if label.is_favorite %}#ffc107{% else %}#ccc{% endif %};">
                                                 {% if label.is_favorite %}&#9733;{% else %}&#9734;{% endif %}
                                             </button>
                                         </td>
@@ -386,7 +386,7 @@
 
         async function loadProjectsForModal() {
             try {
-                const res = await fetch('/api/projects');
+                const res = await fetch('/api/dashboard/projects');
                 const data = await res.json();
                 const projects = data.projects || [];
                 
@@ -460,7 +460,7 @@
                 confirmFavAllBtn.innerHTML = '<span>⏳</span> Processing...';
 
                 try {
-                    const response = await fetch('/favorite_all', {
+                    const response = await fetch('/api/dashboard/favorite_all', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -497,48 +497,9 @@
             }
         }
 
-        async function toggleFavoriteFromSelection(btn, setId, brandName, manufacturer, effectiveTime) {
-            // Check if user is logged in (optional, server will reject 401/redirect)
-            // But we can just try/catch
-            try {
-                // Get Active Project from localStorage (set by script.js)
-                const activeProjectId = localStorage.getItem('activeProjectId');
-                
-                const response = await fetch('/toggle_favorite', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        set_id: setId,
-                        brand_name: brandName,
-                        manufacturer_name: manufacturer,
-                        effective_time: effectiveTime,
-                        project_id: activeProjectId
-                    })
-                });
-                
-                if (response.redirected) {
-                    window.location.href = response.url; // Redirect to login if needed
-                    return;
-                }
-
-                const data = await response.json();
-                if(data.success) {
-                    btn.innerHTML = data.is_favorite ? '&#9733;' : '&#9734;';
-                    // Update color
-                    btn.style.color = data.is_favorite ? '#ffc107' : '#ccc';
-                } else if(data.error) {
-                    alert('Error: ' + data.error);
-                }
-            } catch (err) {
-                console.error(err);
-                // Assume 401/redirect might cause JSON parse error or fetch error
-                // alert('Failed to update favorite. Please ensure you are logged in.');
-            }
-        }
-
         async function updateAiModel(provider) {
             try {
-                const response = await fetch('/preferences', {
+                const response = await fetch('/api/dashboard/preferences', {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/x-www-form-urlencoded',

@@ -90,6 +90,10 @@ def find_labels(query_term, skip=0, limit=10):
                 elif "OTC" in prod_type_str.upper():
                     prod_type_str = "OTC"
 
+                # Extract NDC
+                ndc_list = openfda.get('product_ndc', []) + openfda.get('package_ndc', [])
+                ndc_str = ', '.join(sorted(list(set(ndc_list)))) if ndc_list else 'N/A'
+
                 labels.append({
                     'set_id': result.get('set_id'),
                     'brand_name': ', '.join(openfda.get('brand_name', ['N/A'])),
@@ -98,7 +102,8 @@ def find_labels(query_term, skip=0, limit=10):
                     'effective_time': effective_date,
                     'label_format': label_format,
                     'application_number': app_num_str,
-                    'product_type': prod_type_str
+                    'market_category': prod_type_str,
+                    'ndc': ndc_str
                 })
         return labels, total
     except requests.exceptions.RequestException as e:
@@ -176,6 +181,10 @@ def find_labels_by_set_ids(terms_list, skip=0, limit=10):
                             elif "OTC" in prod_type_str.upper():
                                 prod_type_str = "OTC"
 
+                            # Extract NDC
+                            ndc_list = openfda.get('product_ndc', []) + openfda.get('package_ndc', [])
+                            ndc_str = ', '.join(sorted(list(set(ndc_list)))) if ndc_list else 'N/A'
+
                             all_labels.append({
                                 'set_id': sid,
                                 'brand_name': ', '.join(openfda.get('brand_name', ['N/A'])),
@@ -184,7 +193,8 @@ def find_labels_by_set_ids(terms_list, skip=0, limit=10):
                                 'effective_time': effective_date,
                                 'label_format': label_format,
                                 'application_number': app_num_str,
-                                'product_type': prod_type_str
+                                'market_category': prod_type_str,
+                                'ndc': ndc_str
                             })
                             seen_set_ids.add(sid)
         except Exception as e:
@@ -306,6 +316,10 @@ def get_label_metadata(set_id, import_id=None):
             elif "OTC" in prod_type_str.upper():
                 prod_type_str = "OTC"
 
+            # Extract NDC
+            ndc_list = openfda.get('product_ndc', []) + openfda.get('package_ndc', [])
+            ndc_str = ', '.join(sorted(list(set(ndc_list)))) if ndc_list else 'N/A'
+
             return {
                 'set_id': result.get('set_id'),
                 'brand_name': ', '.join(openfda.get('brand_name', ['N/A'])),
@@ -314,7 +328,8 @@ def get_label_metadata(set_id, import_id=None):
                 'effective_time': effective_date,
                 'label_format': label_format,
                 'application_number': app_num_str,
-                'product_type': prod_type_str
+                'market_category': prod_type_str,
+                'ndc': ndc_str
             }
     except requests.exceptions.RequestException as e:
         logger.error(f"Error fetching data from openFDA for set_id {set_id}: {e}")

@@ -319,12 +319,23 @@ function ResultsContent() {
                       <span className={`status-badge ${label.label_format === 'PLR' ? 'plr-badge' : 'non-plr-badge'}`}>
                         {label.marketing_category || label.label_format || 'Unknown Format'}
                       </span>
-                      <input 
-                        type="checkbox" 
-                        checked={selectedSetIds.has(label.set_id)}
-                        onChange={() => handleSelectionChange(label.set_id)}
-                        style={{ transform: 'scale(1.2)' }}
-                      />
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <button 
+                          type="button" 
+                          className="favorite-btn-selection" 
+                          onClick={(e) => (window as any).toggleFavoriteFromSelection(e.currentTarget, label.set_id, label.brand_name, label.manufacturer_name, label.effective_time, importId)} 
+                          title="Toggle Project" 
+                          style={{ background: 'none', border: 'none', fontSize: '1.5em', cursor: 'pointer', color: label.is_favorite ? '#ffc107' : '#ccc', padding: 0 }}
+                        >
+                          {label.is_favorite ? '★' : '☆'}
+                        </button>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedSetIds.has(label.set_id)}
+                          onChange={() => handleSelectionChange(label.set_id)}
+                          style={{ transform: 'scale(1.2)' }}
+                        />
+                      </div>
                     </div>
                     <h3 style={{ marginBottom: '10px', lineHeight: '1.2' }}>{label.brand_name}</h3>
                     <p style={{ color: '#6c757d', fontStyle: 'italic', marginBottom: '15px', fontSize: '0.95em' }}>{label.generic_name}</p>
@@ -410,6 +421,7 @@ function ResultsContent() {
                   <thead>
                     <tr>
                       <th style={{ width: '40px', textAlign: 'center' }}>Sel</th>
+                      <th style={{ width: '40px', textAlign: 'center' }}>Fav</th>
                       <th>Trade Name</th>
                       <th>Generic Name</th>
                       <th>Manufacturer</th>
@@ -426,6 +438,17 @@ function ResultsContent() {
                             checked={selectedSetIds.has(label.set_id)}
                             onChange={() => handleSelectionChange(label.set_id)}
                           />
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button 
+                            type="button" 
+                            className="favorite-btn-selection" 
+                            onClick={(e) => (window as any).toggleFavoriteFromSelection(e.currentTarget, label.set_id, label.brand_name, label.manufacturer_name, label.effective_time, importId)} 
+                            title="Toggle Project" 
+                            style={{ background: 'none', border: 'none', fontSize: '1.2em', cursor: 'pointer', color: label.is_favorite ? '#ffc107' : '#ccc' }}
+                          >
+                            {label.is_favorite ? '★' : '☆'}
+                          </button>
                         </td>
                         <td style={{ fontWeight: 600 }}>{label.brand_name}</td>
                         <td>{label.generic_name}</td>

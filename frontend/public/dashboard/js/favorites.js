@@ -268,6 +268,37 @@ window.initFavorites = function() {
     }
 }
 
+async function toggleFavoriteFromSelection(btn, setId, brandName, manufacturer, effectiveTime, importId = null) {
+    try {
+        const activeProjectId = localStorage.getItem('activeProjectId');
+        
+        const response = await fetch('/api/dashboard/toggle_favorite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                set_id: setId,
+                project_id: activeProjectId,
+                import_id: importId
+            })
+        });
+        
+        if (response.redirected) {
+            window.location.href = response.url;
+            return;
+        }
+
+        const data = await response.json();
+        if(data.success) {
+            btn.innerHTML = data.is_favorite ? '&#9733;' : '&#9734;';
+            btn.style.color = data.is_favorite ? '#ffc107' : '#ccc';
+        } else if(data.error) {
+            alert('Error: ' + data.error);
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => window.initFavorites());
 } else {

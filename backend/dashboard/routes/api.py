@@ -378,14 +378,13 @@ def delete_annotation():
 
 # --- Favorites ---
 @api_bp.route('/toggle_favorite', methods=['POST'])
+@api_bp.route('/toggle_favorite', methods=['POST'])
 @login_required
 def toggle_favorite():
     data = request.get_json()
     set_id = data.get('set_id')
     project_id = data.get('project_id')
-    brand_name = data.get('brand_name')
-    manufacturer_name = data.get('manufacturer_name')
-    effective_time = data.get('effective_time')
+    import_id = data.get('import_id')
 
     if not set_id:
         return jsonify({'error': 'Missing set_id'}), 400
@@ -395,10 +394,10 @@ def toggle_favorite():
         if default_proj:
             project_id = default_proj.id
 
-    # Check PROJECT-WIDE if this label is already in the project (regardless of who added it)
+    # Check PROJECT-WIDE
     favorite = Favorite.query.filter_by(set_id=set_id, project_id=project_id).first()
     
-    # Check permissions for the project
+    # Check permissions
     project = Project.query.get(project_id)
     if not project or (project.owner_id != current_user.id and current_user not in project.members):
          return jsonify({'error': 'Unauthorized'}), 403
@@ -408,7 +407,44 @@ def toggle_favorite():
         db.session.commit()
         return jsonify({'success': True, 'is_favorite': False})
     else:
-        new_favorite = Favorite(user_id=current_user.id, set_id=set_id, brand_name=brand_name, manufacturer_name=manufacturer_name, effective_time=effective_time, project_id=project_id)
+        # Check if we have this metadata in an import session to skip external call
+        meta = None
+        if import_id:
+            import_path = os.path.join(Config.UPLOAD_FOLDER, f"import_{import_id}.json")
+            if os.path.exists(import_path):
+                try:
+                    with open(import_path, 'r', encoding='utf-8') as f:
+                        labels = json.load(f)
+                    for label in labels:
+                        if label['set_id'] == set_id:
+                            # Verify if it has the required columns
+                            required_keys = ['brand_name', 'generic_name', 'manufacturer_name', 'market_category', 'application_number', 'ndc']
+                            # We check if at least some are present and not 'n/a'
+                            if any(label.get(k) and label.get(k) != 'n/a' for k in required_keys):
+                                meta = label
+                                break
+                except Exception as e:
+                    logger.error(f"Error reading import for toggle_favorite: {e}")
+
+        # Fetch fresh metadata if not found in import
+        if not meta:
+            meta = get_label_metadata(set_id)
+            
+        if not meta:
+            return jsonify({'error': 'Could not fetch label metadata'}), 404
+
+        new_favorite = Favorite(
+            user_id=current_user.id, 
+            project_id=project_id,
+            set_id=set_id, 
+            brand_name=meta.get('brand_name', 'n/a'),
+            generic_name=meta.get('generic_name', 'n/a'),
+            manufacturer_name=meta.get('manufacturer_name', 'n/a'),
+            market_category=meta.get('market_category', 'n/a'),
+            application_number=meta.get('application_number', 'n/a'),
+            ndc=meta.get('ndc', 'n/a'),
+            effective_time=meta.get('effective_time', 'n/a')
+        )
         db.session.add(new_favorite)
         db.session.commit()
         return jsonify({'success': True, 'is_favorite': True})
@@ -432,6 +468,10 @@ def check_favorite(set_id):
 @api_bp.route('/toggle_favorite_comparison', methods=['POST'])
 @login_required
 def toggle_favorite_comparison():
+    # External env restriction: disable multiple labeling favorites
+    if not FDALabelDBService.check_connectivity():
+        return jsonify({'error': 'Saving comparison favorites is only available in internal environments.'}), 403
+
     data = request.get_json()
     set_ids = data.get('set_ids') # list
     title = data.get('title')
@@ -672,9 +712,13 @@ def favorite_all():
                 user_id=current_user.id,
                 project_id=target_project.id,
                 set_id=set_id,
-                brand_name=label.get('brand_name'),
-                manufacturer_name=label.get('manufacturer_name'),
-                effective_time=label.get('effective_time')
+                brand_name=label.get('brand_name', 'n/a'),
+                generic_name=label.get('generic_name', 'n/a'),
+                manufacturer_name=label.get('manufacturer_name', 'n/a'),
+                market_category=label.get('market_category', 'n/a'),
+                application_number=label.get('application_number', 'n/a'),
+                ndc=label.get('ndc', 'n/a'),
+                effective_time=label.get('effective_time', 'n/a')
             )
             db.session.add(new_fav)
             added_count += 1
@@ -994,7 +1038,7 @@ def api_move_items():
     db.session.commit()
     return jsonify({'success': True, 'moved_count': count})
 
-@api_bp.route('/my_favorites')
+@api_bp.route('/favorites_data')
 @login_required
 def api_my_favorites():
     project_id = request.args.get('project_id', type=int)
@@ -1013,7 +1057,11 @@ def api_my_favorites():
     favorites_list = [{
         'set_id': fav.set_id,
         'brand_name': fav.brand_name,
+        'generic_name': fav.generic_name,
         'manufacturer_name': fav.manufacturer_name,
+        'market_category': fav.market_category,
+        'application_number': fav.application_number,
+        'ndc': fav.ndc,
         'effective_time': fav.effective_time,
         'timestamp': fav.timestamp.isoformat(),
         'added_by': fav.user.username
@@ -1057,6 +1105,8 @@ def api_check_favorites_batch():
     result = {}
     for sid in set_ids:
         result[sid] = found_ids.get(sid, False)
+        
+    return jsonify(result)
 
 @api_bp.route('/my_labelings', methods=['GET'])
 @login_required

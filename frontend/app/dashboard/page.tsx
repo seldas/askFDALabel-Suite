@@ -102,7 +102,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <main className="hp-main-layout">
+    <main className="hp-main-layout" suppressHydrationWarning>
       <DashboardClient />
       
       <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 100 }}>
@@ -171,7 +171,7 @@ export default function DashboardPage() {
           )}
           
           <div className="hp-theme-container" style={{ position: 'relative' }}>
-            <button id="theme-toggle-btn" className="hp-nav-btn hp-btn-outline hp-nav-btn-lg">
+            <button id="theme-toggle-btn" className="hp-nav-btn hp-btn-outline hp-nav-btn-lg" suppressHydrationWarning>
               <span>{"\uD83C\uDFAD"}</span> Theme
             </button>
             <div id="theme-dropdown" style={{ display: 'none', position: 'absolute', top: '120%', right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', width: '150px', overflow: 'hidden', zIndex: 100 }}>
@@ -184,8 +184,18 @@ export default function DashboardPage() {
 
           {session?.is_authenticated && (
             <>
-              <a href="/api/dashboard/my_labelings" className="hp-nav-btn hp-btn-outline" target="AskFDALabel_MyProjects"><span>{"\uD83D\uDCBC"}</span> My Projects</a>
-              <a href="/api/dashboard/auth/logout" className="hp-nav-btn hp-btn-outline"><span>{"\u21AA"}</span> Logout</a>
+              <a href="/api/dashboard/my_labelings" className="hp-nav-btn hp-btn-outline" target="AskFDALabel_MyProjects" style={{ 
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}><span>{"\uD83D\uDCBC"}</span> My Projects</a>
+              <a href="/api/dashboard/auth/logout" className="hp-nav-btn hp-btn-outline" style={{ 
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}><span>{"\u21AA"}</span> Logout</a>
             </>
           )}
         </div>
@@ -295,6 +305,7 @@ export default function DashboardPage() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search by name, Set ID, or NDC..." 
                     required 
+                    suppressHydrationWarning
                     style={{
                       flex: 1,
                       padding: '0.75rem',
@@ -303,7 +314,7 @@ export default function DashboardPage() {
                       border: '1px solid #cbd5e1'
                     }}
                   />
-                  <button type="submit" style={{
+                  <button type="submit" suppressHydrationWarning style={{
                     background: '#6366f1',
                     color: 'white',
                     border: 'none',

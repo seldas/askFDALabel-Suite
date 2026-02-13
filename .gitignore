@@ -30,3 +30,6 @@ tmp/
 downloads/
 uploads/
 dashboard_old/
+
+# Database
+afd.db

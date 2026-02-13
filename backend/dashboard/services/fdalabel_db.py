@@ -123,7 +123,7 @@ class FDALabelDBService:
                 manufacturer = row[3]
                 market_category = row[4]
                 appl_num = row[5]
-                # ndc_codes = row[6].split(';') if row[6] else []
+                ndc_codes = row[6]
                 effective_time = row[7]
 
 
@@ -135,7 +135,8 @@ class FDALabelDBService:
                     'effective_time': effective_time,
                     'label_format': 'FDALabel',
                     'application_number': appl_num,
-                    'product_type': market_category
+                    'market_category': market_category,
+                    'ndc': ndc_codes
                 }
                 results.append(item)
 
