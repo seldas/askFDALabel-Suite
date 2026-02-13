@@ -1,0 +1,39 @@
+/* Highlights Snippet Styles */
+
+.highlight-drug {
+    background-color: rgba(0, 123, 255, 0.15);
+    border-bottom: 2px solid #007bff;
+    padding: 0 2px;
+    border-radius: 2px;
+    font-weight: 500;
+    color: #0056b3;
+}
+
+.highlight-adverse_events {
+    background-color: rgba(220, 53, 69, 0.15);
+    border-bottom: 2px solid #dc3545;
+    padding: 0 2px;
+    border-radius: 2px;
+    font-weight: 500;
+    color: #a71d2a;
+}
+
+.highlight-temporal {
+    background-color: rgba(40, 167, 69, 0.15);
+    border-bottom: 2px solid #28a745;
+    padding: 0 2px;
+    border-radius: 2px;
+    font-weight: 500;
+    color: #1e7e34;
+}
+
+.highlight-company {
+    background-color: rgba(111, 66, 193, 0.15);
+    border-bottom: 2px solid #6f42c1;
+    padding: 0 2px;
+    border-radius: 2px;
+    font-weight: 500;
+    color: #59359a;
+}
+
+/* Tooltip or additional info could be added here if needed */
