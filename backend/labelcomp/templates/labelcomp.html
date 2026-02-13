@@ -30,6 +30,14 @@
             border-color: #cbd5e1;
             background-color: #f8fafc;
         }
+
+        /* AI Summary Styles */
+        .ai-summary-content { line-height: 1.6; color: #334155; }
+        .ai-summary-content h3 { margin-top: 0; color: #1e293b; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 12px; }
+        .ai-summary-content h4 { margin: 15px 0 8px 0; color: #475569; font-size: 1.1em; }
+        .ai-summary-content ul { padding-left: 20px; margin-bottom: 15px; }
+        .ai-summary-content li { margin-bottom: 6px; }
+        .summary-section { margin-bottom: 20px; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9; }
     </style>
 </head>
 <body>
@@ -40,26 +48,6 @@
     <div class="results-container" style="padding-top: 40px;">
         <div id="main-content" class="main-content expanded">
             <div class="container compare-container">
-                <div class="auth-nav">
-                    <button id="scroll-top-btn" class="button nav-btn-back" title="Scroll to Top"><span>&#8679;</span> Top</button>
-                    
-                    <div class="view-tabs" style="margin-bottom: 0; display: flex; gap: 8px; margin-right: auto; margin-left: 15px;">
-                        <button class="tab-btn active">⚖️ Label Comparison</button>
-                    </div>
-
-                    {% if current_user.is_authenticated %}
-                        <div class="favorites-dropdown-wrapper">
-                            <button id="favorites-toggle-btn" class="button btn-favorites"><span>&#128188;</span> My Projects</button>
-                            <div id="favorites-dropdown-menu" class="favorites-dropdown-menu">
-                                <div class="dropdown-loading">Loading...</div>
-                            </div>
-                        </div>
-                        <a href="/api/dashboard/auth/logout" class="button btn-logout">Logout</a>
-                    {% else %}
-                        <a href="/api/dashboard/auth/login" class="button btn-login">Login</a>
-                    {% endif %}
-                </div>
-
                 <div class="compare-title-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 40px;">
                     <div style="display: flex; align-items: center; gap: 15px;">
                         <h1 style="margin: 0; font-size: 1.8em;">
@@ -98,6 +86,37 @@
                             </div>
                         {% endfor %}
                     </div>
+                    
+                    <!-- AI Summary Panel -->
+                    <div class="ai-summary-container" style="margin-top: 20px; padding: 20px; border-radius: 12px; background: #fff; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h2 style="margin: 0; display: flex; align-items: center; gap: 10px; font-size: 1.4em; color: #1e293b;">
+                                <span style="font-size: 1.2em;">✨</span> AI Comparison Summary
+                            </h2>
+                            {% if current_user.is_authenticated %}
+                                <button id="generate-summary-btn" class="button" onclick="generateAiSummary()" 
+                                        style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border: none; padding: 8px 20px; font-weight: 600; display: {% if existing_summary %}none{% else %}flex{% endif %}; align-items: center; gap: 8px;">
+                                    <span>🤖</span> Elsa Summary
+                                </button>
+                                {% if existing_summary %}
+                                    <button class="button" onclick="generateAiSummary(true)" style="background: none; border: 1px solid #cbd5e1; color: #64748b; font-size: 0.8em; padding: 4px 12px;">Regenerate</button>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                        <div id="ai-summary-content" class="ai-summary-content">
+                            {% if existing_summary %}
+                                {{ existing_summary | safe }}
+                            {% else %}
+                                <p style="color: #64748b; font-style: italic; margin: 0;">No summary generated yet. Click "Elsa Summary" to analyze key differences with AI.</p>
+                            {% endif %}
+                        </div>
+                        <div id="summary-loader" style="display: none; text-align: center; padding: 30px;">
+                            <div class="loader-spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #6366f1; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 15px;"></div>
+                            <p style="color: #4f46e5; font-weight: 600; margin: 0;">Elsa is analyzing differences... This may take a few seconds.</p>
+                            <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+                        </div>
+                    </div>
+
                     <hr>
                 {% endif %}
 
@@ -195,21 +214,14 @@
             </div>
 
             <div id="add-tab-favorites" class="add-tab-content" style="display: none;">
-                {% if user_favorites %}
-                    <ul style="list-style: none; padding: 0; max-height: 400px; overflow-y: auto;">
-                    {% for fav in user_favorites %}
-                        <li style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <strong>{{ fav.brand_name }}</strong><br>
-                                <small style="color: #666;">{{ fav.manufacturer_name }} ({{ fav.effective_time }})</small>
-                            </div>
-                            <button class="button" onclick="addLabel('{{ fav.set_id }}')" style="padding: 5px 10px; font-size: 0.9em;">Add</button>
-                        </li>
-                    {% endfor %}
-                    </ul>
-                {% else %}
-                    <p style="color: #666; font-style: italic; padding: 20px; text-align: center;">No favorites found. <br>Login to access your projects.</p>
-                {% endif %}
+                <div id="projects-list-container">
+                    <div style="text-align: center; padding: 20px;"><i class="fa fa-spinner fa-spin"></i> Loading Projects...</div>
+                </div>
+                <div id="project-labels-container" style="display: none;">
+                    <button class="button" onclick="backToProjects()" style="margin-bottom: 10px; padding: 4px 10px; font-size: 0.8em; background-color: #f8fafc; border: 1px solid #e2e8f0;">&larr; Back to Projects</button>
+                    <h4 id="selected-project-title" style="margin: 0 0 10px 0;"></h4>
+                    <div id="labels-list-content"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -217,6 +229,7 @@
     <script>
         function openAddLabelModal() {
             document.getElementById('addLabelModal').style.display = 'block';
+            loadProjectsForModal();
         }
         function closeAddLabelModal() {
             document.getElementById('addLabelModal').style.display = 'none';
@@ -234,6 +247,141 @@
             btn.classList.add('active');
             btn.style.backgroundColor = '#007bff';
             btn.style.color = 'white';
+            
+            if (tabName === 'favorites') {
+                loadProjectsForModal();
+            }
+        }
+
+        async function loadProjectsForModal() {
+            const container = document.getElementById('projects-list-container');
+            const labelsContainer = document.getElementById('project-labels-container');
+            
+            // If we are already viewing labels, don't reset to projects list unless forced
+            if (labelsContainer.style.display === 'block') return;
+
+            try {
+                const response = await fetch('/api/dashboard/projects');
+                const data = await response.json();
+                const projects = data.projects || [];
+
+                if (projects.length === 0) {
+                    container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">No projects found. <br>Please log in and create a project.</p>';
+                    return;
+                }
+
+                let html = '<ul style="list-style: none; padding: 0; margin: 0;">';
+                projects.forEach(p => {
+                    html += `
+                        <li style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center;" onclick="loadLabelsForProject(${p.id}, '${p.title.replace(/'/g, "\\'")}')">
+                            <div>
+                                <strong style="color: #007bff;">📁 ${p.title}</strong>
+                                <div style="font-size: 0.8em; color: #666;">${p.count} items • ${p.role}</div>
+                            </div>
+                            <span style="color: #cbd5e1;">&rarr;</span>
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                container.innerHTML = html;
+            } catch (err) {
+                console.error('Error loading projects:', err);
+                container.innerHTML = '<p style="text-align: center; color: #dc3545; padding: 20px;">Error loading projects.</p>';
+            }
+        }
+
+        async function loadLabelsForProject(projectId, title) {
+            const projectsList = document.getElementById('projects-list-container');
+            const labelsContainer = document.getElementById('project-labels-container');
+            const labelsContent = document.getElementById('labels-list-content');
+            const titleEl = document.getElementById('selected-project-title');
+
+            projectsList.style.display = 'none';
+            labelsContainer.style.display = 'block';
+            titleEl.innerText = title;
+            labelsContent.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fa fa-spinner fa-spin"></i> Loading labels...</div>';
+
+            try {
+                const response = await fetch(`/api/dashboard/favorites_data?project_id=${projectId}`);
+                const data = await response.json();
+                const favorites = data.favorites || [];
+
+                if (favorites.length === 0) {
+                    labelsContent.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">No saved labels in this project.</p>';
+                    return;
+                }
+
+                let html = '<ul style="list-style: none; padding: 0; max-height: 350px; overflow-y: auto;">';
+                favorites.forEach(fav => {
+                    html += `
+                        <li style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>${fav.brand_name}</strong><br>
+                                <small style="color: #666;">${fav.manufacturer_name} (${fav.effective_time})</small>
+                            </div>
+                            <button class="button" onclick="addLabel('${fav.set_id}')" style="padding: 5px 10px; font-size: 0.9em;">Add</button>
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                labelsContent.innerHTML = html;
+            } catch (err) {
+                console.error('Error loading labels:', err);
+                labelsContent.innerHTML = '<p style="text-align: center; color: #dc3545; padding: 20px;">Error loading labels.</p>';
+            }
+        }
+
+        function backToProjects() {
+            document.getElementById('projects-list-container').style.display = 'block';
+            document.getElementById('project-labels-container').style.display = 'none';
+        }
+
+        async function generateAiSummary(force = false) {
+            const contentDiv = document.getElementById('ai-summary-content');
+            const loader = document.getElementById('summary-loader');
+            const btn = document.getElementById('generate-summary-btn');
+
+            contentDiv.style.display = 'none';
+            loader.style.display = 'block';
+            if (btn) btn.style.display = 'none';
+
+            try {
+                // Prepare simple label names
+                const labelNames = selectedLabelsMetadata.map(m => m.brand_name);
+                
+                // We simplify comparisonData to only what's needed for the prompt
+                const diffData = comparisonData
+                    .filter(s => !s.is_same && !s.is_empty)
+                    .map(s => ({
+                        title: s.title,
+                        content1: s.contents[0],
+                        content2: s.contents[1]
+                    }));
+
+                const response = await fetch('/labelcomp/summarize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        set_ids: currentSetIds,
+                        comparison_data: diffData,
+                        label_names: labelNames,
+                        force_refresh: force
+                    })
+                });
+
+                const data = await response.json();
+                if (data.summary) {
+                    contentDiv.innerHTML = data.summary;
+                } else if (data.error) {
+                    contentDiv.innerHTML = `<p style="color: #dc3545;">Error generating summary: ${data.error}</p>`;
+                }
+            } catch (err) {
+                console.error(err);
+                contentDiv.innerHTML = `<p style="color: #dc3545;">Failed to connect to summarization service.</p>`;
+            } finally {
+                loader.style.display = 'none';
+                contentDiv.style.display = 'block';
+            }
         }
 
         async function performDrugSearch() {

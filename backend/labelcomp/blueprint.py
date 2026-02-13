@@ -6,9 +6,28 @@ from dashboard.services.fdalabel_db import FDALabelDBService
 from dashboard.services.fda_client import get_label_metadata, get_label_xml
 from dashboard.utils import normalize_text_for_diff, get_section_sort_key, normalize_title_text, extract_numeric_section_id
 import re
+import json
+import hashlib
 from difflib import HtmlDiff
+from .compare import get_comparison_summary
 
 labelcomp_bp = Blueprint('labelcomp', __name__, template_folder='templates')
+
+@labelcomp_bp.route('/summarize', methods=['POST'])
+@login_required
+def summarize():
+    data = request.json
+    set_ids = data.get('set_ids')
+    comparison_data = data.get('comparison_data')
+    label_names = data.get('label_names')
+    force_refresh = data.get('force_refresh', False)
+    
+    try:
+        summary = get_comparison_summary(current_user, set_ids, comparison_data, label_names, force_refresh)
+        return jsonify({'summary': summary})
+    except Exception as e:
+        current_app.logger.error(f"Summarization error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @labelcomp_bp.route('/', methods=['GET', 'POST'])
 def index():
@@ -135,10 +154,21 @@ def index():
     if current_user.is_authenticated:
         user_favorites = Favorite.query.filter_by(user_id=current_user.id).order_by(Favorite.timestamp.desc()).all()
 
+    # Check for existing summary in cache
+    existing_summary = None
+    if set_ids:
+        from database import ComparisonSummary
+        sorted_ids = sorted(set_ids)
+        ids_hash = hashlib.sha256(json.dumps(sorted_ids).encode('utf-8')).hexdigest()
+        cached = ComparisonSummary.query.filter_by(set_ids_hash=ids_hash).first()
+        if cached:
+            existing_summary = cached.summary_content
+
     return render_template('labelcomp.html', 
                            labels=[ld['title'] for ld in labels_data], 
                            comparison_data=comparison_data,
                            selected_labels_metadata=selected_labels_metadata,
                            drug_name=drug_name,
                            current_set_ids=set_ids,
-                           user_favorites=user_favorites)
+                           user_favorites=user_favorites,
+                           existing_summary=existing_summary)

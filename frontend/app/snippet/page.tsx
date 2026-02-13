@@ -163,7 +163,7 @@ export default function SnippetPage() {
 
       <div style={{ marginTop: '2rem', width: '100%', textAlign: 'center'}}>
         <video 
-          src="/snippets/SNIPPET_DEMO.mp4" 
+          src="/snippets/Animated_Tutorial_Medical_Snippet_Tool.mp4" 
           controls 
           style={{ 
             width: '100%', 

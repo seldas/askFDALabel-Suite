@@ -34,6 +34,8 @@ from search.scripts.search_v2 import (
     convert_oracle_to_filtered_results,
 )
 
+from dashboard.services.fda_client import find_labels
+
 from search.scripts.search_v2_core.agents.answer_composer import build_answer_messages, run_answer_composer
 from search.scripts.search_v2_core.agents.reasoning_generator import run_reasoning_generator
 from search.scripts.search_v2_core.config import client
@@ -71,6 +73,22 @@ def search():
     payload = request.json or {}
     resp, status = search_v1_func(payload)
     return jsonify(resp), status
+
+@search_bp.route("/find", methods=["GET"])
+def find():
+    query = request.args.get("q", "").strip()
+    skip = request.args.get("skip", 0, type=int)
+    limit = request.args.get("limit", 10, type=int)
+    
+    if not query:
+        return jsonify({"results": [], "total": 0})
+        
+    try:
+        labels, total = find_labels(query, skip=skip, limit=limit)
+        return jsonify({"results": labels, "total": total})
+    except Exception as e:
+        logger.error(f"Error in /find: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @search_bp.route("/search_agentic", methods=["POST"])
 def search_agentic():

@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
         source: "/labelcomp",
         destination: `${BACKEND}/labelcomp/`,
       },
+      {
+        source: "/labelcomp/:path*",
+        destination: `${BACKEND}/labelcomp/:path*`,
+      },
     ];
   },
   allowedDevOrigins: ["ncshpcgpu01", "elsa.fda.gov", "localhost"],

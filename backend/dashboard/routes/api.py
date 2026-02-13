@@ -468,10 +468,6 @@ def check_favorite(set_id):
 @api_bp.route('/toggle_favorite_comparison', methods=['POST'])
 @login_required
 def toggle_favorite_comparison():
-    # External env restriction: disable multiple labeling favorites
-    if not FDALabelDBService.check_connectivity():
-        return jsonify({'error': 'Saving comparison favorites is only available in internal environments.'}), 403
-
     data = request.get_json()
     set_ids = data.get('set_ids') # list
     title = data.get('title')
