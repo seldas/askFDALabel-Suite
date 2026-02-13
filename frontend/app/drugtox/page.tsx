@@ -554,6 +554,22 @@ export default function DrugToxPage() {
                   fetchDrugs(val, toxType, showHistorical, changedOnly, 0, rowsPerPage);
                 }
               }}
+              clearIcon={<CloseIcon sx={{ fontSize: 20 }} />}
+              sx={{ 
+                '& .MuiAutocomplete-clearIndicator': {
+                  color: '#64748b',
+                  transition: 'all 0.2s ease',
+                  backgroundColor: 'transparent !important',
+                  '&:hover': { 
+                    color: '#1e293b',
+                    transform: 'rotate(90deg)'
+                  }
+                },
+                // Ensure the clear button doesn't push the Analyze button
+                '& .MuiAutocomplete-endAdornment': {
+                  right: '15px !important'
+                }
+              }}
               renderInput={(params) => (
                 <TextField
                   {...params}
@@ -574,11 +590,22 @@ export default function DrugToxPage() {
                       </InputAdornment>
                     ),
                   }}
-                  sx={{ ml: 1, flex: 1 }}
+                  sx={{ ml: 1, flex: 1, pr: 2 }}
                 />
               )}
             />
-            <Button variant="contained" onClick={() => handleSearchSubmit()} sx={{ borderRadius: '10px', px: 5, py: 1.5, fontWeight: 700, boxShadow: 'none' }}>
+            <Button 
+              variant="contained" 
+              onClick={() => handleSearchSubmit()} 
+              sx={{ 
+                borderRadius: '10px', 
+                px: 5, 
+                py: 1.5, 
+                fontWeight: 700, 
+                boxShadow: 'none',
+                ml: 1 // Add specific margin to separate from the input area
+              }}
+            >
               Analyze
             </Button>
           </Paper>
