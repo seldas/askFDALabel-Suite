@@ -14,6 +14,10 @@ class Config:
     LLM_KEY=os.getenv('LLM_KEY','')
     LLM_MODEL=os.getenv('LLM_MODEL','')
 
+    # Gemini Models
+    PRIMARY_MODEL_ID = os.getenv('PRIMARY_MODEL_ID', 'gemini-2.5-pro')
+    FALLBACK_MODEL_ID = os.getenv('FALLBACK_MODEL_ID', 'gemini-2.0-flash')
+
     ELSA_API_NAME=os.getenv('ELSA_API_NAME','')
     ELSA_API_KEY=os.getenv('ELSA_API_KEY','')
     ELSA_MODEL_ID=os.getenv('ELSA_MODEL_ID','')

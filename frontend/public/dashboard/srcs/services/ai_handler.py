@@ -50,7 +50,7 @@ class AIClientFactory:
                 return "openai", client, os.getenv("INTERNAL_VLLM_MODEL_NAME", "meta-llama/Llama-3-70b")
             else:
                 # External default: Gemini
-                return "gemini", genai.Client(api_key=default_gemini_key), "gemini-2.5-flash"
+                return "gemini", genai.Client(api_key=default_gemini_key), os.getenv("PRIMARY_MODEL_ID", "gemini-2.5-pro")
         
         if user.ai_provider == 'openai':
             client = OpenAI(
@@ -70,11 +70,11 @@ class AIClientFactory:
         elif user.ai_provider == 'gemma':
             # Gemma 3 27B (using Gemini API)
             api_key = user.custom_gemini_key if user.custom_gemini_key else default_gemini_key
-            return "gemini", genai.Client(api_key=api_key), "gemma-3-27b-it"
+            return "gemini", genai.Client(api_key=api_key), os.getenv("GEMMA_MODEL_ID", "gemma-3-27b-it")
         else:
             # Gemini (User custom or system default)
             api_key = user.custom_gemini_key if user.custom_gemini_key else default_gemini_key
-            return "gemini", genai.Client(api_key=api_key), "gemini-2.5-flash"
+            return "gemini", genai.Client(api_key=api_key), os.getenv("PRIMARY_MODEL_ID", "gemini-2.5-pro")
         
 def call_llm(user, system_prompt, user_message, history=None, model_override=None, **kwargs):
     provider, client, model = AIClientFactory.get_client(user)
@@ -201,33 +201,20 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
         except Exception as e:
             error_str = str(e)
             if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                # Fallback logic: Switch to Gemma 3 27B and retry
+                # Fallback logic: Switch to defined fallback model and retry
                 try:
-                    logger.warning("Gemini quota exceeded. Switching to Gemma 3 27B fallback.")
+                    fallback_model = os.getenv("FALLBACK_MODEL_ID", "gemini-2.0-flash")
+                    logger.warning(f"Gemini quota exceeded. Switching to {fallback_model} fallback.")
                     
-                    if user and user.is_authenticated:
-                        from srcs.extensions import db
-                        user.ai_provider = 'gemma'
-                        db.session.commit()
-                    
-                    fallback_model = "gemma-3-27b-it"
-                    # IMPORTANT: Recursively call call_llm or re-process the prompt here
-                    # To keep it simple, we fix the config/contents for the fallback retry:
                     fallback_config = config
-                    fallback_config.system_instruction = None # Ensure it's off for Gemma
+                    # For some models we might need to adjust config, but 2.0-flash is usually compatible
                     
-                    # Prepend system prompt to the user message for the fallback retry
-                    if system_prompt:
-                        # We reconstruct the user part of the contents list
-                        fallback_user_msg = f"SYSTEM INSTRUCTIONS:\n{system_prompt}\n\nUSER MESSAGE:\n{user_message}"
-                        contents[-1] = types.Content(role="user", parts=[types.Part.from_text(text=fallback_user_msg)])
-
                     response = client.models.generate_content(model=fallback_model, contents=contents, config=fallback_config)
-                    return response.text + "\n\n(Note: Switched to Gemma 3 27B due to high usage.)"
+                    return response.text + f"\n\n(Note: Switched to {fallback_model} due to usage limits.)"
                     
                 except Exception as fallback_error:
                     logger.error(f"Fallback failed: {fallback_error}")
-                    return "Gemini is currently not available (usage limit) and Gemma fallback failed. Please try later."
+                    return f"Gemini is currently not available (usage limit) and fallback to {fallback_model} failed. Please try later."
             
             logger.error(f"Gemini error: {e}")
             raise e
