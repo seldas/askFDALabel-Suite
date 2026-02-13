@@ -916,9 +916,17 @@ export default function DrugToxPage() {
                 <Grid xs={12} sm={6}>
                   <MetaItem
                     icon={<AssignmentIcon fontSize="small" />}
-                    label="DailyMed Source"
+                    label="Source"
                     value={`https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=${detail.SETID}`}
                     isLink
+                  />
+                </Grid>
+                <Grid xs={12} sm={6}>
+                  <MetaItem
+                    icon={<DashboardIcon fontSize="small" />}
+                    label="Analysis"
+                    value="View in Dashboard"
+                    onClick={() => window.open(`/dashboard/label/${detail.SETID}`, '_blank')}
                   />
                 </Grid>
                 <Grid xs={12} sm={6}>
