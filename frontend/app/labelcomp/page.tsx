@@ -63,6 +63,7 @@ function LabelCompContent() {
 
   const [summaryGenerating, setSummaryGenerating] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiSummaryCollapsed, setAiSummaryCollapsed] = useState(false);
 
   // Collapse State
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -309,41 +310,49 @@ function LabelCompContent() {
         {/* AI Summary Section */}
         {data && data.selected_labels_metadata.length >= 2 && (
           <section style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '3rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ color: '#002e5d', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: aiSummaryCollapsed ? '0' : '1.5rem' }}>
+              <h3 
+                onClick={() => setAiSummaryCollapsed(!aiSummaryCollapsed)}
+                style={{ color: '#002e5d', margin: 0, display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', userSelect: 'none' }}
+              >
+                <span style={{ fontSize: '0.8rem', transform: aiSummaryCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
                 <span>✨</span> AI Comparison Insight
               </h3>
-              {session?.is_authenticated && (
-                <button 
-                  onClick={() => generateAiSummary()}
-                  disabled={summaryGenerating}
-                  style={{ 
-                    backgroundColor: '#002e5d', 
-                    color: 'white', 
-                    border: 'none', 
-                    padding: '8px 16px', 
-                    borderRadius: '6px', 
-                    fontSize: '0.85rem', 
-                    cursor: 'pointer',
-                    opacity: summaryGenerating ? 0.7 : 1
-                  }}
-                >
-                  {summaryGenerating ? 'Analyzing...' : aiSummary ? 'Regenerate Summary' : 'Generate Summary'}
-                </button>
-              )}
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                {session?.is_authenticated && (
+                    <button 
+                    onClick={() => generateAiSummary()}
+                    disabled={summaryGenerating}
+                    style={{ 
+                        backgroundColor: '#002e5d', 
+                        color: 'white', 
+                        border: 'none', 
+                        padding: '8px 16px', 
+                        borderRadius: '6px', 
+                        fontSize: '0.85rem', 
+                        cursor: 'pointer',
+                        opacity: summaryGenerating ? 0.7 : 1
+                    }}
+                    >
+                    {summaryGenerating ? 'Analyzing...' : aiSummary ? 'Regenerate Summary' : 'Generate Summary'}
+                    </button>
+                )}
+              </div>
             </div>
             
-            <div className="ai-summary-content" style={{ color: '#475569', lineHeight: 1.7 }}>
-              {aiSummary ? (
-                <div dangerouslySetInnerHTML={{ __html: aiSummary }} />
-              ) : (
-                <p style={{ fontStyle: 'italic' }}>
-                  {session?.is_authenticated 
-                    ? 'Click "Generate Summary" to let AI analyze the key differences between these labels.' 
-                    : 'Sign in to generate an AI-powered comparison summary.'}
-                </p>
-              )}
-            </div>
+            {!aiSummaryCollapsed && (
+                <div className="ai-summary-content" style={{ color: '#475569', lineHeight: 1.7, animation: 'fadeIn 0.2s' }}>
+                {aiSummary ? (
+                    <div dangerouslySetInnerHTML={{ __html: aiSummary }} />
+                ) : (
+                    <p style={{ fontStyle: 'italic' }}>
+                    {session?.is_authenticated 
+                        ? 'Click "Generate Summary" to let AI analyze the key differences between these labels.' 
+                        : 'Sign in to generate an AI-powered comparison summary.'}
+                    </p>
+                )}
+                </div>
+            )}
           </section>
         )}
 
@@ -387,57 +396,107 @@ function LabelCompContent() {
                 </div>
 
                 {!collapsedSections[section.key] && (
-                    <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: `repeat(${data.labels.length}, 1fr)`, 
-                        gap: '1rem', 
-                        padding: '0 1.5rem 1.5rem 1.5rem', 
-                        animation: 'fadeIn 0.2s' 
-                    }}>
-                    {section.contents.map((content, cIdx) => {
-                        const meta = data.selected_labels_metadata[cIdx];
-                        const manufacturerSnippet = meta.manufacturer_name ? `${meta.manufacturer_name.substring(0, 5)}...` : 'N/A';
-                        const tagLabel = `${meta.brand_name} [${manufacturerSnippet}]`;
-                        
-                        return (
-                            <div key={cIdx} style={{ 
-                                fontSize: '0.9rem', 
-                                color: '#334155', 
-                                lineHeight: 1.6,
-                                padding: '2rem 1rem 1rem 1rem',
-                                backgroundColor: cIdx % 2 === 0 ? '#f8fafc' : '#ffffff',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '8px',
-                                position: 'relative',
-                                minHeight: '100px'
-                            }}>
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '6px',
-                                    left: '6px',
-                                    backgroundColor: '#002e5d',
-                                    color: 'white',
-                                    fontSize: '0.65rem',
-                                    padding: '2px 8px',
-                                    borderRadius: '4px',
-                                    fontWeight: 700,
-                                    textTransform: 'uppercase',
-                                    maxWidth: '90%',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    zIndex: 1
-                                }} title={tagLabel}>
-                                    {tagLabel}
+                    <div style={{ padding: '0 1.5rem 1.5rem 1.5rem', animation: 'fadeIn 0.2s' }}>
+                        {(section as any).is_major_change ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div style={{ 
+                                    backgroundColor: '#fff7ed', 
+                                    border: '1px solid #fed7aa', 
+                                    borderRadius: '8px', 
+                                    padding: '1rem', 
+                                    color: '#9a3412',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px'
+                                }}>
+                                    <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                                    <div>
+                                        <div style={{ fontWeight: 800 }}>Significant Section Overhaul</div>
+                                        <div style={{ fontSize: '0.8rem', opacity: 0.9 }}>Extensively rewritten. Granular highlighting disabled for readability.</div>
+                                    </div>
                                 </div>
-                                {content ? (
-                                    <div dangerouslySetInnerHTML={{ __html: content }} />
-                                ) : (
-                                    <span style={{ color: '#cbd5e1', fontStyle: 'italic' }}>Not specified in this label.</span>
-                                )}
+                                <div style={{ 
+                                    display: 'grid', 
+                                    gridTemplateColumns: `repeat(${data.labels.length}, 1fr)`, 
+                                    gap: '1rem' 
+                                }}>
+                                    {section.contents.map((content, cIdx) => {
+                                        const meta = data.selected_labels_metadata[cIdx];
+                                        return (
+                                            <div key={cIdx} style={{ 
+                                                fontSize: '0.9rem', 
+                                                color: '#334155', 
+                                                lineHeight: 1.6,
+                                                padding: '2.25rem 1rem 1rem 1rem',
+                                                backgroundColor: cIdx % 2 === 0 ? '#f8fafc' : '#ffffff',
+                                                border: '1px solid #e2e8f0',
+                                                borderRadius: '8px',
+                                                position: 'relative'
+                                            }}>
+                                                <div style={{ position: 'absolute', top: '8px', left: '8px', backgroundColor: '#002e5d', color: 'white', fontSize: '0.65rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                                                    {meta.brand_name}
+                                                </div>
+                                                {content ? <div dangerouslySetInnerHTML={{ __html: content }} /> : <span style={{ color: '#cbd5e1', fontStyle: 'italic' }}>Not specified.</span>}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        );
-                    })}
+                        ) : (
+                            <div style={{ 
+                                display: 'grid', 
+                                gridTemplateColumns: `repeat(${data.labels.length}, 1fr)`, 
+                                gap: '1rem' 
+                            }}>
+                                {section.contents.map((content, cIdx) => {
+                                    const meta = data.selected_labels_metadata[cIdx];
+                                    const manufacturerSnippet = meta.manufacturer_name ? `${meta.manufacturer_name.substring(0, 5)}...` : 'N/A';
+                                    const tagLabel = `${meta.brand_name} [${manufacturerSnippet}]`;
+                                    
+                                    // Use nuanced content if available, otherwise original content
+                                    const displayContent = (section as any).nuanced_contents?.[cIdx] || content;
+
+                                    return (
+                                        <div key={cIdx} style={{ 
+                                            fontSize: '0.9rem', 
+                                            color: '#334155', 
+                                            lineHeight: 1.6,
+                                            padding: '2.25rem 1rem 1rem 1rem',
+                                            backgroundColor: cIdx % 2 === 0 ? '#f8fafc' : '#ffffff',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '8px',
+                                            position: 'relative',
+                                            minHeight: '100px'
+                                        }}>
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: '8px',
+                                                left: '8px',
+                                                backgroundColor: section.is_same ? '#64748b' : '#002e5d',
+                                                color: 'white',
+                                                fontSize: '0.65rem',
+                                                padding: '2px 8px',
+                                                borderRadius: '4px',
+                                                fontWeight: 700,
+                                                textTransform: 'uppercase',
+                                                maxWidth: '90%',
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                zIndex: 1
+                                            }} title={tagLabel}>
+                                                {tagLabel}
+                                            </div>
+                                            {displayContent ? (
+                                                <div dangerouslySetInnerHTML={{ __html: displayContent }} />
+                                            ) : (
+                                                <span style={{ color: '#cbd5e1', fontStyle: 'italic' }}>Not specified in this label.</span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
               </div>
@@ -557,6 +616,15 @@ function LabelCompContent() {
         .ai-summary-content ul { padding-left: 1.5rem; margin-bottom: 1rem; }
         .ai-summary-content li { margin-bottom: 0.5rem; }
         .summary-section { margin-bottom: 1.5rem; }
+
+        .diff-table-wrapper { width: 100%; overflow-x: auto; }
+        .diff { width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 0.85rem; }
+        .diff td, .diff th { padding: 8px; border: 1px solid #e2e8f0; vertical-align: top; }
+        .diff_header { background-color: #f1f5f9; color: #64748b; font-weight: 700; text-align: center; }
+        .diff_next { display: none; }
+        .diff_add, ins.diff-add { background-color: #dcfce7; color: #166534; text-decoration: none; border-radius: 2px; padding: 0 2px; }
+        .diff_chg { background-color: #fef9c3; color: #854d0e; }
+        .diff_sub, del.diff-sub { background-color: #fee2e2; color: #991b1b; text-decoration: line-through; border-radius: 2px; padding: 0 2px; }
       `}</style>
     </div>
   );

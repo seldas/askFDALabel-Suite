@@ -115,7 +115,39 @@ def index():
         sorted_keys = sorted(all_section_keys.keys())
 
     comparison_data = []
-    htmldiffer = HtmlDiff()
+    from difflib import SequenceMatcher
+
+    def nuanced_word_diff(text1, text2):
+        """Performs word-level diff and returns two HTML strings."""
+        if not text1: text1 = ""
+        if not text2: text2 = ""
+        
+        # Simple tokenization by whitespace
+        words1 = text1.split()
+        words2 = text2.split()
+        
+        matcher = SequenceMatcher(None, words1, words2)
+        html1 = []
+        html2 = []
+        
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == 'equal':
+                chunk = " ".join(words1[i1:i2])
+                html1.append(chunk)
+                html2.append(chunk)
+            elif tag == 'insert':
+                chunk = " ".join(words2[j1:j2])
+                html2.append(f'<ins class="diff-add">{chunk}</ins>')
+            elif tag == 'delete':
+                chunk = " ".join(words1[i1:i2])
+                html1.append(f'<del class="diff-sub">{chunk}</del>')
+            elif tag == 'replace':
+                chunk1 = " ".join(words1[i1:i2])
+                chunk2 = " ".join(words2[j1:j2])
+                html1.append(f'<del class="diff-sub">{chunk1}</del>')
+                html2.append(f'<ins class="diff-add">{chunk2}</ins>')
+        
+        return " ".join(html1), " ".join(html2)
 
     def aggressive_normalize(lines):
         if not lines: return ""
@@ -138,22 +170,36 @@ def index():
         is_same = has_all and len(set(agg_normalized_contents)) == 1
 
         diff_html_output = None
+        is_major_change = False
+        nuanced_contents = [None, None]
+        
         if not is_same and len(contents) == 2:
             plain_text1_lines = normalized_contents[0] if normalized_contents[0] is not None else []
             plain_text2_lines = normalized_contents[1] if normalized_contents[1] is not None else []
             
-            diff_html_output = htmldiffer.make_table(plain_text1_lines, plain_text2_lines, context=True)
-            if diff_html_output:
-                diff_html_output = diff_html_output.replace('nowrap="nowrap"', '').replace('&nbsp;', ' ')
-                diff_html_output = re.sub(r'<colgroup>.*?</colgroup>', '', diff_html_output)
+            t1 = " ".join(plain_text1_lines)
+            t2 = " ".join(plain_text2_lines)
+            
+            similarity = 0
+            if t1 and t2:
+                similarity = SequenceMatcher(None, t1, t2).ratio()
+            
+            if similarity < 0.3 and len(t1) > 200 and len(t2) > 200:
+                is_major_change = True
+            else:
+                # Generate nuanced word diffs
+                h1, h2 = nuanced_word_diff(t1, t2)
+                nuanced_contents = [h1, h2]
 
         comparison_data.append({
             'title': display_title,
             'key': key,
             'nesting_level': key.count('.') if comparison_format == 'PLR' else 0,
             'contents': contents, 
+            'nuanced_contents': nuanced_contents,
             'is_same': is_same,
             'is_empty': is_empty,
+            'is_major_change': is_major_change,
             'diff_html': diff_html_output
         })
 
