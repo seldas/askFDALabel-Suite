@@ -6,7 +6,6 @@ from dashboard.services.fda_client import get_label_metadata, get_label_xml
 from dashboard.services.ai_handler import generate_assessment
 import xml.etree.ElementTree as ET
 import uuid
-from flask_login import current_user
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -62,7 +61,7 @@ def get_expected_biomarkers(drug_name):
             
     return [b.biomarker_name for b in biomarkers]
 
-def run_pgx_assessment(set_id, force_refresh=False):
+def run_pgx_assessment(set_id, user=None, force_refresh=False):
     # 1. Check existing assessment
     assessment = PgxAssessment.query.filter_by(set_id=set_id).first()
     
@@ -205,7 +204,7 @@ def run_pgx_assessment(set_id, force_refresh=False):
     """
     
     try:        
-        ai_response = generate_assessment(current_user, prompt, aggregated_text)
+        ai_response = generate_assessment(user, prompt, aggregated_text)
         clean_json = extract_json_from_response(ai_response)
         data = json.loads(clean_json)  # Validate
         
