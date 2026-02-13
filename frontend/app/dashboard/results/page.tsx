@@ -244,7 +244,7 @@ function ResultsContent() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {selectedSetIds.size > 0 && (
               <button 
-                onClick={() => router.push(`/api/dashboard/compare?set_ids=${Array.from(selectedSetIds).join(',')}`)} 
+                onClick={() => router.push(`/labelcomp?set_ids=${Array.from(selectedSetIds).join(',')}`)} 
                 className="hp-nav-btn" 
                 style={{ backgroundColor: '#28a745', color: 'white' }}
               >

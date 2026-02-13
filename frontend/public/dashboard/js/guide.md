@@ -9,7 +9,7 @@ The frontend logic for AskFDALabel has been modularized from a monolithic `scrip
 ├── `chat.js`        - AI Chatbox, Message handling, and Sticky Note logic.
 ├── `annotations.js` - User Manual Annotations (Highlighting & Comments).
 ├── `favorites.js`   - Project management and "Favorite" toggling logic.
-├── `compare.js`     - Comparison Tool logic (checkboxes, AI summary).
+├── `compare.js`     - (DEPRECATED) Comparison Tool logic. Now handled by React.
 ├── `faers.js`       - FAERS Dashboard (Data fetching, Tables, Charts).
 └── `tox.js`         - Toxicology Agents (DILI, DICT, DIRI) logic.
 
@@ -86,6 +86,6 @@ The frontend logic for AskFDALabel has been modularized from a monolithic `scrip
 ## Usage in Templates
 HTML templates should include the specific scripts they need.
 *   **`results.html`**: Needs `utils.js`, `ui.js`, `chat.js`, `annotations.js`, `favorites.js`, `faers.js`, `tox.js`.
-*   **`compare.html`**: Needs `utils.js`, `ui.js`, `favorites.js`, `compare.js`.
+*   **`compare.html`**: (DEPRECATED) Replaced by `/labelcomp` React page.
 *   **`selection.html`**: Needs `utils.js`, `favorites.js`.
 
