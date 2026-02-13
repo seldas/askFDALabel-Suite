@@ -63,30 +63,20 @@ const Header: React.FC = () => {
             <span style={{ fontSize: '0.875rem', opacity: 0.8, color: 'white' }}>Loading...</span>
           ) : session?.is_authenticated ? (
             <>
-              {/* AI Provider Dropdown */}
-              <div className="custom-dropdown" onClick={(e) => e.stopPropagation()}>
-                <button 
-                  className="dropdown-trigger"
-                  onClick={() => setActiveDropdown(activeDropdown === 'ai' ? null : 'ai')}
-                >
-                  <span style={{ opacity: 0.7, fontWeight: 400 }}>AI:</span> 
-                  {session.ai_provider?.toUpperCase()}
-                  <span style={{ fontSize: '0.6rem' }}>▼</span>
-                </button>
-                
-                {activeDropdown === 'ai' && (
-                  <div className="dropdown-menu">
-                    {!session.is_internal && (
-                      <button className={`dropdown-item ${session.ai_provider === 'gemini' ? 'active' : ''}`} onClick={() => { updateAiProvider('gemini'); setActiveDropdown(null); }}>Gemini</button>
-                    )}
-                    {session.is_internal && (
-                      <>
-                        <button className={`dropdown-item ${session.ai_provider === 'openai' ? 'active' : ''}`} onClick={() => { updateAiProvider('openai'); setActiveDropdown(null); }}>LLAMA</button>
-                        <button className={`dropdown-item ${session.ai_provider === 'elsa' ? 'active' : ''}`} onClick={() => { updateAiProvider('elsa'); setActiveDropdown(null); }}>ELSA</button>
-                      </>
-                    )}
-                  </div>
-                )}
+              {/* AI Provider Indicator (Static) */}
+              <div style={{ 
+                fontSize: '0.85rem', 
+                color: 'white', 
+                background: 'rgba(255,255,255,0.1)', 
+                padding: '4px 12px', 
+                borderRadius: '20px',
+                border: '1px solid rgba(255,255,255,0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }} title="AI model is set on the Suite Home page">
+                <span style={{ opacity: 0.7 }}>AI:</span>
+                <span style={{ fontWeight: 700 }}>{session.ai_provider?.toUpperCase()}</span>
               </div>
 
               {/* User Settings Dropdown */}

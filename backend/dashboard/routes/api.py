@@ -208,7 +208,8 @@ def ai_chat():
         return jsonify({'error': 'Missing message or xml_content'}), 400
 
     try:
-        response_text = chat_with_document(current_user, user_message, history, xml_content, chat_type)
+        user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+        response_text = chat_with_document(user_obj, user_message, history, xml_content, chat_type)
         return jsonify({'response': response_text})
     except Exception as e:
         logger.error(f"Error calling AI API: {e}, {current_user}, {chat_type}")
@@ -224,7 +225,8 @@ def ai_search_help():
         return jsonify({'error': 'Missing message'}), 400
 
     try:
-        response_json = get_search_helper_response(current_user, user_message, history)
+        user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+        response_json = get_search_helper_response(user_obj, user_message, history)
         # Verify it's valid JSON
         try:
             # It might come back with markdown code blocks ```json ... ```
@@ -301,7 +303,8 @@ def ai_compare_summary():
         return jsonify({'error': 'No differing sections provided for AI summary.'}), 400
 
     try:
-        response_text = summarize_comparison(current_user, differing_sections_data, label1_name, label2_name)
+        user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+        response_text = summarize_comparison(user_obj, differing_sections_data, label1_name, label2_name)
         
         # 3. Save to Cache
         if ids_hash:
@@ -1257,8 +1260,9 @@ def run_assessment_logic(set_id, assessment_model, prompt):
         if not aggregated_text:
             return jsonify({'assessment_report': "No relevant sections found."})
 
-        try:
-            response_text = generate_assessment(current_user, prompt, aggregated_text)
+    try:
+        user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+        response_text = generate_assessment(user_obj, prompt, aggregated_text)
 
             html_matches = re.findall(r'(<div class="label-section">[\s\S]*?</div>)', response_text, re.DOTALL)
     
@@ -1327,7 +1331,8 @@ def api_diri_assess(set_id):
 @api_bp.route('/pgx/assess/<set_id>')
 def api_pgx_assess(set_id):
     force_refresh = request.args.get('refresh') == 'true'
-    result = run_pgx_assessment(set_id, force_refresh=force_refresh)
+    user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+    result = run_pgx_assessment(set_id, user=user_obj, force_refresh=force_refresh)
     if 'error' in result:
         return jsonify({'error': result['error']}), 500
     return jsonify(result)

@@ -23,7 +23,8 @@ def summarize():
     force_refresh = data.get('force_refresh', False)
     
     try:
-        summary = get_comparison_summary(current_user, set_ids, comparison_data, label_names, force_refresh)
+        user_obj = current_user._get_current_object()
+        summary = get_comparison_summary(user_obj, set_ids, comparison_data, label_names, force_refresh)
         return jsonify({'summary': summary})
     except Exception as e:
         current_app.logger.error(f"Summarization error: {e}")
@@ -204,8 +205,9 @@ def index():
         })
 
     user_favorites = []
-    if current_user.is_authenticated:
-        user_favorites = Favorite.query.filter_by(user_id=current_user.id).order_by(Favorite.timestamp.desc()).all()
+    user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+    if user_obj:
+        user_favorites = Favorite.query.filter_by(user_id=user_obj.id).order_by(Favorite.timestamp.desc()).all()
 
     # Check for existing summary in cache
     existing_summary = None

@@ -276,12 +276,13 @@ def chat():
             spl_xmls.append(documents)
         else:
             return jsonify({"error": "Invalid doc_type"}), 400
+        user_obj = current_user._get_current_object() if current_user.is_authenticated else None
         def chat_stream():
             yield from search.call_llm_stream_func(
                 chatHistory, 
                 spl_xmls, 
                 uploaded_files, 
-                user=current_user if current_user.is_authenticated else None
+                user=user_obj
             )
         return Response(stream_with_context(chat_stream()), content_type="application/json")
     except Exception as e:
@@ -391,13 +392,14 @@ def export_excel():
 @search_bp.route("/random_query", methods=["GET"])
 def random_query():
     try:
+        user_obj = current_user._get_current_object() if current_user.is_authenticated else None
         messages = [{"role": "system", "content": prompt_boring}]
         process_success, generated_question = safe_llm_call(
             client, 
             messages, 
             max_tokens=100, 
             temperature=0.9, 
-            user=current_user if current_user.is_authenticated else None
+            user=user_obj
         )
         if not process_success: return jsonify({"query": "What are the indications for Ozempic?"})
         return jsonify({"query": generated_question.replace('"', "").strip()})
