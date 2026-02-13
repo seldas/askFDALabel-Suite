@@ -6,8 +6,6 @@ import { useState, useEffect } from 'react';
 
 export default function HomePage() {
   const { session, loading, updateAiProvider, refreshSession } = useUser();
-  const [showAiModal, setShowAiModal] = useState(false);
-  const [configLoading, setConfigLoading] = useState(false);
   const [isInternal, setIsInternal] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
@@ -31,29 +29,6 @@ export default function HomePage() {
     };
     checkInternalStatus();
   }, []);
-
-  const handleConfigSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setConfigLoading(true);
-    const formData = new FormData(e.currentTarget);
-    try {
-      const res = await fetch('/api/dashboard/preferences', {
-        method: 'POST',
-        body: new URLSearchParams(formData as any),
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert("Configuration saved!");
-        await refreshSession();
-        setShowAiModal(false);
-      }
-    } catch (e) {
-      alert("Failed to save configuration");
-    } finally {
-      setConfigLoading(false);
-    }
-  };
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
@@ -105,11 +80,6 @@ export default function HomePage() {
                         <button className={`dropdown-item ${session.ai_provider === 'elsa' ? 'active' : ''}`} onClick={() => { updateAiProvider('elsa'); setActiveDropdown(null); }}>ELSA</button>
                       </>
                     )}
-                    <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
-                      <button className="dropdown-item" style={{ color: '#64748b' }} onClick={() => { setShowAiModal(true); setActiveDropdown(null); }}>
-                        ⚙ Configure Keys...
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
@@ -143,9 +113,6 @@ export default function HomePage() {
                       <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ACCOUNT</div>
                       <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
                     </div>
-                    <button className="dropdown-item" onClick={() => { setShowAiModal(true); setActiveDropdown(null); }}>
-                      AI Configuration
-                    </button>
                     <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
                       <a href="/api/dashboard/auth/change_password" className="dropdown-item">Change Password</a>
                       <a href="/api/dashboard/auth/logout" className="dropdown-item" style={{ color: '#ef4444' }}>Sign Out</a>
@@ -329,84 +296,6 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
-
-      {/* AI Config Modal - keeping original logic but updated styles */}
-      {showAiModal && (
-        <div 
-          className="animate-fade-in"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px'
-          }}
-        >
-          <div 
-            className="animate-modal-enter"
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '8px',
-              maxWidth: '500px',
-              width: '100%',
-              padding: '30px',
-              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h3 style={{ margin: 0, color: '#002e5d', fontSize: '1.5rem' }}>AI System Configuration</h3>
-              <button onClick={() => setShowAiModal(false)} style={{ background: 'none', border: 'none', fontSize: '2rem', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
-            </div>
-            
-            <form onSubmit={handleConfigSubmit}>
-              <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', fontWeight: 700, marginBottom: '8px', fontSize: '0.875rem', color: '#334155' }}>PRIMARY PROVIDER</label>
-                <select name="ai_provider" defaultValue={session?.ai_provider} style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '1rem' }}>
-                  {!session?.is_internal && (
-                    <>
-                      <option value="gemini">Gemini (Default)</option>
-                      <option value="gemma">Gemma 3 27B</option>
-                    </>
-                  )}
-                  <option value="openai">OpenAI-Compatible</option>
-                  {session?.is_internal && <option value="elsa">ELSA (Internal)</option>}
-                </select>
-              </div>
-              
-              <div style={{ border: '1px solid #e2e8f0', padding: '20px', borderRadius: '4px', marginBottom: '20px', background: '#f8fafc' }}>
-                 <div style={{ marginBottom: '15px' }}>
-                    <label style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#64748b' }}>GEMINI API KEY</label>
-                    <input type="password" name="custom_gemini_key" defaultValue={session?.custom_gemini_key} style={{ width: '100%', padding: '8px', marginTop: '5px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-                 </div>
-                 <div style={{ marginBottom: '15px' }}>
-                    <label style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#64748b' }}>OPENAI API KEY</label>
-                    <input type="password" name="openai_api_key" defaultValue={session?.openai_api_key} style={{ width: '100%', padding: '8px', marginTop: '5px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-                 </div>
-                 <div style={{ marginBottom: '15px' }}>
-                    <label style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#64748b' }}>BASE URL</label>
-                    <input type="text" name="openai_base_url" defaultValue={session?.openai_base_url} style={{ width: '100%', padding: '8px', marginTop: '5px', borderRadius: '4px', border: '1px solid #cbd5e1' }} placeholder="https://api.openai.com/v1" />
-                 </div>
-                 <div>
-                    <label style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#64748b' }}>MODEL NAME</label>
-                    <input type="text" name="openai_model_name" defaultValue={session?.openai_model_name} style={{ width: '100%', padding: '8px', marginTop: '5px', borderRadius: '4px', border: '1px solid #cbd5e1' }} placeholder="gpt-4-turbo" />
-                 </div>
-              </div>
-
-              <div style={{ textAlign: 'right', marginTop: '24px' }}>
-                <button type="submit" disabled={configLoading} style={{ background: '#002e5d', color: 'white', border: 'none', padding: '12px 30px', borderRadius: '4px', fontWeight: '700', cursor: 'pointer', fontSize: '0.875rem' }}>
-                  {configLoading ? 'PROCESSING...' : 'SAVE SETTINGS'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

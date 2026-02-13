@@ -54,10 +54,10 @@ class AIClientFactory:
         
         if user.ai_provider == 'openai':
             client = OpenAI(
-                api_key=user.openai_api_key,
-                base_url=user.openai_base_url if user.openai_base_url else None
+                api_key=os.getenv("LLM_KEY"),
+                base_url=os.getenv("LLM_URL") if os.getenv("LLM_URL") else None
             )
-            return "openai", client, user.openai_model_name or "gpt-4o"
+            return "openai", client, os.getenv("LLM_MODEL", "gpt-4o")
         elif user.ai_provider == 'elsa':
             # Elsa configuration
             elsa_config = {
@@ -68,13 +68,11 @@ class AIClientFactory:
             }
             return "elsa", elsa_config, os.getenv("ELSA_MODEL_ID")
         elif user.ai_provider == 'gemma':
-            # Gemma 3 27B (using Gemini API)
-            api_key = user.custom_gemini_key if user.custom_gemini_key else default_gemini_key
-            return "gemini", genai.Client(api_key=api_key), os.getenv("GEMMA_MODEL_ID", "gemma-3-27b-it")
+            # Gemma (using Gemini API from .env)
+            return "gemini", genai.Client(api_key=default_gemini_key), os.getenv("GEMMA_MODEL_ID", "gemma-3-27b-it")
         else:
-            # Gemini (User custom or system default)
-            api_key = user.custom_gemini_key if user.custom_gemini_key else default_gemini_key
-            return "gemini", genai.Client(api_key=api_key), os.getenv("PRIMARY_MODEL_ID", "gemini-2.5-pro")
+            # Gemini (using Gemini API from .env)
+            return "gemini", genai.Client(api_key=default_gemini_key), os.getenv("PRIMARY_MODEL_ID", "gemini-2.5-pro")
         
 def call_llm(user, system_prompt, user_message, history=None, model_override=None, **kwargs):
     provider, client, model = AIClientFactory.get_client(user)
