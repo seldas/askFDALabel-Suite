@@ -16,7 +16,7 @@ def import_drugtox():
         print("=== DrugTox Data Importer ===")
         
         root_dir = Path(__file__).resolve().parent.parent.parent
-        excel_path = root_dir / 'data' / 'downloads' / 'ALT_update_02102026.xlsx'
+        excel_path = root_dir / 'data' / 'downloads' / 'ALT_update_latest.xlsx'
         
         if not excel_path.exists():
             print(f"Error: Excel file not found at {excel_path}")
