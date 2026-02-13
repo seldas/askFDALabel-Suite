@@ -78,7 +78,6 @@ class AIClientFactory:
         
 def call_llm(user, system_prompt, user_message, history=None, model_override=None, **kwargs):
     provider, client, model = AIClientFactory.get_client(user)
-    print(provider, model)
     if model_override:
         model = model_override
 

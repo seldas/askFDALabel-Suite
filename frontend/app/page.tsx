@@ -95,13 +95,15 @@ export default function HomePage() {
                   <div className="dropdown-menu">
                     {!session.is_internal && (
                       <>
-                        <button className={`dropdown-item ${session.ai_provider === 'gemini' ? 'active' : ''}`} onClick={() => { updateAiProvider('gemini'); setActiveDropdown(null); }}>Gemini 1.5 Pro</button>
-                        <button className={`dropdown-item ${session.ai_provider === 'gemma' ? 'active' : ''}`} onClick={() => { updateAiProvider('gemma'); setActiveDropdown(null); }}>Gemma 3 27B</button>
+                        <button className={`dropdown-item ${session.ai_provider === 'gemini' ? 'active' : ''}`} onClick={() => { updateAiProvider('gemini'); setActiveDropdown(null); }}>Gemini</button>
+                        <button className={`dropdown-item ${session.ai_provider === 'gemma' ? 'active' : ''}`} onClick={() => { updateAiProvider('gemma'); setActiveDropdown(null); }}>Gemma</button>
                       </>
                     )}
-                    <button className={`dropdown-item ${session.ai_provider === 'openai' ? 'active' : ''}`} onClick={() => { updateAiProvider('openai'); setActiveDropdown(null); }}>OpenAI / Custom</button>
                     {session.is_internal && (
-                      <button className={`dropdown-item ${session.ai_provider === 'elsa' ? 'active' : ''}`} onClick={() => { updateAiProvider('elsa'); setActiveDropdown(null); }}>ELSA Internal</button>
+                      <>
+                        <button className={`dropdown-item ${session.ai_provider === 'openai' ? 'active' : ''}`} onClick={() => { updateAiProvider('openai'); setActiveDropdown(null); }}>LLAMA</button>
+                        <button className={`dropdown-item ${session.ai_provider === 'elsa' ? 'active' : ''}`} onClick={() => { updateAiProvider('elsa'); setActiveDropdown(null); }}>ELSA</button>
+                      </>
                     )}
                     <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
                       <button className="dropdown-item" style={{ color: '#64748b' }} onClick={() => { setShowAiModal(true); setActiveDropdown(null); }}>
