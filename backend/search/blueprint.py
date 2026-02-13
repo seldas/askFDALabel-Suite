@@ -74,10 +74,10 @@ else:
 def search():
     payload = request.json or {}
     ai_provider = payload.get("ai_provider")
-    user = current_user if current_user.is_authenticated else None
-    if user and ai_provider:
-        user.ai_provider = ai_provider
-    resp, status = search_v1_func(payload, user=user)
+    user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+    if user_obj and ai_provider:
+        user_obj.ai_provider = ai_provider
+    resp, status = search_v1_func(payload, user=user_obj)
     return jsonify(resp), status
 
 @search_bp.route("/find", methods=["GET"])
@@ -100,21 +100,21 @@ def find():
 def search_agentic():
     payload = request.json or {}
     ai_provider = payload.get("ai_provider")
-    user = current_user if current_user.is_authenticated else None
-    if user and ai_provider:
-        user.ai_provider = ai_provider
-    resp, status = search_v2_func(payload, user=user)
+    user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+    if user_obj and ai_provider:
+        user_obj.ai_provider = ai_provider
+    resp, status = search_v2_func(payload, user=user_obj)
     return jsonify(resp), status
 
 @search_bp.route("/generate_answer", methods=["POST"])
 def generate_answer():
     payload = request.json or {}
     ai_provider = payload.get("ai_provider")
-    user = current_user if current_user.is_authenticated else None
-    if user and ai_provider:
-        user.ai_provider = ai_provider
+    user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+    if user_obj and ai_provider:
+        user_obj.ai_provider = ai_provider
     def gen():
-        yield from generate_answer_stream_func(payload, user=user)
+        yield from generate_answer_stream_func(payload, user=user_obj)
     return Response(stream_with_context(gen()), content_type="text/plain")
 
 @search_bp.route("/get_metadata", methods=["POST"])
@@ -198,13 +198,16 @@ def stream_answer_tokens(state):
 def search_agentic_stream():
     payload = request.json or {}
     ai_provider = payload.get("ai_provider")
+    
+    # Capture the actual user object before returning the generator
+    # This is critical for threads and streaming context
+    user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+    if user_obj and ai_provider:
+        # Override in-memory for the current request flow
+        user_obj.ai_provider = ai_provider
+
     def generate():
-        user = current_user if current_user.is_authenticated else None
-        # Allow overriding ai_provider from payload if provided (for flexibility)
-        if user and ai_provider:
-            user.ai_provider = ai_provider
-            
-        state = AgentState(payload, user=user)
+        state = AgentState(payload, user=user_obj)
         done = threading.Event()
         err = {}
         def worker():
