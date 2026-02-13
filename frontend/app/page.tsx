@@ -233,7 +233,7 @@ export default function HomePage() {
         <div className="animate-fade-in-up delay-6">
           <ScientificCard 
             title="DrugTox Intelligence" 
-            description="Advanced toxicological data for hepatotoxicity, cardiotoxicity, and nephrotoxicity."
+            description="Advanced toxicological data for DILI, DICT and DIRI."
             href="/drugtox"
             icon="🧪"
           />

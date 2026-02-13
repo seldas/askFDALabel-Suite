@@ -61,6 +61,11 @@ function LabelCompContent() {
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [loadingLabels, setLoadingLabels] = useState(false);
 
+  // Multi-select and Filter states
+  const [selectedLabelsForAdd, setSelectedLabelsForAdd] = useState<any[]>([]);
+  const [labelFilter, setLabelFilter] = useState('');
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
   const [summaryGenerating, setSummaryGenerating] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiSummaryCollapsed, setAiSummaryCollapsed] = useState(false);
@@ -121,6 +126,13 @@ function LabelCompContent() {
     setCollapsedSections(newState);
   };
 
+  useEffect(() => {
+    if (!showAddModal) {
+      setSelectedLabelsForAdd([]);
+      setLabelFilter('');
+    }
+  }, [showAddModal]);
+
   // Load projects when modal opens
   useEffect(() => {
     if (showAddModal && session?.is_authenticated) {
@@ -155,6 +167,49 @@ function LabelCompContent() {
     } finally {
       setLoadingLabels(false);
     }
+  };
+
+  const toggleLabelSelection = (label: any) => {
+    const isSelected = selectedLabelsForAdd.find(l => l.set_id === label.set_id);
+    if (isSelected) {
+      setSelectedLabelsForAdd(prev => prev.filter(l => l.set_id !== label.set_id));
+    } else {
+      if (selectedLabelsForAdd.length >= 10) {
+        alert('Maximum 10 labels can be selected.');
+        return;
+      }
+      setSelectedLabelsForAdd(prev => [...prev, label]);
+    }
+  };
+
+  const handleBulkAdd = () => {
+    if (selectedLabelsForAdd.length === 0) return;
+    
+    if (selectedLabelsForAdd.length >= 4) {
+      setShowConfirmDialog(true);
+    } else {
+      confirmBulkAdd();
+    }
+  };
+
+  const confirmBulkAdd = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    let addedCount = 0;
+    
+    selectedLabelsForAdd.forEach(label => {
+      if (!setIds.includes(label.set_id)) {
+        params.append('set_ids', label.set_id);
+        addedCount++;
+      }
+    });
+
+    if (addedCount > 0) {
+      router.push(`/labelcomp?${params.toString()}`);
+    }
+    
+    setShowAddModal(false);
+    setShowConfirmDialog(false);
+    setSelectedLabelsForAdd([]);
   };
 
   const handleAddLabel = (setId: string) => {
@@ -514,10 +569,86 @@ function LabelCompContent() {
       {/* Add Label Modal */}
       {showAddModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-          <div style={{ backgroundColor: 'white', borderRadius: '12px', width: '100%', maxWidth: '600px', padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '12px', width: '100%', maxWidth: '700px', padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative' }}>
+            
+            {/* Bulk Add Button (Top Right) */}
+            {selectedLabelsForAdd.length > 0 && (
+                <button 
+                    onClick={handleBulkAdd}
+                    style={{ 
+                        position: 'absolute', 
+                        top: '2rem', 
+                        right: '4.5rem', 
+                        backgroundColor: '#10b981', 
+                        color: 'white', 
+                        border: 'none', 
+                        padding: '8px 20px', 
+                        borderRadius: '6px', 
+                        fontWeight: 700, 
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)',
+                        zIndex: 10
+                    }}
+                >
+                    Add {selectedLabelsForAdd.length} Selected
+                </button>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: 0, color: '#002e5d' }}>Add Label to Compare</h3>
+              <h3 style={{ margin: 0, color: '#002e5d' }}>Add Labels to Compare</h3>
               <button onClick={() => { setShowAddModal(false); setSelectedProject(null); }} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
+            </div>
+
+            {/* Selected Badges Row */}
+            {selectedLabelsForAdd.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', flexWrap: 'wrap', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', alignSelf: 'center', marginRight: '4px' }}>SELECTED:</span>
+                    {selectedLabelsForAdd.map((l, i) => (
+                        <div key={l.set_id} className="badge-container">
+                            <div 
+                                style={{ 
+                                    width: '24px', 
+                                    height: '24px', 
+                                    borderRadius: '50%', 
+                                    backgroundColor: '#002e5d', 
+                                    color: 'white', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center', 
+                                    fontSize: '0.75rem', 
+                                    fontWeight: 800,
+                                    cursor: 'help'
+                                }}
+                            >
+                                {i + 1}
+                            </div>
+                            <div className="badge-tooltip">
+                                <div style={{ color: '#94a3b8', fontSize: '0.6rem', marginBottom: '2px', fontWeight: 700, textTransform: 'uppercase' }}>Selected Label</div>
+                                <div style={{ fontWeight: 600 }}>{l.brand_name}</div>
+                                <div style={{ fontSize: '0.7rem', opacity: 0.8, marginTop: '4px' }}>{l.manufacturer_name}</div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Global Filter Bar */}
+            <div style={{ marginBottom: '1.5rem', position: 'relative' }}>
+                <input 
+                    type="text" 
+                    placeholder="Search all labels in current project..."
+                    value={labelFilter}
+                    onChange={(e) => setLabelFilter(e.target.value)}
+                    style={{ 
+                        width: '100%', 
+                        padding: '10px 12px 10px 35px', 
+                        borderRadius: '8px', 
+                        border: '1px solid #e2e8f0', 
+                        fontSize: '0.9rem',
+                        outline: 'none'
+                    }}
+                />
+                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>🔍</span>
             </div>
 
             <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
@@ -557,29 +688,64 @@ function LabelCompContent() {
                         <p style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>Please sign in to access your projects.</p>
                     ) : selectedProject ? (
                         <div>
-                            <button onClick={() => setSelectedProject(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: '1rem', fontSize: '0.85rem' }}>&larr; Back to Projects</button>
-                            <h4 style={{ margin: '0 0 1rem 0' }}>{selectedProject.title}</h4>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                <button onClick={() => setSelectedProject(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.85rem' }}>&larr; Back to Projects</button>
+                                <h4 style={{ margin: 0, fontWeight: 800 }}>📁 {selectedProject.title}</h4>
+                            </div>
                             {loadingLabels ? (
-                                <p>Loading labels...</p>
+                                <p style={{ textAlign: 'center', padding: '2rem' }}>Loading labels...</p>
                             ) : (
-                                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                                    {projectLabels.map(label => (
-                                        <div key={label.set_id} style={{ padding: '10px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div>
-                                                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{label.brand_name}</div>
-                                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{label.manufacturer_name}</div>
+                                <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                                    {projectLabels
+                                      .filter(label => 
+                                        !labelFilter || 
+                                        label.brand_name.toLowerCase().includes(labelFilter.toLowerCase()) || 
+                                        label.manufacturer_name.toLowerCase().includes(labelFilter.toLowerCase())
+                                      )
+                                      .map(label => {
+                                        const isSelected = selectedLabelsForAdd.find(l => l.set_id === label.set_id);
+                                        return (
+                                            <div 
+                                                key={label.set_id} 
+                                                onClick={() => toggleLabelSelection(label)}
+                                                style={{ 
+                                                    padding: '12px', 
+                                                    borderBottom: '1px solid #f1f5f9', 
+                                                    display: 'flex', 
+                                                    justifyContent: 'space-between', 
+                                                    alignItems: 'center',
+                                                    cursor: 'pointer',
+                                                    backgroundColor: isSelected ? '#f0f9ff' : 'transparent',
+                                                    transition: 'background-color 0.2s'
+                                                }}
+                                            >
+                                                <div>
+                                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: isSelected ? '#0369a1' : 'inherit' }}>{label.brand_name}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{label.manufacturer_name}</div>
+                                                </div>
+                                                <div style={{ 
+                                                    width: '20px', 
+                                                    height: '20px', 
+                                                    borderRadius: '4px', 
+                                                    border: `2px solid ${isSelected ? '#0369a1' : '#cbd5e1'}`,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    backgroundColor: isSelected ? '#0369a1' : 'white'
+                                                }}>
+                                                    {isSelected && <span style={{ color: 'white', fontSize: '12px' }}>✓</span>}
+                                                </div>
                                             </div>
-                                            <button onClick={() => handleAddLabel(label.set_id)} style={{ padding: '4px 12px', borderRadius: '4px', border: '1px solid #e2e8f0', cursor: 'pointer' }}>Add</button>
-                                        </div>
-                                    ))}
+                                        );
+                                      })}
                                 </div>
                             )}
                         </div>
                     ) : (
                         <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
-                            {loadingProjects ? <p>Loading projects...</p> : projects.map(p => (
-                                <div key={p.id} onClick={() => fetchProjectLabels(p)} style={{ padding: '1rem', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}>
-                                    <div style={{ fontWeight: 700, color: '#002e5d' }}>📁 {p.title}</div>
+                            {loadingProjects ? <p style={{ textAlign: 'center', padding: '2rem' }}>Loading projects...</p> : projects.map(p => (
+                                <div key={p.id} onClick={() => fetchProjectLabels(p)} style={{ padding: '1rem', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', '&:hover': { backgroundColor: '#f8fafc' } }}>
+                                    <div style={{ fontWeight: 700, color: '#002e5d' }}>{p.title === 'Favorite' ? '⭐' : '📁'} {p.title}</div>
                                     <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{p.count} labels • {p.role}</div>
                                 </div>
                             ))}
@@ -610,7 +776,64 @@ function LabelCompContent() {
         </div>
       )}
 
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+            <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '2rem', maxWidth: '400px', textAlign: 'center', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔬</div>
+                <h3 style={{ margin: '0 0 1rem 0', color: '#002e5d' }}>Complex Comparison</h3>
+                <p style={{ color: '#64748b', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: '2rem' }}>
+                    You have selected <strong>{selectedLabelsForAdd.length} labels</strong>. Comparing many documents simultaneously may take longer to process. Proceed with analysis?
+                </p>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                    <button onClick={() => setShowConfirmDialog(false)} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={confirmBulkAdd} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', background: '#002e5d', color: 'white', fontWeight: 700, cursor: 'pointer' }}>Proceed</button>
+                </div>
+            </div>
+        </div>
+      )}
+
       <style jsx global>{`
+        .badge-container {
+          position: relative;
+          display: inline-block;
+        }
+        .badge-tooltip {
+          visibility: hidden;
+          width: 220px;
+          background-color: #1e293b;
+          color: #fff;
+          text-align: center;
+          border-radius: 8px;
+          padding: 10px 14px;
+          position: absolute;
+          z-index: 100;
+          bottom: 125%;
+          left: 50%;
+          transform: translateX(-50%) translateY(5px);
+          opacity: 0;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          font-size: 0.8rem;
+          line-height: 1.4;
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+          pointer-events: none;
+        }
+        .badge-tooltip::after {
+          content: "";
+          position: absolute;
+          top: 100%;
+          left: 50%;
+          margin-left: -6px;
+          border-width: 6px;
+          border-style: solid;
+          border-color: #1e293b transparent transparent transparent;
+        }
+        .badge-container:hover .badge-tooltip {
+          visibility: visible;
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
+
         .ai-summary-content h3 { color: #002e5d; margin-top: 0; font-size: 1.25rem; }
         .ai-summary-content h4 { color: #0071bc; margin: 1.5rem 0 0.5rem 0; font-size: 1rem; font-weight: 700; }
         .ai-summary-content ul { padding-left: 1.5rem; margin-bottom: 1rem; }
