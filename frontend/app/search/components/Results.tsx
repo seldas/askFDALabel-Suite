@@ -1534,6 +1534,24 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                       <div className="meta-row"><span>FDALabel SET-ID:</span> {result.set_id}</div>
                     </div>
                   </div>
+                  <div style={{ marginTop: '15px', textAlign: 'right' }}>
+                    <a
+                      href={`/dashboard/label/${result.set_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: '0.85rem',
+                        color: '#0077cc',
+                        textDecoration: 'none',
+                        fontWeight: 600,
+                        padding: '4px 12px',
+                        borderRadius: '4px',
+                        border: '1px solid #0077cc'
+                      }}
+                    >
+                      View Analysis ↗
+                    </a>
+                  </div>
                 </div>
               </div>
             );
@@ -1659,11 +1677,11 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                         </td>
                         <td>
                           <a
-                            href={`http://ncshpcgpu01:8844/label/${result.set_id}`}
+                            href={`/dashboard/label/${result.set_id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            View in App
+                            View Analysis
                           </a>
                         </td>
                       </tr>

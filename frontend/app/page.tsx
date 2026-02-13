@@ -35,17 +35,18 @@ export default function HomePage() {
       {/* Main Header */}
       <header className="header-main">
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ 
+          <Link href="/" style={{ 
             backgroundColor: 'white', 
             padding: '5px', 
             borderRadius: '4px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            textDecoration: 'none'
           }}>
-             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '32px' }} />
-          </div>
-          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.025em' }}>
+             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '24px' }} />
+          </Link>
+          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
             askFDALabel <span style={{ fontWeight: 300, opacity: 0.8 }}>Suite</span>
           </h1>
         </div>
@@ -311,7 +312,7 @@ function ScientificCard({ title, description, href, icon, children }: { title: s
     const isExternal = href.startsWith('http');
     if (isExternal) {
       return (
-        <a href={href} style={{ textDecoration: 'none' }}>
+        <a href={href} style={{ textDecoration: 'none' }} target="_blank" rel="noopener noreferrer">
           {content}
         </a>
       );

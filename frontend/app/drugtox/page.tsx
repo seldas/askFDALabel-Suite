@@ -478,13 +478,6 @@ export default function DrugToxPage() {
         </div>
 
         <nav style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          {!loading && session?.is_authenticated && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderRight: '1px solid rgba(255,255,255,0.2)', paddingRight: '20px' }}>
-              <Typography variant="caption" sx={{ fontWeight: 700, color: 'white' }}>
-                {session.username}
-              </Typography>
-            </div>
-          )}
           <Link href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</Link>
         </nav>
       </header>

@@ -414,30 +414,54 @@ export default function DashboardPage() {
 
           {/* Projects Browser Section */}
           {showProjects && (
-            <div style={{ width: '100%', maxWidth: '1000px', animation: 'fadeIn 0.3s ease-out' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', marginBottom: '30px' }}>
+            <div style={{ width: '100%', maxWidth: '1200px', animation: 'fadeIn 0.3s ease-out' }}>
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: projects.length > 10 ? 'repeat(auto-fill, minmax(200px, 1fr))' : 'repeat(auto-fill, minmax(280px, 1fr))',
+                gap: '1.25rem', 
+                marginBottom: '3rem',
+                maxHeight: projects.length > 10 ? '400px' : 'none',
+                overflowY: projects.length > 10 ? 'auto' : 'visible',
+                padding: '10px',
+                border: projects.length > 10 ? '1px solid #e2e8f0' : 'none',
+                borderRadius: '16px',
+                backgroundColor: projects.length > 10 ? '#f8fafc' : 'transparent'
+              }}>
                 {projects.map(p => (
-                  <button
+                  <div
                     key={p.id}
                     onClick={() => setActiveProject(activeProject?.id === p.id ? null : p)}
                     style={{
-                      padding: '8px 16px',
-                      borderRadius: '50px',
-                      border: '1px solid',
+                      padding: projects.length > 10 ? '1rem' : '1.5rem',
+                      borderRadius: '16px',
+                      border: '2px solid',
                       borderColor: activeProject?.id === p.id ? '#6366f1' : '#e2e8f0',
-                      background: activeProject?.id === p.id ? '#6366f1' : 'white',
-                      color: activeProject?.id === p.id ? 'white' : '#475569',
-                      fontWeight: 600,
+                      background: activeProject?.id === p.id ? '#f5f3ff' : 'white',
+                      color: '#1e293b',
                       cursor: 'pointer',
-                      transition: 'all 0.2s',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      textAlign: 'left',
+                      boxShadow: activeProject?.id === p.id ? '0 10px 15px -3px rgba(99, 102, 241, 0.1)' : '0 1px 3px rgba(0,0,0,0.05)',
+                      position: 'relative'
                     }}
+                    className="project-selection-card"
                   >
-                    <span>📁</span> {p.title}
-                    <span style={{ fontSize: '0.8em', opacity: 0.8 }}>({p.count})</span>
-                  </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', width: '100%' }}>
+                        <span style={{ fontSize: '1.5rem' }}>📁</span>
+                        <div style={{ fontWeight: 700, fontSize: projects.length > 10 ? '0.9rem' : '1.1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.title}</div>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'flex', gap: '10px' }}>
+                        <span>{p.count} labels</span>
+                        <span>•</span>
+                        <span style={{ textTransform: 'uppercase' }}>{p.role}</span>
+                    </div>
+                    {activeProject?.id === p.id && (
+                        <div style={{ position: 'absolute', top: '10px', right: '10px', color: '#6366f1' }}>✓</div>
+                    )}
+                  </div>
                 ))}
               </div>
 
@@ -559,6 +583,11 @@ export default function DashboardPage() {
       </div>
 
       <style jsx>{`
+        .project-selection-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+          border-color: #6366f1 !important;
+        }
         .dashboard-action-panel:hover {
           transform: translateY(-8px);
           box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1) !important;

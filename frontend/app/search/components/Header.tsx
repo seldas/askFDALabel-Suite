@@ -51,7 +51,6 @@ const Header: React.FC = () => {
         </div>
         
         <nav className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <a target="_blank" rel="noreferrer" href="https://nctr-crs.fda.gov/fdalabel/ui/search" style={{ color: 'white', fontSize: '0.85rem', textDecoration: 'none', opacity: 0.9 }}>Official FDALabel</a>
           <a href="/" style={{ color: 'white', fontSize: '0.85rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</a>
         </nav>
       </div>
