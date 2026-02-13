@@ -34,7 +34,7 @@ def create_unified_app():
     # 3. Register Search and DrugTox blueprints with prefixes
     app.register_blueprint(search_bp, url_prefix='/api/search')
     app.register_blueprint(drugtox_bp, url_prefix='/api/drugtox')
-    app.register_blueprint(labelcomp_bp, url_prefix='/labelcomp')
+    app.register_blueprint(labelcomp_bp, url_prefix='/api/labelcomp')
     
     @app.route('/health')
     def health():

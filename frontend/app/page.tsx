@@ -69,10 +69,7 @@ export default function HomePage() {
                 {activeDropdown === 'ai' && (
                   <div className="dropdown-menu">
                     {!session.is_internal && (
-                      <>
-                        <button className={`dropdown-item ${session.ai_provider === 'gemini' ? 'active' : ''}`} onClick={() => { updateAiProvider('gemini'); setActiveDropdown(null); }}>Gemini</button>
-                        <button className={`dropdown-item ${session.ai_provider === 'gemma' ? 'active' : ''}`} onClick={() => { updateAiProvider('gemma'); setActiveDropdown(null); }}>Gemma</button>
-                      </>
+                      <button className={`dropdown-item ${session.ai_provider === 'gemini' ? 'active' : ''}`} onClick={() => { updateAiProvider('gemini'); setActiveDropdown(null); }}>Gemini</button>
                     )}
                     {session.is_internal && (
                       <>
@@ -228,7 +225,7 @@ export default function HomePage() {
           <ScientificCard 
             title="Label Compare" 
             description="Detailed side-by-side linguistic and regulatory comparison of labels."
-            href="/labelcomp/"
+            href="/labelcomp"
             icon="⚖️"
           />
         </div>
@@ -311,10 +308,10 @@ function ScientificCard({ title, description, href, icon, children }: { title: s
   );
 
   if (href) {
-    const isExternal = href.startsWith('http') || href.startsWith('/labelcomp');
+    const isExternal = href.startsWith('http');
     if (isExternal) {
       return (
-        <a href={href} style={{ textDecoration: 'none' }} target={href.startsWith('http') ? '_blank' : undefined} rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}>
+        <a href={href} style={{ textDecoration: 'none' }}>
           {content}
         </a>
       );

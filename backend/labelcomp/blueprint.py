@@ -29,7 +29,7 @@ def summarize():
         current_app.logger.error(f"Summarization error: {e}")
         return jsonify({'error': str(e)}), 500
 
-@labelcomp_bp.route('/', methods=['GET', 'POST'])
+@labelcomp_bp.route('/', methods=['GET', 'POST'], strict_slashes=False)
 def index():
     """Homepage for Label Comparison app."""
     if request.method == 'POST':
@@ -54,26 +54,33 @@ def index():
     
     selected_labels_metadata = []
     formats = set()
-    for set_id in set_ids:
-        metadata = get_label_metadata(set_id)
-        if not metadata or not metadata.get('label_format'):
-            continue
-        selected_labels_metadata.append(metadata)
-        formats.add(metadata.get('label_format'))
-
-    if not selected_labels_metadata:
-        return render_template('labelcomp.html', labels=[], comparison_data=[], selected_labels_metadata=[], current_set_ids=[])
-
     labels_data = []
     all_section_keys = {}
-    comparison_format = selected_labels_metadata[0].get('label_format')
+    comparison_format = 'PLR'
 
     for set_id in set_ids:
+        # User requested to use DailyMed like other apps
         label_xml_raw = get_label_xml(set_id)
+        
         if label_xml_raw:
+            from dashboard.services.xml_handler import extract_metadata_from_xml
             doc_title, sections, _, _, _ = parse_spl_xml(label_xml_raw)
             flat_sections = flatten_sections(sections)
             
+            # Use metadata from XML if possible
+            meta = extract_metadata_from_xml(label_xml_raw)
+            if not meta.get('brand_name') or meta.get('brand_name') == 'N/A':
+                # Fallback to metadata service which checks more sources
+                meta = get_label_metadata(set_id) or meta
+            
+            # Ensure set_id is in meta for frontend
+            if not meta.get('set_id'):
+                meta['set_id'] = set_id
+
+            selected_labels_metadata.append(meta)
+            formats.add(meta.get('label_format', 'PLR'))
+            comparison_format = meta.get('label_format', 'PLR')
+
             sections_by_key = {}
             for s in flat_sections:
                 if s.get('title'):
@@ -163,6 +170,18 @@ def index():
         cached = ComparisonSummary.query.filter_by(set_ids_hash=ids_hash).first()
         if cached:
             existing_summary = cached.summary_content
+
+    # JSON Response for new frontend
+    if request.args.get('json') == '1' or request.headers.get('Accept') == 'application/json':
+        return jsonify({
+            'labels': [ld['title'] for ld in labels_data],
+            'comparison_data': comparison_data,
+            'selected_labels_metadata': selected_labels_metadata,
+            'drug_name': drug_name,
+            'current_set_ids': set_ids,
+            'existing_summary': existing_summary,
+            'is_authenticated': current_user.is_authenticated
+        })
 
     return render_template('labelcomp.html', 
                            labels=[ld['title'] for ld in labels_data], 

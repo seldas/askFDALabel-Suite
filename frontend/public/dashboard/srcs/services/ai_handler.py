@@ -31,8 +31,7 @@ class AIClientFactory:
             pass
 
         # FORCE Internal Default if in internal environment and trying to use external providers
-        # This prevents Gemini/Gemma usage even if manually set
-        if is_internal and (user and user.ai_provider in ['gemini', 'gemma']):
+        if is_internal and (user and user.ai_provider not in ['elsa',]):
              # Override to Internal OpenAI/Llama
              client = OpenAI(
                 api_key=os.getenv("INTERNAL_VLLM_API_KEY", "no-key-required"),
@@ -67,9 +66,6 @@ class AIClientFactory:
                 'model_engine_id': os.getenv("ELSA_MODEL_ID"),
             }
             return "elsa", elsa_config, os.getenv("ELSA_MODEL_ID")
-        elif user.ai_provider == 'gemma':
-            # Gemma (using Gemini API from .env)
-            return "gemini", genai.Client(api_key=default_gemini_key), os.getenv("GEMMA_MODEL_ID", "gemma-3-27b-it")
         else:
             # Gemini (using Gemini API from .env)
             return "gemini", genai.Client(api_key=default_gemini_key), os.getenv("PRIMARY_MODEL_ID", "gemini-2.5-pro")
@@ -162,16 +158,12 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
             raise e
 
     elif provider == "gemini":
-        # Gemma models often don't support the 'system_instruction' parameter.
-        # We check the model name to decide how to handle the system prompt.
-        is_gemma = "gemma" in model.lower()
-        
-        # Prepare the config - system_instruction is None for Gemma
+        # Prepare the config
         config = types.GenerateContentConfig(
             temperature=temperature,
             top_p=top_p,
             max_output_tokens=max_tokens,
-            system_instruction=None if is_gemma else (system_prompt if system_prompt else None),
+            system_instruction=system_prompt if system_prompt else None,
             safety_settings=[
                 types.SafetySetting(
                     category="HARM_CATEGORY_HARASSMENT",
@@ -182,10 +174,6 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
         
         contents = []
         
-        # If it's Gemma, we inject the system prompt into the first message
-        if is_gemma and system_prompt:
-            user_message = f"SYSTEM INSTRUCTIONS:\n{system_prompt}\n\nUSER MESSAGE:\n{user_message}"
-
         if history:
             for turn in history:
                 role = "model" if turn.get('role') in ['assistant', 'ai'] else "user"

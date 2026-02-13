@@ -7,6 +7,7 @@ load_dotenv(dotenv_path=env_path)
 
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'afd-psw-prod')
+    SESSION_COOKIE_PATH = '/'
 
     OPENFDA_API_KEY=os.getenv('OPENFDA_API_KEY','')
 

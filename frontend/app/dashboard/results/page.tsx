@@ -211,10 +211,7 @@ function ResultsContent() {
                 style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.9em', fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}
               >
                 {session && !session.is_internal && (
-                  <>
-                    <option value="gemini">Gemini</option>
-                    <option value="gemma">Gemma</option>
-                  </>
+                  <option value="gemini">Gemini</option>
                 )}
                 <option value="openai">OpenAI</option>
                 {session && session.is_internal && <option value="elsa">ELSA</option>}

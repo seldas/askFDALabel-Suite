@@ -191,7 +191,6 @@
                         <select name="ai_provider" id="config-ai-provider" onchange="updateConfigUI()" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0;">
                             {% if not is_internal %}
                                 <option value="gemini" {% if current_user.ai_provider == 'gemini' %}selected{% endif %}>Gemini (Default)</option>
-                                <option value="gemma" {% if current_user.ai_provider == 'gemma' %}selected{% endif %}>Gemma 3 27B</option>
                             {% endif %}
                             <option value="openai" {% if current_user.ai_provider == 'openai' %}selected{% endif %}>OpenAI-Compatible</option>
                             {% if is_internal %}
@@ -601,7 +600,9 @@
             const geminiSection = document.getElementById('config-gemini-section');
             const openaiSection = document.getElementById('config-openai-section');
 
-            if (geminiSection) geminiSection.style.display = (provider === 'gemini' || provider === 'gemma') ? 'block' : 'none';
+                            if (geminiSection) geminiSection.style.display = (provider === 'gemini') ? 'block' : 'none';
+
+            
             if (openaiSection) openaiSection.style.display = provider === 'openai' ? 'block' : 'none';
         }
     </script>
