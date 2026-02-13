@@ -1,10 +1,10 @@
 import os
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend')))
 import openpyxl
-from srcs import create_app
-from srcs.extensions import db
-from srcs.models import PgxBiomarker
+from dashboard import create_app
+from dashboard.extensions import db
+from dashboard.models import PgxBiomarker
 
 def populate_pgx():
     app = create_app()

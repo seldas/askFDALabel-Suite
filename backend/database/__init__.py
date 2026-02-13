@@ -1,0 +1,7 @@
+from .extensions import db, migrate, login_manager
+from .models import (
+    User, Project, Favorite, Annotation, FavoriteComparison, LabelAnnotation, ComparisonSummary,
+    DrugToxicity, DiliAssessment, DictAssessment, DiriAssessment,
+    MeddraSOC, MeddraHLGT, MeddraHLT, MeddraPT, MeddraLLT, MeddraMDHIER, MeddraSMQList, MeddraSMQContent,
+    PgxBiomarker, PgxSynonym, PgxAssessment
+)

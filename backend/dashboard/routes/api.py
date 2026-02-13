@@ -8,9 +8,8 @@ from datetime import datetime
 import logging
 import hashlib
 
-from dashboard.extensions import db
-from dashboard.models import (
-    User, Project, Favorite, FavoriteComparison, Annotation, 
+from database import (
+    db, User, Project, Favorite, FavoriteComparison, Annotation, 
     LabelAnnotation, DiliAssessment, DictAssessment, DiriAssessment, ComparisonSummary,
     MeddraPT, MeddraMDHIER, MeddraSOC, MeddraHLT, MeddraLLT
 )

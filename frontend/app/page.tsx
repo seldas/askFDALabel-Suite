@@ -228,7 +228,7 @@ export default function HomePage() {
         <AppCard 
           title="Label Compare" 
           description="Side-by-side comparison of different drug labels and versions."
-          href="#"
+          href="/labelcomp/"
           icon="⚖️"
           color="#ec4899"
         />
@@ -363,9 +363,16 @@ function AppCard({ title, description, href, icon, color, children }: { title: s
   );
 
   if (href) {
-    const isExternal = href.startsWith('http');
+    const isExternal = href.startsWith('http') || href.startsWith('/labelcomp');
+    if (isExternal) {
+      return (
+        <a href={href} style={{ textDecoration: 'none' }} target={href.startsWith('http') ? '_blank' : undefined} rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}>
+          {cardContent}
+        </a>
+      );
+    }
     return (
-      <Link href={href} style={{ textDecoration: 'none' }} target={isExternal ? '_blank' : undefined} rel={isExternal ? 'noopener noreferrer' : undefined}>
+      <Link href={href} style={{ textDecoration: 'none' }}>
         {cardContent}
       </Link>
     );

@@ -2,9 +2,10 @@ const { createServer } = require('https');
 const { parse } = require('url');
 const next = require('next');
 const fs = require('fs');
+const config = require('../suite.config.js');
 
-const port = process.env.PORT ? Number(process.env.PORT) : 8848;
-const host = process.env.HOST || '0.0.0.0';
+const port = process.env.PORT ? Number(process.env.PORT) : config.frontend.port;
+const host = process.env.HOST || config.frontend.host;
 
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });

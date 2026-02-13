@@ -6,8 +6,7 @@ import re
 import json
 from difflib import HtmlDiff
 
-from dashboard.extensions import db
-from dashboard.models import Favorite, Annotation, FavoriteComparison
+from database import db, Favorite, Annotation, FavoriteComparison
 from dashboard.services.xml_handler import (
     parse_spl_xml,
     extract_metadata_from_xml,

@@ -2,8 +2,7 @@ import re
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 from flask_login import login_user, login_required, logout_user, current_user
 from urllib.parse import urlparse
-from dashboard.models import User
-from dashboard.extensions import db
+from database import db, User, Project
 import logging
 
 logger = logging.getLogger(__name__)

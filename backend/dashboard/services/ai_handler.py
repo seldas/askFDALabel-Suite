@@ -207,7 +207,7 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
                     logger.warning("Gemini quota exceeded. Switching to Gemma 3 27B fallback.")
                     
                     if user and user.is_authenticated:
-                        from dashboard.extensions import db
+                        from database import db, DiliAssessment, DictAssessment, DiriAssessment, ComparisonSummary, PgxAssessment
                         user.ai_provider = 'gemma'
                         db.session.commit()
                     

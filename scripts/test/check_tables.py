@@ -1,9 +1,9 @@
 import sqlite3
 import os
 
-db_path = 'users.db'
-if os.path.exists('instance/users.db'):
-    db_path = 'instance/users.db'
+# Set path to the new consolidated DB
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+db_path = os.path.join(root_dir, 'data', 'afd.db')
 
 print(f"Checking database at: {db_path}")
 if not os.path.exists(db_path):

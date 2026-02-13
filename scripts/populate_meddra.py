@@ -1,9 +1,10 @@
 import os
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from backend.dashboard.srcs.extensions import db
-from backend.dashboard.srcs import create_app
-from backend.dashboard.srcs.models import (
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
+
+from dashboard.extensions import db
+from dashboard import create_app
+from dashboard.models import (
     MeddraSOC, MeddraHLGT, MeddraHLT, MeddraPT, MeddraLLT, 
     MeddraMDHIER, MeddraSMQList, MeddraSMQContent
 )
@@ -76,8 +77,10 @@ def run_import():
     with app.app_context():
         print("=== MedDRA Data Importer ===")
         
-        # Determine data directory
-        data_dir = os.path.join('data', 'downloads', 'MedDRA_28_0_ENglish', 'MedAscii')
+        # Determine data directory - root of the project
+        root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        data_dir = os.path.join(root_dir, 'data', 'downloads', 'MedDRA_28_0_ENglish', 'MedAscii')
+        
         if not os.path.exists(data_dir):
             print(f"Critical Error: MedDRA data directory not found at {data_dir}")
             print("Please ensure you have downloaded and extracted MedDRA into that folder.")

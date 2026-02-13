@@ -5,7 +5,7 @@ import glob
 from sqlalchemy import create_engine, text
 
 # Configuration
-DB_NAME = "data/drugtox.db"
+DB_NAME = "data/afd.db"
 # We look for ALT_latest.xlsx, but if not found, we look for any ALT_update_*.xlsx
 DEFAULT_EXCEL_PATH = "data/ALT_latest.xlsx"
 TABLE_NAME = "drug_toxicity"

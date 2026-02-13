@@ -24,12 +24,13 @@ class Config:
     if uri and uri.startswith("postgres://"):
         uri = uri.replace("postgres://", "postgresql://", 1)
 
-    SQLALCHEMY_DATABASE_URI = uri or 'sqlite:///users.db'
+    # Paths - Use project root as base
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+    DATA_DIR = PROJECT_ROOT / 'data'
+    
+    SQLALCHEMY_DATABASE_URI = uri or f"sqlite:///{DATA_DIR / 'afd.db'}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # Paths
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    DATA_DIR = os.path.join(BASE_DIR, 'data')
     UPLOAD_FOLDER = os.path.join(DATA_DIR, 'uploads')
     ANNOTATIONS_FILE = os.path.join(DATA_DIR, 'annotations.json')
 

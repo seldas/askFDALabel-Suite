@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
+const suiteConfig = require("../suite.config.js");
 
-const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8849";
+const BACKEND = process.env.BACKEND_URL ?? `http://localhost:${suiteConfig.backend.port}`;
 
 const nextConfig: NextConfig = {
   async rewrites() {
@@ -8,6 +9,14 @@ const nextConfig: NextConfig = {
       {
         source: "/api/:path*",
         destination: `${BACKEND}/api/:path*`,
+      },
+      {
+        source: "/labelcomp/",
+        destination: `${BACKEND}/labelcomp/`,
+      },
+      {
+        source: "/labelcomp",
+        destination: `${BACKEND}/labelcomp/`,
       },
     ];
   },

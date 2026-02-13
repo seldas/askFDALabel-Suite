@@ -7,7 +7,7 @@
     "start:https": "NODE_ENV=production node server.js",
     "prod:https": "concurrently \"npm run build && npm run start:https\" \"npm run dev:backend\"",
 
-    "dev": "next dev -p 8848",
+    "dev": "node scripts/start-frontend.js",
     "dev:backend": "node scripts/start-backend.js",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:backend\"",
     "dev:all_https": "concurrently \"npm run dev:https\" \"npm run dev:backend\"",

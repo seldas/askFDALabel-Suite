@@ -11,7 +11,7 @@ drugtox_bp = Blueprint('drugtox', __name__)
 # Adjusting paths for unified app (running from backend/)
 BACKEND_DIR = Path(__file__).resolve().parent.parent # .../backend
 PROJECT_DIR = BACKEND_DIR.parent                    # .../askFDALabel-Suite
-DEFAULT_DB_PATH = (PROJECT_DIR / "data" / "drugtox.db").resolve()
+DEFAULT_DB_PATH = (PROJECT_DIR / "data" / "afd.db").resolve()
 
 DB_PATH = Path(os.environ.get("DRUGTOX_DB_PATH", str(DEFAULT_DB_PATH))).resolve()
 DB_URL = f"sqlite:///{DB_PATH}"

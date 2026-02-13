@@ -1,8 +1,7 @@
 import json
 import logging
 import re
-from dashboard.models import PgxBiomarker, PgxAssessment, PgxSynonym
-from dashboard.extensions import db
+from database import db, PgxBiomarker, PgxAssessment, PgxSynonym
 from dashboard.services.fda_client import get_label_metadata, get_label_xml
 from dashboard.services.ai_handler import generate_assessment
 import xml.etree.ElementTree as ET

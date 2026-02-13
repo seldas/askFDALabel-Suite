@@ -4,8 +4,7 @@ from dotenv import load_dotenv
 
 from pathlib import Path
 from dashboard.config import Config
-from dashboard.extensions import db, migrate, login_manager
-from dashboard.models import User, Project, Favorite, FavoriteComparison, PgxBiomarker, PgxAssessment, PgxSynonym
+from database import db, migrate, login_manager, User, Project, Favorite, FavoriteComparison, PgxBiomarker, PgxAssessment, PgxSynonym, MeddraSOC
 
 def create_app(config_class=Config):
     env_path = Path(__file__).resolve().parent.parent.parent / '.env'
@@ -57,7 +56,7 @@ def create_app(config_class=Config):
 def check_meddra_data():
     """Checks if MedDRA tables are populated and warns the user if not."""
     try:
-        from dashboard.models import MeddraSOC
+        from database import MeddraSOC
         count = MeddraSOC.query.count()
         if count == 0:
             print("\n" + "!"*60)

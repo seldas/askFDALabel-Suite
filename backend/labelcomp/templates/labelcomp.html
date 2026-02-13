@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Label Comparison - askFDALabel Suite</title>
+    <!-- Use the existing dashboard static assets -->
+    <link rel="icon" type="image/svg+xml" href="/api/dashboard/static/favicon.svg">
+    <link rel="stylesheet" href="/api/dashboard/static/style.css">
+    <style>
+        .suite-home-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 50px;
+            border: 1px solid #e2e8f0;
+            background-color: white;
+            color: #64748b;
+            font-weight: 700;
+            font-size: 0.85rem;
+            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            z-index: 100;
+        }
+        .suite-home-btn:hover {
+            border-color: #cbd5e1;
+            background-color: #f8fafc;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="suite-home-btn">
+        <span>🏠</span> Suite Home
+    </a>
+
+    <div class="results-container" style="padding-top: 40px;">
+        <div id="main-content" class="main-content expanded">
+            <div class="container compare-container">
+                <div class="auth-nav">
+                    <button id="scroll-top-btn" class="button nav-btn-back" title="Scroll to Top"><span>&#8679;</span> Top</button>
+                    
+                    <div class="view-tabs" style="margin-bottom: 0; display: flex; gap: 8px; margin-right: auto; margin-left: 15px;">
+                        <button class="tab-btn active">⚖️ Label Comparison</button>
+                    </div>
+
+                    {% if current_user.is_authenticated %}
+                        <div class="favorites-dropdown-wrapper">
+                            <button id="favorites-toggle-btn" class="button btn-favorites"><span>&#128188;</span> My Projects</button>
+                            <div id="favorites-dropdown-menu" class="favorites-dropdown-menu">
+                                <div class="dropdown-loading">Loading...</div>
+                            </div>
+                        </div>
+                        <a href="/api/dashboard/auth/logout" class="button btn-logout">Logout</a>
+                    {% else %}
+                        <a href="/api/dashboard/auth/login" class="button btn-login">Login</a>
+                    {% endif %}
+                </div>
+
+                <div class="compare-title-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 40px;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <h1 style="margin: 0; font-size: 1.8em;">
+                            Drug Label Comparison
+                            {% if current_user.is_authenticated %}
+                                <button id="favorite-comparison-btn" class="favorite-btn" title="Save this comparison" style="background:none; border:none; cursor:pointer; font-size: 0.8em; vertical-align: middle; color: #ccc;">
+                                    &#9734;
+                                </button>
+                            {% endif %}
+                        </h1>
+                    </div>
+                    <div class="add-label-wrapper">
+                        <button class="button" onclick="openAddLabelModal()" style="padding: 8px 20px; border-radius: 20px; background-color: #28a745; color: white; border: none; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                            <span style="font-size: 1.2em; line-height: 1;">+</span> Add Label
+                        </button>
+                    </div>
+                </div>
+                <hr>
+
+                <div class="compare-controls">
+                    <button id="expand-all-btn" class="button"><span>&#43;</span> Expand All</button>
+                    <button id="collapse-all-btn" class="button"><span>&#8722;</span> Collapse All</button>
+                </div>
+
+                {% if selected_labels_metadata %}
+                    <div class="compare-summary-panels">
+                        {% for label_meta in selected_labels_metadata %}
+                            <div class="panel" style="position: relative;">
+                                <button onclick="removeLabel('{{ label_meta.set_id }}', '{{ label_meta.brand_name|replace("'", "'") }}')" title="Remove this label" style="position: absolute; top: 10px; right: 10px; background: none; border: none; color: #dc3545; font-size: 1.5em; line-height: 1; cursor: pointer; padding: 0 5px;">&times;</button>
+                                <h3>{{ label_meta.brand_name }}</h3>
+                                <p><strong>Set ID:</strong> {{ label_meta.set_id }}</p>
+                                <p><strong>Generic Name:</strong> {{ label_meta.generic_name }}</p>
+                                <p><strong>Manufacturer:</strong> {{ label_meta.manufacturer_name }}</p>
+                                <p><strong>Published:</strong> {{ label_meta.effective_time }}</p>
+                                <a href="/api/dashboard/label/{{ label_meta.set_id }}?drug_name={{ label_meta.brand_name|urlencode }}" class="button view-label-btn" target="_blank"><span>&#128065;</span> View This Label</a>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <hr>
+                {% endif %}
+
+                {% if labels and comparison_data %}
+                    <div class="compare-body table-container">
+                        {% for section in comparison_data %}
+                            <div class="compare-section" style="margin-left: {{ section.nesting_level * 20 }}px;">
+                                <div class="compare-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                                    <h3 style="margin: 0; flex-grow: 1;">
+                                        {{ section.title }}
+                                        {% if not section.is_empty %}
+                                            {% if section.is_same %}
+                                                <span class="status-same">(SAME)</span>
+                                            {% else %}
+                                                <span class="status-changed">(CHANGED)</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </h3>
+                                </div>
+                                <div class="compare-section-content">
+                                    {% if section.is_same %}
+                                        <div class="compare-same-content">
+                                            {{ section.contents[0] | safe }}
+                                        </div>
+                                    {% elif section.diff_html %}
+                                        <div class="diff-container">
+                                            {{ section.diff_html | safe }}
+                                        </div>
+                                    {% else %}
+                                        <div class="compare-grid" style="--num-columns: {{ labels|length }}; display: grid; grid-template-columns: repeat({{ labels|length }}, 1fr); gap: 20px;">
+                                            {% for content in section.contents %}
+                                                <div class="compare-cell {% if content is none %}section-missing{% endif %}" style="padding: 15px; background: #fff; border: 1px solid #eee; border-radius: 8px; font-size: 0.9em; line-height: 1.5; overflow-wrap: break-word;">
+                                                    {% if content is not none %}
+                                                        {{ content | safe }}
+                                                    {% else %}
+                                                        <p style="color: #999; font-style: italic;">Section not found in this label.</p>
+                                                    {% endif %}
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div style="text-align: center; padding: 50px; color: #64748b;">
+                        <div style="font-size: 4rem; marginBottom: 20px;">⚖️</div>
+                        <h2>No labels selected for comparison</h2>
+                        <p>Click "Add Label" to start comparing FDA drug labels side-by-side.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts using dashboard static path -->
+    <script>
+        console.log("LabelComp loaded at:", window.location.href);
+        console.log("Origin:", window.location.origin);
+        
+        var comparisonData = {{ comparison_data | tojson }};
+        var selectedLabelsMetadata = {{ selected_labels_metadata | tojson }};
+        var currentSetIds = {{ current_set_ids | tojson | safe }};
+        var comparisonTitle = "Label Comparison";
+    </script>
+    <link rel="stylesheet" href="/api/dashboard/static/js/fontAwesome.all.min.css">
+    <script src="/api/dashboard/static/js/marked.min.js"></script>
+    <script src="/api/dashboard/static/js/utils.js"></script>
+    <script src="/api/dashboard/static/js/ui.js"></script>
+    <script src="/api/dashboard/static/js/favorites.js"></script>
+    <script src="/api/dashboard/static/js/compare.js"></script>
+
+    <!-- Add Label Modal -->
+    <div id="addLabelModal" class="modal" style="display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5);">
+        <div class="modal-content" style="background-color: #fefefe; margin: 10% auto; padding: 25px; border: 1px solid #888; width: 90%; max-width: 600px; border-radius: 12px; position: relative;">
+            <span class="close-modal" onclick="closeAddLabelModal()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+            <h2 style="margin-top: 0;">Add Label to Comparison</h2>
+            
+            <div class="tab-nav" style="display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid #dee2e6; padding-bottom: 10px;">
+                <button class="tab-btn active" onclick="switchAddTab('search')" id="tab-btn-search" style="padding: 8px 16px; border-radius: 20px; border: 1px solid transparent; cursor: pointer; background-color: #007bff; color: white;">Search FDA</button>
+                <button class="tab-btn" onclick="switchAddTab('favorites')" id="tab-btn-favorites" style="padding: 8px 16px; border-radius: 20px; border: 1px solid transparent; cursor: pointer;">My Projects</button>
+            </div>
+
+            <div id="add-tab-search" class="add-tab-content">
+                <div style="margin-bottom: 20px;">
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="drug-search-input" placeholder="Enter drug name, Set ID, or NDC..." style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1;">
+                        <button class="button" onclick="performDrugSearch()" style="background-color: #6366f1; color: white; border: none; padding: 10px 20px;">Search</button>
+                    </div>
+                    <div id="search-results-list" style="margin-top: 15px; max-height: 300px; overflow-y: auto;">
+                        <!-- Results will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <div id="add-tab-favorites" class="add-tab-content" style="display: none;">
+                {% if user_favorites %}
+                    <ul style="list-style: none; padding: 0; max-height: 400px; overflow-y: auto;">
+                    {% for fav in user_favorites %}
+                        <li style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>{{ fav.brand_name }}</strong><br>
+                                <small style="color: #666;">{{ fav.manufacturer_name }} ({{ fav.effective_time }})</small>
+                            </div>
+                            <button class="button" onclick="addLabel('{{ fav.set_id }}')" style="padding: 5px 10px; font-size: 0.9em;">Add</button>
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <p style="color: #666; font-style: italic; padding: 20px; text-align: center;">No favorites found. <br>Login to access your projects.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openAddLabelModal() {
+            document.getElementById('addLabelModal').style.display = 'block';
+        }
+        function closeAddLabelModal() {
+            document.getElementById('addLabelModal').style.display = 'none';
+        }
+        function switchAddTab(tabName) {
+            document.querySelectorAll('.add-tab-content').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('#addLabelModal .tab-btn').forEach(el => {
+                el.classList.remove('active');
+                el.style.backgroundColor = 'transparent';
+                el.style.color = '#495057';
+            });
+            
+            document.getElementById('add-tab-' + tabName).style.display = 'block';
+            const btn = document.getElementById('tab-btn-' + tabName);
+            btn.classList.add('active');
+            btn.style.backgroundColor = '#007bff';
+            btn.style.color = 'white';
+        }
+
+        async function performDrugSearch() {
+            const query = document.getElementById('drug-search-input').value.trim();
+            const resultsList = document.getElementById('search-results-list');
+            if (!query) return;
+
+            resultsList.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fa fa-spinner fa-spin"></i> Searching...</div>';
+
+            try {
+                const response = await fetch(`/api/search/find?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                const labels = data.results || [];
+
+                resultsList.innerHTML = '';
+                if (labels.length === 0) {
+                    resultsList.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">No labels found.</p>';
+                    return;
+                }
+
+                const ul = document.createElement('ul');
+                ul.style.listStyle = 'none';
+                ul.style.padding = '0';
+
+                labels.forEach(label => {
+                    const li = document.createElement('li');
+                    li.style.padding = '10px';
+                    li.style.borderBottom = '1px solid #eee';
+                    li.style.display = 'flex';
+                    li.style.justifyContent = 'space-between';
+                    li.style.alignItems = 'center';
+
+                    li.innerHTML = `
+                        <div>
+                            <strong>${label.brand_name || 'N/A'}</strong><br>
+                            <small style="color: #666;">${label.manufacturer_name || ''} (${label.effective_time || ''})</small>
+                        </div>
+                        <button class="button" onclick="addLabel('${label.set_id}')" style="padding: 5px 10px; font-size: 0.9em;">Add</button>
+                    `;
+                    ul.appendChild(li);
+                });
+                resultsList.appendChild(ul);
+            } catch (err) {
+                console.error('Search error:', err);
+                resultsList.innerHTML = '<p style="text-align: center; color: #dc3545; padding: 20px;">Error performing search.</p>';
+            }
+        }
+
+        function addLabel(setId) {
+            if(currentSetIds.includes(setId)) {
+                alert('This label is already in the comparison.');
+                return;
+            }
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+            // Append set_ids
+            params.append('set_ids', setId);
+            window.location.href = url.pathname + '?' + params.toString();
+        }
+        function removeLabel(setId, brandName) {
+            if(!confirm('Remove ' + brandName + ' from this comparison?')) return;
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+            const newSetIds = currentSetIds.filter(id => id !== setId);
+            params.delete('set_ids');
+            newSetIds.forEach(id => params.append('set_ids', id));
+            window.location.href = url.pathname + '?' + params.toString();
+        }
+
+        // Handle Enter key in search input
+        document.getElementById('drug-search-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') performDrugSearch();
+        });
+    </script>
+</body>
+</html>
