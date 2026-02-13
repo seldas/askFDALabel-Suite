@@ -744,9 +744,13 @@ function LabelCompContent() {
                     ) : (
                         <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
                             {loadingProjects ? <p style={{ textAlign: 'center', padding: '2rem' }}>Loading projects...</p> : projects.map(p => (
-                                <div key={p.id} onClick={() => fetchProjectLabels(p)} style={{ padding: '1rem', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', '&:hover': { backgroundColor: '#f8fafc' } }}>
-                                    <div style={{ fontWeight: 700, color: '#002e5d' }}>{p.title === 'Favorite' ? '⭐' : '📁'} {p.title}</div>
-                                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{p.count} labels • {p.role}</div>
+                                <div
+                                  key={p.id}
+                                  onClick={() => fetchProjectLabels(p)}
+                                  className="p-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50"
+                                >
+                                  <div className="font-bold text-[#002e5d]">{p.title === 'Favorite' ? '⭐' : '📁'} {p.title}</div>
+                                  <div className="text-sm text-slate-500">{p.count} labels • {p.role}</div>
                                 </div>
                             ))}
                         </div>
