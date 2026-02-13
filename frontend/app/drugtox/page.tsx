@@ -63,6 +63,7 @@ import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import GavelIcon from '@mui/icons-material/Gavel';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import { useUser } from '../context/UserContext';
+import Link from 'next/link';
 import debounce from 'lodash/debounce';
 
 // Interfaces
@@ -458,9 +459,9 @@ export default function DrugToxPage() {
       />
 
       {/* Main Header */}
-      <header className="header-main" style={{ width: '100%', position: 'sticky', top: 0, zIndex: 1000 }}>
+      <header className="header-main" style={{ width: '100vw', position: 'sticky', top: 0, zIndex: 1000 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <a href="/" style={{ 
+          <Link href="/" style={{ 
             backgroundColor: 'white', 
             padding: '5px', 
             borderRadius: '4px',
@@ -470,21 +471,21 @@ export default function DrugToxPage() {
             textDecoration: 'none'
           }}>
              <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '24px' }} />
-          </a>
+          </Link>
           <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
-            DrugTox Intelligence
+            DrugTox <span style={{ fontWeight: 300, opacity: 0.8 }}>Intelligence</span>
           </h1>
         </div>
 
         <nav style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           {!loading && session?.is_authenticated && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderRight: '1px solid rgba(255,255,255,0.2)', paddingRight: '20px' }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: 'white' }}>
                 {session.username}
               </Typography>
             </div>
           )}
-          <a href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</a>
+          <Link href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</Link>
         </nav>
       </header>
 
