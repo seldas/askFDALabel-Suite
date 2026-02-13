@@ -1,12 +1,13 @@
 # scripts/search_v2_core/llm.py
 from dashboard.services.ai_handler import call_llm as unified_call_llm
+import logging
+
+logger = logging.getLogger(__name__)
 
 def safe_llm_call(client, messages, max_tokens=10000, temperature=0.01, user=None):
     """
     Adapter for unified_call_llm to fit safe_llm_call signature used in search agent.
     """
-    # client is ignored because unified_call_llm handles client creation based on user/system defaults
-    
     system_prompt = ""
     user_message = ""
     history = []
@@ -34,4 +35,5 @@ def safe_llm_call(client, messages, max_tokens=10000, temperature=0.01, user=Non
         )
         return True, response
     except Exception as e:
+        logger.error(f"safe_llm_call error: {e}")
         return False, str(e)

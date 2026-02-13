@@ -73,7 +73,11 @@ else:
 @search_bp.route("/search", methods=["POST"])
 def search():
     payload = request.json or {}
-    resp, status = search_v1_func(payload, user=current_user if current_user.is_authenticated else None)
+    ai_provider = payload.get("ai_provider")
+    user = current_user if current_user.is_authenticated else None
+    if user and ai_provider:
+        user.ai_provider = ai_provider
+    resp, status = search_v1_func(payload, user=user)
     return jsonify(resp), status
 
 @search_bp.route("/find", methods=["GET"])
@@ -95,14 +99,22 @@ def find():
 @search_bp.route("/search_agentic", methods=["POST"])
 def search_agentic():
     payload = request.json or {}
-    resp, status = search_v2_func(payload, user=current_user if current_user.is_authenticated else None)
+    ai_provider = payload.get("ai_provider")
+    user = current_user if current_user.is_authenticated else None
+    if user and ai_provider:
+        user.ai_provider = ai_provider
+    resp, status = search_v2_func(payload, user=user)
     return jsonify(resp), status
 
 @search_bp.route("/generate_answer", methods=["POST"])
 def generate_answer():
     payload = request.json or {}
+    ai_provider = payload.get("ai_provider")
+    user = current_user if current_user.is_authenticated else None
+    if user and ai_provider:
+        user.ai_provider = ai_provider
     def gen():
-        yield from generate_answer_stream_func(payload, user=current_user if current_user.is_authenticated else None)
+        yield from generate_answer_stream_func(payload, user=user)
     return Response(stream_with_context(gen()), content_type="text/plain")
 
 @search_bp.route("/get_metadata", methods=["POST"])
@@ -185,8 +197,14 @@ def stream_answer_tokens(state):
 @search_bp.route("/search_agentic_stream", methods=["POST"])
 def search_agentic_stream():
     payload = request.json or {}
+    ai_provider = payload.get("ai_provider")
     def generate():
-        state = AgentState(payload, user=current_user if current_user.is_authenticated else None)
+        user = current_user if current_user.is_authenticated else None
+        # Allow overriding ai_provider from payload if provided (for flexibility)
+        if user and ai_provider:
+            user.ai_provider = ai_provider
+            
+        state = AgentState(payload, user=user)
         done = threading.Event()
         err = {}
         def worker():

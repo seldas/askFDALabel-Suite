@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSearchContext } from '../context/SearchContext';
+import { useUser } from '../../context/UserContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -104,6 +105,7 @@ const ProgressDock = ({ status }: { status: string }) => {
 };
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
+  const { session } = useUser();
   const {
     searchTerm,
     setSearchTerm,
@@ -191,6 +193,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
       labelingTypes: filters.labelingType,
       applicationTypes: filters.applicationType,
       labelingSections: filters.labelingSection,
+      ai_provider: session?.ai_provider,
     };
 
     onSearch();
