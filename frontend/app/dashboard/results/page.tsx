@@ -2,8 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import Script from 'next/script';
-import { useUser } from '../../context/UserContext';
+import Link from 'next/link';
 
 interface Label {
   set_id: string;
@@ -11,17 +10,7 @@ interface Label {
   generic_name: string;
   manufacturer_name: string;
   effective_time: string;
-  label_format: string;
-  marketing_category?: string;
-  product_type?: string;
-  application_number?: string;
-  dosage_forms?: string;
-  routes?: string;
-  active_ingredients?: string;
-  labeling_type?: string;
-  epc?: string;
   source?: string;
-  is_favorite?: boolean;
 }
 
 interface SearchResponse {
@@ -31,27 +20,16 @@ interface SearchResponse {
   total: number;
   page: number;
   limit: number;
-  view: 'panel' | 'table';
   is_internal: boolean;
-  batch_id_search?: string;
-  import_id?: string;
 }
 
 function ResultsContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const { session, loading: sessionLoading, updateAiProvider } = useUser();
   const [data, setData] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSetIds, setSelectedSetIds] = useState<Set<string>>(new Set());
-  const [showFavAllModal, setShowFavAllModal] = useState(false);
-  const [projects, setProjects] = useState<{id: number; title: string}[]>([]);
 
-  const drugName = searchParams.get('drug_name') || '';
   const page = parseInt(searchParams.get('page') || '1');
-  const view = (searchParams.get('view') || 'table') as 'panel' | 'table';
-  const importId = searchParams.get('import_id') || '';
 
   useEffect(() => {
     async function fetchData() {
@@ -74,335 +52,150 @@ function ResultsContent() {
     fetchData();
   }, [searchParams]);
 
-  useEffect(() => {
-    async function fetchProjects() {
-      try {
-        const res = await fetch('/api/dashboard/projects');
-        if (res.ok) {
-          const data = await res.json();
-          setProjects(data.projects);
-        }
-      } catch (e) {
-        console.error("Failed to fetch projects", e);
-      }
-    }
-    if (session?.is_authenticated) {
-      fetchProjects();
-    }
-  }, [session]);
-
-  const handleSelectionChange = (setId: string) => {
-    const newSelection = new Set(selectedSetIds);
-    if (newSelection.has(setId)) {
-      newSelection.delete(setId);
-    } else {
-      if (newSelection.size < 5) {
-        newSelection.add(setId);
-      } else {
-        alert("You can select up to 5 labels for comparison.");
-      }
-    }
-    setSelectedSetIds(newSelection);
-  };
-
-  const toggleView = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('view', view === 'panel' ? 'table' : 'panel');
-    router.push(`/dashboard/results?${params.toString()}`);
-  };
-
-  const jumpToPage = (pageNum: number) => {
-    if (!data) return;
-    const maxPage = Math.ceil(data.total / data.limit);
-    if (pageNum >= 1 && pageNum <= maxPage) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set('page', pageNum.toString());
-      router.push(`/dashboard/results?${params.toString()}`);
-    }
-  };
-
-  const openFavAllModal = () => setShowFavAllModal(true);
-  const closeFavAllModal = () => setShowFavAllModal(false);
-
-  const handleSaveAll = async () => {
-    const projectId = (document.getElementById('fav-all-project-select') as HTMLSelectElement).value;
-    const newProjectName = (document.getElementById('fav-all-new-project-name') as HTMLInputElement).value;
-
-    try {
-      const res = await fetch('/api/dashboard/favorite_all', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          drug_name: data?.drug_name,
-          batch_id_search: data?.batch_id_search,
-          import_id: data?.import_id,
-          project_id: projectId !== 'new' ? projectId : undefined,
-          new_project_name: projectId === 'new' ? newProjectName : undefined
-        })
-      });
-      const result = await res.json();
-      if (result.success) {
-        alert(`Successfully saved to project ${result.project_title}`);
-        closeFavAllModal();
-      } else {
-        alert(`Error: ${result.error}`);
-      }
-    } catch (e) {
-      console.error("Failed to save all to project", e);
-      alert("Failed to save all to project");
-    }
-  };
-
-  if (loading) return <div className="hp-main-layout"><div className="hp-container"><p>Loading results...</p></div></div>;
-  if (error) return <div className="hp-main-layout"><div className="hp-container"><p>Error: {error}</p></div></div>;
+  if (loading) return <div className="hp-main-layout"><div className="hp-container" style={{ textAlign: 'center', padding: '4rem' }}><div className="loader" style={{ margin: '0 auto' }}></div><p>Loading results...</p></div></div>;
+  if (error) return <div className="hp-main-layout"><div className="hp-container" style={{ textAlign: 'center', padding: '4rem', color: '#ef4444' }}>Error: {error}</div></div>;
   if (!data) return null;
 
+  const totalPages = Math.ceil(data.total / data.limit);
+
   return (
-    <div className="hp-main-layout search-results-page">
-      {showFavAllModal && (
-        <div id="favAllModal" className="custom-modal" style={{ display: 'flex' }}>
-          <div className="custom-modal-content" style={{ maxWidth: '600px', height: 'auto' }}>
-            <div className="custom-modal-header">
-              <h3>Save All Results to Project</h3>
-              <span className="close-modal" onClick={closeFavAllModal} style={{ cursor: 'pointer' }}>&times;</span>
-            </div>
-            <div className="custom-modal-body">
-              <p>Add all {data.total} labels to a project:</p>
-              
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9em', color: '#64748b', fontWeight: 600 }}>Select Project</label>
-                  <select id="fav-all-project-select" className="import-input">
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>{project.title}</option>
-                    ))}
-                    <option value="new">Create New Project</option>
-                  </select>
-                </div>
-
-                <div id="new-project-input-container" style={{ display: 'none', marginBottom: '15px', animation: 'slideDown 0.2s ease-out' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9em', color: '#64748b', fontWeight: 600 }}>New Project Name</label>
-                  <input type="text" id="fav-all-new-project-name" className="import-input" placeholder="e.g. My Oncology Research" />
-                </div>
-
-                <button id="confirm-fav-all-btn" className="button" style={{ width: '100%', height: '45px', background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)', color: 'white', border: 'none', marginTop: '10px' }}
-                  onClick={handleSaveAll}
-                >
-                  <span>{"\uD83D\uDCDD"}</span> Save All
-                </button>
-              </div>
-            </div>
-          </div>
-      )}
-      
-      <div className="hp-container" style={{ maxWidth: '1200px', padding: '1.5em 2em' }}>
-        
-        {/* Navigation */}
-        <div className="hp-auth-nav" style={{ justifyContent: 'space-between', marginBottom: '10px', borderBottom: '1px solid rgba(0,0,0,0.05)', paddingBottom: '10px' }}>
-          <a href="/dashboard" className="hp-nav-btn hp-btn-outline" style={{ marginRight: 'auto' }}>
-            <span>{"\u2190"}</span> Back Home
-          </a>
-          <div style={{ display: 'flex', gap: '15px' }}>
-            {/* Simplified AI Switcher */}
-            <div className="hp-ai-switcher" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '5px 12px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
-              <span style={{ fontSize: '0.85em', color: '#64748b', fontWeight: 600 }}>AI:</span>
-              <select 
-                value={session?.ai_provider} 
-                onChange={(e) => updateAiProvider(e.target.value)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.9em', fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}
-              >
-                {session && !session.is_internal && (
-                  <option value="gemini">Gemini</option>
-                )}
-                <option value="openai">OpenAI</option>
-                {session && session.is_internal && <option value="elsa">ELSA</option>}
-              </select>
-            </div>
-            <a href="/api/dashboard/my_labelings" target="AskFDALabel_MyProjects" className="hp-nav-btn hp-btn-outline"><span>{"\uD83D\uDCBC"}</span> My Projects</a>
-          </div>
+    <div className="hp-main-layout" style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+      {/* Main Header */}
+      <header className="header-main" style={{ position: 'sticky', top: 0, zIndex: 1000 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <Link href="/" style={{ 
+            backgroundColor: 'white', 
+            padding: '5px', 
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textDecoration: 'none'
+          }}>
+             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '24px' }} />
+          </Link>
+          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
+            askFDALabel <span style={{ fontWeight: 300, opacity: 0.8 }}>Search</span>
+          </h1>
         </div>
 
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '10px', flexWrap: 'wrap', gap: '15px' }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '1.5em', lineHeight: '1.2' }}>
-              {data.page_title}
-              {data.labels.length > 0 && data.labels[0].source === 'FDALabel_Internal' ? (
-                <span style={{ fontSize: '0.4em', verticalAlign: 'middle', backgroundColor: '#28a745', color: 'white', padding: '3px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', marginLeft: '10px' }}>Internal DB</span>
-              ) : data.labels.length > 0 ? (
-                <span style={{ fontSize: '0.4em', verticalAlign: 'middle', backgroundColor: '#007bff', color: 'white', padding: '3px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', marginLeft: '10px' }}>OpenFDA</span>
-              ) : null}
-            </h1>
-            <p style={{ margin: '2px 0 0', fontSize: '0.85em', color: '#64748b' }}>
-              {data.total > 0 ? (
-                `Showing results ${(data.page - 1) * data.limit + 1} - ${Math.min(data.page * data.limit, data.total)} of ${data.total} total matches.`
-              ) : (
-                "No matches found for this query."
-              )}
-            </p>
-          </div>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <Link href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</Link>
+        </nav>
+      </header>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {selectedSetIds.size > 0 && (
-              <button 
-                onClick={() => router.push(`/labelcomp?set_ids=${Array.from(selectedSetIds).join(',')}`)} 
-                className="hp-nav-btn" 
-                style={{ backgroundColor: '#28a745', color: 'white' }}
-              >
-                <span>{"\u2696"}</span> Compare ({selectedSetIds.size})
-              </button>
-            )}
-              <button 
-                onClick={() => openFavAllModal()} 
-                className="hp-nav-btn hp-btn-outline"
-                title="Save all results to a project"
-              >
-                <span>{"\uD83D\uDCDD"}</span> Save All
-              </button>
-            <button onClick={toggleView} className="hp-nav-btn hp-btn-outline">
-              <span>{view === 'panel' ? "\uD83D\uDCCB" : "\uD83D\uDCBB"}</span> {view === 'panel' ? 'Table View' : 'Panel View'}
-            </button>
-          </div>
-        </div>
+      <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 2rem' }}>
+        <div style={{ 
+            backgroundColor: 'white', 
+            borderRadius: '12px', 
+            border: '1px solid #e2e8f0', 
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+            overflow: 'hidden'
+        }}>
+            <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#002e5d' }}>{data.page_title}</h2>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                        {data.total} records found. Showing page {data.page} of {totalPages}.
+                    </p>
+                </div>
+            </div>
 
-        <hr style={{ margin: '5px 0 15px', opacity: 0.1 }} />
-
-        {/* Results */}
-        {data.labels.length > 0 ? (
-          <>
-            {view === 'panel' ? (
-              <div className="selection-panels">
-                {data.labels.map((label) => (
-                  <div key={label.set_id} className="panel" style={{ position: 'relative' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                      <span className={`status-badge ${label.label_format === 'PLR' ? 'plr-badge' : 'non-plr-badge'}`}>
-                        {label.marketing_category || label.label_format || 'Unknown Format'}
-                      </span>
-                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                        <button 
-                          type="button" 
-                          className="favorite-btn-selection" 
-                          onClick={(e) => (window as any).toggleFavoriteFromSelection(e.currentTarget, label.set_id, label.brand_name, label.manufacturer_name, label.effective_time, importId)} 
-                          title="Toggle Project" 
-                          style={{ background: 'none', border: 'none', fontSize: '1.5em', cursor: 'pointer', color: label.is_favorite ? '#ffc107' : '#ccc', padding: 0 }}
-                        >
-                          {label.is_favorite ? '★' : '☆'}
-                        </button>
-                        <input 
-                          type="checkbox" 
-                          checked={selectedSetIds.has(label.set_id)}
-                          onChange={() => handleSelectionChange(label.set_id)}
-                          style={{ transform: 'scale(1.2)' }}
-                        />
-                      </div>
-                    </div>
-                    <h3 style={{ marginBottom: '10px', lineHeight: '1.2' }}>{label.brand_name}</h3>
-                    <p style={{ color: '#6c757d', fontStyle: 'italic', marginBottom: '15px', fontSize: '0.95em' }}>{label.generic_name}</p>
-                    
-                    <div className="panel-meta-grid">
-                      <div className="meta-item">
-                        <span className="meta-icon">{"\uD83C\uDFED"}</span>
-                        <div>
-                          <small>Manufacturer</small>
-                          <span>{label.manufacturer_name}</span>
-                        </div>
-                      </div>
-                      <div className="meta-item">
-                        <span className="meta-icon">{"\uD83D\uDCC5"}</span>
-                        <div>
-                          <small>Published</small>
-                          <span>{label.effective_time}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ marginTop: 'auto', paddingTop: '15px' }}>
-                      <a href={`/dashboard/label/${label.set_id}`} className="hp-nav-btn hp-btn-outline" style={{ width: '100%', justifyContent: 'center' }}>View Analysis</a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="table-container" style={{ overflowX: 'auto' }}>
-                <table className="selection-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '40px', textAlign: 'center' }}>Sel</th>
-                      <th style={{ width: '40px', textAlign: 'center' }}>Fav</th>
-                      <th>Trade Name</th>
-                      <th>Generic Name</th>
-                      <th>Manufacturer</th>
-                      <th>Published</th>
-                      <th>Action</th>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                <thead>
+                    <tr style={{ backgroundColor: '#f8fafc' }}>
+                        <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Trade Name</th>
+                        <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '26px solid #f1f5f9' }}>Generic Name</th>
+                        <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Manufacturer</th>
+                        <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Published</th>
+                        <th style={{ padding: '1rem 1.5rem', textAlign: 'right', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Action</th>
                     </tr>
-                  </thead>
-                  <tbody>
+                </thead>
+                <tbody>
                     {data.labels.map((label) => (
-                      <tr key={label.set_id}>
-                        <td style={{ textAlign: 'center' }}>
-                          <input 
-                            type="checkbox" 
-                            checked={selectedSetIds.has(label.set_id)}
-                            onChange={() => handleSelectionChange(label.set_id)}
-                          />
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button 
-                            type="button" 
-                            className="favorite-btn-selection" 
-                            onClick={(e) => (window as any).toggleFavoriteFromSelection(e.currentTarget, label.set_id, label.brand_name, label.manufacturer_name, label.effective_time, importId)} 
-                            title="Toggle Project" 
-                            style={{ background: 'none', border: 'none', fontSize: '1.2em', cursor: 'pointer', color: label.is_favorite ? '#ffc107' : '#ccc' }}
-                          >
-                            {label.is_favorite ? '★' : '☆'}
-                          </button>
-                        </td>
-                        <td style={{ fontWeight: 600 }}>{label.brand_name}</td>
-                        <td>{label.generic_name}</td>
-                        <td>{label.manufacturer_name}</td>
-                        <td>{label.effective_time}</td>
-                        <td><a href={`/dashboard/label/${label.set_id}`} className="hp-nav-btn hp-btn-outline" style={{ padding: '5px 15px', fontSize: '0.85em' }}>View</a></td>
-                      </tr>
+                        <tr key={label.set_id} style={{ borderBottom: '1px solid #f1f5f9' }} className="table-row-hover">
+                            <td style={{ padding: '1rem 1.5rem', fontWeight: 700, color: '#002e5d' }}>{label.brand_name}</td>
+                            <td style={{ padding: '1rem 1.5rem', color: '#475569', fontStyle: 'italic' }}>{label.generic_name}</td>
+                            <td style={{ padding: '1rem 1.5rem' }}>{label.manufacturer_name}</td>
+                            <td style={{ padding: '1rem 1.5rem' }}>{label.effective_time}</td>
+                            <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                                <Link 
+                                    href={`/dashboard/label/${label.set_id}`}
+                                    style={{ 
+                                        display: 'inline-flex',
+                                        padding: '6px 16px',
+                                        backgroundColor: 'white',
+                                        border: '1px solid #0071bc',
+                                        color: '#0071bc',
+                                        borderRadius: '6px',
+                                        textDecoration: 'none',
+                                        fontWeight: 600,
+                                        fontSize: '0.85rem',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    className="btn-view-snippet"
+                                >
+                                    View
+                                </Link>
+                            </td>
+                        </tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                </tbody>
+            </table>
+        </div>
 
-            {/* Pagination */}
-            <div className="pagination" style={{ marginTop: '30px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px' }}>
-              <button 
-                onClick={() => jumpToPage(page - 1)} 
-                disabled={page <= 1}
-                className="hp-nav-btn hp-btn-outline"
-              >
-                <span>{"\u2039"}</span> Previous
-              </button>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '0.9em', color: '#6c757d' }}>Page</span>
-                <input 
-                  type="number" 
-                  value={page}
-                  onChange={(e) => jumpToPage(parseInt(e.target.value))}
-                  style={{ width: '60px', textAlign: 'center', padding: '6px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
-                />
-                <span style={{ fontSize: '0.9em', color: '#6c757d' }}>of {Math.ceil(data.total / data.limit)}</span>
-              </div>
+        {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '2rem', paddingBottom: '3rem' }}>
+                {page > 1 ? (
+                    <Link 
+                        href={`/dashboard/results?${new URLSearchParams({...Object.fromEntries(searchParams.entries()), page: (page - 1).toString()}).toString()}`}
+                        style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#475569', textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem' }}
+                    >
+                        &larr; Previous
+                    </Link>
+                ) : (
+                    <span style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#475569', opacity: 0.5, fontWeight: 600, fontSize: '0.85rem', cursor: 'not-allowed' }}>&larr; Previous</span>
+                )}
 
-              <button 
-                onClick={() => jumpToPage(page + 1)} 
-                disabled={page * data.limit >= data.total}
-                className="hp-nav-btn hp-btn-outline"
-              >
-                Next <span>{"\u203A"}</span>
-              </button>
+                <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>
+                    Page {page} of {totalPages}
+                </span>
+
+                {page < totalPages ? (
+                    <Link 
+                        href={`/dashboard/results?${new URLSearchParams({...Object.fromEntries(searchParams.entries()), page: (page + 1).toString()}).toString()}`}
+                        style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#475569', textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem' }}
+                    >
+                        Next &rarr;
+                    </Link>
+                ) : (
+                    <span style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#475569', opacity: 0.5, fontWeight: 600, fontSize: '0.85rem', cursor: 'not-allowed' }}>Next &rarr;</span>
+                )}
             </div>
-          </>
-        ) : null}
+        )}
       </div>
-      
-      <Script src="/api/dashboard/static/js/session_manager.js" strategy="afterInteractive" />
-      <Script src="/api/dashboard/static/js/ui.js" strategy="afterInteractive" />
-      <Script src="/api/dashboard/static/js/favorites.js" strategy="afterInteractive" />
+
+      <style jsx>{`
+        .table-row-hover:hover {
+            background-color: #f8fafc;
+        }
+        .btn-view-snippet:hover {
+            background-color: #0071bc !important;
+            color: white !important;
+        }
+        .loader {
+          border: 3px solid #f3f3f3;
+          border-radius: 50%;
+          border-top: 3px solid #0071bc;
+          width: 30px;
+          height: 30px;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
