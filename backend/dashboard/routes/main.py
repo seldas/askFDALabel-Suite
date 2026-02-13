@@ -377,8 +377,13 @@ def view_label(set_id):
 
     doc_title, sections, fallback_html, highlights, table_of_contents = parse_spl_xml(label_xml_raw, set_id)
     
+    # Clean the original XML title (remove Highlights disclaimer) early
+    original_title = doc_title
+    if "These highlights do not include all the information" in doc_title:
+        original_title = re.sub(r'^These highlights do not include.*?safely and effectively\.\s*(See full prescribing information for.*?\.)?\s*', '', doc_title, flags=re.IGNORECASE | re.DOTALL).strip()
+
     # Use the drug name from the query for the title, but fall back to the parsed title
-    display_drug_name = drug_name_from_query if drug_name_from_query else doc_title
+    display_drug_name = drug_name_from_query if drug_name_from_query else original_title
 
     # Load saved annotations for this label (User-specific OR Public)
     saved_annotations = []
@@ -425,27 +430,45 @@ def view_label(set_id):
         clean_app_num = ''.join(filter(str.isdigit, first_app))
 
     # Construct the display title: Brand Name - Generic Name, Company
-    if brand_name:
+    if brand_name and brand_name != 'Unknown Drug':
         display_parts = [brand_name]
-        if generic_name:
+        if generic_name and generic_name != 'Unknown Generic':
             display_parts.append(f"- {generic_name}")
         
         display_drug_name = " ".join(display_parts)
         if manufacturer_name:
             display_drug_name += f", {manufacturer_name}"
     else:
-        # Fallback to query param or document title if metadata fetch fails
-        display_drug_name = drug_name_from_query if drug_name_from_query else doc_title
+        # If metadata fetch failed or returned Unknown, try generic_name first, then query param, then doc_title
+        if generic_name and generic_name != 'Unknown Generic':
+            display_drug_name = generic_name
+        else:
+            display_drug_name = drug_name_from_query if drug_name_from_query else original_title
 
-    # Clean up name for FAERS search (take first brand name if multiple)
-    faers_drug_name = brand_name if brand_name else display_drug_name
-    if faers_drug_name and ',' in faers_drug_name:
-        faers_drug_name = faers_drug_name.split(',')[0].strip()
+    # Clean up name for FAERS search: LITERALLY use generic name if available
+    # Use the pre-cleaned faers_search_name from our improved xml_handler if available
+    if metadata and metadata.get('faers_search_name') and metadata.get('faers_search_name') != 'Unknown Generic':
+        faers_drug_name = metadata.get('faers_search_name')
+    else:
+        faers_drug_name = generic_name if generic_name and generic_name != 'Unknown Generic' else brand_name
+    
+    if not faers_drug_name or faers_drug_name == 'Unknown Drug' or faers_drug_name == 'Unknown Generic':
+        # Last resort fallback, but try to clean it
+        temp_name = drug_name_from_query if drug_name_from_query else original_title
+        if temp_name and len(temp_name) > 80: 
+             paren_match = re.search(r'\(([^)]+)\)', temp_name)
+             if paren_match:
+                 faers_drug_name = paren_match.group(1).strip()
+             else:
+                 faers_drug_name = temp_name[:50]
+        else:
+            faers_drug_name = temp_name
 
-    # Clean the original XML title (remove Highlights disclaimer)
-    original_title = doc_title
-    if "These highlights do not include all the information" in doc_title:
-        original_title = re.sub(r'^These highlights do not include.*?safely and effectively\.\s*(See full prescribing information for.*?\.)?\s*', '', doc_title, flags=re.IGNORECASE | re.DOTALL).strip()
+    # Final sanitization for FAERS (remove everything after comma or semicolon)
+    if faers_drug_name and faers_drug_name != 'N/A':
+        faers_drug_name = re.split(r'[,;]', faers_drug_name)[0].strip()
+        faers_drug_name = re.sub(r'\d+(\.\d+)?\s*(mg|mcg|g|ml|%|unit|iu)\b.*$', '', faers_drug_name, flags=re.IGNORECASE).strip()
+        faers_drug_name = re.sub(r'\s+(tablet|capsule|injection|cream|ointment|gel|solution|suspension|spray|inhaler|powder).*$', '', faers_drug_name, flags=re.IGNORECASE).strip()
 
     if request.headers.get('Accept') == 'application/json' or request.args.get('json') == '1':
         return jsonify({

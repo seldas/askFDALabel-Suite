@@ -369,14 +369,17 @@ def get_faers_data(drug_name, limit=20):
     Fetches aggregated safety data from openFDA FAERS endpoint for a given drug, 
     limited to the last 5 years to match the trend charts.
     """
-    if not drug_name or drug_name == 'N/A':
+    if not drug_name or drug_name == 'N/A' or drug_name == 'Unknown Generic':
         return None
 
     # Clean name: Take first part if comma/semicolon separated (e.g. "Aspirin, Bristol" -> "Aspirin")
     clean_name = re.split(r'[,;]', drug_name)[0].strip()
     
     base_url = "https://api.fda.gov/drug/event.json"
-    search_term = f'(patient.drug.openfda.brand_name:"{clean_name}" OR patient.drug.openfda.generic_name:"{clean_name}")'
+    
+    # LITERALLY use generic name search first as it is most accurate for AE reporting
+    # We prioritize the generic_name field in openFDA events
+    search_term = f'patient.drug.openfda.generic_name:"{clean_name}"'
     
     # Time range: Last 5 years
     current_year = datetime.now().year
@@ -401,8 +404,18 @@ def get_faers_data(drug_name, limit=20):
         if Config.OPENFDA_API_KEY:
             params_reactions['api_key'] = Config.OPENFDA_API_KEY
         resp = requests.get(base_url, params=params_reactions)
+        
+        # FALLBACK: If literal generic search returned NOTHING, try broader brand/medicinal search
+        if resp.status_code != 200 or not resp.json().get('results'):
+            logger.info(f"Literal generic search for '{clean_name}' failed or empty. Trying medicinal product fallback...")
+            fallback_search = f'(patient.drug.openfda.brand_name:"{clean_name}" OR patient.drug.medicinalproduct:"{clean_name}")'
+            params_reactions['search'] = f"{fallback_search} AND {date_filter}"
+            resp = requests.get(base_url, params=params_reactions)
+            if resp.status_code == 200:
+                search_term = fallback_search # Update for subsequent queries
+
         if resp.status_code == 200:
-            # Filter out terms with 0 count (though openFDA count queries usually only return > 0)
+            # Filter out terms with 0 count
             data['reactions'] = [r for r in resp.json().get('results', []) if r.get('count', 0) > 0]
 
         # 2. Serious Reactions (Serious = 1, Filtered by date)

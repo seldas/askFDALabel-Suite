@@ -126,16 +126,22 @@ window.initFaers = function() {
         if (faersDataLoaded) return;
         if (typeof currentDrugName === 'undefined') return;
 
-        // --- Improved Search Strategy ---
-        // Prioritize Generic Name for openFDA as it's more stable for event queries
-        let drugSearchTerm = window.currentGenericName || window.currentDrugName;
+        // --- Improved Literal Generic Search Strategy ---
+        // Prioritize Generic Name literally
+        let drugSearchTerm = "";
         
-        // Clean the name (remove manufacturer if present in currentDrugName fallback)
-        if (drugSearchTerm.includes(',')) {
-            drugSearchTerm = drugSearchTerm.split(',')[0].trim();
+        if (window.currentGenericName && window.currentGenericName !== "Unknown Generic") {
+            drugSearchTerm = window.currentGenericName;
+        } else {
+            drugSearchTerm = window.currentDrugName;
         }
-        // Remove dosage form if accidentally included (e.g. "Aspirin Tablet" -> "Aspirin")
-        drugSearchTerm = drugSearchTerm.replace(/\s+(tablet|capsule|injection|cream|ointment|gel|solution|suspension).*$/i, '').trim();
+        
+        // Final cleaning: remove everything after comma or semicolon
+        drugSearchTerm = drugSearchTerm.split(/[,;]/)[0].trim();
+        
+        // Remove strengths and dosage forms (aggressive)
+        drugSearchTerm = drugSearchTerm.replace(/\d+(\.\d+)?\s*(mg|mcg|g|ml|%|unit|iu)\b.*$/i, '').trim();
+        drugSearchTerm = drugSearchTerm.replace(/\s+(tablet|capsule|injection|cream|ointment|gel|solution|suspension|spray|inhaler|powder).*$/i, '').trim();
 
         const fetchLimit = 1000; 
         const encodedName = encodeURIComponent(drugSearchTerm);
