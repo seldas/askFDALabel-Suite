@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardClient from './DashboardClient';
 import { useUser } from '../context/UserContext';
@@ -42,8 +42,12 @@ export default function DashboardPage() {
   const [projectContent, setProjectLabels] = useState<Favorite[]>([]);
   const [projectComparisons, setProjectComparisons] = useState<Comparison[]>([]);
   const [loadingContent, setLoadingContent] = useState(false);
-  const [isCreatingProject, setIsCreatingProject] = useState(false);
-  const [newProjectTitle, setNewProjectName] = useState('');
+  
+  // Filtering & Pagination State
+  const [projectSearch, setProjectSearch] = useState('');
+  const [labelPage, setLabelPage] = useState(1);
+  const [compPage, setCompPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   // Fetch Projects List
   const fetchProjects = async () => {
@@ -59,6 +63,9 @@ export default function DashboardPage() {
   // Fetch Project Detail
   const fetchProjectDetail = async (projectId: number) => {
     setLoadingContent(true);
+    setProjectSearch('');
+    setLabelPage(1);
+    setCompPage(1);
     try {
       const res = await fetch(`/api/dashboard/favorites_data?project_id=${projectId}`);
       const data = await res.json();
@@ -68,24 +75,6 @@ export default function DashboardPage() {
       console.error("Failed to fetch project detail", e);
     } finally {
       setLoadingContent(false);
-    }
-  };
-
-  const handleCreateProject = async () => {
-    if (!newProjectTitle.trim()) return;
-    try {
-      const res = await fetch('/api/dashboard/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newProjectTitle })
-      });
-      if (res.ok) {
-        setNewProjectName('');
-        setIsCreatingProject(false);
-        fetchProjects();
-      }
-    } catch (e) {
-      alert("Failed to create project");
     }
   };
 
@@ -114,7 +103,6 @@ export default function DashboardPage() {
     formData.append('file', file);
 
     try {
-      // 1. Upload the file to get an import_id
       const res = await fetch('/api/dashboard/import_fdalabel', {
         method: 'POST',
         body: formData
@@ -125,7 +113,6 @@ export default function DashboardPage() {
         const url = new URL(data.redirect_url, window.location.origin);
         const importId = url.searchParams.get('import_id');
         
-        // 2. Automatically create project and add labels
         const favRes = await fetch('/api/dashboard/favorite_all', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -137,10 +124,8 @@ export default function DashboardPage() {
         
         const favData = await favRes.json();
         if (favData.success) {
-          alert(`Successfully created project "${newImportProjectName}" with ${favData.added_count} labels.`);
           setNewImportProjectName('');
           setUploadedFile(null);
-          // Refresh list and show projects section
           await fetchProjects();
           setShowProjects(true);
         } else {
@@ -159,15 +144,13 @@ export default function DashboardPage() {
     }
   };
 
-  const triggerFileInput = (event: React.MouseEvent<HTMLDivElement>) => {
+  const triggerFileInput = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     if (uploading) return;
-    
     if (!newImportProjectName.trim()) {
       alert("Please enter a name for the new project first.");
       return;
     }
-
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.xlsx';
@@ -177,6 +160,25 @@ export default function DashboardPage() {
     };
     input.click();
   };
+
+  // Memoized Filtered Content
+  const filteredLabels = useMemo(() => {
+    const q = projectSearch.toLowerCase();
+    return projectContent.filter(f => 
+      (f.brand_name?.toLowerCase() || '').includes(q) || 
+      (f.generic_name?.toLowerCase() || '').includes(q) || 
+      (f.manufacturer_name?.toLowerCase() || '').includes(q)
+    );
+  }, [projectContent, projectSearch]);
+
+  const filteredComparisons = useMemo(() => {
+    const q = projectSearch.toLowerCase();
+    return projectComparisons.filter(c => (c.title?.toLowerCase() || '').includes(q));
+  }, [projectComparisons, projectSearch]);
+
+  // Paginated Content
+  const paginatedLabels = filteredLabels.slice((labelPage - 1) * ITEMS_PER_PAGE, labelPage * ITEMS_PER_PAGE);
+  const paginatedComparisons = filteredComparisons.slice((compPage - 1) * ITEMS_PER_PAGE, compPage * ITEMS_PER_PAGE);
 
   useEffect(() => {
     if (showProjects) fetchProjects();
@@ -190,7 +192,6 @@ export default function DashboardPage() {
     <main className="hp-main-layout" suppressHydrationWarning>
       <DashboardClient />
       
-      {/* Top Header */}
       <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 100 }}>
         <a href="/" className="hp-nav-btn hp-btn-outline" style={{ 
           backgroundColor: 'white',
@@ -264,17 +265,15 @@ export default function DashboardPage() {
               <div style={{ fontSize: '1.75rem', fontWeight: '700', color: '#1e293b', marginBottom: '1rem' }}>
                 Existed Projects...
               </div>
-              <div style={{ color: '#64748b', fontSize: '1.05rem', lineHeight: '1.6', maxWidth: '280px' }}>
-                {showProjects ? 'Click to hide your projects' : 'Browse and manage your existing clinical research workspaces.'}
+              <div style={{ color: '#64748b', fontSize: '1rem', lineHeight: '1.6', maxWidth: '280px' }}>
+                {showProjects ? 'Click to hide your projects' : 'Browse and manage your clinical research workspaces.'}
               </div>
             </div>
 
             {/* Panel 2: Create new from Import */}
             <div 
-              id="excel-upload-box" 
               className={`dashboard-action-panel ${uploading ? 'uploading' : ''}`}
               style={{ 
-                cursor: uploading ? 'wait' : 'default',
                 padding: '2rem 2.5rem',
                 borderRadius: '24px',
                 boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
@@ -377,17 +376,12 @@ export default function DashboardPage() {
                   {uploading ? 'Uploading...' : 'Select File'}
                 </button>
               </div>
-
-              <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '1rem' }}>
-                Step: Name your project &rarr; Upload FDALabel Excel
-              </div>
             </div>
           </div>
 
           {/* Projects Browser Section */}
           {showProjects && (
             <div style={{ width: '100%', maxWidth: '1000px', animation: 'fadeIn 0.3s ease-out' }}>
-              {/* Project Badge List */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', marginBottom: '30px' }}>
                 {projects.map(p => (
                   <button
@@ -412,71 +406,38 @@ export default function DashboardPage() {
                     <span style={{ fontSize: '0.8em', opacity: 0.8 }}>({p.count})</span>
                   </button>
                 ))}
-                
-                <button 
-                  onClick={() => setIsCreatingProject(true)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '50px',
-                    border: '1px dashed #6366f1',
-                    background: 'transparent',
-                    color: '#6366f1',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  + Add Project
-                </button>
               </div>
 
-              {/* Add Project Modal Inline */}
-              {isCreatingProject && (
-                <div style={{ marginBottom: '30px', padding: '20px', background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                  <h4 style={{ margin: '0 0 15px 0' }}>New Project</h4>
-                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                    <input 
-                      type="text" 
-                      value={newProjectTitle}
-                      onChange={(e) => setNewProjectName(e.target.value)}
-                      placeholder="Project name..."
-                      style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '250px' }}
-                    />
-                    <button onClick={handleCreateProject} style={{ padding: '8px 20px', borderRadius: '8px', background: '#6366f1', color: 'white', border: 'none', fontWeight: 600 }}>Create</button>
-                    <button onClick={() => setIsCreatingProject(false)} style={{ padding: '8px 20px', borderRadius: '8px', background: '#e2e8f0', color: '#475569', border: 'none' }}>Cancel</button>
-                  </div>
-                </div>
-              )}
-
-              {/* Active Project Detail */}
               {activeProject && (
                 <div style={{ 
                   textAlign: 'left', 
                   background: 'white', 
                   borderRadius: '24px', 
-                  padding: '2.5rem', 
+                  padding: '2rem', 
                   boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
                   border: '1px solid #f1f5f9',
                   animation: 'slideUp 0.3s ease-out'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
                     <div>
                       <h2 style={{ margin: 0, color: '#1e293b' }}>{activeProject.title}</h2>
-                      <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Project workspace • {activeProject.role}</span>
+                      <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Workspace • {activeProject.role}</span>
                     </div>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button 
-                        onClick={() => {
-                          localStorage.setItem('activeProjectId', activeProject.id.toString());
-                          alert(`Project "${activeProject.title}" is now set as the active target for imports.`);
-                        }}
-                        style={{ padding: '8px 16px', borderRadius: '8px', background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: 600, cursor: 'pointer' }}
-                      >
-                        Set as Active Target
-                      </button>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <div style={{ position: 'relative' }}>
+                        <input 
+                          type="text" 
+                          placeholder="Filter records..."
+                          value={projectSearch}
+                          onChange={(e) => setProjectSearch(e.target.value)}
+                          style={{ padding: '8px 12px 8px 32px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', outline: 'none', width: '200px' }}
+                        />
+                        <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>🔍</span>
+                      </div>
                       {!activeProject.is_default && (
                         <button 
                           onClick={() => handleDeleteProject(activeProject.id)}
-                          style={{ padding: '8px 12px', borderRadius: '8px', background: '#fff1f2', color: '#be123c', border: '1px solid #fecdd3', cursor: 'pointer' }}
+                          style={{ padding: '8px 12px', borderRadius: '8px', background: '#fff1f2', color: '#be123c', border: '1px solid #fecdd3', cursor: 'pointer', fontSize: '0.9rem' }}
                         >
                           🗑️ Delete
                         </button>
@@ -490,51 +451,69 @@ export default function DashboardPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
                       {/* Labels Column */}
                       <div>
-                        <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span>💊</span> Saved Labels ({projectContent.length})
+                        <h3 style={{ fontSize: '1rem', marginBottom: '1rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span>💊</span> Labels ({filteredLabels.length})
                         </h3>
-                        {projectContent.length === 0 ? (
-                          <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>No labels saved in this project.</p>
+                        {filteredLabels.length === 0 ? (
+                          <p style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.9rem' }}>No matches found.</p>
                         ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {projectContent.map(f => (
-                              <div key={f.set_id} style={{ padding: '12px 15px', borderRadius: '12px', border: '1px solid #f1f5f9', background: '#fcfcfd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ maxWidth: '75%' }}>
-                                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#1e293b' }}>{f.brand_name}</div>
-                                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{f.manufacturer_name}</div>
+                          <>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {paginatedLabels.map(f => (
+                                <div key={f.set_id} style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid #f1f5f9', background: '#fcfcfd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ maxWidth: '75%' }}>
+                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e293b' }}>{f.brand_name}</div>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{f.manufacturer_name}</div>
+                                  </div>
+                                  <a href={`/api/dashboard/label/${f.set_id}`} target="_blank" style={{ fontSize: '0.8rem', color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}>View &rarr;</a>
                                 </div>
-                                <a href={`/api/dashboard/label/${f.set_id}`} target="_blank" style={{ fontSize: '0.85rem', color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}>View &rarr;</a>
+                              ))}
+                            </div>
+                            {filteredLabels.length > ITEMS_PER_PAGE && (
+                              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '15px' }}>
+                                <button disabled={labelPage === 1} onClick={() => setLabelPage(p => p - 1)} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>&lt;</button>
+                                <span style={{ fontSize: '0.85rem', color: '#64748b', alignSelf: 'center' }}>Page {labelPage} of {Math.ceil(filteredLabels.length / ITEMS_PER_PAGE)}</span>
+                                <button disabled={labelPage >= Math.ceil(filteredLabels.length / ITEMS_PER_PAGE)} onClick={() => setLabelPage(p => p + 1)} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>&gt;</button>
                               </div>
-                            ))}
-                          </div>
+                            )}
+                          </>
                         )}
                       </div>
 
                       {/* Comparisons Column */}
                       <div>
-                        <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span>⚖️</span> Comparisons ({projectComparisons.length})
+                        <h3 style={{ fontSize: '1rem', marginBottom: '1rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span>⚖️</span> Comparisons ({filteredComparisons.length})
                         </h3>
-                        {projectComparisons.length === 0 ? (
-                          <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>No comparisons saved.</p>
+                        {filteredComparisons.length === 0 ? (
+                          <p style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.9rem' }}>No matches found.</p>
                         ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {projectComparisons.map(c => (
-                              <div key={c.id} style={{ padding: '12px 15px', borderRadius: '12px', border: '1px solid #f1f5f9', background: '#fcfcfd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ maxWidth: '75%' }}>
-                                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#1e293b' }}>{c.title}</div>
-                                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{c.set_ids.length} labels</div>
+                          <>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {paginatedComparisons.map(c => (
+                                <div key={c.id} style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid #f1f5f9', background: '#fcfcfd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ maxWidth: '75%' }}>
+                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e293b' }}>{c.title}</div>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{c.set_ids.length} labels</div>
+                                  </div>
+                                  <a 
+                                    href={`/labelcomp?${c.set_ids.map(id => `set_ids=${id}`).join('&')}`} 
+                                    target="_blank" 
+                                    style={{ fontSize: '0.8rem', color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}
+                                  >
+                                    Compare &rarr;
+                                  </a>
                                 </div>
-                                <a 
-                                  href={`/labelcomp?${c.set_ids.map(id => `set_ids=${id}`).join('&')}`} 
-                                  target="_blank" 
-                                  style={{ fontSize: '0.85rem', color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}
-                                >
-                                  Compare &rarr;
-                                </a>
+                              ))}
+                            </div>
+                            {filteredComparisons.length > ITEMS_PER_PAGE && (
+                              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '15px' }}>
+                                <button disabled={compPage === 1} onClick={() => setCompPage(p => p - 1)} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>&lt;</button>
+                                <span style={{ fontSize: '0.85rem', color: '#64748b', alignSelf: 'center' }}>Page {compPage} of {Math.ceil(filteredComparisons.length / ITEMS_PER_PAGE)}</span>
+                                <button disabled={compPage >= Math.ceil(filteredComparisons.length / ITEMS_PER_PAGE)} onClick={() => setCompPage(p => p + 1)} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>&gt;</button>
                               </div>
-                            ))}
-                          </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -559,7 +538,7 @@ export default function DashboardPage() {
         }
         .project-name-input:focus + label {
           top: 0.4rem !important;
-          font-size: 0.75rem !important;
+          font-size: 0.7rem !important;
           color: #6366f1 !important;
         }
         .loader {

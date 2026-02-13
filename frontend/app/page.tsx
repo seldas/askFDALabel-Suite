@@ -219,7 +219,7 @@ export default function HomePage() {
           color="#3b82f6"
         />
         <AppCard 
-          title="Drug Analyzer" 
+          title="Labeling Dashboard" 
           description="Deep analysis of drug labels, comparison, and FAERS safety trends."
           href="/dashboard"
           icon="📊"
