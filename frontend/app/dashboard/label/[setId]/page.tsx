@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Script from 'next/script';
+import Link from 'next/link';
 
 interface Section {
   id?: string;
@@ -127,297 +128,344 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
     }
   }, [loading, data]);
 
-  if (loading) return <div className="hp-main-layout"><div className="hp-container"><div className="loader" style={{margin:'50px auto'}}></div><p style={{textAlign:'center'}}>Loading label...</p></div></div>;
+      useEffect(() => {
+
+        if (activeTab === 'faers-view') {
+
+          const win = window as any;
+
+          if (win.loadFaersData) {
+
+            win.loadFaersData();
+
+          }
+
+        }
+
+        
+
+        // Auto-hide TOC sidebar for non-label views to give more space
+
+        if (activeTab !== 'label-view') {
+
+          setTocCollapsed(true);
+
+        } else {
+
+          setTocCollapsed(false);
+
+        }
+
+      }, [activeTab]);
+
+    
+
+  
+
+    if (loading) return <div className="hp-main-layout">
+
+  <div className="hp-container"><div className="loader" style={{margin:'50px auto'}}></div><p style={{textAlign:'center'}}>Loading label...</p></div></div>;
   if (error) return <div className="hp-main-layout"><div className="hp-container"><p style={{color:'red', textAlign:'center'}}>Error: {error}</p></div></div>;
   if (!data) return null;
 
   return (
-    <div className="results-container">
-      {/* Table of Contents Side Panel */}
-      <div id="toc-panel" className={`toc-side-panel ${tocCollapsed ? 'hidden' : ''}`}>
-        <div className="toc-box">
-          <div className="toc-header">
-            <h2>Table of Contents</h2>
-            <button id="toc-close-internal" onClick={() => setTocCollapsed(true)} title="Collapse Panel" style={{ background: 'none', border: 'none', fontSize: '1.5em', cursor: 'pointer' }}>
-                <span>{"\u00AB"}</span>
-            </button>
-          </div>
-          {data.table_of_contents && data.table_of_contents.length > 0 ? (
-            <ol>
-              {data.table_of_contents.map((item) => (
-                <li key={item.id}><a href={`#${item.id}`}>{item.title}</a></li>
-              ))}
-            </ol>
-          ) : (
-            <p>No table of contents available.</p>
-          )}
-        </div>
-        <div className="sidebar-footer">
-          <a href="/dashboard" className="button btn-sidebar-home">
-            <span>{"\u2302"}</span> Return Home
+    <div className="results-container" style={{ minHeight: '100vh', backgroundColor: '#f9fafb', display: 'block' }}>
+      {/* Main Header */}
+      <header className="header-main" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2000, width: '100vw' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <button onClick={() => setTocCollapsed(!tocCollapsed)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.25rem' }}>
+             ☰
+          </button>
+          <a href="/" style={{ 
+            backgroundColor: 'white', 
+            padding: '5px', 
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textDecoration: 'none'
+          }}>
+             <img src="/api/dashboard/static/favicon.svg" alt="Logo" style={{ height: '24px' }} />
           </a>
+          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
+            Label Analysis
+          </h1>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div id="main-content" className="main-content">
-        <div className="container">
-          <div className="auth-nav">
-            <button onClick={() => router.push('/dashboard')} className="button nav-btn-primary" title="Home">
-               Home
-            </button>
-            <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="button nav-btn-primary" title="Scroll to Top">
-               Top
-            </button>
-            <button 
-                id="show-toc-btn" 
-                className="button nav-btn-primary" 
-                style={{ display: tocCollapsed ? 'inline-flex' : 'none' }} 
-                onClick={() => setTocCollapsed(false)}
-                title="Show Sidebar"
-            >
-               Sidebar
-            </button>
-
-            <div className="view-tabs" style={{ marginBottom: 0, display: 'flex', gap: '8px', marginRight: 'auto', marginLeft: '15px' }}>
-              <button className={`tab-btn ${activeTab === 'label-view' ? 'active' : ''}`} onClick={() => setActiveTab('label-view')} data-target="label-view">📄 Official Label</button>
-              <button className={`tab-btn ${activeTab === 'faers-view' ? 'active' : ''}`} onClick={() => setActiveTab('faers-view')} id="btn-faers-view" data-target="faers-view">📊 FAERS</button>
-              <button className={`tab-btn ${activeTab === 'tox-view' ? 'active' : ''}`} onClick={() => setActiveTab('tox-view')} id="btn-tox-view" data-target="tox-view">🧪 Agents</button>
-            </div>
-
-            <button id="favorites-toggle-btn" className="button btn-favorites"><span>{"\uD83D\uDCBC"}</span> My Projects</button>
-            <div id="favorites-dropdown-menu" className="favorites-dropdown-menu">
-                <div id="favorites-dropdown-content"><div className="dropdown-loading">Loading...</div></div>
-            </div>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div className="view-tabs" style={{ marginBottom: 0, display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.1)', padding: '4px', borderRadius: '8px' }}>
+            <button className={`tab-btn ${activeTab === 'label-view' ? 'active' : ''}`} onClick={() => setActiveTab('label-view')} data-target="label-view" style={{ color: 'white', border: 'none', background: activeTab === 'label-view' ? 'var(--fda-blue)' : 'transparent', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>Label</button>
+            <button className={`tab-btn ${activeTab === 'faers-view' ? 'active' : ''}`} onClick={() => setActiveTab('faers-view')} data-target="faers-view" style={{ color: 'white', border: 'none', background: activeTab === 'faers-view' ? 'var(--fda-blue)' : 'transparent', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>FAERS</button>
+            <button className={`tab-btn ${activeTab === 'tox-view' ? 'active' : ''}`} onClick={() => setActiveTab('tox-view')} data-target="tox-view" style={{ color: 'white', border: 'none', background: activeTab === 'tox-view' ? 'var(--fda-blue)' : 'transparent', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>Agents</button>
           </div>
+          <Link href="/dashboard" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Dashboard</Link>
+          <Link href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</Link>
+        </nav>
+      </header>
 
-          <div className="label-header" style={{ marginBottom: '25px' }}>
-             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ flex: 1 }}>
-                    <h1 className="DocumentTitle" style={{ marginBottom: '5px', lineHeight: '1.2' }}>{data.brand_name || data.drug_name}</h1>
-                    <h2 style={{ marginTop: 0, fontSize: '1.1em', color: '#666', fontWeight: 400, marginBottom: 0 }}>{data.original_title || data.generic_name}</h2>
-                </div>
-                <div style={{ marginLeft: '20px' }}>
-                    <button id="favorite-btn" className="favorite-btn" title="Toggle Project" style={{ background:'none', border:'none', cursor:'pointer', fontSize: '1.8em', color: '#ccc', padding: 0 }}>
-                        {"\u2606"}
-                    </button>
-                </div>
-             </div>
-
-             <div className="label-meta-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginTop: '15px', border: '1px solid #eee' }}>
-                {data.has_boxed_warning && (
-                  <div className="meta-item" style={{ gridColumn: '1 / -1', backgroundColor: '#fff5f5', border: '1px solid #f5c6cb', borderRadius: '6px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '1.5em', color: '#dc3545' }}>{"\u26A0"}</span>
-                    <div>
-                        <span style={{ display: 'block', fontSize: '0.75em', color: '#dc3545', textTransform: 'uppercase', fontWeight: 700 }}>Safety Alert</span>
-                        <span style={{ fontWeight: 600, color: '#721c24' }}>Contains Boxed Warning</span>
-                    </div>
-                  </div>
-                )}
-                <div className="meta-item">
-                    <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Manufacturer</span>
-                    <span style={{ fontWeight: 600, color: '#333' }}>{data.manufacturer_name || 'N/A'}</span>
-                </div>
-                <div className="meta-item">
-                    <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Product Type</span>
-                    <span style={{ fontWeight: 600, color: '#333' }}>{data.document_type || 'Label'}</span>
-                </div>
-                <div className="meta-item">
-                    <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Version</span>
-                    <span style={{ fontFamily: 'monospace', color: '#555' }}>v{data.version_number || '1'}</span>
-                </div>
-                <div className="meta-item">
-                    <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Last Revised</span>
-                    <span>{data.effective_time || 'N/A'}</span>
-                </div>
-                <div className="meta-item">
-                    <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>NDC Code</span>
-                    <span style={{ fontFamily: 'monospace', color: '#333' }}>{data.ndc || 'N/A'}</span>
-                </div>
-                <div className="meta-item">
-                    <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Application Number</span>
-                    <span style={{ fontFamily: 'monospace', color: '#333' }}>{data.application_number || 'N/A'}</span>
-                </div>
-             </div>
-          </div>
-
-          <div id="top-annotations-container" className="top-annotations-container"></div>
-
-          {/* Tab Contents */}
-          <div id="label-view" className={`tab-content ${activeTab === 'label-view' ? 'active' : ''}`} style={{ display: activeTab === 'label-view' ? 'block' : 'none', overflowX: 'auto' }}>
-            {data.highlights && data.highlights.length > 0 && (
-              <div id="highlights-section" className="highlights-box">
-                <h2>Highlights of Prescribing Information</h2>
-                {data.highlights.map((h, i) => (
-                  <div key={i} className="highlight-item">
-                    {h.source_section_title !== 'Untitled Section' && (
-                      <div className="highlight-source-header">
-                        <span className="source-label">Section</span>
-                        <span className="source-title">{h.source_section_title}</span>
-                      </div>
-                    )}
-                    <div className="highlight-body" dangerouslySetInnerHTML={{ __html: h.content_html }} />
-                  </div>
+      <div style={{ display: 'flex', paddingTop: '60px' }}>
+        {/* Table of Contents Side Panel */}
+        <div id="toc-panel" className={`toc-side-panel ${tocCollapsed ? 'hidden' : ''}`} style={{ position: 'fixed', top: '60px', left: 0, bottom: 0, height: 'calc(100vh - 60px)', zIndex: 1500 }}>
+          <div className="toc-box">
+            <div className="toc-header">
+              <h2>Table of Contents</h2>
+              <button id="toc-close-internal" onClick={() => setTocCollapsed(true)} title="Collapse Panel" style={{ background: 'none', border: 'none', fontSize: '1.5em', cursor: 'pointer' }}>
+                  <span>{"\u00AB"}</span>
+              </button>
+            </div>
+            {data.table_of_contents && data.table_of_contents.length > 0 ? (
+              <ol>
+                {data.table_of_contents.map((item) => (
+                  <li key={item.id}><a href={`#${item.id}`}>{item.title}</a></li>
                 ))}
-                <hr />
-              </div>
-            )}
-
-            {data.sections && data.sections.length > 0 ? (
-              data.sections.map((section, idx) => (
-                <SectionComponent key={idx} section={section} />
-              ))
-            ) : data.fallback_html ? (
-              <div className="Section">
-                <h2>Full Document Text</h2>
-                <div dangerouslySetInnerHTML={{ __html: data.fallback_html }} />
-              </div>
+              </ol>
             ) : (
-              <p>Could not parse the drug label sections.</p>
+              <p>No table of contents available.</p>
             )}
           </div>
-
-          <div id="faers-view" className={`tab-content ${activeTab === 'faers-view' ? 'active' : ''}`} style={{ display: activeTab === 'faers-view' ? 'block' : 'none' }}>
-             <div id="faers-loading" className="loader"></div>
-             <div id="dashboard-content" className="dashboard-grid" style={{ display: 'none' }}>
-                <div className="chart-card full-width">
-                   <h3>Label Coverage Analysis</h3>
-                   <div className="table-container">
-                      <table id="coverageTable" className="coverage-table">
-                         <thead>
-                            <tr>
-                               <th style={{ width: '50px' }}></th>
-                               <th>Reaction</th>
-                               <th>Count</th>
-                               <th>SOC</th>
-                               <th>HLT</th>
-                               <th>Status</th>
-                            </tr>
-                         </thead>
-                         <tbody id="coverageTable-body"></tbody>
-                      </table>
-                   </div>
-                   <div className="pagination-controls" style={{ marginTop: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-                        <button id="firstPage" className="button pagination-btn">&laquo;</button>
-                        <button id="prevPage" className="button pagination-btn">&lsaquo;</button>
-                        <input type="number" id="pageInput" defaultValue="1" style={{ width: '50px', textAlign: 'center' }} />
-                        <span className="page-info">of <span id="totalPages">1</span></span>
-                        <button id="nextPage" className="button pagination-btn">&rsaquo;</button>
-                        <button id="lastPage" className="button pagination-btn">&raquo;</button>
-                   </div>
-                </div>
-                <div className="chart-card full-width">
-                    <h3>Adverse Events Trends (Time Series)</h3>
-                    <div className="canvas-container" style={{ height: '400px' }}>
-                        <canvas id="trendComparisonChart"></canvas>
-                    </div>
-                </div>
-             </div>
+          <div className="sidebar-footer">
+            <a href="/dashboard" className="button btn-sidebar-home">
+              <span>{"\u2302"}</span> Return Home
+            </a>
           </div>
+        </div>
 
-          <div id="tox-view" className={`tab-content ${activeTab === 'tox-view' ? 'active' : ''}`} style={{ display: activeTab === 'tox-view' ? 'block' : 'none' }}>
-             <div id="tox-index" style={{ textAlign: 'center', padding: '50px 20px' }}>
-                <h2 style={{ color: '#333', marginBottom: '40px', fontWeight: 300 }}>Select an Agent</h2>
-                <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                   <button id="btn-agent-dili" className="agent-card">
-                      <h3 style={{ margin: 0, color: '#17a2b8', fontSize: '2em' }}>DILI</h3>
-                      <p style={{ margin: '10px 0 0', color: '#555' }}>Liver Injury</p>
-                   </button>
-                   <button id="btn-agent-dict" className="agent-card">
-                      <h3 style={{ margin: 0, color: '#dc3545', fontSize: '2em' }}>DICT</h3>
-                      <p style={{ margin: '10px 0 0', color: '#555' }}>Cardiotoxicity</p>
-                   </button>
-                   <button id="btn-agent-diri" className="agent-card">
-                      <h3 style={{ margin: 0, color: '#ffc107', fontSize: '2em' }}>DIRI</h3>
-                      <p style={{ margin: '10px 0 0', color: '#555' }}>Renal Injury</p>
-                   </button>
-                   <button id="btn-agent-pgx" className="agent-card">
-                      <h3 style={{ margin: 0, color: '#6610f2', fontSize: '2em' }}>PGx</h3>
-                      <p style={{ margin: '10px 0 0', color: '#555' }}>Genomics</p>
-                   </button>
+        {/* Main Content */}
+        <div id="main-content" className={`main-content ${tocCollapsed ? 'expanded' : ''}`} style={{ 
+            transition: 'margin-left 0.3s ease', 
+            marginLeft: tocCollapsed ? '0' : '300px',
+            width: '100%',
+            padding: '20px'
+        }}>
+          <div className="container" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <div className="label-header" style={{ marginBottom: '25px', marginTop: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                        <h1 className="DocumentTitle" style={{ marginBottom: '5px', lineHeight: '1.2' }}>{data.brand_name || data.drug_name}</h1>
+                        <h2 style={{ marginTop: 0, fontSize: '1.1em', color: '#666', fontWeight: 400, marginBottom: 0 }}>{data.original_title || data.generic_name}</h2>
+                    </div>
+                    <div style={{ marginLeft: '20px' }}>
+                        <button id="favorite-btn" className="favorite-btn" title="Toggle Project" style={{ background:'none', border:'none', cursor:'pointer', fontSize: '1.8em', color: '#ccc', padding: 0 }}>
+                            {"\u2606"}
+                        </button>
+                    </div>
                 </div>
-             </div>
 
-             {/* DILI Module */}
-             <div id="dili-module" style={{ display: 'none' }}>
-                <div id="dili-loading" className="loader" style={{ display: 'none' }}></div>
-                <div id="dili-risk-panel" style={{ display: 'none', marginBottom: '20px' }}></div>
-                <div id="dili-content" className="dashboard-grid" style={{ display: 'none' }}>
+                <div className="label-meta-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginTop: '15px', border: '1px solid #eee' }}>
+                    {data.has_boxed_warning && (
+                    <div className="meta-item" style={{ gridColumn: '1 / -1', backgroundColor: '#fff5f5', border: '1px solid #f5c6cb', borderRadius: '6px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '1.5em', color: '#dc3545' }}>{"\u26A0"}</span>
+                        <div>
+                            <span style={{ display: 'block', fontSize: '0.75em', color: '#dc3545', textTransform: 'uppercase', fontWeight: 700 }}>Safety Alert</span>
+                            <span style={{ fontWeight: 600, color: '#721c24' }}>Contains Boxed Warning</span>
+                        </div>
+                    </div>
+                    )}
+                    <div className="meta-item">
+                        <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Manufacturer</span>
+                        <span style={{ fontWeight: 600, color: '#333' }}>{data.manufacturer_name || 'N/A'}</span>
+                    </div>
+                    <div className="meta-item">
+                        <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Product Type</span>
+                        <span style={{ fontWeight: 600, color: '#333' }}>{data.document_type || 'Label'}</span>
+                    </div>
+                    <div className="meta-item">
+                        <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Version</span>
+                        <span style={{ fontFamily: 'monospace', color: '#555' }}>v{data.version_number || '1'}</span>
+                    </div>
+                    <div className="meta-item">
+                        <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Last Revised</span>
+                        <span>{data.effective_time || 'N/A'}</span>
+                    </div>
+                    <div className="meta-item">
+                        <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>NDC Code</span>
+                        <span style={{ fontFamily: 'monospace', color: '#333' }}>{data.ndc || 'N/A'}</span>
+                    </div>
+                    <div className="meta-item">
+                        <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Application Number</span>
+                        <span style={{ fontFamily: 'monospace', color: '#333' }}>{data.application_number || 'N/A'}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="top-annotations-container" className="top-annotations-container"></div>
+
+            {/* Tab Contents */}
+            <div id="label-view" className={`tab-content ${activeTab === 'label-view' ? 'active' : ''}`} style={{ display: activeTab === 'label-view' ? 'block' : 'none', overflowX: 'auto' }}>
+                {data.highlights && data.highlights.length > 0 && (
+                <div id="highlights-section" className="highlights-box">
+                    <h2>Highlights of Prescribing Information</h2>
+                    {data.highlights.map((h, i) => (
+                    <div key={i} className="highlight-item">
+                        {h.source_section_title !== 'Untitled Section' && (
+                        <div className="highlight-source-header">
+                            <span className="source-label">Section</span>
+                            <span className="source-title">{h.source_section_title}</span>
+                        </div>
+                        )}
+                        <div className="highlight-body" dangerouslySetInnerHTML={{ __html: h.content_html }} />
+                    </div>
+                    ))}
+                    <hr />
+                </div>
+                )}
+
+                {data.sections && data.sections.length > 0 ? (
+                data.sections.map((section, idx) => (
+                    <SectionComponent key={idx} section={section} />
+                ))
+                ) : data.fallback_html ? (
+                <div className="Section">
+                    <h2>Full Document Text</h2>
+                    <div dangerouslySetInnerHTML={{ __html: data.fallback_html }} />
+                </div>
+                ) : (
+                <p>Could not parse the drug label sections.</p>
+                )}
+            </div>
+
+            <div id="faers-view" className={`tab-content ${activeTab === 'faers-view' ? 'active' : ''}`} style={{ display: activeTab === 'faers-view' ? 'block' : 'none' }}>
+                <div id="faers-loading" className="loader"></div>
+                <div id="dashboard-content" className="dashboard-grid" style={{ display: 'none' }}>
                     <div className="chart-card full-width">
-                        <h3>Official Label Analysis</h3>
-                        <div id="dili-label-signals"></div>
+                    <h3>Label Coverage Analysis</h3>
+                    <div className="table-container">
+                        <table id="coverageTable" className="coverage-table">
+                            <thead>
+                                <tr>
+                                <th style={{ width: '50px' }}></th>
+                                <th>Reaction</th>
+                                <th>Count</th>
+                                <th>SOC</th>
+                                <th>HLT</th>
+                                <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="coverageTable-body"></tbody>
+                        </table>
+                    </div>
+                    <div className="pagination-controls" style={{ marginTop: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                            <button id="firstPage" className="button pagination-btn">&laquo;</button>
+                            <button id="prevPage" className="button pagination-btn">&lsaquo;</button>
+                            <input type="number" id="pageInput" defaultValue="1" style={{ width: '50px', textAlign: 'center' }} />
+                            <span className="page-info">of <span id="totalPages">1</span></span>
+                            <button id="nextPage" className="button pagination-btn">&rsaquo;</button>
+                            <button id="lastPage" className="button pagination-btn">&raquo;</button>
+                    </div>
                     </div>
                     <div className="chart-card full-width">
-                        <h3>FAERS Liver-Related Events</h3>
+                        <h3>Adverse Events Trends (Time Series)</h3>
                         <div className="canvas-container" style={{ height: '400px' }}>
-                            <canvas id="diliFaersChart"></canvas>
+                            <canvas id="trendComparisonChart"></canvas>
                         </div>
                     </div>
                 </div>
-                <div id="dili-error" style={{ display: 'none' }}><p>Error loading DILI data.</p></div>
-             </div>
+            </div>
 
-             {/* DICT Module */}
-             <div id="dict-module" style={{ display: 'none' }}>
-                <div id="dict-loading" className="loader" style={{ display: 'none' }}></div>
-                <div id="dict-risk-panel" style={{ display: 'none', marginBottom: '20px' }}></div>
-                <div id="dict-content" className="dashboard-grid" style={{ display: 'none' }}>
-                    <div className="chart-card full-width">
-                        <h3>Official Label Analysis</h3>
-                        <div id="dict-label-signals"></div>
+            <div id="tox-view" className={`tab-content ${activeTab === 'tox-view' ? 'active' : ''}`} style={{ display: activeTab === 'tox-view' ? 'block' : 'none' }}>
+                <div id="tox-index" style={{ textAlign: 'center', padding: '50px 20px' }}>
+                    <h2 style={{ color: '#333', marginBottom: '40px', fontWeight: 300 }}>Select an Agent</h2>
+                    <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button id="btn-agent-dili" className="agent-card">
+                        <h3 style={{ margin: 0, color: '#17a2b8', fontSize: '2em' }}>DILI</h3>
+                        <p style={{ margin: '10px 0 0', color: '#555' }}>Liver Injury</p>
+                    </button>
+                    <button id="btn-agent-dict" className="agent-card">
+                        <h3 style={{ margin: 0, color: '#dc3545', fontSize: '2em' }}>DICT</h3>
+                        <p style={{ margin: '10px 0 0', color: '#555' }}>Cardiotoxicity</p>
+                    </button>
+                    <button id="btn-agent-diri" className="agent-card">
+                        <h3 style={{ margin: 0, color: '#ffc107', fontSize: '2em' }}>DIRI</h3>
+                        <p style={{ margin: '10px 0 0', color: '#555' }}>Renal Injury</p>
+                    </button>
+                    <button id="btn-agent-pgx" className="agent-card">
+                        <h3 style={{ margin: 0, color: '#6610f2', fontSize: '2em' }}>PGx</h3>
+                        <p style={{ margin: '10px 0 0', color: '#555' }}>Genomics</p>
+                    </button>
                     </div>
-                    <div className="chart-card full-width">
-                        <h3>FAERS Cardiac-Related Events</h3>
-                        <div className="canvas-container" style={{ height: '400px' }}>
-                            <canvas id="dictFaersChart"></canvas>
+                </div>
+
+                {/* DILI Module */}
+                <div id="dili-module" style={{ display: 'none' }}>
+                    <div id="dili-loading" className="loader" style={{ display: 'none' }}></div>
+                    <div id="dili-risk-panel" style={{ display: 'none', marginBottom: '20px' }}></div>
+                    <div id="dili-content" className="dashboard-grid" style={{ display: 'none' }}>
+                        <div className="chart-card full-width">
+                            <h3>Official Label Analysis</h3>
+                            <div id="dili-label-signals"></div>
+                        </div>
+                        <div className="chart-card full-width">
+                            <h3>FAERS Liver-Related Events</h3>
+                            <div className="canvas-container" style={{ height: '400px' }}>
+                                <canvas id="diliFaersChart"></canvas>
+                            </div>
                         </div>
                     </div>
+                    <div id="dili-error" style={{ display: 'none' }}><p>Error loading DILI data.</p></div>
                 </div>
-                <div id="dict-error" style={{ display: 'none' }}><p>Error loading DICT data.</p></div>
-             </div>
 
-             {/* DIRI Module */}
-             <div id="diri-module" style={{ display: 'none' }}>
-                <div id="diri-loading" className="loader" style={{ display: 'none' }}></div>
-                <div id="diri-risk-panel" style={{ display: 'none', marginBottom: '20px' }}></div>
-                <div id="diri-content" className="dashboard-grid" style={{ display: 'none' }}>
-                    <div className="chart-card full-width">
-                        <h3>Official Label Analysis</h3>
-                        <div id="diri-label-signals"></div>
-                    </div>
-                    <div className="chart-card full-width">
-                        <h3>FAERS Renal-Related Events</h3>
-                        <div className="canvas-container" style={{ height: '400px' }}>
-                            <canvas id="diriFaersChart"></canvas>
+                {/* DICT Module */}
+                <div id="dict-module" style={{ display: 'none' }}>
+                    <div id="dict-loading" className="loader" style={{ display: 'none' }}></div>
+                    <div id="dict-risk-panel" style={{ display: 'none', marginBottom: '20px' }}></div>
+                    <div id="dict-content" className="dashboard-grid" style={{ display: 'none' }}>
+                        <div className="chart-card full-width">
+                            <h3>Official Label Analysis</h3>
+                            <div id="dict-label-signals"></div>
+                        </div>
+                        <div className="chart-card full-width">
+                            <h3>FAERS Cardiac-Related Events</h3>
+                            <div className="canvas-container" style={{ height: '400px' }}>
+                                <canvas id="dictFaersChart"></canvas>
+                            </div>
                         </div>
                     </div>
+                    <div id="dict-error" style={{ display: 'none' }}><p>Error loading DICT data.</p></div>
                 </div>
-                <div id="diri-error" style={{ display: 'none' }}><p>Error loading DIRI data.</p></div>
-             </div>
 
-             {/* PGx Module */}
-             <div id="pgx-module" style={{ display: 'none' }}>
-                <div id="pgx-loading" className="loader" style={{ display: 'none' }}></div>
-                <div id="pgx-content" className="dashboard-grid" style={{ display: 'none' }}>
-                    <div className="chart-card full-width">
-                        <h3>Pharmacogenomic Biomarkers</h3>
-                        <div id="pgx-results-container"></div>
+                {/* DIRI Module */}
+                <div id="diri-module" style={{ display: 'none' }}>
+                    <div id="diri-loading" className="loader" style={{ display: 'none' }}></div>
+                    <div id="diri-risk-panel" style={{ display: 'none', marginBottom: '20px' }}></div>
+                    <div id="diri-content" className="dashboard-grid" style={{ display: 'none' }}>
+                        <div className="chart-card full-width">
+                            <h3>Official Label Analysis</h3>
+                            <div id="diri-label-signals"></div>
+                        </div>
+                        <div className="chart-card full-width">
+                            <h3>FAERS Renal-Related Events</h3>
+                            <div className="canvas-container" style={{ height: '400px' }}>
+                                <canvas id="diriFaersChart"></canvas>
+                            </div>
+                        </div>
                     </div>
+                    <div id="diri-error" style={{ display: 'none' }}><p>Error loading DIRI data.</p></div>
                 </div>
-                <div id="pgx-error" style={{ display: 'none' }}><p>Error loading PGx data.</p></div>
-             </div>
+
+                {/* PGx Module */}
+                <div id="pgx-module" style={{ display: 'none' }}>
+                    <div id="pgx-loading" className="loader" style={{ display: 'none' }}></div>
+                    <div id="pgx-content" className="dashboard-grid" style={{ display: 'none' }}>
+                        <div className="chart-card full-width">
+                            <h3>Pharmacogenomic Biomarkers</h3>
+                            <div id="pgx-results-container"></div>
+                        </div>
+                    </div>
+                    <div id="pgx-error" style={{ display: 'none' }}><p>Error loading PGx data.</p></div>
+                </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Floating Action Buttons */}
-      <div id="user-notes-btn" className="floating-action-btn" title="My Notes" style={{ bottom: '160px', backgroundColor: '#fd7e14' }}>
-        <span>{"\uD83D\uDDD2"}</span>
+      <div id="user-notes-btn" className="floating-action-btn" title="My Notes" style={{ bottom: '160px', backgroundColor: '#0071bc' }}>
+        <span>{"\u270E"}</span>
       </div>
-      <div id="meddra-stats-btn" className="floating-action-btn" title="MedDRA Stats" style={{ bottom: '90px', backgroundColor: '#6f42c1' }}>
-        <span>{"\uD83D\uDCCA"}</span>
+      <div id="meddra-stats-btn" className="floating-action-btn" title="MedDRA Stats" style={{ bottom: '90px', backgroundColor: '#0071bc' }}>
+        <span>{"\u2126"}</span>
       </div>
-      <div id="chat-bubble" className="floating-action-btn chat-bubble" title="AI Assistant" style={{ bottom: '20px', backgroundColor: '#007bff' }}>
+      <div id="chat-bubble" className="floating-action-btn chat-bubble" title="AI Assistant" style={{ bottom: '20px', backgroundColor: '#002e5d' }}>
         <span>{"\uD83D\uDCAC"}</span>
       </div>
 
@@ -427,6 +475,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
         {`
           window.currentSetId = ${JSON.stringify(data.set_id)};
           window.currentDrugName = ${JSON.stringify(data.faers_drug_name)};
+          window.currentGenericName = ${JSON.stringify(data.generic_name)};
           window.currentManufacturer = ${JSON.stringify(data.manufacturer_name)};
           window.currentEffectiveTime = ${JSON.stringify(data.effective_time)};
           window.currentUserId = ${data.user_id || 'null'};

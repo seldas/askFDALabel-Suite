@@ -24,6 +24,9 @@ window.initToxAgents = function() {
     let currentDictFaersCount = 0;
     let currentDiriFaersCount = 0;
 
+    window.activateAgent = activateAgent;
+    window.loadPgxData = loadPgxData;
+
     // --- Helper to switch active agent ---
     function activateAgent(agentName) {
         // Reset all buttons

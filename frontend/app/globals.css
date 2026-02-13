@@ -17,6 +17,10 @@
   --fda-border: #d1d5db;
 }
 
+* {
+  box-sizing: border-box;
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
@@ -57,6 +61,7 @@ body {
   z-index: 100;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   box-sizing: border-box;
+  width: 100%;
 }
 
 .custom-dropdown {

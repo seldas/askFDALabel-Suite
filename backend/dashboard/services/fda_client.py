@@ -369,8 +369,14 @@ def get_faers_data(drug_name, limit=20):
     Fetches aggregated safety data from openFDA FAERS endpoint for a given drug, 
     limited to the last 5 years to match the trend charts.
     """
+    if not drug_name or drug_name == 'N/A':
+        return None
+
+    # Clean name: Take first part if comma/semicolon separated (e.g. "Aspirin, Bristol" -> "Aspirin")
+    clean_name = re.split(r'[,;]', drug_name)[0].strip()
+    
     base_url = "https://api.fda.gov/drug/event.json"
-    search_term = f'(patient.drug.openfda.brand_name:"{drug_name}" OR patient.drug.openfda.generic_name:"{drug_name}")'
+    search_term = f'(patient.drug.openfda.brand_name:"{clean_name}" OR patient.drug.openfda.generic_name:"{clean_name}")'
     
     # Time range: Last 5 years
     current_year = datetime.now().year

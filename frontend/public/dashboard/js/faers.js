@@ -120,12 +120,25 @@ window.initFaers = function() {
         });
     }
 
+    window.loadFaersData = loadFaersData;
+
     async function loadFaersData() {
+        if (faersDataLoaded) return;
         if (typeof currentDrugName === 'undefined') return;
 
-        // Fetch a large dataset initially (1000 items) 
+        // --- Improved Search Strategy ---
+        // Prioritize Generic Name for openFDA as it's more stable for event queries
+        let drugSearchTerm = window.currentGenericName || window.currentDrugName;
+        
+        // Clean the name (remove manufacturer if present in currentDrugName fallback)
+        if (drugSearchTerm.includes(',')) {
+            drugSearchTerm = drugSearchTerm.split(',')[0].trim();
+        }
+        // Remove dosage form if accidentally included (e.g. "Aspirin Tablet" -> "Aspirin")
+        drugSearchTerm = drugSearchTerm.replace(/\s+(tablet|capsule|injection|cream|ointment|gel|solution|suspension).*$/i, '').trim();
+
         const fetchLimit = 1000; 
-        const encodedName = encodeURIComponent(currentDrugName);
+        const encodedName = encodeURIComponent(drugSearchTerm);
         
         // Show loading, hide content
         const loadingEl = document.getElementById('faers-loading');
@@ -137,6 +150,8 @@ window.initFaers = function() {
             const response = await fetch(`/api/dashboard/faers/${encodedName}?limit=${fetchLimit}`);
             const data = await response.json();
             
+            if (data.error) throw new Error(data.error);
+
             if (loadingEl) loadingEl.style.display = 'none';
             if (contentEl) contentEl.style.display = 'grid';
             
@@ -144,14 +159,18 @@ window.initFaers = function() {
             faersDataLoaded = true;
             
             filterAndRenderCharts();
-            
-            // Tag signals based on the full dataset (1000 items) as requested
             tagSafetySignals(data); 
 
         } catch (error) {
             console.error('Error fetching FAERS data:', error);
             const loadingEl = document.getElementById('faers-loading');
-            if (loadingEl) loadingEl.innerHTML = '<p style="color:red">Failed to load safety data.</p>';
+            if (loadingEl) {
+                loadingEl.style.display = 'block';
+                loadingEl.innerHTML = `<p style="color:#dc3545; padding: 20px; text-align:center; background:#fff5f5; border-radius:8px; border:1px solid #feb2b2;">
+                    <strong>FAERS Data Unavailable:</strong> ${error.message || 'Could not connect to openFDA'}<br>
+                    <small style="opacity:0.7">Attempted search for: "${drugSearchTerm}"</small>
+                </p>`;
+            }
         }
     }
 
