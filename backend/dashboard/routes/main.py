@@ -297,7 +297,7 @@ def search():
             # Enrich with favorite status if user logged in
             if current_user.is_authenticated:
                 active_project_id = None # Logic to determine project? 
-                # For now we check the "Not Grouped" or a specified project if we had one
+                # For now we check the "Favorite" or a specified project if we had one
                 # Usually selection.html JS handles the "check favorites batch" call later, 
                 # but if we want it correct on first load:
                 

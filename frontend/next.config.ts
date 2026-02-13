@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  devIndicators: false,
   allowedDevOrigins: ["ncshpcgpu01", "elsa.fda.gov", "localhost"],
   async headers() {
     return [

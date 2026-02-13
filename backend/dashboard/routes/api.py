@@ -381,57 +381,38 @@ def delete_annotation():
 
 # --- Favorites ---
 @api_bp.route('/toggle_favorite', methods=['POST'])
-@api_bp.route('/toggle_favorite', methods=['POST'])
 @login_required
 def toggle_favorite():
     data = request.get_json()
     set_id = data.get('set_id')
-    project_id = data.get('project_id')
     import_id = data.get('import_id')
 
     if not set_id:
         return jsonify({'error': 'Missing set_id'}), 400
 
-    if not project_id:
-        default_proj = Project.query.filter_by(owner_id=current_user.id, title="Not Grouped").first()
-        if default_proj:
-            project_id = default_proj.id
+    # LITERALLY always use the 'Favorite' project for toggling
+    target_project = Project.query.filter_by(owner_id=current_user.id, title="Favorite").first()
+    if not target_project:
+        target_project = Project(title="Favorite", owner_id=current_user.id, display_order=0)
+        db.session.add(target_project)
+        db.session.commit()
+
+    project_id = target_project.id
 
     # Check PROJECT-WIDE
-    favorite = Favorite.query.filter_by(set_id=set_id, project_id=project_id).first()
+    favorite = Favorite.query.filter_by(set_id=set_id, project_id=project_id, user_id=current_user.id).first()
     
-    # Check permissions
-    project = Project.query.get(project_id)
-    if not project or (project.owner_id != current_user.id and current_user not in project.members):
-         return jsonify({'error': 'Unauthorized'}), 403
-
     if favorite:
+        # If it already exists, remove it (toggle behavior)
         db.session.delete(favorite)
         db.session.commit()
         return jsonify({'success': True, 'is_favorite': False})
     else:
-        # Check if we have this metadata in an import session to skip external call
-        meta = None
-        if import_id:
-            import_path = os.path.join(Config.UPLOAD_FOLDER, f"import_{import_id}.json")
-            if os.path.exists(import_path):
-                try:
-                    with open(import_path, 'r', encoding='utf-8') as f:
-                        labels = json.load(f)
-                    for label in labels:
-                        if label['set_id'] == set_id:
-                            # Verify if it has the required columns
-                            required_keys = ['brand_name', 'generic_name', 'manufacturer_name', 'market_category', 'application_number', 'ndc']
-                            # We check if at least some are present and not 'n/a'
-                            if any(label.get(k) and label.get(k) != 'n/a' for k in required_keys):
-                                meta = label
-                                break
-                except Exception as e:
-                    logger.error(f"Error reading import for toggle_favorite: {e}")
-
-        # Fetch fresh metadata if not found in import
-        if not meta:
-            meta = get_label_metadata(set_id)
+        # Before adding, ensure we don't have a race condition or existing duplicate
+        # (Though filter_by above should catch it, we stay strict)
+        existing = Favorite.query.filter_by(set_id=set_id, project_id=project_id, user_id=current_user.id).first()
+        if existing:
+             return jsonify({'success': True, 'is_favorite': True})
             
         if not meta:
             return jsonify({'error': 'Could not fetch label metadata'}), 404
@@ -457,15 +438,12 @@ def check_favorite(set_id):
     if not current_user.is_authenticated:
         return jsonify({'is_favorite': False})
     
-    project_id = request.args.get('project_id', type=int)
-    
-    if not project_id:
-        default_proj = Project.query.filter_by(owner_id=current_user.id, title="Not Grouped").first()
-        if default_proj:
-            project_id = default_proj.id
+    # Yellow star depends ONLY on the 'Favorite' project
+    target_project = Project.query.filter_by(owner_id=current_user.id, title="Favorite").first()
+    if not target_project:
+        return jsonify({'is_favorite': False})
 
-    # Check PROJECT-WIDE
-    favorite = Favorite.query.filter_by(set_id=set_id, project_id=project_id).first()
+    favorite = Favorite.query.filter_by(set_id=set_id, project_id=target_project.id).first()
     return jsonify({'is_favorite': bool(favorite)})
 
 @api_bp.route('/toggle_favorite_comparison', methods=['POST'])
@@ -483,7 +461,7 @@ def toggle_favorite_comparison():
     set_ids_json = json.dumps(set_ids)
 
     if not project_id:
-        default_proj = Project.query.filter_by(owner_id=current_user.id, title="Not Grouped").first()
+        default_proj = Project.query.filter_by(owner_id=current_user.id, title="Favorite").first()
         if default_proj:
             project_id = default_proj.id
 
@@ -578,7 +556,7 @@ def check_favorite_comparison():
     set_ids_json = json.dumps(set_ids)
     
     if not project_id:
-        default_proj = Project.query.filter_by(owner_id=current_user.id, title="Not Grouped").first()
+        default_proj = Project.query.filter_by(owner_id=current_user.id, title="Favorite").first()
         if default_proj:
             project_id = default_proj.id
 
@@ -678,9 +656,9 @@ def favorite_all():
         if not target_project or (target_project.owner_id != current_user.id and current_user not in target_project.members):
             return jsonify({'error': 'Invalid project or unauthorized access.'}), 403
     else:
-        target_project = Project.query.filter_by(owner_id=current_user.id, title="Not Grouped").first()
+        target_project = Project.query.filter_by(owner_id=current_user.id, title="Favorite").first()
         if not target_project:
-             target_project = Project(title="Not Grouped", owner_id=current_user.id, display_order=0)
+             target_project = Project(title="Favorite", owner_id=current_user.id, display_order=0)
              db.session.add(target_project)
              db.session.commit()
 
@@ -863,24 +841,45 @@ def api_projects():
         db.session.commit()
         return jsonify({'success': True, 'project': {'id': new_proj.id, 'title': new_proj.title}})
     
-    not_grouped = Project.query.filter_by(owner_id=current_user.id, title="Not Grouped").first()
+    not_grouped = Project.query.filter_by(owner_id=current_user.id, title="Favorite").first()
     
     other_owned = Project.query.filter(
         Project.owner_id == current_user.id, 
-        Project.title != "Not Grouped"
+        Project.title != "Favorite"
     ).order_by(Project.display_order.asc(), Project.created_at.asc()).all()
     
     shared = current_user.shared_projects
     
     projects = []
     if not_grouped:
-        projects.append({'id': not_grouped.id, 'title': not_grouped.title, 'role': 'owner', 'count': len(not_grouped.favorites) + len(not_grouped.comparisons), 'is_default': True})
+        projects.append({
+            'id': not_grouped.id, 
+            'title': not_grouped.title, 
+            'role': 'owner', 
+            'count': len(not_grouped.favorites) + len(not_grouped.comparisons), 
+            'is_default': True,
+            'is_mutable': False # Favorite project is a permanent workspace and cannot be removed
+        })
         
     for p in other_owned:
-        projects.append({'id': p.id, 'title': p.title, 'role': 'owner', 'count': len(p.favorites) + len(p.comparisons), 'is_default': False})
+        projects.append({
+            'id': p.id, 
+            'title': p.title, 
+            'role': 'owner', 
+            'count': len(p.favorites) + len(p.comparisons), 
+            'is_default': False,
+            'is_mutable': True # Non-favorite projects can be removed freely by the owner
+        })
         
     for p in shared:
-        projects.append({'id': p.id, 'title': p.title, 'role': 'contributor', 'count': len(p.favorites) + len(p.comparisons), 'is_default': False})
+        projects.append({
+            'id': p.id, 
+            'title': p.title, 
+            'role': 'contributor', 
+            'count': len(p.favorites) + len(p.comparisons), 
+            'is_default': False,
+            'is_mutable': False
+        })
         
     return jsonify({'projects': projects})
 
@@ -910,11 +909,19 @@ def api_project_detail(project_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
     if request.method == 'DELETE':
+        # Protect the 'Favorite' project from deletion
+        if project.title == "Favorite":
+            return jsonify({'error': 'The Favorite project is a permanent workspace and cannot be removed.'}), 403
+        
         db.session.delete(project)
         db.session.commit()
         return jsonify({'success': True})
         
     if request.method == 'PUT':
+        # Protect the 'Favorite' project from being renamed
+        if project.title == "Favorite":
+             return jsonify({'error': 'The Favorite project cannot be renamed.'}), 403
+             
         data = request.json
         if 'title' in data:
             project.title = data['title']
@@ -1041,40 +1048,80 @@ def api_move_items():
 @login_required
 def api_my_favorites():
     project_id = request.args.get('project_id', type=int)
+    user_obj = current_user._get_current_object()
     
     if project_id:
         project = Project.query.get(project_id)
-        if not project or (project.owner_id != current_user.id and current_user not in project.members):
+        if not project or (project.owner_id != user_obj.id and user_obj not in project.members):
              return jsonify({'error': 'Unauthorized'}), 403
              
+        # DEDUPLICATION LOGIC:
+        # If this is the owner accessing, we clean up any duplicate set_ids that might have leaked in
+        if project.owner_id == user_obj.id:
+            all_favs = Favorite.query.filter_by(project_id=project_id).all()
+            seen_set_ids = set()
+            duplicates_removed = False
+            for f in all_favs:
+                if f.set_id in seen_set_ids:
+                    db.session.delete(f)
+                    duplicates_removed = True
+                else:
+                    seen_set_ids.add(f.set_id)
+            if duplicates_removed:
+                db.session.commit()
+
         favorites = Favorite.query.filter_by(project_id=project_id).order_by(Favorite.timestamp.desc()).all()
         favorite_comparisons = FavoriteComparison.query.filter_by(project_id=project_id).order_by(FavoriteComparison.timestamp.desc()).all()
+        
+        return jsonify({
+            'favorites': [{
+                'set_id': fav.set_id,
+                'brand_name': fav.brand_name,
+                'generic_name': fav.generic_name,
+                'manufacturer_name': fav.manufacturer_name,
+                'market_category': fav.market_category,
+                'application_number': fav.application_number,
+                'ndc': fav.ndc,
+                'effective_time': fav.effective_time,
+                'timestamp': fav.timestamp.isoformat(),
+                'added_by': fav.user.username
+            } for fav in favorites],
+            'comparisons': [{
+                'id': comp.id,
+                'set_ids': json.loads(comp.set_ids),
+                'title': comp.title,
+                'timestamp': comp.timestamp.isoformat(),
+                'added_by': comp.user.username
+            } for comp in favorite_comparisons],
+            'duplicates_removed': duplicates_removed
+        })
     else:
-        favorites = Favorite.query.filter_by(user_id=current_user.id).order_by(Favorite.timestamp.desc()).all()
-        favorite_comparisons = FavoriteComparison.query.filter_by(user_id=current_user.id).order_by(FavoriteComparison.timestamp.desc()).all()
-    
-    favorites_list = [{
-        'set_id': fav.set_id,
-        'brand_name': fav.brand_name,
-        'generic_name': fav.generic_name,
-        'manufacturer_name': fav.manufacturer_name,
-        'market_category': fav.market_category,
-        'application_number': fav.application_number,
-        'ndc': fav.ndc,
-        'effective_time': fav.effective_time,
-        'timestamp': fav.timestamp.isoformat(),
-        'added_by': fav.user.username
-    } for fav in favorites]
-
-    comparisons_list = [{
-        'id': comp.id,
-        'set_ids': json.loads(comp.set_ids),
-        'title': comp.title,
-        'timestamp': comp.timestamp.isoformat(),
-        'added_by': comp.user.username
-    } for comp in favorite_comparisons]
-
-    return jsonify({'favorites': favorites_list, 'comparisons': comparisons_list})
+        # Global view (all projects) - less common but same logic
+        favorites = Favorite.query.filter_by(user_id=user_obj.id).order_by(Favorite.timestamp.desc()).all()
+        favorite_comparisons = FavoriteComparison.query.filter_by(user_id=user_obj.id).order_by(FavoriteComparison.timestamp.desc()).all()
+        
+        return jsonify({
+            'favorites': [{
+                'set_id': fav.set_id,
+                'brand_name': fav.brand_name,
+                'generic_name': fav.generic_name,
+                'manufacturer_name': fav.manufacturer_name,
+                'market_category': fav.market_category,
+                'application_number': fav.application_number,
+                'ndc': fav.ndc,
+                'effective_time': fav.effective_time,
+                'timestamp': fav.timestamp.isoformat(),
+                'added_by': fav.user.username
+            } for fav in favorites],
+            'comparisons': [{
+                'id': comp.id,
+                'set_ids': json.loads(comp.set_ids),
+                'title': comp.title,
+                'timestamp': comp.timestamp.isoformat(),
+                'added_by': comp.user.username
+            } for comp in favorite_comparisons],
+            'duplicates_removed': False
+        })
 
 @api_bp.route('/check_favorites_batch', methods=['POST'])
 def api_check_favorites_batch():
@@ -1089,7 +1136,7 @@ def api_check_favorites_batch():
         return jsonify({})
 
     if not project_id:
-        default_proj = Project.query.filter_by(owner_id=current_user.id, title="Not Grouped").first()
+        default_proj = Project.query.filter_by(owner_id=current_user.id, title="Favorite").first()
         if default_proj:
             project_id = default_proj.id
     
@@ -1260,9 +1307,9 @@ def run_assessment_logic(set_id, assessment_model, prompt):
         if not aggregated_text:
             return jsonify({'assessment_report': "No relevant sections found."})
 
-    try:
-        user_obj = current_user._get_current_object() if current_user.is_authenticated else None
-        response_text = generate_assessment(user_obj, prompt, aggregated_text)
+        try:
+            user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+            response_text = generate_assessment(user_obj, prompt, aggregated_text)
 
             html_matches = re.findall(r'(<div class="label-section">[\s\S]*?</div>)', response_text, re.DOTALL)
     

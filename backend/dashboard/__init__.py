@@ -70,21 +70,25 @@ def check_meddra_data():
         pass
 
 def migrate_projects():
-    """Ensure all users have a 'Not Grouped' Project and move orphaned items there."""
+    """Ensure all users have a 'Favorite' Project and move orphaned items there."""
     try:
         users = User.query.all()
         for user in users:
-            # 1. Rename old "Default Project" if exists
-            old_default = Project.query.filter_by(owner_id=user.id, title="Default Project").first()
+            # 1. Rename old "Default Project" or "Not Grouped" if exists
+            old_default = Project.query.filter(
+                (Project.owner_id == user.id) & 
+                ((Project.title == "Default Project") | (Project.title == "Not Grouped"))
+            ).first()
+            
             if old_default:
-                old_default.title = "Not Grouped"
+                old_default.title = "Favorite"
                 if old_default.display_order is None:
                     old_default.display_order = 0
             
-            # 2. Check/Create "Not Grouped" project
-            default_proj = Project.query.filter_by(owner_id=user.id, title="Not Grouped").first()
+            # 2. Check/Create "Favorite" project
+            default_proj = Project.query.filter_by(owner_id=user.id, title="Favorite").first()
             if not default_proj:
-                default_proj = Project(title="Not Grouped", description="My default workspace", owner_id=user.id, display_order=0)
+                default_proj = Project(title="Favorite", description="My favorite drug labels", owner_id=user.id, display_order=0)
                 db.session.add(default_proj)
                 db.session.commit() # Commit to get ID
             

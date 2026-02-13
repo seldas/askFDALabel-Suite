@@ -11,6 +11,7 @@ interface Project {
   role: string;
   count: number;
   is_default: boolean;
+  is_mutable: boolean;
 }
 
 interface Favorite {
@@ -42,6 +43,7 @@ export default function DashboardPage() {
   const [projectContent, setProjectLabels] = useState<Favorite[]>([]);
   const [projectComparisons, setProjectComparisons] = useState<Comparison[]>([]);
   const [loadingContent, setLoadingContent] = useState(false);
+  const [duplicatesRemoved, setDuplicatesRemoved] = useState(false);
   
   // Filtering & Pagination State
   const [projectSearch, setProjectSearch] = useState('');
@@ -71,6 +73,7 @@ export default function DashboardPage() {
       const data = await res.json();
       setProjectLabels(data.favorites || []);
       setProjectComparisons(data.comparisons || []);
+      setDuplicatesRemoved(data.duplicates_removed || false);
     } catch (e) {
       console.error("Failed to fetch project detail", e);
     } finally {
@@ -450,7 +453,13 @@ export default function DashboardPage() {
                     className="project-selection-card"
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', width: '100%' }}>
-                        <span style={{ fontSize: '1.5rem' }}>📁</span>
+                        <span style={{ fontSize: '1.5rem', display: 'flex', alignItems: 'center' }}>
+                          {p.title === 'Favorite' ? '⭐' : (
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="#6366f1" style={{ opacity: 0.8 }}>
+                              <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+                            </svg>
+                          )}
+                        </span>
                         <div style={{ fontWeight: 700, fontSize: projects.length > 10 ? '0.9rem' : '1.1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.title}</div>
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'flex', gap: '10px' }}>
@@ -491,7 +500,7 @@ export default function DashboardPage() {
                         />
                         <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>🔍</span>
                       </div>
-                      {!activeProject.is_default && (
+                      {activeProject.is_mutable && (
                         <button 
                           onClick={() => handleDeleteProject(activeProject.id)}
                           style={{ padding: '8px 12px', borderRadius: '8px', background: '#fff1f2', color: '#be123c', border: '1px solid #fecdd3', cursor: 'pointer', fontSize: '0.9rem' }}
@@ -501,6 +510,24 @@ export default function DashboardPage() {
                       )}
                     </div>
                   </div>
+
+                  {duplicatesRemoved && (
+                    <div style={{ 
+                      marginBottom: '1.5rem', 
+                      padding: '10px 15px', 
+                      backgroundColor: '#fffbeb', 
+                      border: '1px solid #fef3c7', 
+                      borderRadius: '12px',
+                      color: '#92400e',
+                      fontSize: '0.85rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <span>⚠️</span>
+                      <span>Some duplicate labels were identified and automatically removed to maintain project integrity.</span>
+                    </div>
+                  )}
 
                   {loadingContent ? (
                     <div style={{ padding: '40px', textAlign: 'center' }}><div className="loader" style={{ margin: '0 auto' }}></div></div>
