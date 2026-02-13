@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import {
@@ -151,16 +151,58 @@ export default function DrugToxPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [market, setMarket] = useState<MarketItem[]>([]);
+  const [marketPage, setMarketPage] = useState(1);
+  const [marketExpanded, setMarketExpanded] = useState(false);
+  const [marketFilterText, setMarketFilterText] = useState('');
+  const [marketCategoryFilter, setMarketCategoryFilter] = useState<string | null>(null);
+  const [metaExpanded, setMetaExpanded] = useState(true);
 
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
   const [companyPortfolio, setCompanyPortfolio] = useState<DrugSummary[]>([]);
   const [companyLoading, setCompanyLoading] = useState(false);
 
+  // Drawer Resizing State
+  const [drawerWidth, setDrawerWidth] = useState(800);
+  const isResizing = useRef(false);
+
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    isResizing.current = true;
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', stopResizing);
+    e.preventDefault();
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    isResizing.current = false;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', stopResizing);
+  }, []);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing.current) return;
+    const newWidth = window.innerWidth - e.clientX;
+    if (newWidth > 400 && newWidth < window.innerWidth * 0.9) {
+      setDrawerWidth(newWidth);
+    }
+  }, []);
+
   // Discrepancy State
   const [discrepancies, setDiscrepancies] = useState<DiscrepancyItem[]>([]);
   const [discrepancyLoading, setDiscrepancyLoading] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<string | null>('ALL');
+
+  const filteredMarket = useMemo(() => {
+    return market.filter(m => {
+      const matchesText = !marketFilterText || 
+        (m.Trade_Name?.toLowerCase() || '').includes(marketFilterText.toLowerCase()) ||
+        (m.Author_Organization?.toLowerCase() || '').includes(marketFilterText.toLowerCase());
+      
+      const matchesCategory = !marketCategoryFilter || m.Toxicity_Class === marketCategoryFilter;
+      
+      return matchesText && matchesCategory;
+    });
+  }, [market, marketFilterText, marketCategoryFilter]);
 
   const COLORS: Record<string, string> = {
     Most: '#c62828',
@@ -305,6 +347,11 @@ export default function DrugToxPage() {
   useEffect(() => {
     if (selectedSetid) {
       setDetailLoading(true);
+      setMarketPage(1);
+      setMarketExpanded(false);
+      setMarketFilterText('');
+      setMarketCategoryFilter(null);
+      setMetaExpanded(true);
       Promise.all([
         axios.get(`${API_BASE}/drugs/${selectedSetid}`, { params: { tox_type: toxType } }),
         axios.get(`${API_BASE}/drugs/${selectedSetid}/history`, { params: { tox_type: toxType } }),
@@ -865,127 +912,372 @@ export default function DrugToxPage() {
         anchor="right"
         open={!!selectedSetid}
         onClose={() => setSelectedSetid(null)}
-        PaperProps={{ sx: { width: { xs: '100%', sm: 800 }, borderLeft: '1px solid #e0e0e0' } }}
+        variant="persistent"
+        PaperProps={{ 
+          sx: { 
+            width: drawerWidth, 
+            borderLeft: 'none',
+            overflow: 'visible',
+            boxShadow: '-10px 0 30px rgba(0,0,0,0.1)'
+          } 
+        }}
       >
+        {/* Resize Handle */}
+        <Box
+          onMouseDown={startResizing}
+          sx={{
+            width: '10px',
+            cursor: 'ew-resize',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            bottom: 0,
+            zIndex: 100,
+            backgroundColor: 'transparent',
+            '&:hover': {
+              backgroundColor: 'rgba(26, 35, 126, 0.1)',
+            },
+            '&::after': {
+              content: '""',
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              height: '40px',
+              width: '2px',
+              backgroundColor: '#cfd8dc',
+              borderRadius: '1px'
+            }
+          }}
+        />
+
         {detailLoading ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="100%">
             <CircularProgress />
           </Box>
         ) : detail ? (
-          <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#fff' }}>
-            <Box sx={{ p: 4, backgroundColor: '#f8faff', borderBottom: '1px solid #e0e6f0' }}>
-              <Box display="flex" justifyContent="space-between" mb={3}>
+          <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#fff', ml: '15px' }}>
+            <Box sx={{ p: 4, pl: 5, backgroundColor: '#f8faff', borderBottom: '1px solid #e0e6f0', mb: 4 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={metaExpanded ? 3 : 0}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 900, color: '#1a237e', mb: 0.5 }}>
                     {detail.Trade_Name}
                   </Typography>
-                  <Typography variant="subtitle1" sx={{ color: '#546e7a', fontWeight: 600 }}>
-                    {detail.Generic_Proper_Names}
-                  </Typography>
+                  {!metaExpanded && (
+                    <Stack direction="row" spacing={1} alignItems="center" mt={1}>
+                      <Chip 
+                        label={`${detail.Tox_Type}: ${detail.Toxicity_Class}`} 
+                        size="small"
+                        color={getToxColor(detail.Toxicity_Class) as any} 
+                        sx={{ fontWeight: 900, height: 24 }} 
+                      />
+                      <Typography variant="caption" sx={{ color: '#546e7a', fontWeight: 600 }}>
+                        {detail.Generic_Proper_Names}
+                      </Typography>
+                    </Stack>
+                  )}
+                  {metaExpanded && (
+                    <Typography variant="subtitle1" sx={{ color: '#546e7a', fontWeight: 600 }}>
+                      {detail.Generic_Proper_Names}
+                    </Typography>
+                  )}
                 </Box>
-                <IconButton onClick={() => setSelectedSetid(null)} sx={{ backgroundColor: '#fff' }}>
-                  <CloseIcon />
-                </IconButton>
+                <Stack direction="row" spacing={1}>
+                  <IconButton 
+                    size="small"
+                    onClick={() => setMetaExpanded(!metaExpanded)}
+                    sx={{ color: '#64748b' }}
+                  >
+                    {metaExpanded ? <ExpandMoreIcon sx={{ transform: 'rotate(180deg)' }} /> : <ExpandMoreIcon />}
+                  </IconButton>
+                  <IconButton 
+                    onClick={() => setSelectedSetid(null)} 
+                    sx={{ 
+                      color: '#64748b',
+                      transition: 'all 0.2s ease',
+                      backgroundColor: 'transparent !important',
+                      '&:hover': { 
+                        color: '#1e293b',
+                        transform: 'rotate(90deg)'
+                      },
+                      '&:active': {
+                        backgroundColor: 'transparent !important'
+                      }
+                    }}
+                  >
+                    <CloseIcon />
+                  </IconButton>
+                </Stack>
               </Box>
 
-              <Stack direction="row" spacing={1.5} mb={4}>
-                <Chip label={`${detail.Tox_Type} : ${detail.Toxicity_Class}`} color={getToxColor(detail.Toxicity_Class) as any} sx={{ fontWeight: 900 }} />
-                <Chip label={detail.Tox_Type} variant="outlined" icon={<ScienceIcon />} sx={{ fontWeight: 800 }} />
-                {detail.Changed === 'Yes' && (
-                  <Chip
-                    label="CRITICAL UPDATE"
-                    icon={<NewReleasesIcon />}
-                    sx={{ backgroundColor: '#fff3e0', color: '#e65100', fontWeight: 900 }}
-                    variant="outlined"
-                  />
-                )}
-              </Stack>
+              {metaExpanded && (
+                <Box sx={{ animation: 'fadeIn 0.3s ease-in-out' }}>
+                  <Stack direction="row" spacing={1.5} mb={4}>
+                    <Chip label={`${detail.Tox_Type} : ${detail.Toxicity_Class}`} color={getToxColor(detail.Toxicity_Class) as any} sx={{ fontWeight: 900 }} />
+                    <Chip label={detail.Tox_Type} variant="outlined" icon={<ScienceIcon />} sx={{ fontWeight: 800 }} />
+                    {detail.Changed === 'Yes' && (
+                      <Chip
+                        label="CRITICAL UPDATE"
+                        icon={<NewReleasesIcon />}
+                        sx={{ backgroundColor: '#fff3e0', color: '#e65100', fontWeight: 900 }}
+                        variant="outlined"
+                      />
+                    )}
+                  </Stack>
 
-              <Grid container spacing={3}>
-                <Grid xs={12} sm={6}>
-                  <MetaItem
-                    icon={<BusinessIcon fontSize="small" />}
-                    label="Marketing Sponsor"
-                    value={detail.Author_Organization}
-                    onClick={() => setSelectedCompany(detail.Author_Organization)}
-                  />
-                </Grid>
-                <Grid xs={12} sm={6}>
-                  <MetaItem icon={<CalendarTodayIcon fontSize="small" />} label="Label Approval Date" value={formatDate(detail.SPL_Effective_Time)} />
-                </Grid>
-                <Grid xs={12} sm={6}>
-                  <MetaItem
-                    icon={<AssignmentIcon fontSize="small" />}
-                    label="Source"
-                    value={`https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=${detail.SETID}`}
-                    isLink
-                  />
-                </Grid>
-                <Grid xs={12} sm={6}>
-                  <MetaItem
-                    icon={<DashboardIcon fontSize="small" />}
-                    label="Analysis"
-                    value="View in Dashboard"
-                    onClick={() => window.open(`/dashboard/label/${detail.SETID}`, '_blank')}
-                  />
-                </Grid>
-                <Grid xs={12} sm={6}>
-                  <MetaItem icon={<InfoIcon fontSize="small" />} label="SPL SET-ID" value={detail.SETID} />
-                </Grid>
-                <Grid xs={12}>
-                  <MetaItem icon={<NoteIcon fontSize="small" />} label="DrugTox history" value={detail.Update_Notes} />
-                </Grid>
-              </Grid>
+                  <Grid container spacing={3}>
+                    <Grid xs={12} sm={6}>
+                      <MetaItem
+                        icon={<BusinessIcon fontSize="small" />}
+                        label="Marketing Sponsor"
+                        value={detail.Author_Organization}
+                        onClick={() => setSelectedCompany(detail.Author_Organization)}
+                      />
+                    </Grid>
+                    <Grid xs={12} sm={6}>
+                      <MetaItem icon={<CalendarTodayIcon fontSize="small" />} label="Label Approval Date" value={formatDate(detail.SPL_Effective_Time)} />
+                    </Grid>
+                    <Grid xs={12} sm={6}>
+                      <MetaItem
+                        icon={<AssignmentIcon fontSize="small" />}
+                        label="Source"
+                        value={`https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=${detail.SETID}`}
+                        isLink
+                      />
+                    </Grid>
+                    <Grid xs={12} sm={6}>
+                      <MetaItem
+                        icon={<DashboardIcon fontSize="small" />}
+                        label="Analysis"
+                        value="View in Dashboard"
+                        onClick={() => window.open(`/dashboard/label/${detail.SETID}`, '_blank')}
+                      />
+                    </Grid>
+                    <Grid xs={12} sm={6}>
+                      <MetaItem icon={<InfoIcon fontSize="small" />} label="SPL SET-ID" value={detail.SETID} />
+                    </Grid>
+                    <Grid xs={12}>
+                      <MetaItem icon={<NoteIcon fontSize="small" />} label="DrugTox history" value={detail.Update_Notes} />
+                    </Grid>
+                  </Grid>
+                </Box>
+              )}
             </Box>
 
-            <Box sx={{ p: 4, overflowY: 'auto', flexGrow: 1 }}>
-              <Grid container spacing={4}>
-                <Grid xs={12} md={7}>
-                  <Accordion defaultExpanded sx={{ border: '1px solid #e0e0e0', borderRadius: '12px !important', mb: 4, overflow: 'hidden' }}>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ backgroundColor: '#fafafa', borderBottom: '1px solid #e0e0e0' }}>
-                      <Typography sx={{ fontWeight: 900, color: '#1a237e', display: 'flex', alignItems: 'center' }}>
-                        <DescriptionIcon sx={{ mr: 1 }} /> CLINICAL SUMMARY
-                      </Typography>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ p: 3 }}>
-                      <Box className="markdown-content" sx={{ lineHeight: 1.9, '& h1, & h2, & h3': { color: '#1a237e', mt: 3 } }}>
-                        <ReactMarkdown>{detail.AI_Summary}</ReactMarkdown>
-                      </Box>
-                    </AccordionDetails>
-                  </Accordion>
+            <Box sx={{ p: 4, pl: 5, overflowY: 'auto', flexGrow: 1 }}>
+              <Grid container spacing={5}>
+                {/* 1. Toxicity History (Horizontal) */}
+                <Grid xs={12} sx={{ mt: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 900, color: '#1a237e', mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <HistoryIcon sx={{ mr: 1 }} /> TOXICITY HISTORY
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block', mb: 2, color: '#546e7a', fontWeight: 700, fontStyle: 'italic' }}>
+                    Tracing: {detail.Author_Organization}
+                  </Typography>
 
-                  <Typography variant="h6" sx={{ fontWeight: 900, color: '#1a237e', mb: 3, display: 'flex', alignItems: 'center' }}>
+                  <Box 
+                    sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'row', 
+                      overflowX: 'auto', 
+                      pb: 2,
+                      gap: 3,
+                      '&::-webkit-scrollbar': { height: '6px' },
+                      '&::-webkit-scrollbar-thumb': { backgroundColor: '#cfd8dc', borderRadius: '3px' },
+                      position: 'relative'
+                    }}
+                  >
+                    {/* Horizontal connector line */}
+                    <Box sx={{ 
+                      position: 'absolute', 
+                      top: '11px', 
+                      left: 0, 
+                      right: 0, 
+                      height: '2px', 
+                      borderTop: '2px dashed #cfd8dc', 
+                      zIndex: 0 
+                    }} />
+
+                    {history.map((item) => (
+                      <Box 
+                        key={item.SETID} 
+                        sx={{ 
+                          minWidth: '180px', 
+                          position: 'relative', 
+                          zIndex: 1,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start'
+                        }}
+                      >
+                        <Avatar
+                          sx={{
+                            width: 22,
+                            height: 22,
+                            bgcolor: item.is_historical === 0 ? '#1a237e' : '#b0bec5',
+                            border: '4px solid #fff',
+                            boxShadow: '0 0 0 1px #cfd8dc',
+                            mb: 1.5
+                          }}
+                        >
+                          {item.is_historical === 0 ? 'L' : 'H'}
+                        </Avatar>
+                        <Box sx={{ backgroundColor: 'white', p: 1, borderRadius: '8px', border: '1px solid #f1f5f9', width: '100%' }}>
+                          <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', display: 'block' }}>
+                            {formatDate(item.SPL_Effective_Time)}
+                          </Typography>
+                          <Chip
+                            label={item.Toxicity_Class}
+                            size="small"
+                            color={getToxColor(item.Toxicity_Class) as any}
+                            variant={item.is_historical === 0 ? 'filled' : 'outlined'}
+                            sx={{ height: 18, fontSize: '0.6rem', fontWeight: 800, my: 0.5 }}
+                          />
+                          <Typography variant="body2" noWrap sx={{ fontSize: '0.7rem', color: '#546e7a', fontWeight: 600, maxWidth: '160px' }}>
+                            {item.Trade_Name}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                </Grid>
+
+                {/* 2. Market Comparison (Full Row) */}
+                <Grid xs={12} sx={{ mt: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 900, color: '#1a237e', mb: 2, display: 'flex', alignItems: 'center' }}>
                     <CompareArrowsIcon sx={{ mr: 1 }} /> MARKET COMPARISON
                   </Typography>
 
                   {market.length > 0 ? (
-                    <Stack spacing={2}>
-                      {market.map((item) => (
-                        <Paper
-                          key={item.SETID}
-                          variant="outlined"
-                          sx={{
-                            p: 2,
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            cursor: 'pointer',
-                            '&:hover': { backgroundColor: '#f8faff' },
-                          }}
-                          onClick={() => setSelectedSetid(item.SETID)}
-                        >
-                          <Box>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                              {item.Author_Organization}
+                    <Box>
+                      {/* Market Statistics & Category Filters */}
+                      <Paper variant="outlined" sx={{ p: 2, mb: 2, backgroundColor: '#fcfcfd', borderRadius: '12px' }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 1 }}>FILTER BY CATEGORY:</Typography>
+                        <Stack direction="row" flexWrap="wrap" gap={1}>
+                          <Chip 
+                            label={`Total: ${market.length}`} 
+                            onClick={() => { setMarketCategoryFilter(null); setMarketPage(1); }}
+                            variant={marketCategoryFilter === null ? 'filled' : 'outlined'}
+                            size="small" 
+                            color={marketCategoryFilter === null ? 'primary' : 'default'}
+                            sx={{ fontWeight: 800, fontSize: '0.7rem' }} 
+                          />
+                          {Object.keys(COLORS).map(cls => {
+                            const count = market.filter(m => m.Toxicity_Class === cls).length;
+                            if (count === 0) return null;
+                            const isActive = marketCategoryFilter === cls;
+                            return (
+                              <Chip 
+                                key={cls} 
+                                label={`${cls}: ${count}`} 
+                                size="small" 
+                                onClick={() => { setMarketCategoryFilter(isActive ? null : cls); setMarketPage(1); }}
+                                sx={{ 
+                                  fontWeight: 800, 
+                                  backgroundColor: isActive ? COLORS[cls] : 'transparent',
+                                  borderColor: COLORS[cls],
+                                  color: isActive ? 'white' : COLORS[cls],
+                                  border: '1px solid',
+                                  fontSize: '0.7rem',
+                                  '&:hover': {
+                                    backgroundColor: isActive ? COLORS[cls] : 'rgba(0,0,0,0.04)'
+                                  }
+                                }} 
+                              />
+                            );
+                          })}
+                        </Stack>
+                      </Paper>
+
+                      {/* Text Search Filter */}
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Filter market by drug or company name..."
+                        value={marketFilterText}
+                        onChange={(e) => { setMarketFilterText(e.target.value); setMarketPage(1); }}
+                        sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <SearchIcon fontSize="small" />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+
+                      {/* Expand/Collapse Toggle */}
+                      <Button 
+                        size="small" 
+                        onClick={() => setMarketExpanded(!marketExpanded)}
+                        endIcon={marketExpanded ? <ExpandMoreIcon sx={{ transform: 'rotate(180deg)' }} /> : <ExpandMoreIcon />}
+                        sx={{ mb: 1, fontWeight: 700, textTransform: 'none' }}
+                      >
+                        {marketExpanded ? 'Hide detailed list' : `Show ${filteredMarket.length} matching drugs`}
+                      </Button>
+
+                      {/* Collapsible Paginated List */}
+                      {marketExpanded && (
+                        <Box sx={{ animation: 'fadeIn 0.3s ease-in-out', ml: 3, borderLeft: '3px solid #f1f5f9', pl: 2, mt: 2 }}>
+                          {filteredMarket.length > 0 ? (
+                            <>
+                              <Grid container spacing={2}>
+                                {filteredMarket.slice((marketPage - 1) * 10, marketPage * 10).map((item) => (
+                                  <Grid xs={12} sm={6} key={item.SETID}>
+                                    <Paper
+                                      variant="outlined"
+                                      sx={{
+                                        p: 1.5,
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                        borderRadius: '8px',
+                                        '&:hover': { backgroundColor: '#f8faff', borderColor: '#1a237e' },
+                                      }}
+                                      onClick={() => setSelectedSetid(item.SETID)}
+                                    >
+                                      <Box sx={{ maxWidth: '70%' }}>
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 800, fontSize: '0.85rem', lineHeight: 1.2 }}>
+                                          {item.Trade_Name}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                                          {item.Author_Organization}
+                                        </Typography>
+                                      </Box>
+                                      <Chip 
+                                        label={item.Toxicity_Class} 
+                                        size="small" 
+                                        color={getToxColor(item.Toxicity_Class) as any} 
+                                        sx={{ fontWeight: 800, fontSize: '0.65rem', height: 20 }} 
+                                      />
+                                    </Paper>
+                                  </Grid>
+                                ))}
+                              </Grid>
+                              
+                              {filteredMarket.length > 10 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                                  <TablePagination
+                                    component="div"
+                                    count={filteredMarket.length}
+                                    page={marketPage - 1}
+                                    onPageChange={(_e, newPage) => setMarketPage(newPage + 1)}
+                                    rowsPerPage={10}
+                                    rowsPerPageOptions={[]}
+                                    sx={{ border: 'none' }}
+                                  />
+                                </Box>
+                              )}
+                            </>
+                          ) : (
+                            <Typography variant="body2" sx={{ py: 4, textAlign: 'center', color: 'text.secondary', fontStyle: 'italic' }}>
+                              No drugs match your filters.
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {item.Trade_Name}
-                            </Typography>
-                          </Box>
-                          <Chip label={item.Toxicity_Class} size="small" color={getToxColor(item.Toxicity_Class) as any} sx={{ fontWeight: 800 }} />
-                        </Paper>
-                      ))}
-                    </Stack>
+                          )}
+                        </Box>
+                      )}
+                    </Box>
                   ) : (
                     <Typography variant="body2" color="text.disabled" sx={{ fontStyle: 'italic' }}>
                       No other active labeling sources found.
@@ -993,50 +1285,16 @@ export default function DrugToxPage() {
                   )}
                 </Grid>
 
-                <Grid xs={12} md={5}>
-                  <Typography variant="h6" sx={{ fontWeight: 900, color: '#1a237e', mb: 3, display: 'flex', alignItems: 'center' }}>
-                    <HistoryIcon sx={{ mr: 1 }} /> TOXICITY HISTORY
+                {/* 3. Clinical Summary (Full Row) */}
+                <Grid xs={12} sx={{ mt: 2, mb: 4 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 900, color: '#1a237e', mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <DescriptionIcon sx={{ mr: 1 }} /> CLINICAL SUMMARY
                   </Typography>
-                  <Typography variant="caption" sx={{ display: 'block', mb: 3, color: '#546e7a', fontWeight: 700, fontStyle: 'italic' }}>
-                    Tracing: {detail.Author_Organization}
-                  </Typography>
-
-                  <Box sx={{ pl: 2, borderLeft: '2px dashed #cfd8dc' }}>
-                    {history.map((item) => (
-                      <Box key={item.SETID} sx={{ mb: 2, position: 'relative' }}>
-                        <Avatar
-                          sx={{
-                            width: 14,
-                            height: 14,
-                            bgcolor: item.is_historical === 0 ? '#1a237e' : '#b0bec5',
-                            position: 'absolute',
-                            left: -27,
-                            top: 4,
-                            border: '2px solid #fff',
-                          }}
-                        >
-                          {' '}
-                        </Avatar>
-                        <Box>
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Typography variant="caption" sx={{ fontWeight: 900 }}>
-                              {formatDate(item.SPL_Effective_Time)}
-                            </Typography>
-                            <Chip
-                              label={item.Toxicity_Class}
-                              size="small"
-                              color={getToxColor(item.Toxicity_Class) as any}
-                              variant={item.is_historical === 0 ? 'filled' : 'outlined'}
-                              sx={{ height: 18, fontSize: '0.65rem', fontWeight: 800 }}
-                            />
-                          </Stack>
-                          <Typography variant="body2" noWrap sx={{ fontSize: '0.75rem', color: '#546e7a', fontWeight: 600 }}>
-                            {item.Trade_Name}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    ))}
-                  </Box>
+                  <Paper variant="outlined" sx={{ p: 3, backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0e0e0' }}>
+                    <Box className="markdown-content" sx={{ lineHeight: 1.9, '& h1, & h2, & h3': { color: '#1a237e', mt: 3 } }}>
+                      <ReactMarkdown>{detail.AI_Summary}</ReactMarkdown>
+                    </Box>
+                  </Paper>
                 </Grid>
               </Grid>
             </Box>
@@ -1066,7 +1324,21 @@ export default function DrugToxPage() {
               </Typography>
             </Box>
           </Box>
-          <IconButton onClick={() => setSelectedCompany(null)}>
+          <IconButton 
+            onClick={() => setSelectedCompany(null)}
+            sx={{ 
+              color: '#64748b',
+              transition: 'all 0.2s ease',
+              backgroundColor: 'transparent !important',
+              '&:hover': { 
+                color: '#1e293b',
+                transform: 'rotate(90deg)'
+              },
+              '&:active': {
+                backgroundColor: 'transparent !important'
+              }
+            }}
+          >
             <CloseIcon />
           </IconButton>
         </DialogTitle>
