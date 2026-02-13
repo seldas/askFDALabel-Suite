@@ -141,10 +141,11 @@ export default function HomePage() {
                       <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ACCOUNT</div>
                       <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
                     </div>
-                    <button className="dropdown-item">My Projects</button>
-                    <button className="dropdown-item">Favorite Labels</button>
-                    <button className="dropdown-item">Search History</button>
+                    <button className="dropdown-item" onClick={() => { setShowAiModal(true); setActiveDropdown(null); }}>
+                      AI Configuration
+                    </button>
                     <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
+                      <a href="/api/dashboard/auth/change_password" className="dropdown-item">Change Password</a>
                       <a href="/api/dashboard/auth/logout" className="dropdown-item" style={{ color: '#ef4444' }}>Sign Out</a>
                     </div>
                   </div>
@@ -181,12 +182,13 @@ export default function HomePage() {
       {/* Main Grid */}
       <main className="card-grid">
         <div className="animate-fade-in-up delay-2">
-          {isInternal ? (
-            <ScientificCard 
-              title="Official FDALabel" 
-              description="Access internal search interfaces for FDALabel and CDER-CBER versions."
-              icon="🏛️"
-            >
+                  {isInternal ? (
+                    <ScientificCard 
+                      title="Official FDALabel" 
+                      description=""
+                      icon="🏛️"
+                    >
+          
               <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
                 <a 
                   href="https://fdalabel.fda.gov/fdalabel/ui/search" 

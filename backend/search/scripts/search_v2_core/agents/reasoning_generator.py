@@ -27,7 +27,7 @@ def run_reasoning_generator(state):
     )
 
     messages = [{"role": "system", "content": prompt}]
-    success, response_text = safe_llm_call(client, messages, temperature=0.3)
+    success, response_text = safe_llm_call(client, messages, temperature=0.3, user=state.user)
 
     state.reasoning = response_text if success else "Performed search actions."
     state.flags["terminate"] = True

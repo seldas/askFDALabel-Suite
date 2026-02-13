@@ -201,7 +201,7 @@ def run_answer_composer(state):
     # 4) Normal answer generation (non-streaming path)
     messages = build_answer_messages(state)
 
-    success, response_text = safe_llm_call(client, messages, temperature=0.1)
+    success, response_text = safe_llm_call(client, messages, temperature=0.1, user=state.user)
 
     if success and response_text:
         state.answer["response_text"] = response_text

@@ -123,7 +123,7 @@ def run_planner(state):
     prompt = PLANNER_PROMPT.replace("{user_query}", state.conversation["user_query"]).replace("{history}", history_text)
 
     messages = [{"role": "system", "content": prompt}]
-    success, response_text = safe_llm_call(client, messages, temperature=0.0)
+    success, response_text = safe_llm_call(client, messages, temperature=0.0, user=state.user)
 
     if not success:
         logger.error("Planner LLM call failed.")

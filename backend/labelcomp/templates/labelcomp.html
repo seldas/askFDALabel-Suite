@@ -8,30 +8,21 @@
     <link rel="icon" type="image/svg+xml" href="/api/dashboard/static/favicon.svg">
     <link rel="stylesheet" href="/api/dashboard/static/style.css">
     <style>
-        .suite-home-btn {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            text-decoration: none;
+        .header-main {
+            background-color: #002e5d;
+            color: white;
+            padding: 0.75rem 2rem;
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            border-radius: 50px;
-            border: 1px solid #e2e8f0;
-            background-color: white;
-            color: #64748b;
-            font-weight: 700;
-            font-size: 0.85rem;
-            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-            z-index: 100;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
-        .suite-home-btn:hover {
-            border-color: #cbd5e1;
-            background-color: #f8fafc;
-        }
-
-        /* AI Summary Styles */
+        .header-main a { text-decoration: none; color: white; }
+        
         .ai-summary-content { line-height: 1.6; color: #334155; }
         .ai-summary-content h3 { margin-top: 0; color: #1e293b; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 12px; }
         .ai-summary-content h4 { margin: 15px 0 8px 0; color: #475569; font-size: 1.1em; }
@@ -41,11 +32,22 @@
     </style>
 </head>
 <body>
-    <a href="/" class="suite-home-btn">
-        <span>🏠</span> Suite Home
-    </a>
+    <header className="header-main" class="header-main">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <a href="/" style="background-color: white; padding: 5px; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                <img src="/api/dashboard/static/favicon.svg" alt="Logo" style="height: 24px;">
+            </a>
+            <h1 style="margin: 0; font-size: 1.25rem; fontWeight: 700; color: white; letterSpacing: -0.025em;">
+                Label Comparison
+            </h1>
+        </div>
 
-    <div class="results-container" style="padding-top: 40px;">
+        <nav style="display: flex; align-items: center; gap: 20px;">
+            <a href="/" style="color: white; font-size: 0.875rem; text-decoration: none; opacity: 0.9;">Suite Home</a>
+        </nav>
+    </header>
+
+    <div class="results-container">
         <div id="main-content" class="main-content expanded">
             <div class="container compare-container">
                 <div class="compare-title-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 40px;">

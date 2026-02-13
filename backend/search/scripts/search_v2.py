@@ -10,12 +10,12 @@ from search.scripts.search_v2_core.log import logger
 from search.scripts.search_v2_core.state import AgentState
 from search.scripts.search_v2_core.controller import run_controller
 from search.scripts.search_v2_core.helpers import convert_oracle_to_filtered_results, build_debug_stats
-def search_v2(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+def search_v2(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
     """
     Entry point for the V2 Search API.
     """
     try:
-        state = AgentState(payload)
+        state = AgentState(payload, user=user)
         run_controller(state)
 
         debug_stats = build_debug_stats(state)

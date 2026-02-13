@@ -63,6 +63,19 @@ def logout():
     logout_user()
     return redirect('/')
 
+@auth_bp.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        new_password = request.form.get('password')
+        if not new_password:
+            return render_template('change_password.html', error='Password cannot be empty')
+        
+        current_user.set_password(new_password)
+        db.session.commit()
+        return redirect('/')
+    return render_template('change_password.html')
+
 @auth_bp.route('/session')
 def session():
     """ Returns current user info as JSON. """

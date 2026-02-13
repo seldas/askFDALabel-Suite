@@ -4,7 +4,8 @@ import uuid
 from typing import Any, Dict
 
 class AgentState:
-    def __init__(self, payload: Dict[str, Any]):
+    def __init__(self, payload: Dict[str, Any], user=None):
+        self.user = user
         self.meta = {
             "session_id": str(uuid.uuid4()),
             "created_at": datetime.datetime.now().isoformat()

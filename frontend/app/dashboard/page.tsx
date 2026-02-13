@@ -189,30 +189,32 @@ export default function DashboardPage() {
   }, [activeProject]);
 
   return (
-    <main className="hp-main-layout" suppressHydrationWarning>
+    <main className="hp-main-layout" suppressHydrationWarning style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       <DashboardClient />
       
-      {/* Header Controls */}
-      <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 100, display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <a href="/" className="hp-nav-btn hp-btn-outline" style={{ 
-          backgroundColor: 'white',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          borderRadius: '12px',
-          padding: '10px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          textDecoration: 'none',
-          color: '#475569',
-          fontWeight: 600,
-          fontSize: '0.9rem',
-          border: '1px solid #e2e8f0',
-          transition: 'all 0.2s',
-          height: '42px'
-        }}>
-          <span>{"\uD83C\uDFE0"}</span> Suite Home
-        </a>
-      </div>
+      {/* Main Header */}
+      <header className="header-main" style={{ position: 'sticky', top: 0, zIndex: 1000 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <a href="/" style={{ 
+            backgroundColor: 'white', 
+            padding: '5px', 
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textDecoration: 'none'
+          }}>
+             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '24px' }} />
+          </a>
+          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
+            Labeling Dashboard
+          </h1>
+        </div>
+
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <a href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</a>
+        </nav>
+      </header>
 
       <div className="hp-container">
         <div style={{ 

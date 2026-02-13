@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, Response, stream_with_context, send_file
+from flask_login import current_user
 from flask_cors import CORS
 import os
 import io
@@ -17,6 +18,7 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 # assuming the python path includes 'backend' or we run from 'backend'
 from search.call_llm import safe_llm_call
 from search.prompt_active import prompt_boring
+from dashboard.services.ai_handler import call_llm as unified_call_llm
 
 from search.scripts.search_v1 import (
     search_v1 as search_v1_func,
@@ -71,7 +73,7 @@ else:
 @search_bp.route("/search", methods=["POST"])
 def search():
     payload = request.json or {}
-    resp, status = search_v1_func(payload)
+    resp, status = search_v1_func(payload, user=current_user if current_user.is_authenticated else None)
     return jsonify(resp), status
 
 @search_bp.route("/find", methods=["GET"])
@@ -93,14 +95,14 @@ def find():
 @search_bp.route("/search_agentic", methods=["POST"])
 def search_agentic():
     payload = request.json or {}
-    resp, status = search_v2_func(payload)
+    resp, status = search_v2_func(payload, user=current_user if current_user.is_authenticated else None)
     return jsonify(resp), status
 
 @search_bp.route("/generate_answer", methods=["POST"])
 def generate_answer():
     payload = request.json or {}
     def gen():
-        yield from generate_answer_stream_func(payload)
+        yield from generate_answer_stream_func(payload, user=current_user if current_user.is_authenticated else None)
     return Response(stream_with_context(gen()), content_type="text/plain")
 
 @search_bp.route("/get_metadata", methods=["POST"])
@@ -146,27 +148,45 @@ def stream_answer_tokens(state):
         run_answer_composer(state)
         yield (state.answer or {}).get("response_text", "") or ""
         return
+    
     messages = build_answer_messages(state)
-    model = llm_model_name or ""
-    stream = client.chat.completions.create(
-        model=model,
-        messages=messages,
+    
+    # Extract system prompt if present
+    system_prompt = ""
+    user_message = ""
+    if messages and messages[0]['role'] == 'system':
+        system_prompt = messages[0]['content']
+        user_message = "Please generate the answer." # build_answer_messages usually puts everything in system prompt or similar
+    
+    # Actually build_answer_messages returns a single system message with everything
+    
+    stream = unified_call_llm(
+        user=state.user,
+        system_prompt=system_prompt,
+        user_message=user_message,
+        max_tokens=4096,
         temperature=0.1,
-        stream=True,
+        stream=True
     )
-    for evt in stream:
-        try:
-            delta = evt.choices[0].delta.content
-        except Exception:
-            delta = None
-        if delta:
-            yield delta
+
+    for chunk in stream:
+        text = ""
+        if hasattr(chunk, 'choices'):
+            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                text = chunk.choices[0].delta.content
+        elif hasattr(chunk, 'text'):
+            text = chunk.text
+        elif isinstance(chunk, str):
+            text = chunk
+            
+        if text:
+            yield text
 
 @search_bp.route("/search_agentic_stream", methods=["POST"])
 def search_agentic_stream():
     payload = request.json or {}
     def generate():
-        state = AgentState(payload)
+        state = AgentState(payload, user=current_user if current_user.is_authenticated else None)
         done = threading.Event()
         err = {}
         def worker():
@@ -236,7 +256,12 @@ def chat():
         else:
             return jsonify({"error": "Invalid doc_type"}), 400
         def chat_stream():
-            yield from search.call_llm_stream_func(chatHistory, spl_xmls, uploaded_files)
+            yield from search.call_llm_stream_func(
+                chatHistory, 
+                spl_xmls, 
+                uploaded_files, 
+                user=current_user if current_user.is_authenticated else None
+            )
         return Response(stream_with_context(chat_stream()), content_type="application/json")
     except Exception as e:
         logger.error(f"Error in chat: {e}")
@@ -346,7 +371,13 @@ def export_excel():
 def random_query():
     try:
         messages = [{"role": "system", "content": prompt_boring}]
-        process_success, generated_question = safe_llm_call(client, messages, max_tokens=100, temperature=0.9)
+        process_success, generated_question = safe_llm_call(
+            client, 
+            messages, 
+            max_tokens=100, 
+            temperature=0.9, 
+            user=current_user if current_user.is_authenticated else None
+        )
         if not process_success: return jsonify({"query": "What are the indications for Ozempic?"})
         return jsonify({"query": generated_question.replace('"', "").strip()})
     except Exception as e:

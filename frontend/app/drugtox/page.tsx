@@ -457,105 +457,36 @@ export default function DrugToxPage() {
         }}
       />
 
-      <Box
-        sx={{
-          width: '100%',
-          maxWidth: 'lg',
-          px: 2,
-          pt: 2,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <Button
-          variant="outlined"
-          onClick={() => (window.location.href = '/')}
-          sx={{
-            borderRadius: '50px',
-            textTransform: 'none',
-            fontWeight: 700,
-            color: '#64748b',
-            borderColor: '#e2e8f0',
-            '&:hover': {
-              borderColor: '#6366f1',
-              backgroundColor: '#f8faff',
-            },
-          }}
-          startIcon={<span>&#127968;</span>}
-        >
-          Suite Home
-        </Button>
+      {/* Main Header */}
+      <header className="header-main" style={{ width: '100%', position: 'sticky', top: 0, zIndex: 1000 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <a href="/" style={{ 
+            backgroundColor: 'white', 
+            padding: '5px', 
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textDecoration: 'none'
+          }}>
+             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '24px' }} />
+          </a>
+          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
+            DrugTox Intelligence
+          </h1>
+        </div>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {!loading && session?.is_authenticated ? (
-            <>
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  backgroundColor: '#fff',
-                  px: 1.5,
-                  py: 0.5,
-                  borderRadius: '20px',
-                  border: '1px solid #e2e8f0',
-                }}
-              >
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                  AI:
-                </Typography>
-                <select
-                  value={session.ai_provider}
-                  onChange={(e) => updateAiProvider(e.target.value)}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    outline: 'none',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    color: '#1a237e',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {!session.is_internal && (
-                    <>
-                      <option value="gemini">Gemini</option>
-                      <option value="gemma">Gemma 3</option>
-                    </>
-                  )}
-                  <option value="openai">OpenAI</option>
-                  {session.is_internal && <option value="elsa">ELSA</option>}
-                </select>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: 'primary.main' }}>
-                  {session.username?.[0].toUpperCase()}
-                </Avatar>
-                <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                  {session.username}
-                </Typography>
-              </Box>
-            </>
-          ) : (
-            !loading && (
-              <Stack direction="row" spacing={1}>
-                <Button size="small" variant="text" href="/api/dashboard/auth/login" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>
-                  Login
-                </Button>
-                <Button
-                  size="small"
-                  variant="text"
-                  href="/api/dashboard/auth/register"
-                  sx={{ fontWeight: 700, fontSize: '0.75rem' }}
-                >
-                  Register
-                </Button>
-              </Stack>
-            )
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          {!loading && session?.is_authenticated && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: 'white' }}>
+                {session.username}
+              </Typography>
+            </div>
           )}
-        </Box>
-      </Box>
+          <a href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</a>
+        </nav>
+      </header>
 
       <Container maxWidth="lg" sx={{ py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Box sx={{ textAlign: 'center', mb: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>

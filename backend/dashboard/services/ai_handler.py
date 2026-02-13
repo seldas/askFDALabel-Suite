@@ -197,6 +197,9 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
         contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_message)]))
 
         try:
+            if kwargs.get("stream", False):
+                return client.models.generate_content_stream(model=model, contents=contents, config=config)
+
             response = client.models.generate_content(model=model, contents=contents, config=config)
             return response.text
         except Exception as e:

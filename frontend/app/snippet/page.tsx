@@ -20,36 +20,40 @@ export default function SnippetPage() {
   }, []);
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      minHeight: '100vh',
-      fontFamily: 'system-ui, sans-serif',
-      backgroundColor: '#f8fafc',
-      padding: '20px',
-      position: 'relative'
-    }}>
-      <div style={{ position: 'absolute', top: '20px', left: '20px' }}>
-        <a href="/" style={{ 
-          textDecoration: 'none', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px', 
-          padding: '10px 20px', 
-          borderRadius: '50px', 
-          border: '1px solid #e2e8f0', 
-          backgroundColor: 'white',
-          color: '#64748b', 
-          fontWeight: 700, 
-          fontSize: '0.9rem',
-          boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)'
-        }}>
-          <span>{"\uD83C\uDFE0"}</span> Suite Home
-        </a>
-      </div>
-      <h1 style={{ color: '#1e293b', fontSize: '3rem', marginBottom: '2rem' }}>Snippet Store</h1>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+      {/* Main Header */}
+      <header className="header-main">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <a href="/" style={{ 
+            backgroundColor: 'white', 
+            padding: '5px', 
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textDecoration: 'none'
+          }}>
+             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '24px' }} />
+          </a>
+          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
+            Snippet Store
+          </h1>
+        </div>
+
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <a href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</a>
+        </nav>
+      </header>
+
+      <main style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center', 
+        padding: '4rem 20px'
+      }}>
+        <h2 style={{ color: '#1e293b', fontSize: '2.5rem', fontWeight: 800, marginBottom: '2.5rem', textAlign: 'center' }}>
+          Scientific Research Tools
+        </h2>
 
       <div style={{ 
         display: 'grid', 

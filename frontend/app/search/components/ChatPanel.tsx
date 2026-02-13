@@ -558,7 +558,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
       {chatHistory.length === 0 ? (
         // Initial View (Centered)
         <div className="initial-view-container">
-            <h1 className="initial-view-title">How can I help you with drug labeling today?</h1>
+            <h1 className="initial-view-title">Agentic Search: Reasoning across FDA Drug Labels</h1>
             
             <form onSubmit={handleSearch} className="centered-search-form">
                 <div className="centered-input-wrapper">

@@ -142,7 +142,7 @@ def lob_to_string_limited(value: Any, max_length: int = 5000) -> Optional[str]:
 # -----------------------------
 # Core: Search (callable)
 # -----------------------------
-def search_v1(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+def search_v1(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
     """
     Callable search function.
     Input payload keys (expected):
@@ -194,6 +194,7 @@ def search_v1(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
                 messages,
                 max_tokens=1024,
                 temperature=0.01,
+                user=user
             )
 
             if not process_success:
@@ -272,7 +273,9 @@ def search_v1(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
 # -----------------------------
 # Core: Answer generation (stream)
 # -----------------------------
-def generate_answer_stream(payload: Dict[str, Any]) -> Generator[str, None, None]:
+from dashboard.services.ai_handler import call_llm as unified_call_llm
+
+def generate_answer_stream(payload: Dict[str, Any], user=None) -> Generator[str, None, None]:
     """
     Returns a generator that yields streamed text chunks for an answer.
 
@@ -323,22 +326,24 @@ Format the answer in Markdown.
 At the very end of your response, always include a separate paragraph with a helpful suggestion or question to guide the user toward missing information or further search refinements.
 """
 
-        messages: List[Dict[str, Any]] = [{"role": "system", "content": "You are a helpful medical assistant."}]
-        if isinstance(chat_history, list) and chat_history:
-            messages.extend(chat_history)
-        messages.append({"role": "user", "content": answer_prompt})
-
-        response = client.chat.completions.create(
-            model=llm_model_name,
-            messages=messages,
+        stream = unified_call_llm(
+            user=user,
+            system_prompt="You are a helpful medical assistant.",
+            user_message=answer_prompt,
+            history=chat_history,
             max_tokens=4096,
             temperature=0.1,
-            stream=True,
+            stream=True
         )
 
-        for chunk in response:
-            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+        for chunk in stream:
+            if hasattr(chunk, 'choices'): # OpenAI style
+                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+            elif hasattr(chunk, 'text'): # Gemini style
+                yield chunk.text
+            elif isinstance(chunk, str):
+                yield chunk
 
     except Exception as e:
         logger.error(f"Answer Generation Error: {e}")
@@ -426,7 +431,7 @@ def fetch_top_results_content(top_results: List[Dict[str, Any]], cursor) -> str:
 # -----------------------------
 # LLM answering with uploads (stream)
 # -----------------------------
-def call_llm_stream(chat_history: List[Dict[str, Any]], AI_ref: str, uploads: Optional[List[Any]] = None) -> Generator[str, None, None]:
+def call_llm_stream(chat_history: List[Dict[str, Any]], AI_ref: str, uploads: Optional[List[Any]] = None, user=None) -> Generator[str, None, None]:
     """
     Streams LLM response as JSON lines: {"summary_chunk": "..."}\n
 
@@ -465,7 +470,7 @@ def call_llm_stream(chat_history: List[Dict[str, Any]], AI_ref: str, uploads: Op
         .replace("{{processed_uploads}}", processed_uploads)
     )
 
-    messages: List[Dict[str, Any]] = [{"role": "system", "content": system_prompt}]
+    messages = []
     if isinstance(chat_history, list):
         messages.extend(chat_history)
 
@@ -484,17 +489,36 @@ def call_llm_stream(chat_history: List[Dict[str, Any]], AI_ref: str, uploads: Op
                 }
             )
 
-    response = client.chat.completions.create(
-        model=llm_model_name,
-        messages=messages,
+    user_message = ""
+    if messages and messages[-1]['role'] == 'user':
+        user_message = messages[-1]['content']
+        history = messages[:-1]
+    else:
+        user_message = "Please process the information."
+        history = messages
+
+    stream = unified_call_llm(
+        user=user,
+        system_prompt=system_prompt,
+        user_message=user_message,
+        history=history,
         max_tokens=4096,
         temperature=0.01,
-        stream=True,
+        stream=True
     )
 
-    for chunk in response:
-        if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-            yield json.dumps({"summary_chunk": chunk.choices[0].delta.content}) + "\n"
+    for chunk in stream:
+        text = ""
+        if hasattr(chunk, 'choices'):
+            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                text = chunk.choices[0].delta.content
+        elif hasattr(chunk, 'text'):
+            text = chunk.text
+        elif isinstance(chunk, str):
+            text = chunk
+            
+        if text:
+            yield json.dumps({"summary_chunk": text}) + "\n"
 
 
 # -----------------------------
