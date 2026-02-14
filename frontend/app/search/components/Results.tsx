@@ -723,9 +723,8 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
               </button>
             </div>
 
-            <h2 style={{ 
+            <h2 className="hero-title-animated" style={{ 
               fontWeight: 950, 
-              color: '#0f172a', 
               fontSize: '1.25rem', 
               marginBottom: '20px',
               textAlign: 'center'

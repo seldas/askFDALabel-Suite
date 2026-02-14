@@ -320,8 +320,8 @@ export default function DashboardPage() {
           minHeight: '100vh'
         }}>
           <div className="hp-hero" style={{ marginBottom: '3rem' }}>
-            <h1 style={{ fontSize: '3.5rem', fontWeight: '800', color: '#1e293b', marginBottom: '1rem', letterSpacing: '-0.025em' }}>AFDL Dashboard</h1>
-            <p className="hp-hero-subtitle" style={{ fontSize: '1.25rem', color: '#64748b', fontWeight: '500' }}>The Intelligence Layer for Drug Safety & Analysis</p>
+            <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: '800', marginBottom: '1rem', letterSpacing: '-0.025em' }}>AFDL Dashboard</h1>
+            <p className="hp-hero-subtitle hero-subtitle-animated" style={{ fontSize: '1.25rem', color: '#64748b', fontWeight: '500' }}>The Intelligence Layer for Drug Safety & Analysis</p>
           </div>
 
           <div style={{ 

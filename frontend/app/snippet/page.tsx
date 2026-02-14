@@ -155,19 +155,17 @@ export default function SnippetPage() {
           flexDirection: 'column',
           alignItems: 'center',
           padding: '4rem 20px',
+          textAlign: 'center',
         }}
       >
-        <h2
-          style={{
-            color: '#1e293b',
-            fontSize: '2.5rem',
-            fontWeight: 800,
-            marginBottom: '2.5rem',
-            textAlign: 'center',
-          }}
-        >
-          Scientific Research Tools
-        </h2>
+        <div style={{ marginBottom: '3rem' }}>
+          <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: '800', marginBottom: '1rem', letterSpacing: '-0.025em' }}>
+            Available Snippets
+          </h1>
+          <p className="hero-subtitle-animated" style={{ fontSize: '1.25rem', color: '#64748b', fontWeight: '500' }}>
+            Enhance your browser with specialized research tools
+          </p>
+        </div>
 
         <div
           style={{
@@ -175,30 +173,18 @@ export default function SnippetPage() {
             gridTemplateColumns: '1fr',
             gap: '2rem',
             width: '100%',
-            maxWidth: '600px',
+            maxWidth: '650px',
           }}
         >
           <div
             style={{
               backgroundColor: 'white',
-              padding: '2rem',
-              borderRadius: '16px',
-              boxShadow:
-                '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-              borderTop: '6px solid #10b981',
+              padding: '2.5rem 2rem',
+              borderRadius: '24px',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
+              border: '1px solid #e2e8f0',
             }}
           >
-            <h2
-              style={{
-                color: '#1e293b',
-                marginBottom: '1.5rem',
-                fontSize: '1.5rem',
-                textAlign: 'center',
-              }}
-            >
-              Available Snippets
-            </h2>
-
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
               {/* Drug Snippet Bookmarklet */}
               <div className="bookmarklet-container" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>

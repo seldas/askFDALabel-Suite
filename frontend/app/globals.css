@@ -211,6 +211,53 @@ body {
   animation: modalScaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
+/* Hero Animations */
+.hero-title-animated {
+  background: linear-gradient(
+      120deg, 
+      #0f172a 0%, 
+      #0f172a 30%, 
+      #4f46e5 45%, 
+      #0ea5e9 50%, 
+      #4f46e5 55%, 
+      #0f172a 70%, 
+      #0f172a 100%
+  );
+  background-size: 300% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+  animation: 
+      hp-title-shimmer 6s infinite linear,
+      hp-title-reveal 1.2s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.hero-subtitle-animated {
+  opacity: 0;
+  animation: hp-fade-in 1s ease-out 0.6s forwards;
+}
+
+@keyframes hp-title-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: -100% 50%; }
+}
+
+@keyframes hp-title-reveal {
+  from {
+      transform: translateY(100%) skewY(5deg);
+      opacity: 0;
+  }
+  to {
+      transform: translateY(0) skewY(0deg);
+      opacity: 1;
+  }
+}
+
+@keyframes hp-fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .delay-1 { animation-delay: 0.1s; }
 .delay-2 { animation-delay: 0.2s; }
 .delay-3 { animation-delay: 0.3s; }

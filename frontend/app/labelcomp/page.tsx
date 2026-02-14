@@ -387,32 +387,44 @@ function LabelCompContent() {
         </nav>
       </header>
 
-      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <h2 style={{ color: '#002e5d', fontSize: '1.75rem', fontWeight: 800 }}>Side-by-Side Analysis</h2>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'white' }}>
-                <button onClick={expandAll} style={{ padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#64748b', borderRight: '1px solid #e2e8f0' }}>Expand All</button>
-                <button onClick={collapseAll} style={{ padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#64748b' }}>Collapse All</button>
-            </div>
-            <button 
-                onClick={() => setShowAddModal(true)}
-                style={{ 
-                backgroundColor: '#10b981', 
-                color: 'white', 
-                border: 'none', 
-                padding: '10px 24px', 
-                borderRadius: '8px', 
-                fontWeight: 700, 
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-                }}
-            >
-                <span style={{ fontSize: '1.2rem' }}>+</span> Add Label
-            </button>
+      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '4rem 2rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
+          <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
+            Side-by-Side Analysis
+          </h1>
+          <p className="hero-subtitle-animated" style={{ fontSize: '1.25rem', color: '#64748b', fontWeight: '500' }}>
+            Compare and analyze drug labeling differences with AI assistance
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '3rem', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <button onClick={expandAll} style={{ padding: '10px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, color: '#64748b', borderRight: '1px solid #e2e8f0', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Expand All</button>
+              <button onClick={collapseAll} style={{ padding: '10px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, color: '#64748b', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Collapse All</button>
           </div>
+          <button 
+              onClick={() => setShowAddModal(true)}
+              style={{ 
+              backgroundColor: '#10b981', 
+              color: 'white', 
+              border: 'none', 
+              padding: '12px 32px', 
+              borderRadius: '10px', 
+              fontWeight: 800, 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)',
+              transition: 'all 0.2s ease',
+              fontSize: '0.95rem'
+              }}
+              onMouseOver={e => { e.currentTarget.style.backgroundColor = '#059669'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseOut={e => { e.currentTarget.style.backgroundColor = '#10b981'; e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              Add Label
+          </button>
         </div>
 
         {loading && <div style={{ textAlign: 'center', padding: '4rem' }}>Loading comparison data...</div>}

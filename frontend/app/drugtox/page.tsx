@@ -622,10 +622,10 @@ export default function DrugToxPage() {
 
       <Container maxWidth="lg" sx={{ py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Box sx={{ textAlign: 'center', mb: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-          <Typography variant="h2" sx={{ fontWeight: 900, color: '#1a237e', mb: 1, letterSpacing: '-1.5px' }}>
+          <Typography variant="h2" className="hero-title-animated" sx={{ fontWeight: 900, mb: 1, letterSpacing: '-1.5px' }}>
             askDrugTox
           </Typography>
-          <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 400, opacity: 0.8, mb: 6 }}>
+          <Typography variant="h6" className="hero-subtitle-animated" color="text.secondary" sx={{ fontWeight: 400, opacity: 0.8, mb: 6 }}>
             Advanced Pharmacology Intelligence Dashboard
           </Typography>
 
