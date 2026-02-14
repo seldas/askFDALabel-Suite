@@ -240,8 +240,8 @@ export default function HomePage() {
         </div>
         <div className="animate-fade-in-up" style={{ animationDelay: '0.7s' }}>
           <ScientificCard 
-            title="Scientific Snippets" 
-            description="Developer tools, bookmarklets, and code utilities for label data extraction."
+            title="Elsa Snippets" 
+            description="Enhancing the User Experience of Elsa with Snippets."
             href="/snippet"
             icon="📋"
           />

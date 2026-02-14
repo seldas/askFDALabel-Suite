@@ -156,142 +156,264 @@ export default function SnippetPage() {
           alignItems: 'center',
           padding: '4rem 20px',
           textAlign: 'center',
+          maxWidth: '1200px',
+          margin: '0 auto'
         }}
       >
-        <div style={{ marginBottom: '3rem' }}>
-          <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: '800', marginBottom: '1rem', letterSpacing: '-0.025em' }}>
-            Available Snippets
+        <div style={{ marginBottom: '4rem' }}>
+          <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
+            Snippet Store
           </h1>
           <p className="hero-subtitle-animated" style={{ fontSize: '1.25rem', color: '#64748b', fontWeight: '500' }}>
-            Enhance your browser with specialized research tools
+            Specialized research tools for your browser
           </p>
         </div>
 
+        {/* Instructions Section */}
+        <section style={{ 
+          width: '100%', 
+          maxWidth: '900px', 
+          backgroundColor: '#ffffff', 
+          padding: '2rem', 
+          borderRadius: '24px', 
+          border: '1px solid #e2e8f0', 
+          marginBottom: '4rem',
+          textAlign: 'left',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+        }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+            How to use these snippets
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '2rem' }}>
+            <div>
+              <div style={{ fontWeight: 800, color: '#1e40af', fontSize: '0.9rem', marginBottom: '8px', textTransform: 'uppercase' }}>1. Show Bookmarks Bar</div>
+              <p style={{ fontSize: '0.95rem', color: '#475569', lineHeight: 1.5, margin: 0 }}>Ensure your browser's bookmarks bar is visible (Ctrl+Shift+B or Cmd+Shift+B).</p>
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, color: '#1e40af', fontSize: '0.9rem', marginBottom: '8px', textTransform: 'uppercase' }}>2. Drag and Drop</div>
+              <p style={{ fontSize: '0.95rem', color: '#475569', lineHeight: 1.5, margin: 0 }}>Simply click and drag the tool button below directly onto your bookmarks bar.</p>
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, color: '#1e40af', fontSize: '0.9rem', marginBottom: '8px', textTransform: 'uppercase' }}>3. Launch with Elsa</div>
+              <p style={{ fontSize: '0.95rem', color: '#475569', lineHeight: 1.5, margin: 0 }}>Click the bookmark while viewing Elsa website to activate the tool.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Snippets Grid */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr',
-            gap: '2rem',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+            gap: '2.5rem',
             width: '100%',
-            maxWidth: '650px',
+            marginBottom: '4rem'
           }}
         >
+          {/* Drug Snippet Card */}
           <div
             style={{
               backgroundColor: 'white',
-              padding: '2.5rem 2rem',
-              borderRadius: '24px',
+              padding: '2.5rem',
+              borderRadius: '28px',
               boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
               border: '1px solid #e2e8f0',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center',
+              transition: 'all 0.3s ease'
             }}
+            className="snippet-card"
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
-              {/* Drug Snippet Bookmarklet */}
-              <div className="bookmarklet-container" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <a
-                  ref={drugBookmarkletRef}
-                  href="#"
-                  className="bookmarklet-button"
-                  style={{
-                    backgroundColor: '#eab308',
-                    color: '#fff',
-                    padding: '16px 32px',
-                    borderRadius: '12px',
-                    textDecoration: 'none',
-                    fontSize: '1.2rem',
-                    fontWeight: 'bold',
-                    cursor: 'grab',
-                    border: '2px solid #ca8a04',
-                    boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
-                    display: 'inline-block',
-                    transition: 'transform 0.2s, box-shadow 0.2s',
-                    width: '240px',
-                    textAlign: 'center',
-                  }}
-                  onClick={(e) => {
-                    if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
-                  }}
-                >
-                  💊 Drug Snippet
-                </a>
-                <div className="bookmarklet-tooltip">Drag me!</div>
-              </div>
+            <div style={{ 
+              width: '80px', 
+              height: '80px', 
+              background: 'linear-gradient(135deg, #fef9c3 0%, #fef3c7 100%)',
+              borderRadius: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1.5rem',
+              boxShadow: '0 4px 12px rgba(234, 179, 8, 0.1)',
+              border: '1px solid #fef3c7'
+            }}>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#eab308" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"></path>
+                <path d="m8.5 8.5 7 7"></path>
+              </svg>
+            </div>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem' }}>Drug Snippet</h3>
+            <p style={{ fontSize: '1rem', color: '#64748b', lineHeight: 1.6, marginBottom: '2rem', flex: 1 }}>
+              Instantly extract and summarize drug information from any clinical webpage or FDA label. Provides a quick-view panel with key metadata and clinical highlights.
+            </p>
+            
+            <div className="bookmarklet-container" style={{ position: 'relative', width: '100%' }}>
+              <a
+                ref={drugBookmarkletRef}
+                href="#"
+                className="bookmarklet-button"
+                style={{
+                  backgroundColor: '#002e5d',
+                  color: '#fff',
+                  padding: '14px 32px',
+                  borderRadius: '12px',
+                  textDecoration: 'none',
+                  fontSize: '0.95rem',
+                  fontWeight: '800',
+                  cursor: 'grab',
+                  border: 'none',
+                  boxShadow: '0 4px 12px rgba(0, 46, 93, 0.15)',
+                  display: 'inline-block',
+                  transition: 'all 0.2s ease',
+                  width: '100%',
+                  boxSizing: 'border-box'
+                }}
+                onClick={(e) => {
+                  if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
+                }}
+              >
+                Drag to Bookmarks
+              </a>
+              <div className="bookmarklet-tooltip">Ready to drag!</div>
+            </div>
+          </div>
 
-              {/* Highlighter Snippet Bookmarklet */}
-              <div className="bookmarklet-container" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <a
-                  ref={highlightBookmarkletRef}
-                  href="#"
-                  className="bookmarklet-button"
-                  style={{
-                    backgroundColor: '#3b82f6',
-                    color: '#fff',
-                    padding: '16px 32px',
-                    borderRadius: '12px',
-                    textDecoration: 'none',
-                    fontSize: '1.2rem',
-                    fontWeight: 'bold',
-                    cursor: 'grab',
-                    border: '2px solid #2563eb',
-                    boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
-                    display: 'inline-block',
-                    transition: 'transform 0.2s, box-shadow 0.2s',
-                    width: '240px',
-                    textAlign: 'center',
-                  }}
-                  onClick={(e) => {
-                    if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
-                  }}
-                >
-                  ✨ Highlighter
-                </a>
-                <div className="bookmarklet-tooltip">Drag me!</div>
-              </div>
-
-              <style jsx>{`
-                .bookmarklet-button:hover {
-                  transform: scale(1.05);
-                  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-                }
-                .bookmarklet-tooltip {
-                  visibility: hidden;
-                  position: absolute;
-                  top: 100%;
-                  left: 50%;
-                  transform: translateX(-50%);
-                  background-color: #1e293b;
-                  color: #fff;
-                  padding: 8px 12px;
-                  border-radius: 8px;
-                  font-size: 0.75rem;
-                  white-space: nowrap;
-                  z-index: 100;
-                  opacity: 0;
-                  transition: opacity 0.2s;
-                  margin-top: 8px;
-                }
-                .bookmarklet-container:hover .bookmarklet-tooltip {
-                  visibility: visible;
-                  opacity: 1;
-                }
-              `}</style>
+          {/* Highlighter Card */}
+          <div
+            style={{
+              backgroundColor: 'white',
+              padding: '2.5rem',
+              borderRadius: '28px',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
+              border: '1px solid #e2e8f0',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center',
+              transition: 'all 0.3s ease'
+            }}
+            className="snippet-card"
+          >
+            <div style={{ 
+              width: '80px', 
+              height: '80px', 
+              background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+              borderRadius: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1.5rem',
+              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.1)',
+              border: '1px solid #dbeafe'
+            }}>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
+                <path d="M5 3v4"></path>
+                <path d="M19 17v4"></path>
+                <path d="M3 5h4"></path>
+                <path d="M17 19h4"></path>
+              </svg>
+            </div>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem' }}>Smart Highlighter</h3>
+            <p style={{ fontSize: '1rem', color: '#64748b', lineHeight: 1.6, marginBottom: '2rem', flex: 1 }}>
+              Automatically identify and highlight critical safety terms, including drug, company, adverse events and temporary, with the capability of Elsa!
+            </p>
+            
+            <div className="bookmarklet-container" style={{ position: 'relative', width: '100%' }}>
+              <a
+                ref={highlightBookmarkletRef}
+                href="#"
+                className="bookmarklet-button"
+                style={{
+                  backgroundColor: '#002e5d',
+                  color: '#fff',
+                  padding: '14px 32px',
+                  borderRadius: '12px',
+                  textDecoration: 'none',
+                  fontSize: '0.95rem',
+                  fontWeight: '800',
+                  cursor: 'grab',
+                  border: 'none',
+                  boxShadow: '0 4px 12px rgba(0, 46, 93, 0.15)',
+                  display: 'inline-block',
+                  transition: 'all 0.2s ease',
+                  width: '100%',
+                  boxSizing: 'border-box'
+                }}
+                onClick={(e) => {
+                  if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
+                }}
+              >
+                Drag to Bookmarks
+              </a>
+              <div className="bookmarklet-tooltip">Ready to drag!</div>
             </div>
           </div>
         </div>
 
-        <div style={{ marginTop: '2rem', width: '100%', textAlign: 'center' }}>
+        <div style={{ marginTop: '2rem', width: '100%', textAlign: 'center', maxWidth: '800px' }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', marginBottom: '1.5rem' }}>See it in action</h3>
           <video
-            src="/snippets/Animated_Tutorial_Medical_Snippet_Tool.mp4"
+            src="/snippets/SNIPPET_DEMO.mp4"
             controls
             style={{
               width: '100%',
-              maxWidth: '600px',
-              borderRadius: '8px',
-              boxShadow:
-                '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+              borderRadius: '16px',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.1)',
+              border: '1px solid #e2e8f0'
             }}
           />
         </div>
+
+        <style jsx>{`
+          .snippet-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1) !important;
+            border-color: #3b82f6 !important;
+          }
+          .bookmarklet-button:hover {
+            filter: brightness(1.1);
+            transform: scale(1.02);
+          }
+          .bookmarklet-button:active {
+            transform: scale(0.98);
+          }
+          .bookmarklet-tooltip {
+            visibility: hidden;
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #1e293b;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            z-index: 100;
+            opacity: 0;
+            transition: all 0.2s ease;
+            margin-top: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          }
+          .bookmarklet-tooltip::after {
+            content: "";
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            margin-left: -6px;
+            border-width: 6px;
+            border-style: solid;
+            border-color: transparent transparent #1e293b transparent;
+          }
+          .bookmarklet-container:hover .bookmarklet-tooltip {
+            visibility: visible;
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+          }
+        `}</style>
       </main>
     </div>
   );
