@@ -27,11 +27,6 @@ from dashboard.prompts import DILI_prompt, DICT_prompt, DIRI_prompt
 from dashboard import create_app
 import re
 
-# Create app context before using Flask components
-app = create_app()
-ctx = app.app_context()
-ctx.push()
-
 # Configure Logging
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +43,16 @@ engine = create_engine(Config.SQLALCHEMY_DATABASE_URI)
 Session = scoped_session(sessionmaker(bind=engine))
 # Patch the db.session to use our standalone session for models
 db.session = Session
+
+# Create a minimal app context for services that might still depend on current_app
+app = create_app()
+app.app_context().push()
+
+class MockUser:
+    """Mocks a user object for AI provider preference."""
+    def __init__(self, provider):
+        self.ai_provider = provider
+        self.is_authenticated = True
 
 def fetch_target_labels():
     """Fetches target labels from FDALabel Oracle DB."""
@@ -110,7 +115,7 @@ def clean_ai_report(response_text):
         
     return '<!-- AI response did not contain valid HTML report. -->'
 
-def process_label(label):
+def process_label(label, user=None):
     """Processes a single label: fetch XML, run assessments, and save to DB."""
     set_id = label['set_id']
     session = Session()
@@ -134,13 +139,13 @@ def process_label(label):
 
         try:
             # Run AI Assessments
-            dili_raw = generate_assessment(None, DILI_prompt, xml_content)
+            dili_raw = generate_assessment(user, DILI_prompt, xml_content)
             dili_report = clean_ai_report(dili_raw)
             
-            dict_raw = generate_assessment(None, DICT_prompt, xml_content)
+            dict_raw = generate_assessment(user, DICT_prompt, xml_content)
             dict_report = clean_ai_report(dict_raw)
             
-            diri_raw = generate_assessment(None, DIRI_prompt, xml_content)
+            diri_raw = generate_assessment(user, DIRI_prompt, xml_content)
             diri_report = clean_ai_report(diri_raw)
             
             # If there was a previous 'current' record, mark all as 'No'
@@ -181,17 +186,18 @@ def main():
     parser = argparse.ArgumentParser(description="Update ToxAgent table with pre-computed assessments.")
     parser.add_argument("--test", action="store_true", help="Process only 3 new/updated labels for testing.")
     parser.add_argument("--limit", type=int, default=0, help="Maximum number of labels to process.")
+    parser.add_argument("--elsa", action="store_true", help="Use Elsa AI provider.")
     args = parser.parse_args()
 
     # Ensure tables are created
     ToxAgent.__table__.create(bind=engine, checkfirst=True)
     logger.info("Database tables verified/created.")
 
+    # Set AI provider preference
+    user = MockUser('elsa') if args.elsa else None
+
     logger.info("Fetching target labels from FDALabel...")
     all_labels = fetch_target_labels()
-    
-    # Clean up app context before exiting
-    ctx.pop()
     logger.info(f"Found {len(all_labels)} total target labels.")
 
     processed_count = 0
@@ -201,7 +207,7 @@ def main():
         if processed_count >= target_count:
             break
             
-        if process_label(label):
+        if process_label(label, user=user):
             processed_count += 1
             # Rate limiting delay
             if processed_count < target_count:
