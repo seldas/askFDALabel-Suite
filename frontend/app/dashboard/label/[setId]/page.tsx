@@ -170,6 +170,151 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
 
   return (
     <div className="results-container" style={{ minHeight: '100vh', backgroundColor: '#f9fafb', display: 'block' }}>
+      <style jsx global>{`
+        /* FAERS In-Text Annotation */
+        .faers-signal {
+            position: relative;
+            cursor: help;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 700;
+            padding: 1px 4px;
+            border-radius: 4px;
+            border-bottom: 2px solid transparent;
+            display: inline;
+        }
+
+        /* Intensity Colors for FAERS Signals - Intuitive Traffic Light System */
+        .faers-signal.intensity-high {
+            background-color: #fee2e2; /* Red-50 */
+            color: #991b1b;           /* Red-800 */
+            border-bottom-color: #ef4444; /* Red-500 */
+        }
+        .faers-signal.intensity-high:hover {
+            background-color: #fecaca; /* Red-100 */
+        }
+
+        .faers-signal.intensity-mid {
+            background-color: #ffedd5; /* Orange-50 */
+            color: #9a3412;           /* Orange-800 */
+            border-bottom-color: #f97316; /* Orange-500 */
+        }
+        .faers-signal.intensity-mid:hover {
+            background-color: #fed7aa; /* Orange-100 */
+        }
+
+        .faers-signal.intensity-low {
+            background-color: #f0fdf4; /* Green-50 */
+            color: #166534;           /* Green-800 */
+            border-bottom-color: #22c55e; /* Green-500 */
+        }
+        .faers-signal.intensity-low:hover {
+            background-color: #dcfce7; /* Green-100 */
+        }
+
+        /* Beautiful HTML Tooltip for FAERS signals */
+        .faers-signal-tooltip {
+            position: absolute;
+            background: #ffffff;
+            border-radius: 14px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15), 0 0 1px rgba(0,0,0,0.1);
+            z-index: 10000;
+            width: 320px;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Inter', system-ui, sans-serif;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(10px) scale(0.98);
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .faers-signal-tooltip.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+        }
+
+        .faers-tooltip-header {
+            background: #f8fafc;
+            padding: 16px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .faers-tooltip-term {
+            font-weight: 800;
+            color: #0f172a;
+            font-size: 1.1rem;
+            letter-spacing: -0.02em;
+        }
+
+        .faers-tooltip-count {
+            font-size: 0.75rem;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 800;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .faers-tooltip-count.intensity-high { background-color: #ef4444; }
+        .faers-tooltip-count.intensity-mid { background-color: #f97316; }
+        .faers-tooltip-count.intensity-low { background-color: #22c55e; }
+
+        .faers-tooltip-body {
+            padding: 20px;
+            background: white;
+        }
+
+        .faers-tooltip-row {
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .faers-tooltip-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .faers-tooltip-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            color: #64748b;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .faers-tooltip-value {
+            font-size: 0.9rem;
+            color: #334155;
+            line-height: 1.6;
+            font-weight: 500;
+        }
+
+        .faers-tooltip-footer {
+            background: #f8fafc;
+            padding: 10px 20px;
+            font-size: 0.7rem;
+            color: #94a3b8;
+            font-weight: 600;
+            text-align: right;
+            border-top: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .faers-tooltip-footer::before {
+            content: "Signal Confidence";
+            font-size: 0.6rem;
+            text-transform: uppercase;
+        }
+      `}</style>
       {/* Main Header */}
       <header className="header-main" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2000, width: '100vw' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>

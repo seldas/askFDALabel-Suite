@@ -80,8 +80,12 @@ def extract_metadata_from_xml(xml_string):
         brand_name = "Unknown Drug"
         generic_name = "Unknown Generic"
         
-        # Find the primary manufacturedMaterial or manufacturedProduct
-        # We look for the one that has a name and genericMedicine
+        # Primary Title Fallback (often the most reliable human-readable name)
+        doc_title_nodes = [n for n in root if get_tag_local(n.tag) == 'title']
+        if doc_title_nodes:
+            brand_name = "".join(doc_title_nodes[0].itertext()).strip()
+
+        # Find the primary manufacturedMaterial or manufacturedProduct for more specific names
         material_nodes = find_nodes_by_local_name(root, 'manufacturedMaterial')
         if not material_nodes:
             material_nodes = find_nodes_by_local_name(root, 'manufacturedProduct')
@@ -89,8 +93,10 @@ def extract_metadata_from_xml(xml_string):
         for mat in material_nodes:
             # Try to find name child
             n_nodes = [n for n in mat if get_tag_local(n.tag) == 'name']
-            if n_nodes and brand_name == "Unknown Drug":
-                brand_name = "".join(n_nodes[0].itertext()).strip()
+            if n_nodes:
+                name_text = "".join(n_nodes[0].itertext()).strip()
+                if name_text and brand_name == "Unknown Drug":
+                    brand_name = name_text
             
             # Try to find genericMedicine -> name
             gen_nodes = find_nodes_by_local_name(mat, 'genericMedicine')
