@@ -10,7 +10,7 @@ import hashlib
 
 from database import (
     db, User, Project, Favorite, FavoriteComparison, Annotation, 
-    LabelAnnotation, DiliAssessment, DictAssessment, DiriAssessment, ComparisonSummary,
+    LabelAnnotation, DiliAssessment, DictAssessment, DiriAssessment, ToxAgent, ComparisonSummary,
     MeddraPT, MeddraMDHIER, MeddraSOC, MeddraHLT, MeddraLLT
 )
 from dashboard.services.fda_client import get_label_metadata, get_label_xml, get_faers_data, find_labels, find_labels_by_set_ids
@@ -1227,9 +1227,32 @@ def api_faers_trends():
 def generic_assessment_route(set_id, assessment_model, pt_terms, prompt, keyword_check_fn):
     # Check existing
     try:
-        assessment = assessment_model.query.filter_by(set_id=set_id).first()
-        existing_report = assessment.report_content if assessment else None
-        timestamp = assessment.timestamp.isoformat() if assessment else None
+        # Check ToxAgent FIRST (Consolidated Table)
+        tox_agent = ToxAgent.query.filter_by(set_id=set_id, current='Yes').first()
+        
+        report_field_map = {
+            DiliAssessment: 'dili_report',
+            DictAssessment: 'dict_report',
+            DiriAssessment: 'diri_report'
+        }
+        
+        field_name = report_field_map.get(assessment_model)
+        existing_report = None
+        timestamp = None
+        
+        if tox_agent and field_name:
+            existing_report = getattr(tox_agent, field_name)
+            if existing_report and '<div' in existing_report: # Basic HTML check
+                timestamp = tox_agent.last_updated.isoformat()
+            else:
+                existing_report = None # Force re-assess if invalid
+        
+        # Fallback to individual tables if not found in ToxAgent
+        if not existing_report:
+            assessment = assessment_model.query.filter_by(set_id=set_id).first()
+            existing_report = assessment.report_content if assessment else None
+            timestamp = assessment.timestamp.isoformat() if assessment else None
+            
     except Exception as e:
         logger.error(f"Database error: {e}")
         existing_report = None
@@ -1333,6 +1356,38 @@ def run_assessment_logic(set_id, assessment_model, prompt):
                 assessment = assessment_model(set_id=set_id, report_content=clean_report)
                 db.session.add(assessment)
             
+            # Update ToxAgent Table
+            try:
+                tox_agent = ToxAgent.query.filter_by(set_id=set_id, current='Yes').first()
+                meta = extract_metadata_from_xml(xml_content)
+                
+                # Metadata for ToxAgent if new
+                if not tox_agent:
+                    tox_agent = ToxAgent(
+                        set_id=set_id,
+                        brand_name=meta.get('brand_name'),
+                        generic_name=meta.get('generic_name'),
+                        manufacturer=meta.get('manufacturer_name'),
+                        spl_effective_time=meta.get('effective_time'),
+                        is_plr=1 if meta.get('label_format') == 'PLR' else 0,
+                        current='Yes'
+                    )
+                    db.session.add(tox_agent)
+
+                report_field_map = {
+                    DiliAssessment: 'dili_report',
+                    DictAssessment: 'dict_report',
+                    DiriAssessment: 'diri_report'
+                }
+                field_name = report_field_map.get(assessment_model)
+                if field_name:
+                    setattr(tox_agent, field_name, clean_report)
+                
+                tox_agent.last_updated = datetime.utcnow()
+                tox_agent.status = 'completed'
+            except Exception as tox_err:
+                logger.error(f"Failed to update ToxAgent: {tox_err}")
+
             db.session.commit()
             return jsonify({'assessment_report': response_text})
 

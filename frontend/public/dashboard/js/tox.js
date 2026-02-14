@@ -27,6 +27,35 @@ window.initToxAgents = function() {
     window.activateAgent = activateAgent;
     window.loadPgxData = loadPgxData;
 
+    // --- Add badges to buttons if pre-computed data exists ---
+    function updateToxBadges() {
+        if (typeof toxSummary === 'undefined') return;
+        
+        const summaryMap = {
+            'dili': { btn: btnAgentDili, exists: toxSummary.dili },
+            'dict': { btn: btnAgentDict, exists: toxSummary.dict },
+            'diri': { btn: btnAgentDiri, exists: toxSummary.diri }
+        };
+
+        Object.keys(summaryMap).forEach(key => {
+            const { btn, exists } = summaryMap[key];
+            if (btn && exists) {
+                // Check if badge already exists
+                if (!btn.querySelector('.tox-badge')) {
+                    const badge = document.createElement('span');
+                    badge.className = 'tox-badge';
+                    badge.innerHTML = '&#x2713;'; // Checkmark
+                    badge.style.cssText = 'position: absolute; top: 5px; right: 5px; background: #28a745; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; display: flex; align-items: center; justify-content: center;';
+                    btn.style.position = 'relative';
+                    btn.appendChild(badge);
+                }
+            }
+        });
+    }
+
+    // Call updateBadges
+    updateToxBadges();
+
     // --- Helper to switch active agent ---
     function activateAgent(agentName) {
         // Reset all buttons

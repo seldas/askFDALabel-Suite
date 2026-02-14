@@ -6,7 +6,7 @@ import re
 import json
 from difflib import HtmlDiff
 
-from database import db, Favorite, Annotation, FavoriteComparison
+from database import db, Favorite, Annotation, FavoriteComparison, ToxAgent
 from dashboard.services.xml_handler import (
     parse_spl_xml,
     extract_metadata_from_xml,
@@ -483,6 +483,18 @@ def view_label(set_id):
         faers_drug_name = re.sub(r'\d+(\.\d+)?\s*(mg|mcg|g|ml|%|unit|iu)\b.*$', '', faers_drug_name, flags=re.IGNORECASE).strip()
         faers_drug_name = re.sub(r'\s+(tablet|capsule|injection|cream|ointment|gel|solution|suspension|spray|inhaler|powder).*$', '', faers_drug_name, flags=re.IGNORECASE).strip()
 
+    # Get ToxAgent status for frontend optimization
+    tox_summary = {'dili': False, 'dict': False, 'diri': False}
+    try:
+        tox_agent = ToxAgent.query.filter_by(set_id=set_id, current='Yes').first()
+        if tox_agent:
+            tox_summary['dili'] = bool(tox_agent.dili_report and '<div' in tox_agent.dili_report)
+            tox_summary['dict'] = bool(tox_agent.dict_report and '<div' in tox_agent.dict_report)
+            tox_summary['diri'] = bool(tox_agent.diri_report and '<div' in tox_agent.diri_report)
+            tox_summary['last_updated'] = tox_agent.last_updated.isoformat()
+    except Exception as e:
+        current_app.logger.error(f"Error fetching tox summary: {e}")
+
     if request.headers.get('Accept') == 'application/json' or request.args.get('json') == '1':
         return jsonify({
             'drug_name': display_drug_name,
@@ -508,6 +520,7 @@ def view_label(set_id):
             'set_id': set_id,
             'metadata': metadata,
             'saved_annotations': saved_annotations,
+            'tox_summary': tox_summary,
             'user_id': current_user.id if current_user.is_authenticated else None
         })
 

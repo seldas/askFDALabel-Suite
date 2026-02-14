@@ -56,6 +56,12 @@ interface LabelData {
   set_id: string;
   metadata: any;
   saved_annotations: Annotation[];
+  tox_summary: {
+    dili: boolean;
+    dict: boolean;
+    diri: boolean;
+    last_updated?: string;
+  };
   user_id: number | null;
 }
 
@@ -622,6 +628,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           window.currentGenericName = ${JSON.stringify(data.generic_name)};
           window.currentManufacturer = ${JSON.stringify(data.manufacturer_name)};
           window.currentEffectiveTime = ${JSON.stringify(data.effective_time)};
+          window.toxSummary = ${JSON.stringify(data.tox_summary)};
           window.currentUserId = ${data.user_id || 'null'};
           window.savedAnnotations = ${JSON.stringify(data.saved_annotations)};
         `}
