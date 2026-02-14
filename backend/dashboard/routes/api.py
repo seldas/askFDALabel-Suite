@@ -1368,17 +1368,25 @@ def run_assessment_logic(set_id, assessment_model, prompt):
             
             # Update ToxAgent Table
             try:
-                tox_agent = ToxAgent.query.filter_by(set_id=set_id, current='Yes').first()
                 meta = extract_metadata_from_xml(xml_content) or {}
+                new_eff_time = meta.get('effective_time')
                 
-                # Metadata for ToxAgent if new
+                tox_agent = ToxAgent.query.filter_by(set_id=set_id, current='Yes').first()
+                
+                # Version Change Logic: If the EFF_TIME is different, we need a new record
+                if tox_agent and tox_agent.spl_effective_time != new_eff_time:
+                    # Mark all existing for this set_id as not current
+                    ToxAgent.query.filter_by(set_id=set_id).update({"current": "No"})
+                    tox_agent = None # Force creation of a new 'Yes' record below
+
+                # Metadata for ToxAgent if new or version changed
                 if not tox_agent:
                     tox_agent = ToxAgent(
                         set_id=set_id,
                         brand_name=meta.get('brand_name'),
                         generic_name=meta.get('generic_name'),
                         manufacturer=meta.get('manufacturer_name'),
-                        spl_effective_time=meta.get('effective_time'),
+                        spl_effective_time=new_eff_time,
                         is_plr=1 if meta.get('label_format') == 'PLR' else 0,
                         current='Yes',
                         status='pending'
