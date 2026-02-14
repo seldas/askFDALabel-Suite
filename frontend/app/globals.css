@@ -214,22 +214,42 @@ body {
 /* Hero Animations */
 .hero-title-animated {
   background: linear-gradient(
-      120deg, 
-      #0f172a 0%, 
-      #0f172a 30%, 
-      #4f46e5 45%, 
-      #0ea5e9 50%, 
-      #4f46e5 55%, 
-      #0f172a 70%, 
-      #0f172a 100%
+      -45deg, 
+      #002e5d 0%, 
+      #0071bc 25%, 
+      #4f46e5 50%, 
+      #0ea5e9 75%,
+      #002e5d 100%
   );
-  background-size: 300% auto;
+  background-size: 400% 400%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   display: inline-block;
   animation: 
-      hp-title-shimmer 6s infinite linear,
+      hp-title-fluid 8s ease infinite,
       hp-title-reveal 1.2s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+/* More significant version for the main homepage (Luminous Sweep Style) */
+.suite-home-title-animated {
+  color: #002e5d;
+  background: linear-gradient(
+    to right, 
+    #002e5d 20%, 
+    #0ea5e9 40%, 
+    #b6effb 50%, 
+    #0ea5e9 60%, 
+    #002e5d 80%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+  letter-spacing: -0.04em;
+  text-shadow: 0 10px 30px rgba(14, 165, 233, 0.1);
+  animation: 
+      hp-title-sweep 8s ease-in-out infinite,
+      hp-title-reveal-large 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .hero-subtitle-animated {
@@ -237,9 +257,16 @@ body {
   animation: hp-fade-in 1s ease-out 0.6s forwards;
 }
 
-@keyframes hp-title-shimmer {
-  0% { background-position: 100% 50%; }
-  100% { background-position: -100% 50%; }
+@keyframes hp-title-sweep {
+  0% { background-position: 200% center; }
+  65% { background-position: 0% center; }
+  100% { background-position: 0% center; }
+}
+
+@keyframes hp-title-fluid {
+  0% { background-position: 0% 50%; }
+  70% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 @keyframes hp-title-reveal {
@@ -249,6 +276,17 @@ body {
   }
   to {
       transform: translateY(0) skewY(0deg);
+      opacity: 1;
+  }
+}
+
+@keyframes hp-title-reveal-large {
+  from {
+      transform: translateY(80%) scale(0.95) skewY(3deg);
+      opacity: 0;
+  }
+  to {
+      transform: translateY(0) scale(1) skewY(0deg);
       opacity: 1;
   }
 }

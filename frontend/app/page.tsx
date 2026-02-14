@@ -137,11 +137,27 @@ export default function HomePage() {
       </header>
 
       {/* Hero Section */}
-      <section className="hero-section">
-        <h2 className="animate-fade-in-up" style={{ fontSize: '2.5rem', fontWeight: 800, color: '#002e5d', marginBottom: '1rem' }}>
-          Scientific Drug Label Intelligence
-        </h2>
-        <p className="animate-fade-in-up delay-1" style={{ maxWidth: '800px', margin: '0 auto', fontSize: '1.25rem', color: '#475569', lineHeight: 1.6 }}>
+      <section className="hero-section" style={{ padding: '6rem 2rem' }}>
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+          <h1 className="suite-home-title-animated" style={{ fontSize: '4.5rem', fontWeight: 900, marginBottom: '1.5rem' }}>
+            AskFDALabel
+          </h1>  
+          <span className="suite-home-title-animated" style={{ 
+            position: 'absolute', 
+            top: '10px', 
+            right: '-75px',
+            fontSize: '1.3rem', 
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            background: 'linear-gradient(to right, #166534 20%, #4ade80 50%, #166534 80%)',
+            backgroundSize: '200% auto',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            letterSpacing: '0.05em'
+          }}>dev</span>
+        </div>
+        
+        <p className="hero-subtitle-animated" style={{ maxWidth: '800px', margin: '0 auto', fontSize: '1.25rem', color: '#475569', lineHeight: 1.6, fontWeight: 500 }}>
           A specialized research suite providing semantic search, toxicological analysis, and advanced safety screening for FDA drug labeling information.
         </p>
       </section>
