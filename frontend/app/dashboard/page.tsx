@@ -367,12 +367,13 @@ export default function DashboardPage() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '3rem',
                 marginBottom: '1.25rem',
                 boxShadow: '0 4px 15px rgba(99, 102, 241, 0.1)',
                 border: '1px solid #bae6fd'
               }}>
-                💼
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0369a1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
               </div>
               <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1e293b', marginBottom: '0.75rem' }}>
                 Existed Projects...
@@ -409,7 +410,6 @@ export default function DashboardPage() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '3rem',
                 marginBottom: '1.25rem',
                 boxShadow: '0 4px 15px rgba(139, 92, 246, 0.1)',
                 border: '1px solid #ddd6fe'
@@ -417,7 +417,11 @@ export default function DashboardPage() {
                 {uploading ? (
                   <div className="loader" style={{ width: '40px', height: '40px' }}></div>
                 ) : (
-                  '✨'
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#6d28d9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
                 )}
               </div>
               <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1e293b', marginBottom: '1.25rem' }}>

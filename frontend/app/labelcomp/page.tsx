@@ -726,48 +726,82 @@ function LabelCompContent() {
             <div style={{ marginBottom: '1.5rem', position: 'relative' }}>
                 <input 
                     type="text" 
-                    placeholder="Search all labels in current project..."
+                    placeholder="Search labels..."
                     value={labelFilter}
                     onChange={(e) => setLabelFilter(e.target.value)}
                     style={{ 
                         width: '100%', 
-                        padding: '10px 12px 10px 35px', 
-                        borderRadius: '8px', 
+                        padding: '12px 12px 12px 40px', 
+                        borderRadius: '10px', 
                         border: '1px solid #e2e8f0', 
-                        fontSize: '0.9rem',
-                        outline: 'none'
+                        fontSize: '0.95rem',
+                        outline: 'none',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        transition: 'all 0.2s ease'
                     }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#3b82f6'}
+                    onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
                 />
-                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>🔍</span>
+                <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', display: 'flex' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </span>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', background: '#f8fafc', padding: '4px', borderRadius: '12px', border: '1px solid #eef2f7' }}>
                 <button 
                     onClick={() => setAddTab('projects')}
                     style={{ 
-                        padding: '8px 16px', 
-                        borderRadius: '20px', 
+                        flex: 1,
+                        padding: '10px 16px', 
+                        borderRadius: '10px', 
                         border: 'none', 
-                        backgroundColor: addTab === 'projects' ? '#002e5d' : 'transparent',
-                        color: addTab === 'projects' ? 'white' : '#64748b',
-                        fontWeight: 600,
-                        cursor: 'pointer'
+                        backgroundColor: addTab === 'projects' ? '#ffffff' : 'transparent',
+                        color: addTab === 'projects' ? '#0f172a' : '#64748b',
+                        fontWeight: 700,
+                        fontSize: '0.9rem',
+                        cursor: 'pointer',
+                        boxShadow: addTab === 'projects' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s ease'
                     }}
                 >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
                     My Projects
                 </button>
                 <button 
                     onClick={() => setAddTab('setid')}
                     style={{ 
-                        padding: '8px 16px', 
-                        borderRadius: '20px', 
+                        flex: 1,
+                        padding: '10px 16px', 
+                        borderRadius: '10px', 
                         border: 'none', 
-                        backgroundColor: addTab === 'setid' ? '#002e5d' : 'transparent',
-                        color: addTab === 'setid' ? 'white' : '#64748b',
-                        fontWeight: 600,
-                        cursor: 'pointer'
+                        backgroundColor: addTab === 'setid' ? '#ffffff' : 'transparent',
+                        color: addTab === 'setid' ? '#0f172a' : '#64748b',
+                        fontWeight: 700,
+                        fontSize: '0.9rem',
+                        cursor: 'pointer',
+                        boxShadow: addTab === 'setid' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s ease'
                     }}
                 >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
                     SET-ID Input
                 </button>
             </div>
@@ -775,22 +809,37 @@ function LabelCompContent() {
             {addTab === 'projects' ? (
                 <div>
                     {!session?.is_authenticated ? (
-                        <p style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>Please sign in to access your projects.</p>
+                        <div style={{ textAlign: 'center', color: '#64748b', padding: '3rem 2rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
+                          <p style={{ margin: '0 0 1rem 0', fontWeight: 600 }}>Sign in to access your projects</p>
+                          <a href="/api/dashboard/auth/login?next=/labelcomp" style={{ display: 'inline-block', padding: '8px 20px', background: '#002e5d', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700 }}>Sign In Now</a>
+                        </div>
                     ) : selectedProject ? (
                         <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                <button onClick={() => setSelectedProject(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.85rem' }}>&larr; Back to Projects</button>
-                                <h4 style={{ margin: 0, fontWeight: 800 }}>📁 {selectedProject.title}</h4>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', padding: '0 4px' }}>
+                                <button onClick={() => setSelectedProject(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                                  Back to Projects
+                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ color: selectedProject.title === 'Favorite' ? '#eab308' : '#6366f1' }}>
+                                    {selectedProject.title === 'Favorite' ? (
+                                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                    ) : (
+                                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                                    )}
+                                  </span>
+                                  <h4 style={{ margin: 0, fontWeight: 800, color: '#0f172a' }}>{selectedProject.title}</h4>
+                                </div>
                             </div>
                             {loadingLabels ? (
-                                <p style={{ textAlign: 'center', padding: '2rem' }}>Loading labels...</p>
+                                <p style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Loading labels...</p>
                             ) : (
-                                <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                                <div style={{ maxHeight: '380px', overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '8px' }} className="custom-scrollbar">
                                     {projectLabels
                                       .filter(label => 
                                         !labelFilter || 
-                                        label.brand_name.toLowerCase().includes(labelFilter.toLowerCase()) || 
-                                        label.manufacturer_name.toLowerCase().includes(labelFilter.toLowerCase())
+                                        (label.brand_name?.toLowerCase() || '').includes(labelFilter.toLowerCase()) || 
+                                        (label.manufacturer_name?.toLowerCase() || '').includes(labelFilter.toLowerCase())
                                       )
                                       .map(label => {
                                         const isSelected = selectedLabelsForAdd.find(l => l.set_id === label.set_id);
@@ -799,31 +848,39 @@ function LabelCompContent() {
                                                 key={label.set_id} 
                                                 onClick={() => toggleLabelSelection(label)}
                                                 style={{ 
-                                                    padding: '12px', 
-                                                    borderBottom: '1px solid #f1f5f9', 
+                                                    padding: '14px 16px', 
+                                                    borderRadius: '12px',
+                                                    border: '1px solid',
+                                                    borderColor: isSelected ? '#3b82f6' : '#f1f5f9', 
                                                     display: 'flex', 
                                                     justifyContent: 'space-between', 
                                                     alignItems: 'center',
                                                     cursor: 'pointer',
-                                                    backgroundColor: isSelected ? '#f0f9ff' : 'transparent',
-                                                    transition: 'background-color 0.2s'
+                                                    backgroundColor: isSelected ? '#eff6ff' : '#ffffff',
+                                                    transition: 'all 0.2s ease',
+                                                    boxShadow: isSelected ? '0 2px 8px rgba(59, 130, 246, 0.1)' : '0 1px 2px rgba(0,0,0,0.02)'
                                                 }}
+                                                onMouseOver={e => !isSelected && (e.currentTarget.style.borderColor = '#e2e8f0')}
+                                                onMouseOut={e => !isSelected && (e.currentTarget.style.borderColor = '#f1f5f9')}
                                             >
-                                                <div>
-                                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: isSelected ? '#0369a1' : 'inherit' }}>{label.brand_name}</div>
-                                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{label.manufacturer_name}</div>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: isSelected ? '#1e40af' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label.brand_name}</div>
+                                                    <div style={{ fontSize: '0.8rem', color: isSelected ? '#3b82f6' : '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label.manufacturer_name}</div>
                                                 </div>
                                                 <div style={{ 
-                                                    width: '20px', 
-                                                    height: '20px', 
-                                                    borderRadius: '4px', 
-                                                    border: `2px solid ${isSelected ? '#0369a1' : '#cbd5e1'}`,
+                                                    marginLeft: '16px',
+                                                    width: '22px', 
+                                                    height: '22px', 
+                                                    borderRadius: '6px', 
+                                                    border: '2px solid',
+                                                    borderColor: isSelected ? '#3b82f6' : '#cbd5e1',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    backgroundColor: isSelected ? '#0369a1' : 'white'
+                                                    backgroundColor: isSelected ? '#3b82f6' : 'white',
+                                                    transition: 'all 0.2s ease'
                                                 }}>
-                                                    {isSelected && <span style={{ color: 'white', fontSize: '12px' }}>✓</span>}
+                                                    {isSelected && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                                                 </div>
                                             </div>
                                         );
@@ -832,15 +889,57 @@ function LabelCompContent() {
                             )}
                         </div>
                     ) : (
-                        <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
-                            {loadingProjects ? <p style={{ textAlign: 'center', padding: '2rem' }}>Loading projects...</p> : projects.map(p => (
+                        <div style={{ maxHeight: '400px', overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '12px' }} className="custom-scrollbar">
+                            {loadingProjects ? <p style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Loading projects...</p> : projects.map(p => (
                                 <div
                                   key={p.id}
                                   onClick={() => fetchProjectLabels(p)}
-                                  className="p-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50"
+                                  style={{
+                                    padding: '16px 20px',
+                                    borderRadius: '14px',
+                                    border: '1px solid #f1f5f9',
+                                    backgroundColor: '#ffffff',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '16px',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                                  }}
+                                  onMouseOver={e => {
+                                    e.currentTarget.style.borderColor = '#e2e8f0';
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)';
+                                  }}
+                                  onMouseOut={e => {
+                                    e.currentTarget.style.borderColor = '#f1f5f9';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
+                                  }}
                                 >
-                                  <div className="font-bold text-[#002e5d]">{p.title === 'Favorite' ? '⭐' : '📁'} {p.title}</div>
-                                  <div className="text-sm text-slate-500">{p.count} labels • {p.role}</div>
+                                  <div style={{ 
+                                    width: '44px', 
+                                    height: '44px', 
+                                    borderRadius: '12px', 
+                                    backgroundColor: p.title === 'Favorite' ? '#fef9c3' : '#f5f3ff', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center',
+                                    color: p.title === 'Favorite' ? '#eab308' : '#6366f1'
+                                  }}>
+                                    {p.title === 'Favorite' ? (
+                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                    ) : (
+                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                                    )}
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a', marginBottom: '2px' }}>{p.title}</div>
+                                    <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>{p.count} labels • {p.role}</div>
+                                  </div>
+                                  <div style={{ color: '#cbd5e1' }}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                  </div>
                                 </div>
                             ))}
                         </div>
@@ -848,20 +947,50 @@ function LabelCompContent() {
                 </div>
             ) : (
                 <div>
-                    <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1rem' }}>Enter the unique SPL SET-ID (UUID) of the label you wish to add.</p>
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                    <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '1.25rem', lineHeight: 1.5 }}>Enter the unique SPL SET-ID (UUID) of the label you wish to add.</p>
+                    <div style={{ display: 'flex', gap: '12px' }}>
                         <input 
                             type="text" 
                             placeholder="e.g. 01e46f58-8bda-4ff3-ab21-..."
                             value={setIdInput}
                             onChange={(e) => setSetIdInput(e.target.value)}
-                            style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontFamily: 'monospace', fontSize: '0.85rem' }}
+                            style={{ 
+                              flex: 1, 
+                              padding: '14px', 
+                              borderRadius: '10px', 
+                              border: '1px solid #e2e8f0', 
+                              outline: 'none', 
+                              fontFamily: 'monospace', 
+                              fontSize: '0.9rem',
+                              backgroundColor: '#f8fafc',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onFocus={e => {
+                              e.currentTarget.style.borderColor = '#3b82f6';
+                              e.currentTarget.style.backgroundColor = '#ffffff';
+                            }}
+                            onBlur={e => {
+                              e.currentTarget.style.borderColor = '#e2e8f0';
+                              e.currentTarget.style.backgroundColor = '#f8fafc';
+                            }}
                         />
                         <button 
                             onClick={() => handleAddLabel(setIdInput)}
-                            style={{ backgroundColor: '#002e5d', color: 'white', border: 'none', padding: '0 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+                            style={{ 
+                              backgroundColor: '#002e5d', 
+                              color: 'white', 
+                              border: 'none', 
+                              padding: '0 28px', 
+                              borderRadius: '10px', 
+                              cursor: 'pointer', 
+                              fontWeight: 700,
+                              boxShadow: '0 4px 12px rgba(0, 46, 93, 0.15)',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseOver={e => e.currentTarget.style.backgroundColor = '#003d7a'}
+                            onMouseOut={e => e.currentTarget.style.backgroundColor = '#002e5d'}
                         >
-                            Add
+                            Add Label
                         </button>
                     </div>
                 </div>
@@ -926,6 +1055,21 @@ function LabelCompContent() {
           visibility: visible;
           opacity: 1;
           transform: translateX(-50%) translateY(0);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #f8fafc;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
         }
 
         .ai-summary-content h3 { color: #002e5d; margin-top: 0; font-size: 1.25rem; }
