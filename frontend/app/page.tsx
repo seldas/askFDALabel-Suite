@@ -153,7 +153,7 @@ export default function HomePage() {
                     <ScientificCard 
                       title="Official FDALabel" 
                       description=""
-                      icon="🏛️"
+                      icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>}
                     >
           
               <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
@@ -202,7 +202,7 @@ export default function HomePage() {
               title="FDALabel Search" 
               description="Public interface for the official FDA drug label database."
               href="https://nctr-crs.fda.gov/fdalabel/ui/search"
-              icon="🏛️"
+              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>}
             />
           )}
         </div>
@@ -211,7 +211,7 @@ export default function HomePage() {
             title="Agentic Search" 
             description="Large language model powered reasoning across drug label datasets."
             href="/search"
-            icon="🔍"
+            icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>}
           />
         </div>
         <div className="animate-fade-in-up delay-4">
@@ -219,7 +219,7 @@ export default function HomePage() {
             title="Labeling Dashboard" 
             description="Integrated analysis dashboard for safety trends and label metadata."
             href="/dashboard"
-            icon="📊"
+            icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>}
           />
         </div>
         <div className="animate-fade-in-up delay-5">
@@ -227,7 +227,7 @@ export default function HomePage() {
             title="Label Compare" 
             description="Detailed side-by-side linguistic and regulatory comparison of labels."
             href="/labelcomp"
-            icon="⚖️"
+            icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>}
           />
         </div>
         <div className="animate-fade-in-up delay-6">
@@ -235,15 +235,15 @@ export default function HomePage() {
             title="DrugTox Intelligence" 
             description="Advanced toxicological data for DILI, DICT and DIRI."
             href="/drugtox"
-            icon="🧪"
+            icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v8"></path><path d="M14 2v8"></path><path d="M8.5 15c.7 0 1.3-.5 1.5-1.2l.5-2.3c.2-.7.8-1.2 1.5-1.2s1.3.5 1.5 1.2l.5 2.3c.2.7.8 1.2 1.5 1.2"></path><path d="M6 18h12"></path><path d="M6 22h12"></path><circle cx="12" cy="13" r="10"></circle></svg>}
           />
         </div>
         <div className="animate-fade-in-up" style={{ animationDelay: '0.7s' }}>
           <ScientificCard 
-            title="Elsa Snippets" 
-            description="Enhancing the User Experience of Elsa with Snippets."
+            title="Snippet Store" 
+            description="Browser bookmarklets and code utilities for automated label analysis."
             href="/snippet"
-            icon="📋"
+            icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>}
           />
         </div>
       </main>
@@ -285,12 +285,10 @@ export default function HomePage() {
       }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', opacity: 0.8, fontSize: '0.875rem' }}>
           <p style={{ marginBottom: '1rem' }}>
-            <strong>askFDALabel Suite</strong> &copy; 2026. This platform is intended for research and professional use.
+            <strong>askFDALabel Suite</strong> &copy; 2026. This is an on-going research effort that is not intended for production use.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
-            <Link href="/" style={{ color: 'white' }}>Home</Link>
             <a href="https://www.fda.gov" target="_blank" style={{ color: 'white' }}>FDA.gov</a>
-            <Link href="/dashboard" style={{ color: 'white' }}>Dashboard</Link>
           </div>
         </div>
       </footer>
@@ -298,10 +296,10 @@ export default function HomePage() {
   );
 }
 
-function ScientificCard({ title, description, href, icon, children }: { title: string, description: string, href?: string, icon: string, children?: React.ReactNode }) {
+function ScientificCard({ title, description, href, icon, children }: { title: string, description: string, href?: string, icon: React.ReactNode, children?: React.ReactNode }) {
   const content = (
     <div className="scientific-card">
-      <div className="icon">{icon}</div>
+      <div className="icon" style={{ color: 'var(--fda-blue)', marginBottom: '1.25rem', display: 'flex' }}>{icon}</div>
       <h2>{title}</h2>
       <p style={{ fontSize: '0.9375rem', color: '#475569', lineHeight: 1.5, marginBottom: '1.5rem', flex: 1 }}>{description}</p>
       {children}
