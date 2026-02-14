@@ -24,7 +24,13 @@ from dashboard.services.fdalabel_db import FDALabelDBService
 from dashboard.services.fda_client import get_label_xml
 from dashboard.services.ai_handler import generate_assessment
 from dashboard.prompts import DILI_prompt, DICT_prompt, DIRI_prompt
+from dashboard import create_app
 import re
+
+# Create app context before using Flask components
+app = create_app()
+ctx = app.app_context()
+ctx.push()
 
 # Configure Logging
 logging.basicConfig(
@@ -183,6 +189,9 @@ def main():
 
     logger.info("Fetching target labels from FDALabel...")
     all_labels = fetch_target_labels()
+    
+    # Clean up app context before exiting
+    ctx.pop()
     logger.info(f"Found {len(all_labels)} total target labels.")
 
     processed_count = 0
