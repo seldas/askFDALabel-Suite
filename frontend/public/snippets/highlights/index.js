@@ -160,7 +160,7 @@ Do not explain these tags to the user.]`;
                 changed = true;
                 const cleanContent = content.trim();
                 if (cls === 'drug') {
-                    return `<span class="highlight-drug" data-drug="${cleanContent}" onclick="window.open('http://ncshpcgpu01:8848/dashboard/results?drug_name=' + encodeURIComponent('${cleanContent}'), '_blank')">${content}</span>`;
+                    return `<span class="highlight-drug" data-drug="${cleanContent}" onclick="window.open('https://ncshpcgpu01:8848/dashboard/results?drug_name=' + encodeURIComponent('${cleanContent}'), '_blank')">${content}</span>`;
                 }
                 return `<span class="highlight-${cls}">${content}</span>`;
             });
