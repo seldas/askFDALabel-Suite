@@ -5,20 +5,16 @@ This document outlines the design for a batch processing script aimed at automat
 
 ## Workflow
 
-### 1. Identify Target Drugs
+### 1. Identify Target Drugs (PLR Format, Human RX + OTC (not many), single ingredient)
 - **Source:** FDALabel Internal Database (Oracle).
-- **Query:** Search `druglabel.DGV_SUM_SPL` for all records where:
-    - `MARKET_CATEGORIES` matches human prescription drug types (e.g., 'NDA', 'ANDA', 'BLA').
-    - Only the most recent `EFF_TIME` for each `SET_ID` is selected.
 - **SQL Sketch:**
   ```sql
-  SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, EFF_TIME
-  FROM (
-      SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, EFF_TIME,
-             ROW_NUMBER() OVER (PARTITION BY SET_ID ORDER BY EFF_TIME DESC) as rn
-      FROM druglabel.DGV_SUM_SPL
-      WHERE MARKET_CATEGORIES IN ('NDA', 'ANDA', 'BLA')
-  ) WHERE rn = 1
+    select l.format_group, l.set_id, l.product_names, l.PRODUCT_NORMD_GENERIC_NAMES, l.AUTHOR_ORG_NORMD_NAME ,l.eff_time
+    from druglabel.dgv_sum_rx_spl l
+    where l.document_type_loinc_code in ('34390-5', '34391-3', '45129-4')
+        and l.format_group = 1
+        and l.num_act_ingrs = 1
+    order by l.format_group asc, l.eff_time desc
   ```
 
 ### 2. Delta Detection
@@ -55,6 +51,8 @@ For each target `set_id`, perform the following steps:
     - `diri_report` (Text) - HTML content from AI
     - `last_updated` (DateTime)
     - `spl_effective_time` (String(50)) - To track if re-assessment is needed
+
+PLR	SETID	Trade Name	Generic/Proper Name(s)	Author Organization	SPL Effective Time	Toxicity Class	Tox Type	Update_Notes	AI Summary	Current	Changed
 
 ### 5. Integration with Label View
 - **Backend (API):** Modify `api_bp.route('/label/<set_id>')` (or similar) to:
