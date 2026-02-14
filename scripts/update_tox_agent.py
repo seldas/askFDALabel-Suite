@@ -8,6 +8,12 @@ from datetime import datetime
 # Add the backend directory to the sys.path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
+# Ensure logs directory exists in project root
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+LOG_DIR = os.path.join(PROJECT_ROOT, 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOG_DIR, 'tox_update.log')
+
 from app import create_app
 from database.extensions import db
 from database.models import ToxAgent
@@ -22,7 +28,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("tox_update.log"),
+        logging.FileHandler(LOG_FILE),
         logging.StreamHandler()
     ]
 )
@@ -79,8 +85,7 @@ def clean_ai_report(response_text):
     """Extracts the clean HTML block from the AI response."""
     html_matches = re.findall(r'(<div class="label-section">[\s\S]*?</div>)', response_text, re.DOTALL)
     if html_matches:
-        return "
-".join(html_matches)
+        return "".join(html_matches)
     
     if '<!-- No DILI evidence found' in response_text or '<!-- No DICT evidence found' in response_text or '<!-- No DIRI evidence found' in response_text:
         return response_text # Keep the comment
@@ -92,12 +97,14 @@ def process_label(app, label):
     set_id = label['set_id']
     
     with app.app_context():
-        # Check if already processed and up to date
-        existing = ToxAgent.query.filter_by(set_id=set_id).first()
-        if existing and existing.spl_effective_time == label['eff_time']:
-            logger.info(f"Skipping {set_id}, already up to date.")
+        # Check if this EXACT version is already processed and is 'current'
+        existing_current = ToxAgent.query.filter_by(set_id=set_id, current='Yes').first()
+        
+        if existing_current and existing_current.spl_effective_time == label['eff_time']:
+            logger.info(f"Skipping {set_id}, current version is already up to date.")
             return False
 
+        # If we reach here, it's either a brand new set_id or a new version of an existing one
         logger.info(f"Processing {set_id} ({label['brand_name']})...")
         
         # 1. Get XML
@@ -106,51 +113,38 @@ def process_label(app, label):
             logger.warning(f"Could not retrieve XML for {set_id}")
             return False
 
-        # Prepare section extraction logic (simulated by aggregating relevant text)
-        # In a real scenario, we might want to refactor run_assessment_logic to be more reusable
-        # For now, we use a simplified version for the batch script
-        
         try:
-            # We'll use the same prompts as the API
-            # DILI
+            # Run AI Assessments
             dili_raw = generate_assessment(None, DILI_prompt, xml_content)
             dili_report = clean_ai_report(dili_raw)
             
-            # DICT
             dict_raw = generate_assessment(None, DICT_prompt, xml_content)
             dict_report = clean_ai_report(dict_raw)
             
-            # DIRI
             diri_raw = generate_assessment(None, DIRI_prompt, xml_content)
             diri_report = clean_ai_report(diri_raw)
             
-            if existing:
-                existing.brand_name = label['brand_name']
-                existing.generic_name = label['generic_name']
-                existing.manufacturer = label['manufacturer']
-                existing.spl_effective_time = label['eff_time']
-                existing.dili_report = dili_report
-                existing.dict_report = dict_report
-                existing.diri_report = diri_report
-                existing.last_updated = datetime.utcnow()
-                existing.status = 'completed'
-            else:
-                new_agent = ToxAgent(
-                    set_id=set_id,
-                    is_plr=label['is_plr'],
-                    brand_name=label['brand_name'],
-                    generic_name=label['generic_name'],
-                    manufacturer=label['manufacturer'],
-                    spl_effective_time=label['eff_time'],
-                    dili_report=dili_report,
-                    dict_report=dict_report,
-                    diri_report=diri_report,
-                    status='completed'
-                )
-                db.session.add(new_agent)
+            # If there was a previous 'current' record, mark all as 'No'
+            ToxAgent.query.filter_by(set_id=set_id).update({"current": "No"})
+            
+            # Add the new record as 'Yes'
+            new_agent = ToxAgent(
+                set_id=set_id,
+                is_plr=label['is_plr'],
+                brand_name=label['brand_name'],
+                generic_name=label['generic_name'],
+                manufacturer=label['manufacturer'],
+                spl_effective_time=label['eff_time'],
+                dili_report=dili_report,
+                dict_report=dict_report,
+                diri_report=diri_report,
+                status='completed',
+                current='Yes'
+            )
+            db.session.add(new_agent)
             
             db.session.commit()
-            logger.info(f"Successfully updated tox_agent for {set_id}")
+            logger.info(f"Successfully created new current tox_agent record for {set_id}")
             return True
             
         except Exception as e:

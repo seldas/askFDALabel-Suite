@@ -144,7 +144,7 @@ class DiriAssessment(db.Model):
 class ToxAgent(db.Model):
     __tablename__ = 'tox_agent'
     id = db.Column(db.Integer, primary_key=True)
-    set_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    set_id = db.Column(db.String(100), nullable=False, index=True)
     is_plr = db.Column(db.Integer, default=1)
     brand_name = db.Column(db.String(500))
     generic_name = db.Column(db.String(500))
@@ -156,6 +156,7 @@ class ToxAgent(db.Model):
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
     update_notes = db.Column(db.Text)
     status = db.Column(db.String(20), default='completed')
+    current = db.Column(db.String(3), default='Yes') # 'Yes' or 'No'
 
 # --- MedDRA Models ---
 
