@@ -141,6 +141,22 @@ class DiriAssessment(db.Model):
     report_content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
+class ToxAgent(db.Model):
+    __tablename__ = 'tox_agent'
+    id = db.Column(db.Integer, primary_key=True)
+    set_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    is_plr = db.Column(db.Integer, default=1)
+    brand_name = db.Column(db.String(500))
+    generic_name = db.Column(db.String(500))
+    manufacturer = db.Column(db.String(500))
+    spl_effective_time = db.Column(db.String(50))
+    dili_report = db.Column(db.Text)
+    dict_report = db.Column(db.Text)
+    diri_report = db.Column(db.Text)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    update_notes = db.Column(db.Text)
+    status = db.Column(db.String(20), default='completed')
+
 # --- MedDRA Models ---
 
 class MeddraSOC(db.Model):

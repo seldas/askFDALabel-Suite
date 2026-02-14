@@ -5,66 +5,68 @@ This document outlines the design for a batch processing script aimed at automat
 
 ## Workflow
 
-### 1. Identify Target Drugs (PLR Format, Human RX + OTC (not many), single ingredient)
-- **Source:** FDALabel Internal Database (Oracle).
-- **SQL Sketch:**
-  ```sql
-    select l.format_group, l.set_id, l.product_names, l.PRODUCT_NORMD_GENERIC_NAMES, l.AUTHOR_ORG_NORMD_NAME ,l.eff_time
-    from druglabel.dgv_sum_rx_spl l
-    where l.document_type_loinc_code in ('34390-5', '34391-3', '45129-4')
-        and l.format_group = 1
-        and l.num_act_ingrs = 1
-    order by l.format_group asc, l.eff_time desc
-  ```
+### 1. Identify Target & New Drugs (Delta Detection)
+The script will perform a cross-database comparison between the FDALabel Oracle DB and the local application database.
 
-### 2. Delta Detection
-- **Comparison:** Compare the list of `set_id`s from FDALabel with the existing records in the `tox_agent` table.
-- **Identification:** Filter out `set_id`s that already have completed and up-to-date assessments (based on `EFF_TIME`).
-- **Priority:** New `set_id`s and those with significantly newer `EFF_TIME` than the stored assessment should be prioritized.
+- **Objective:** Find `SET_ID`s that are either missing from `tox_agent` or have a newer version available in FDALabel.
+- **FDALabel Source Table:** `druglabel.dgv_sum_rx_spl`
+- **Logic:**
+  1. Fetch the latest `SET_ID` and `EFF_TIME` for all Human Rx drugs in PLR format with single ingredients.
+  2. Compare against the local `tox_agent` table.
+  3. Identify "New" (SetID doesn't exist) or "Updated" (SetID exists but `EFF_TIME` is more recent).
 
-### 3. Automated Assessment (Batch Work)
-For each target `set_id`, perform the following steps:
-1. **XML Retrieval:** Fetch the SPL XML content using the existing `get_label_xml(set_id)` service.
-2. **Metadata Extraction:** Use `extract_metadata_from_xml` to get brand/generic names.
-3. **Section Extraction:** Use `run_assessment_logic` (or a refactored version) to extract:
-    - Boxed Warning (34066-1)
-    - Contraindications (34070-3)
-    - Warnings and Precautions (34071-1, 43685-7)
-    - Adverse Reactions (34084-4)
-    - Drug Interactions (34073-7)
-    - Use in Specific Populations (43684-0)
-4. **AI Assessment:** Call the `generate_assessment` service sequentially for:
-    - **DILI:** Using `DILI_prompt`.
-    - **DICT:** Using `DICT_prompt`.
-    - **DIRI:** Using `DIRI_prompt`.
-5. **Data Aggregation:** Combine the results into a unified structure.
+**SQL Sketch:**
+```sql
+SELECT l.format_group, l.set_id, l.product_names, l.PRODUCT_NORMD_GENERIC_NAMES, l.AUTHOR_ORG_NORMD_NAME, l.eff_time
+FROM druglabel.dgv_sum_rx_spl l
+WHERE l.document_type_loinc_code in ('34390-5', '34391-3', '45129-4')
+    AND l.format_group = 1 -- PLR format
+    AND l.num_act_ingrs = 1 -- Single ingredient for cleaner assessment
+ORDER BY l.format_group ASC, l.eff_time DESC
+```
 
-### 4. Persistence (`tox_agent` Table)
-- **Table Name:** `tox_agent`
-- **Schema:**
-    - `id` (Primary Key, Integer)
-    - `set_id` (String(100), Unique, Index)
-    - `brand_name` (String(500))
-    - `generic_name` (String(500))
-    - `dili_report` (Text) - HTML content from AI
-    - `dict_report` (Text) - HTML content from AI
-    - `diri_report` (Text) - HTML content from AI
-    - `last_updated` (DateTime)
-    - `spl_effective_time` (String(50)) - To track if re-assessment is needed
+### 2. Automated Assessment Process
+For each identified `set_id`, the script follows this pipeline:
+1. **XML Extraction:** Call `get_label_xml(set_id)` to get the SPL content.
+2. **Metadata Harvesting:** 
+   - From FDALabel: `brand_name`, `generic_name`, `AUTHOR_ORG_NORMD_NAME`, `eff_time`.
+   - From XML: Verify consistency and check for specific toxic sections.
+3. **Sequential AI Analysis:**
+   - **DILI:** Run `generate_assessment` with `DILI_prompt`.
+   - **DICT:** Run `generate_assessment` with `DICT_prompt`.
+   - **DIRI:** Run `generate_assessment` with `DIRI_prompt`.
+4. **Validation:** Ensure the AI output contains the expected HTML report blocks (e.g., `<div class="label-section">`).
 
-PLR	SETID	Trade Name	Generic/Proper Name(s)	Author Organization	SPL Effective Time	Toxicity Class	Tox Type	Update_Notes	AI Summary	Current	Changed
+### 3. Database Schema: `tox_agent`
+This table serves as a high-performance cache for pre-computed toxicity data, merging metadata from FDALabel with AI assessments.
 
-### 5. Integration with Label View
-- **Backend (API):** Modify `api_bp.route('/label/<set_id>')` (or similar) to:
-    1. Check `tox_agent` for the `set_id`.
-    2. If present, include `dili_report`, `dict_report`, and `diri_report` in the response.
-- **Frontend (UI):** In the label view dashboard:
-    1. If tox data is provided, display a "Toxicity Summary" tab or sidebar.
-    2. If missing, show a "Generate Toxicity Report" button for manual trigger.
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | Integer | Primary Key (Autoincrement) |
+| `set_id` | String(100) | Unique SPL Set ID (Indexed) |
+| `is_plr` | Integer | 1 for PLR format, 0 for others |
+| `brand_name` | String(500) | Trade name(s) from FDALabel |
+| `generic_name` | String(500) | Proper/Generic name(s) from FDALabel |
+| `manufacturer` | String(500) | Author Organization from FDALabel |
+| `spl_effective_time`| String(50) | The `EFF_TIME` from FDALabel used for this assessment |
+| `dili_report` | Text | HTML report for Liver Injury (DILI) |
+| `dict_report` | Text | HTML report for Cardiotoxicity (DICT) |
+| `diri_report` | Text | HTML report for Renal Injury (DIRI) |
+| `last_updated` | DateTime | Timestamp of the last successful batch run for this record |
+| `update_notes` | Text | Any notes about why the record was updated |
+| `status` | String(20) | 'completed', 'failed', or 'pending' |
+
+### 4. Integration & UI Logic
+- **API (backend/dashboard/routes/api.py):**
+  - Modify `api_bp.route('/label/<set_id>')` to include the `tox_agent` data if available.
+  - Add a dedicated endpoint `GET /api/tox/summary/<set_id>` for the sidebar/tab display.
+- **Frontend:** 
+  - Show a "Toxicity Profile" tab in the label viewer.
+  - If data is pre-populated from `tox_agent`, show it immediately.
+  - If missing, provide a "Generate Assessment" button which calls the batch logic for that single drug.
 
 ## Technical Considerations
-- **Concurrency:** Implement a semaphore or similar mechanism to limit parallel AI calls (e.g., max 5 concurrent calls).
-- **Rate Limiting:** Respect the rate limits of the configured AI provider (Gemini/OpenAI).
-- **Error Handling:** Gracefully handle XML parsing errors and AI timeouts. Log `set_id`s that failed for manual review.
-- **Database Performance:** Ensure `set_id` is indexed in `tox_agent`.
-- **Update Cycle:** A standalone script `./scripts/update_tox_agent.py` can be executed via cron or manual trigger.
+- **Concurrency:** Limit parallel AI calls (e.g., max 5 concurrent) to manage provider rate limits.
+- **Rate Limiting:** Implement exponential backoff for 429 errors.
+- **Error Handling:** Log failures (e.g., "XML too large", "AI Refused") and store the failure status in the `tox_agent` table to avoid infinite retries.
+- **Update Cycle:** A standalone script `./scripts/update_tox_agent.py` executed periodically.
