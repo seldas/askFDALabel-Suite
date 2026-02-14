@@ -432,18 +432,31 @@ window.initFaers = function() {
             const data = await response.json();
             let answerText = data.response || "{}";
             
-            // Clean markdown code blocks if present
-            answerText = answerText.replace(/```json\n?|```/g, '').trim();
-            // console.log(answerText);
+            // Robust JSON extraction helper
+            const extractJson = (text) => {
+                // Try markdown block first
+                const match = text.match(/```json\s*([\s\S]*?)\s*```/);
+                if (match) return match[1].trim();
+                
+                // Try finding first { and last }
+                const start = text.indexOf('{');
+                const end = text.lastIndexOf('}');
+                if (start !== -1 && end !== -1 && end > start) {
+                    return text.substring(start, end + 1).trim();
+                }
+                return text.trim();
+            };
+
+            const jsonToParse = extractJson(answerText);
             let aiData = {};
             try {
-                aiData = JSON.parse(answerText);
+                aiData = JSON.parse(jsonToParse);
                 // Cache the successful result
                 if (aiData.match) {
                     localStorage.setItem(cacheKey, JSON.stringify(aiData));
                 }
             } catch (e) {
-                console.error("Failed to parse AI JSON", e);
+                console.error("Failed to parse AI JSON. Raw text:", answerText, "Extracted:", jsonToParse);
                 aiData = { match: "Error", quote: "Could not parse response." };
             }
 

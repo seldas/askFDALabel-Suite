@@ -200,7 +200,11 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
                     fallback_config = config
                     
                     response = client.models.generate_content(model=fallback_model, contents=contents, config=fallback_config)
-                    return response.text + f"\n\n(Note: Switched to {fallback_model} due to usage limits.)"
+                    result_text = response.text
+                    # Do not append note if it's a JSON-only request
+                    if "STRICTLY ONLY a single, raw JSON" in system_prompt or "{" in result_text:
+                        return result_text
+                    return result_text + f"\n\n(Note: Switched to {fallback_model} due to usage limits.)"
                     
                 except Exception as fallback_error:
                     logger.error(f"Fallback failed: {fallback_error}")
