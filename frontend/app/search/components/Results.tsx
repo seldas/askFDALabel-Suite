@@ -162,6 +162,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
     setMedAnswer,
     highlightedSetId,
     searchMode,
+    setSearchMode,
     agentFlow,
     reasoning,
 
@@ -210,7 +211,6 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
 
   // "Hit the limit" = backend returned as many rows as it's willing to return
   const hitResultLimit = results.length >= inferredLimit;
-  const [showAgenticIntro, setShowAgenticIntro] = useState(false);
   const [localResultsPerPage, setLocalResultsPerPage] = useState(10);
   const handlePerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const next = parseInt(e.target.value, 10);
@@ -664,8 +664,6 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
   if (!hasSearched) {
     return (
       <div className="intro-section">
-        <h2 className="intro-title">👋 Warm Welcome from askFDALabel! </h2>
-
         <div
           style={{
             margin: '0 auto 18px auto',
@@ -677,111 +675,98 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
             overflow: 'hidden',
           }}
         >
-          {/* Header / Toggle */}
-          <button
-            type="button"
-            onClick={() => setShowAgenticIntro(prev => !prev)}
-            aria-expanded={showAgenticIntro}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              padding: '14px 16px',
-              background: '#f8fafc',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-              <div style={{ fontWeight: 950, color: '#0f172a', fontSize: '1rem' }}>
-                How our agentic search works
-              </div>
-
-              {!showAgenticIntro && (
-                <div style={{ color: '#475569', fontSize: '0.9rem', marginTop: 2 }}>
-                  Click to expand the workflow diagram and a quick explanation.
-                </div>
-              )}
-            </div>
-
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                color: '#0f172a',
-                fontWeight: 800,
-                fontSize: '0.9rem',
-              }}
-            >
-              <span>{showAgenticIntro ? 'Hide' : 'Show'}</span>
-              <span
-                aria-hidden
+          <div style={{ padding: '24px' }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              marginBottom: '24px',
+              padding: '4px',
+              background: '#f1f5f9',
+              borderRadius: '99px',
+              width: 'fit-content',
+              margin: '0 auto 24px auto',
+              border: '1px solid #e2e8f0'
+            }}>
+              <button
+                onClick={() => setSearchMode('v1')}
                 style={{
-                  display: 'inline-block',
-                  transform: showAgenticIntro ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 150ms ease',
+                  padding: '8px 20px',
+                  borderRadius: '99px',
+                  border: 'none',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  backgroundColor: searchMode === 'v1' ? '#ffffff' : 'transparent',
+                  color: searchMode === 'v1' ? '#0f172a' : '#64748b',
+                  boxShadow: searchMode === 'v1' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                  transition: 'all 0.2s ease'
                 }}
               >
-                ▾
-              </span>
+                Standard (V1)
+              </button>
+              <button
+                onClick={() => setSearchMode('v2')}
+                style={{
+                  padding: '8px 20px',
+                  borderRadius: '99px',
+                  border: 'none',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  backgroundColor: searchMode === 'v2' ? '#ffffff' : 'transparent',
+                  color: searchMode === 'v2' ? '#0f172a' : '#64748b',
+                  boxShadow: searchMode === 'v2' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Agentic (V2)
+              </button>
             </div>
-          </button>
 
-          {/* Collapsible content */}
-          {showAgenticIntro && (
-            <div style={{ padding: 16 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <img
-                  src="/flowchart_agent_v3.png"
-                  alt="askFDALabel agentic system flowchart"
-                  style={{
-                    width: '100%',
-                    height: 'auto',
-                    borderRadius: 12,
-                    border: '1px solid #eef2f7',
-                    background: '#f8fafc',
-                  }}
-                />
+            <h2 style={{ 
+              fontWeight: 950, 
+              color: '#0f172a', 
+              fontSize: '1.25rem', 
+              marginBottom: '20px',
+              textAlign: 'center'
+            }}>
+              How our Agentic Search works
+            </h2>
 
-                <div
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: 12,
-                    border: '1px solid #e2e8f0',
-                    background: '#fff',
-                  }}
-                >
-                  <div style={{ color: '#334155', lineHeight: 1.6, fontSize: '0.95rem' }}>
-                    askFDALabel uses a multi-step “agent” pipeline to plan the best strategy, retrieve evidence, and explain what it did:
-                    <ul style={{ margin: '8px 0 0 18px', color: '#334155' }}>
-                      <li><b>Planner</b> interprets your question using recent chat context and chooses a query strategy.</li>
-                      <li><b>DB Executor</b> runs the best SQL (metadata search, full-text section search, or aggregate/compare).</li>
-                      <li><b>Evidence Fetcher</b> pulls only the needed label sections to ground answers in text.</li>
-                      <li><b>Answer + Reasoning</b> generates a response and shows the plan/trace in the Reasoning panel.</li>
-                    </ul>
-                  </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <img
+                src="/flowchart_agent_v3.png"
+                alt="askFDALabel agentic system flowchart"
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  borderRadius: 12,
+                  border: '1px solid #eef2f7',
+                  background: '#f8fafc',
+                }}
+              />
+
+              <div
+                style={{
+                  padding: '16px 20px',
+                  borderRadius: 12,
+                  border: '1px solid #e2e8f0',
+                  background: '#f8fafc',
+                }}
+              >
+                <div style={{ color: '#334155', lineHeight: 1.6, fontSize: '1rem' }}>
+                  askFDALabel uses a multi-step “agent” pipeline to plan the best strategy, retrieve evidence, and explain what it did:
+                  <ul style={{ margin: '12px 0 0 24px', color: '#334155' }}>
+                    <li style={{ marginBottom: '8px' }}><b>Planner</b> interprets your question using recent chat context and chooses a query strategy.</li>
+                    <li style={{ marginBottom: '8px' }}><b>DB Executor</b> runs the best SQL (metadata search, full-text section search, or aggregate/compare).</li>
+                    <li style={{ marginBottom: '8px' }}><b>Evidence Fetcher</b> pulls only the needed label sections to ground answers in text.</li>
+                    <li style={{ marginBottom: '8px' }}><b>Answer + Reasoning</b> generates a response and shows the plan/trace in the Reasoning panel.</li>
+                  </ul>
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
-
-
-        <p className="no-results-disclaimer">
-          <strong>askFDALabel</strong>, an AI-powered regulatory research tool, searches over 3,000 Reference Listed Drugs (RLDs) and more than 150,000 product labels using data sourced from <a target="_blank" rel="noreferrer" href="https://nctr-crs.fda.gov/fdalabel/ui/search"><strong>FDALabel</strong></a>.
-          This data is based on Structured Product Labeling (SPL) submissions provided by manufacturers. The content may differ from the most current FDA-approved labeling available at Drugs@FDA and has not been independently verified by the FDA.
-        </p>
-
-        <p style={{ marginTop: '1rem' }}>
-          <a href="https://nctr-crs.fda.gov/fdalabel/ui/disclaimer" target="_blank" rel="noreferrer"><strong>Full FDALabel Disclaimer</strong></a>.
-        </p>
-
-        <p className="disclaimer-box">
-          <em>Note:</em> askFDALabel is currently under active development by the FDA's National Center for Toxicological Research (NCTR) and is intended for internal testing and evaluation only. Search results may be incomplete or contain inaccuracies due to ongoing system updates and refinement.
-        </p>
       </div>
     );
   }

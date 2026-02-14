@@ -1,10 +1,19 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useUser } from '../context/UserContext';
 
 export default function SnippetPage() {
   const drugBookmarkletRef = useRef<HTMLAnchorElement>(null);
   const highlightBookmarkletRef = useRef<HTMLAnchorElement>(null);
+  const { session, loading: userLoading } = useUser();
+  const [activeDropdown, setActiveDropdown] = useState<'user' | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = () => setActiveDropdown(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (drugBookmarkletRef.current) {
@@ -27,17 +36,26 @@ export default function SnippetPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <a
             href="/"
-            style={{
-              backgroundColor: 'white',
-              padding: '5px',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textDecoration: 'none',
+            style={{ 
+              color: 'white', 
+              textDecoration: 'none', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              opacity: 0.9,
+              background: 'rgba(255,255,255,0.15)',
+              padding: '5px 14px',
+              borderRadius: '20px',
+              transition: 'all 0.2s ease'
             }}
           >
-            <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '24px' }} />
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            Suite Home
           </a>
           <h1
             style={{
@@ -53,12 +71,81 @@ export default function SnippetPage() {
         </div>
 
         <nav style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <a
-            href="/"
-            style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}
-          >
-            Suite Home
-          </a>
+          {userLoading ? (
+            <span style={{ fontSize: '0.875rem', opacity: 0.8, color: 'white' }}>Loading...</span>
+          ) : session?.is_authenticated ? (
+            <>
+              {/* AI Provider Indicator (Static) */}
+              <div style={{ 
+                fontSize: '0.85rem', 
+                color: 'white', 
+                background: 'rgba(255,255,255,0.1)', 
+                padding: '4px 12px', 
+                borderRadius: '20px',
+                border: '1px solid rgba(255,255,255,0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }} title="AI model is set on the Suite Home page">
+                <span style={{ opacity: 0.7 }}>AI:</span>
+                <span style={{ fontWeight: 700 }}>{session.ai_provider?.toUpperCase()}</span>
+              </div>
+
+              {/* User Settings Dropdown */}
+              <div className="custom-dropdown" onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
+                <button 
+                  className="dropdown-trigger"
+                  onClick={() => setActiveDropdown(activeDropdown === 'user' ? null : 'user')}
+                  style={{ background: 'rgba(255,255,255,0.05)', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'white' }}
+                >
+                  <div style={{ 
+                    width: '24px', 
+                    height: '24px', 
+                    background: '#3b82f6', 
+                    borderRadius: '50%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    color: 'white'
+                  }}>
+                    {session.username?.[0].toUpperCase()}
+                  </div>
+                  <span style={{ fontSize: '0.875rem', color: 'white' }}>{session.username}</span>
+                </button>
+
+                {activeDropdown === 'user' && (
+                  <div className="dropdown-menu" style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '8px',
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    border: '1px solid #f1f5f9',
+                    minWidth: '200px',
+                    zIndex: 1001,
+                    overflow: 'hidden',
+                    textAlign: 'left'
+                  }}>
+                    <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ACCOUNT</div>
+                      <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
+                    </div>
+                    <div style={{ padding: '4px 0' }}>
+                      <a href="/dashboard" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>My Dashboard</a>
+                      <a href="/api/dashboard/auth/change_password" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Change Password</a>
+                      <a href="/api/dashboard/auth/logout" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#ef4444', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Sign Out</a>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <a href="/api/dashboard/auth/login?next=/snippet" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px' }}>Sign In</a>
+          )}
         </nav>
       </header>
 

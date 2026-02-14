@@ -18,15 +18,24 @@ const Header: React.FC = () => {
     <header className="header-main">
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
         <Link href="/" style={{ 
-          backgroundColor: 'white', 
-          padding: '5px', 
-          borderRadius: '4px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textDecoration: 'none'
-        }}>
-           <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '24px' }} />
+          color: 'white', 
+          textDecoration: 'none', 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px',
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          opacity: 0.9,
+          background: 'rgba(255,255,255,0.15)',
+          padding: '5px 14px',
+          borderRadius: '20px',
+          transition: 'all 0.2s ease'
+        }} onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'} onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}>
+           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+             <polyline points="9 22 9 12 15 12 15 22"></polyline>
+           </svg>
+           Suite Home
         </Link>
         <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
           Agentic Search
@@ -34,30 +43,6 @@ const Header: React.FC = () => {
       </div>
 
       <div className="header-controls" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-        <div className="mode-switch" style={{ display: 'flex', alignItems: 'center', fontSize: '0.85rem', padding: '4px 12px', borderRadius: '20px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)' }}>
-            <span style={{ marginRight: '8px', color: searchMode === 'v1' ? 'white' : 'rgba(255,255,255,0.5)', fontWeight: searchMode === 'v1' ? 'bold' : 'normal' }}>V1</span>
-            <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '30px', height: '16px' }}>
-              <input 
-                type="checkbox" 
-                checked={searchMode === 'v2'}
-                onChange={() => setSearchMode(searchMode === 'v1' ? 'v2' : 'v1')}
-                style={{ opacity: 0, width: 0, height: 0 }}
-              />
-              <span className="slider round" style={{ 
-                position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, 
-                backgroundColor: searchMode === 'v2' ? 'var(--fda-blue)' : '#ccc', 
-                transition: '.4s', borderRadius: '34px' 
-              }}>
-                <span style={{ 
-                  position: 'absolute', content: "", height: '12px', width: '12px', left: '2px', bottom: '2px', 
-                  backgroundColor: 'white', transition: '.4s', borderRadius: '50%',
-                  transform: searchMode === 'v2' ? 'translateX(14px)' : 'translateX(0)'
-                }}></span>
-              </span>
-            </label>
-            <span style={{ marginLeft: '8px', color: searchMode === 'v2' ? 'white' : 'rgba(255,255,255,0.5)', fontWeight: searchMode === 'v2' ? 'bold' : 'normal' }}>Agentic (V2)</span>
-        </div>
-
         <nav style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {loading ? (
             <span style={{ fontSize: '0.875rem', opacity: 0.8, color: 'white' }}>Loading...</span>
@@ -118,7 +103,6 @@ const Header: React.FC = () => {
               </div>
             </>
           ) : null}
-          <Link href="/" style={{ color: 'white', fontSize: '0.85rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</Link>
         </nav>
       </div>
     </header>
