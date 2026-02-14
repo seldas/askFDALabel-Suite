@@ -14,9 +14,12 @@ LOG_DIR = os.path.join(PROJECT_ROOT, 'logs')
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, 'tox_update.log')
 
-from app import create_app
-from database.extensions import db
+# Manual SQLAlchemy setup for standalone usage
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, scoped_session
+from dashboard.config import Config
 from database.models import ToxAgent
+from database.extensions import db
 from dashboard.services.fdalabel_db import FDALabelDBService
 from dashboard.services.fda_client import get_label_xml
 from dashboard.services.ai_handler import generate_assessment
@@ -33,6 +36,12 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Initialize standalone session
+engine = create_engine(Config.SQLALCHEMY_DATABASE_URI)
+Session = scoped_session(sessionmaker(bind=engine))
+# Patch the db.session to use our standalone session for models
+db.session = Session
 
 def fetch_target_labels():
     """Fetches target labels from FDALabel Oracle DB."""
@@ -83,22 +92,26 @@ def fetch_target_labels():
 
 def clean_ai_report(response_text):
     """Extracts the clean HTML block from the AI response."""
+    if not response_text:
+        return '<!-- AI response was empty. -->'
+        
     html_matches = re.findall(r'(<div class="label-section">[\s\S]*?</div>)', response_text, re.DOTALL)
     if html_matches:
-        return "".join(html_matches)
+        return "\n".join(html_matches)
     
     if '<!-- No DILI evidence found' in response_text or '<!-- No DICT evidence found' in response_text or '<!-- No DIRI evidence found' in response_text:
         return response_text # Keep the comment
         
     return '<!-- AI response did not contain valid HTML report. -->'
 
-def process_label(app, label):
+def process_label(label):
     """Processes a single label: fetch XML, run assessments, and save to DB."""
     set_id = label['set_id']
+    session = Session()
     
-    with app.app_context():
+    try:
         # Check if this EXACT version is already processed and is 'current'
-        existing_current = ToxAgent.query.filter_by(set_id=set_id, current='Yes').first()
+        existing_current = session.query(ToxAgent).filter_by(set_id=set_id, current='Yes').first()
         
         if existing_current and existing_current.spl_effective_time == label['eff_time']:
             logger.info(f"Skipping {set_id}, current version is already up to date.")
@@ -125,7 +138,7 @@ def process_label(app, label):
             diri_report = clean_ai_report(diri_raw)
             
             # If there was a previous 'current' record, mark all as 'No'
-            ToxAgent.query.filter_by(set_id=set_id).update({"current": "No"})
+            session.query(ToxAgent).filter_by(set_id=set_id).update({"current": "No"})
             
             # Add the new record as 'Yes'
             new_agent = ToxAgent(
@@ -141,16 +154,22 @@ def process_label(app, label):
                 status='completed',
                 current='Yes'
             )
-            db.session.add(new_agent)
+            session.add(new_agent)
             
-            db.session.commit()
+            session.commit()
             logger.info(f"Successfully created new current tox_agent record for {set_id}")
             return True
+        except Exception as ai_e:
+             logger.error(f"AI Assessment error for {set_id}: {ai_e}")
+             session.rollback()
+             return False
             
-        except Exception as e:
-            logger.error(f"Error processing {set_id}: {e}")
-            db.session.rollback()
-            return False
+    except Exception as e:
+        logger.error(f"Error processing {set_id}: {e}")
+        session.rollback()
+        return False
+    finally:
+        Session.remove()
 
 def main():
     parser = argparse.ArgumentParser(description="Update ToxAgent table with pre-computed assessments.")
@@ -158,12 +177,9 @@ def main():
     parser.add_argument("--limit", type=int, default=0, help="Maximum number of labels to process.")
     args = parser.parse_args()
 
-    app = create_app()
-    
-    # Initialize Table if not exists
-    with app.app_context():
-        db.create_all()
-        logger.info("Database tables verified/created.")
+    # Ensure tables are created
+    ToxAgent.__table__.create(bind=engine, checkfirst=True)
+    logger.info("Database tables verified/created.")
 
     logger.info("Fetching target labels from FDALabel...")
     all_labels = fetch_target_labels()
@@ -176,7 +192,7 @@ def main():
         if processed_count >= target_count:
             break
             
-        if process_label(app, label):
+        if process_label(label):
             processed_count += 1
             # Rate limiting delay
             if processed_count < target_count:
