@@ -166,7 +166,7 @@ Assign a single severity level per evidence sentence based on the **highest** re
 -   Your final response MUST be ONLY the raw HTML code.
 -   DO NOT include ANY explanatory text, headers, step-by-step reasoning, or conversational phrases like "Here is the HTML output:".
 -   Your entire response must start with `<div class="label-section">` and end with a closing `</div>`.
--   If no DILI evidence is found, output a single HTML comment: `<!-- No DILI evidence found in label -->`.
+-   If no DICT evidence is found, output a single HTML comment: `<!-- No DICT evidence found in label -->`.
 -   DO NOT wrap the HTML in Markdown code blocks (e.g., html).
 '''
 
@@ -215,7 +215,7 @@ Assign a single severity level per evidence sentence based on the **highest** re
 -   Your final response MUST be ONLY the raw HTML code.
 -   DO NOT include ANY explanatory text, headers, step-by-step reasoning, or conversational phrases like "Here is the HTML output:".
 -   Your entire response must start with `<div class="label-section">` and end with a closing `</div>`.
--   If no DILI evidence is found, output a single HTML comment: `<!-- No DILI evidence found in label -->`.
+-   If no DIRI evidence is found, output a single HTML comment: `<!-- No DIRI evidence found in label -->`.
 -   DO NOT wrap the HTML in Markdown code blocks (e.g., html).
 '''
 

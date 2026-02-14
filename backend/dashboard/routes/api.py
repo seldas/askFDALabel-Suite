@@ -1240,21 +1240,28 @@ def generic_assessment_route(set_id, assessment_model, pt_terms, prompt, keyword
         existing_report = None
         timestamp = None
         
+        def is_complete(report):
+            if not report: return False
+            if '<!-- AI response did not contain' in report: return False
+            if '<div' in report or ('<!--' in report and 'evidence found' in report):
+                return True
+            return False
+
         if tox_agent and field_name:
-            existing_report = getattr(tox_agent, field_name)
-            if existing_report and '<div' in existing_report: # Basic HTML check
+            report_val = getattr(tox_agent, field_name)
+            if is_complete(report_val):
+                existing_report = report_val
                 timestamp = tox_agent.last_updated.isoformat()
-            else:
-                existing_report = None # Force re-assess if invalid
         
         # Fallback to individual tables if not found in ToxAgent
         if not existing_report:
             assessment = assessment_model.query.filter_by(set_id=set_id).first()
-            existing_report = assessment.report_content if assessment else None
-            timestamp = assessment.timestamp.isoformat() if assessment else None
+            if assessment and is_complete(assessment.report_content):
+                existing_report = assessment.report_content
+                timestamp = assessment.timestamp.isoformat()
             
     except Exception as e:
-        logger.error(f"Database error: {e}")
+        logger.error(f"Database error in generic_assessment_route: {e}")
         existing_report = None
         timestamp = None
     
@@ -1340,10 +1347,13 @@ def run_assessment_logic(set_id, assessment_model, prompt):
                 # If one or more blocks are found, join them together. This is the clean report.
                 clean_report = "\n".join(html_matches)
             else:
-                # If no valid blocks are found, use the model's raw response or a default.
-                # You might want to check for the "no evidence" comment here as well.
+                # Check for "no evidence" comments specifically for each type
                 if '<!-- No DILI evidence found' in response_text:
                     clean_report = '<!-- No DILI evidence found in label -->'
+                elif '<!-- No DICT evidence found' in response_text:
+                    clean_report = '<!-- No DICT evidence found in label -->'
+                elif '<!-- No DIRI evidence found' in response_text:
+                    clean_report = '<!-- No DIRI evidence found in label -->'
                 else:
                     # Fallback for unexpected responses
                     clean_report = '<!-- AI response did not contain valid HTML report. -->'
@@ -1359,7 +1369,7 @@ def run_assessment_logic(set_id, assessment_model, prompt):
             # Update ToxAgent Table
             try:
                 tox_agent = ToxAgent.query.filter_by(set_id=set_id, current='Yes').first()
-                meta = extract_metadata_from_xml(xml_content)
+                meta = extract_metadata_from_xml(xml_content) or {}
                 
                 # Metadata for ToxAgent if new
                 if not tox_agent:
@@ -1370,7 +1380,8 @@ def run_assessment_logic(set_id, assessment_model, prompt):
                         manufacturer=meta.get('manufacturer_name'),
                         spl_effective_time=meta.get('effective_time'),
                         is_plr=1 if meta.get('label_format') == 'PLR' else 0,
-                        current='Yes'
+                        current='Yes',
+                        status='pending'
                     )
                     db.session.add(tox_agent)
 
@@ -1383,10 +1394,14 @@ def run_assessment_logic(set_id, assessment_model, prompt):
                 if field_name:
                     setattr(tox_agent, field_name, clean_report)
                 
+                # Update general fields if they are missing
+                if not tox_agent.brand_name: tox_agent.brand_name = meta.get('brand_name')
+                if not tox_agent.generic_name: tox_agent.generic_name = meta.get('generic_name')
+                
                 tox_agent.last_updated = datetime.utcnow()
                 tox_agent.status = 'completed'
             except Exception as tox_err:
-                logger.error(f"Failed to update ToxAgent: {tox_err}")
+                logger.error(f"Failed to update ToxAgent during manual assessment: {tox_err}")
 
             db.session.commit()
             return jsonify({'assessment_report': response_text})
