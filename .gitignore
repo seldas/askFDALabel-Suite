@@ -34,3 +34,4 @@ dashboard_old/
 # Database
 afd.db
 afd.db*
+logs/
