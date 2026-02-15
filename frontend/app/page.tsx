@@ -262,15 +262,15 @@ export default function HomePage() {
       </header>
 
       {/* Hero / Immersive Mission Section */}
-      <section className="mission-section" style={{ padding: '4rem 2rem 3rem 2rem' }}>
+      <section className="mission-section" style={{ padding: '2rem 2rem 4rem 2rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
           <div style={{ position: 'relative', display: 'inline-block' }}>
-            <h1 className="suite-home-title-animated" style={{ fontSize: '4.5rem', fontWeight: 900, marginBottom: '0.5rem' }}>
+            <h1 className="suite-home-title-animated" style={{ fontSize: '7.5rem', fontWeight: 900, marginBottom: '0.5rem' }}>
               AskFDALabel
             </h1>  
             <span className="suite-home-title-animated" style={{ 
               position: 'absolute', 
-              top: '8px', 
+              top: '18px', 
               right: '-75px',
               fontSize: '1.1rem', 
               fontWeight: 800,
@@ -283,7 +283,7 @@ export default function HomePage() {
             }}>[dev]</span>
           </div>
           <p className="hero-subtitle-animated" style={{ color: '#94a3b8', fontSize: '1.25rem', maxWidth: '800px', margin: '0 auto', fontWeight: 500 }}>
-            Advancing Regulatory Science through AI
+            Advancing Regulatory Science of Drug Labeling through AI
           </p>
         </div>
 
@@ -388,7 +388,7 @@ export default function HomePage() {
       <footer style={{ 
         backgroundColor: '#002e5d', 
         color: 'white', 
-        padding: '4rem 2rem', 
+        padding: '1rem 2rem', 
         marginTop: '0',
         textAlign: 'center',
         display: 'flex',
@@ -398,20 +398,8 @@ export default function HomePage() {
       }}>
         <div style={{ maxWidth: '800px', opacity: 0.8, fontSize: '0.875rem' }}>
           <p style={{ marginBottom: '1.5rem', lineHeight: 1.6, color: 'white' }}>
-            <strong>AskFDALabel Suite</strong> &copy; 2026. This is an on-going research effort that is not intended for production use.
+            <strong>AskFDALabel Suite</strong> &copy; 2026. FDA/NCTR ** This is an on-going research effort that is not for official use yet.**.
           </p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '24px' }}>
-            <a href="https://www.fda.gov" target="_blank" style={{ 
-              color: 'white', 
-              textDecoration: 'none', 
-              fontWeight: 700,
-              padding: '8px 24px',
-              background: 'rgba(255,255,255,0.1)',
-              borderRadius: '50px',
-              transition: 'all 0.2s ease',
-              border: '1px solid rgba(255,255,255,0.2)'
-            }} onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'} onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>FDA.gov</a>
-          </div>
         </div>
       </footer>
     </div>
