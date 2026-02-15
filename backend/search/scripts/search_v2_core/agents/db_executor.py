@@ -77,7 +77,7 @@ def _execute_sql(formatted_sql: str, binds: Dict[str, Any]) -> List[Dict[str, An
         con = get_db_connection()
         cursor = con.cursor()
 
-        logger.debug(f"Executing SQL:\n{formatted_sql}\nBinds: {binds}")
+        # logger.debug(f"Executing SQL:\n{formatted_sql}\nBinds: {binds}")
         cursor.execute(formatted_sql, binds)
 
         columns = [col[0] for col in cursor.description]
