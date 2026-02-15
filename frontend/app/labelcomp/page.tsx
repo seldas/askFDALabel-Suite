@@ -360,11 +360,10 @@ function LabelCompContent() {
             </a>
           )}
 
-          <Link href="/search" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
-            Agentic Search
-          </Link>
-
+                  <Link href="/search" className="hp-nav-item hp-nav-item-flagship" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
+                    AFL Agent
+                  </Link>
           <Link href="/dashboard" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
             Dashboard

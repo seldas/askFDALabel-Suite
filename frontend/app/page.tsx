@@ -29,7 +29,7 @@ export default function HomePage() {
       image: "https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=1200"
     },
     {
-      title: "Agentic Search",
+      title: "AFL Agent",
       description: "Reason beyond keywords. Ask complex clinical and pharmacological questions directly of the FDA label corpus using large language models grounded in real text.",
       image: "https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&q=80&w=1200"
     },
@@ -196,9 +196,9 @@ export default function HomePage() {
             </a>
           )}
 
-          <Link href="/search" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+          <Link href="/search" className="hp-nav-item hp-nav-item-flagship" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
-            Agentic Search
+            AFL Agent
           </Link>
 
           <Link href="/dashboard" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
@@ -370,7 +370,7 @@ export default function HomePage() {
             <span className="suite-home-title-animated" style={{ 
               position: 'absolute', 
               top: '18px', 
-              right: '-75px',
+              right: '-20px',
               fontSize: '1.1rem', 
               fontWeight: 800,
               textTransform: 'uppercase',
@@ -443,9 +443,10 @@ export default function HomePage() {
           </div>
           <div className="animate-fade-in-up delay-2">
             <ScientificCard 
-              title="Agentic Search" 
+              title="AFL Agent" 
               description="Large language model powered reasoning across drug label datasets for complex clinical questions."
               href="/search"
+              className="scientific-card-flagship"
               icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>}
             />
           </div>
@@ -705,9 +706,9 @@ export default function HomePage() {
   );
 }
 
-function ScientificCard({ title, description, href, icon, children }: { title: string, description: string, href?: string, icon: React.ReactNode, children?: React.ReactNode }) {
+function ScientificCard({ title, description, href, icon, children, className }: { title: string, description: string, href?: string, icon: React.ReactNode, children?: React.ReactNode, className?: string }) {
   const content = (
-    <div className="scientific-card">
+    <div className={`scientific-card ${className || ''}`}>
       <div className="icon" style={{ color: 'var(--fda-blue)', marginBottom: '1.25rem', display: 'flex' }}>{icon}</div>
       <h2>{title}</h2>
       <p style={{ fontSize: '0.9375rem', color: '#475569', lineHeight: 1.5, marginBottom: '1.5rem', flex: 1 }}>{description}</p>

@@ -719,7 +719,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                   transition: 'all 0.2s ease'
                 }}
               >
-                Agentic (V2)
+                AFL Agent (V2)
               </button>
             </div>
 
@@ -729,7 +729,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
               marginBottom: '20px',
               textAlign: 'center'
             }}>
-              How our Agentic Search works
+              How our AFL Agent works
             </h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
