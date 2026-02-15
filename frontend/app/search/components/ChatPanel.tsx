@@ -200,7 +200,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
 
     try {
       if (searchMode === 'v2') {
-        // --- V2 Agentic Search Path ---
+        // --- V2 AFL Agent Path ---
         const searchResponse = await fetch("/api/search/search_agentic_stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -561,7 +561,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
       {chatHistory.length === 0 ? (
         // Initial View (Centered)
         <div className="initial-view-container">
-            <h1 className="initial-view-title">Agentic Search: Reasoning across FDA Drug Labels</h1>
+            <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
+              AFL Agent
+            </h1>
+            <p className="hero-subtitle-animated" style={{ fontSize: '1.25rem', color: '#64748b', fontWeight: '500', marginBottom: '3rem', textAlign: 'center' }}>
+              Reasoning across the FDA drug labeling corpus with AI
+            </p>
             
             <form onSubmit={handleSearch} className="centered-search-form">
                 <div className="centered-input-wrapper">

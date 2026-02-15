@@ -328,18 +328,27 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
              ☰
           </button>
           <a href="/" style={{ 
-            backgroundColor: 'white', 
-            padding: '5px', 
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textDecoration: 'none'
+            color: 'white', 
+            textDecoration: 'none', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            opacity: 0.9,
+            background: 'rgba(255,255,255,0.15)',
+            padding: '5px 14px',
+            borderRadius: '20px',
+            transition: 'all 0.2s ease'
           }}>
-             <img src="/api/dashboard/static/favicon.svg" alt="Logo" style={{ height: '24px' }} />
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+               <polyline points="9 22 9 12 15 12 15 22"></polyline>
+             </svg>
+             Home
           </a>
           <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
-            Label Analysis
+            Label View
           </h1>
         </div>
 
@@ -350,7 +359,6 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             <button className={`tab-btn ${activeTab === 'tox-view' ? 'active' : ''}`} onClick={() => setActiveTab('tox-view')} data-target="tox-view" style={{ color: 'white', border: 'none', background: activeTab === 'tox-view' ? 'var(--fda-blue)' : 'transparent', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>Agents</button>
           </div>
           <Link href="/dashboard" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Dashboard</Link>
-          <Link href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</Link>
         </nav>
       </header>
 

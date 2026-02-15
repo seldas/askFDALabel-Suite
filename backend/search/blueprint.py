@@ -393,7 +393,8 @@ def export_excel():
 def random_query():
     try:
         user_obj = current_user._get_current_object() if current_user.is_authenticated else None
-        messages = [{"role": "system", "content": prompt_boring}]
+        messages = [{"role": "system", "content": prompt_boring}, 
+                    {"role": "user", "content": "Generate a random question about drug labels that a medical professional might ask."}]
         process_success, generated_question = safe_llm_call(
             client, 
             messages, 

@@ -3,11 +3,64 @@
 import Link from 'next/link';
 import { useUser } from './context/UserContext';
 import { useState, useEffect } from 'react';
+import Modal from './components/Modal';
 
 export default function HomePage() {
   const { session, loading, updateAiProvider, refreshSession } = useUser();
   const [isInternal, setIsInternal] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | 'ai' | null>(null);
+  const [activeFeature, setActiveFeature] = useState(0);
+
+  // Modal states
+  const [activeModal, setActiveModal] = useState<'login' | 'register' | 'change_password' | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // Form states
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const features = [
+    {
+      title: "AskFDALabel Suite",
+      description: "The ultimate intelligence layer for FDA drug labeling research. Seamlessly navigate over 150,000 product labels with AI-driven insights and advanced safety analytics.",
+      image: "https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=1200"
+    },
+    {
+      title: "AFL Agent",
+      description: "Reason beyond keywords. Ask complex clinical and pharmacological questions directly of the FDA label corpus using large language models grounded in real text.",
+      image: "https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&q=80&w=1200"
+    },
+    {
+      title: "Labeling Dashboard",
+      description: "Visualize safety trends and manage clinical workspaces. Track metadata, monitor signal detection, and organize your labeling projects in one unified dashboard.",
+      image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1200"
+    },
+    {
+      title: "Side-by-Side Analysis",
+      description: "Pinpoint critical regulatory differences. Compare linguistic nuances and safety updates across multiple drug labels with high-precision highlighting.",
+      image: "https://images.unsplash.com/photo-1568667256549-094345857637?auto=format&fit=crop&q=80&w=1200"
+    },
+    {
+      title: "DrugTox Intelligence",
+      description: "Deep toxicological tracking. Monitor DILI, cardiac, and renal toxicity profiles across thousands of drugs using harmonized evidence-based data.",
+      image: "https://images.unsplash.com/photo-1518152006812-edab29b069ac?auto=format&fit=crop&q=80&w=1200"
+    },
+    {
+      title: "Snippet Store",
+      description: "Power up your research workflow. Draggable browser bookmarklets that instantly extract metadata and highlight safety terms directly on any clinical webpage.",
+      image: "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&q=80&w=1200"
+    }
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveFeature((prev) => (prev + 1) % features.length);
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [features.length]);
 
   useEffect(() => {
     const handleClickOutside = () => setActiveDropdown(null);
@@ -18,9 +71,7 @@ export default function HomePage() {
   useEffect(() => {
     const checkInternalStatus = async () => {
       try {
-        const response = await fetch("/api/check-fdalabel", {
-          method: 'POST'
-        });
+        const response = await fetch("/api/check-fdalabel", { method: 'POST' });
         const data = await response.json();
         setIsInternal(data.isInternal);
       } catch (error) {
@@ -30,28 +81,170 @@ export default function HomePage() {
     checkInternalStatus();
   }, []);
 
+  const handleAuthAction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthLoading(true);
+
+    let endpoint = '/api/dashboard/auth/login';
+    let body: any = { username, password };
+
+    if (activeModal === 'register') {
+      endpoint = '/api/dashboard/auth/register';
+    } else if (activeModal === 'change_password') {
+      endpoint = '/api/dashboard/auth/change_password';
+      body = { password };
+    }
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (data.success) {
+        await refreshSession();
+        setActiveModal(null);
+        setUsername('');
+        setPassword('');
+      } else {
+        setAuthError(data.error || 'Authentication failed');
+      }
+    } catch (err) {
+      setAuthError('An unexpected error occurred');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/dashboard/auth/logout', {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (res.ok) {
+        await refreshSession();
+      }
+    } catch (err) {
+      console.error('Logout failed', err);
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-      {/* Main Header */}
-      <header className="header-main">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+      {/* Unified Header & Menu */}
+      <header className="header-main" style={{ justifyContent: 'space-between', padding: '0.5rem 2rem' }}>
+        {/* Left: Branding */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '0 0 350px' }}>
           <Link href="/" style={{ 
-            backgroundColor: 'white', 
-            padding: '5px', 
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center',
+            display: 'flex', 
+            alignItems: 'center', 
             justifyContent: 'center',
-            textDecoration: 'none'
+            textDecoration: 'none',
+            color: 'white'
           }}>
-             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '24px' }} />
+             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#3b82f6' }}>
+               <path d="M12 2l8.66 5V17L12 22l-8.66-5V7L12 2z" strokeOpacity="0.3" />
+               <path d="M12 22V12" strokeOpacity="0.3" />
+               <path d="M12 12L3.34 7" strokeOpacity="0.3" />
+               <path d="M12 12l8.66-5" strokeOpacity="0.3" />
+               <path d="M7 16l5-9 5 9" stroke="#ffffff" strokeWidth="2.5" />
+               <path d="M9 12h6" stroke="#ffffff" strokeWidth="2.5" />
+               <circle cx="12" cy="12" r="2" fill="#3b82f6" stroke="#3b82f6" />
+             </svg>
           </Link>
-          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
-            askFDALabel <span style={{ fontWeight: 300, opacity: 0.8 }}>Suite</span>
+          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: 'white', letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
+            AskFDALabel <span style={{ fontWeight: 300, opacity: 0.7 }}>Suite</span>
           </h1>
         </div>
 
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {/* Center: Main Navigation */}
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {isInternal ? (
+            <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('nav')} onMouseLeave={() => setActiveDropdown(null)}>
+              <button className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
+                FDALabel <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
+              </button>
+              <div className={`hp-dropdown-content ${activeDropdown === 'nav' ? 'visible' : ''}`} style={{ marginTop: '0', opacity: activeDropdown === 'nav' ? 1 : 0, visibility: activeDropdown === 'nav' ? 'visible' : 'hidden' }}>
+                <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-dropdown-item">
+                  <span className="hp-dropdown-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
+                  </span>
+                  <div>
+                    <div style={{ fontWeight: 800 }}>FDA Official</div>
+                    <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Global Public Interface</div>
+                  </div>
+                </a>
+                <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer" className="hp-dropdown-item">
+                  <span className="hp-dropdown-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                  </span>
+                  <div>
+                    <div style={{ fontWeight: 800 }}>CDER-CBER</div>
+                    <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Internal Review Interface</div>
+                  </div>
+                </a>
+              </div>
+            </div>
+          ) : (
+            <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
+              FDALabel
+            </a>
+          )}
+
+          <Link href="/search" className="hp-nav-item hp-nav-item-flagship" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
+            AFL Agent
+          </Link>
+
+          <Link href="/dashboard" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            Dashboard
+          </Link>
+
+          <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('more')} onMouseLeave={() => setActiveDropdown(null)}>
+            <button className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
+              More <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
+            </button>
+            <div className={`hp-dropdown-content ${activeDropdown === 'more' ? 'visible' : ''}`} style={{ marginTop: '0', opacity: activeDropdown === 'more' ? 1 : 0, visibility: activeDropdown === 'more' ? 'visible' : 'hidden' }}>
+              <Link href="/labelcomp" className="hp-dropdown-item">
+                <span className="hp-dropdown-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>
+                </span>
+                <div>
+                  <div style={{ fontWeight: 800 }}>Label Compare</div>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Side-by-side analysis</div>
+                </div>
+              </Link>
+              <Link href="/drugtox" className="hp-dropdown-item">
+                <span className="hp-dropdown-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v8"></path><path d="M14 2v8"></path><path d="M8.5 15c.7 0 1.3-.5 1.5-1.2l.5-2.3c.2-.7.8-1.2 1.5-1.2s1.3.5 1.5 1.2l.5 2.3c.2.7.8 1.2 1.5 1.2"></path><path d="M6 18h12"></path><path d="M6 22h12"></path><circle cx="12" cy="13" r="10"></circle></svg>
+                </span>
+                <div>
+                  <div style={{ fontWeight: 800 }}>DrugTox Intelligence</div>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Toxicity profile tracking</div>
+                </div>
+              </Link>
+              <Link href="/snippet" className="hp-dropdown-item">
+                <span className="hp-dropdown-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>
+                </span>
+                <div>
+                  <div style={{ fontWeight: 800 }}>Snippet Store</div>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Browser research tools</div>
+                </div>
+              </Link>
+            </div>
+          </div>
+        </nav>
+
+        {/* Right: User Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '0 0 250px', justifyContent: 'flex-end' }}>
           {loading ? (
             <span style={{ fontSize: '0.875rem', opacity: 0.8 }}>Loading...</span>
           ) : session?.is_authenticated ? (
@@ -61,6 +254,7 @@ export default function HomePage() {
                 <button 
                   className="dropdown-trigger"
                   onClick={() => setActiveDropdown(activeDropdown === 'ai' ? null : 'ai')}
+                  style={{ height: '36px', padding: '0 12px' }}
                 >
                   <span style={{ opacity: 0.7, fontWeight: 400 }}>AI:</span> 
                   {session.ai_provider?.toUpperCase()}
@@ -87,7 +281,7 @@ export default function HomePage() {
                 <button 
                   className="dropdown-trigger"
                   onClick={() => setActiveDropdown(activeDropdown === 'user' ? null : 'user')}
-                  style={{ background: 'rgba(255,255,255,0.05)', border: 'none' }}
+                  style={{ background: 'rgba(255,255,255,0.05)', border: 'none', height: '36px', padding: '0 12px' }}
                 >
                   <div style={{ 
                     width: '24px', 
@@ -112,8 +306,20 @@ export default function HomePage() {
                       <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
                     </div>
                     <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
-                      <a href="/api/dashboard/auth/change_password" className="dropdown-item">Change Password</a>
-                      <a href="/api/dashboard/auth/logout" className="dropdown-item" style={{ color: '#ef4444' }}>Sign Out</a>
+                      <button 
+                        onClick={() => { setActiveModal('change_password'); setActiveDropdown(null); }} 
+                        className="dropdown-item"
+                        style={{ width: '100%', cursor: 'pointer' }}
+                      >
+                        Change Password
+                      </button>
+                      <button 
+                        onClick={handleLogout}
+                        className="dropdown-item" 
+                        style={{ color: '#ef4444', width: '100%', cursor: 'pointer' }}
+                      >
+                        Sign Out
+                      </button>
                     </div>
                   </div>
                 )}
@@ -121,187 +327,389 @@ export default function HomePage() {
             </>
           ) : (
             <div style={{ display: 'flex', gap: '12px' }}>
-              <a href="/api/dashboard/auth/login" style={{ color: 'white', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 600 }}>Login</a>
-              <a href="/api/dashboard/auth/register" style={{ 
-                color: 'white', 
-                textDecoration: 'none', 
-                fontSize: '0.875rem', 
-                fontWeight: 600,
-                background: 'var(--fda-blue)',
-                padding: '4px 12px',
-                borderRadius: '4px'
-              }}>Register</a>
+              <button 
+                onClick={() => setActiveModal('login')}
+                style={{ 
+                  background: 'none',
+                  border: 'none',
+                  color: 'white', 
+                  fontSize: '0.875rem', 
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Login
+              </button>
+              <button 
+                onClick={() => setActiveModal('register')}
+                style={{ 
+                  color: 'white', 
+                  fontSize: '0.875rem', 
+                  fontWeight: 600,
+                  background: 'var(--fda-blue)',
+                  padding: '4px 12px',
+                  borderRadius: '4px',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Register
+              </button>
             </div>
           )}
-        </nav>
+        </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="hero-section">
-        <h2 className="animate-fade-in-up" style={{ fontSize: '2.5rem', fontWeight: 800, color: '#002e5d', marginBottom: '1rem' }}>
-          Scientific Drug Label Intelligence
-        </h2>
-        <p className="animate-fade-in-up delay-1" style={{ maxWidth: '800px', margin: '0 auto', fontSize: '1.25rem', color: '#475569', lineHeight: 1.6 }}>
-          A specialized research suite providing semantic search, toxicological analysis, and advanced safety screening for FDA drug labeling information.
-        </p>
+      {/* Hero / Immersive Mission Section */}
+      <section className="mission-section" style={{ padding: '2rem 2rem 4rem 2rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <h1 className="suite-home-title-animated" style={{ fontSize: '7.5rem', fontWeight: 900, marginBottom: '0.5rem' }}>
+              AskFDALabel
+            </h1>  
+            <span className="suite-home-title-animated" style={{ 
+              position: 'absolute', 
+              top: '18px', 
+              right: '-20px',
+              fontSize: '1.1rem', 
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              background: 'linear-gradient(to right, #166534 20%, #4ade80 50%, #166534 80%)',
+              backgroundSize: '200% auto',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              letterSpacing: '0.05em'
+            }}>[dev]</span>
+          </div>
+          <p className="hero-subtitle-animated" style={{ color: '#94a3b8', fontSize: '1.25rem', maxWidth: '800px', margin: '0 auto', fontWeight: 500 }}>
+            Advancing Regulatory Science of Drug Labeling through AI
+          </p>
+        </div>
+
+        <div className="mission-carousel-container" style={{ height: '420px' }}>
+          {features.map((feature, idx) => (
+            <div 
+              key={idx} 
+              className={`mission-carousel-card ${idx === activeFeature ? 'active' : ''}`}
+            >
+              <div 
+                className="mission-card-bg animate-ken-burns" 
+                style={{ backgroundImage: `url("${feature.image}")` }} 
+              />
+              <div className="mission-card-overlay" />
+              <div className="mission-card-content">
+                <h4>{feature.title}</h4>
+                <p>{feature.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mission-nav-dots" style={{ marginTop: '1rem' }}>
+          {features.map((_, idx) => (
+            <button
+              key={idx}
+              className={`mission-dot ${idx === activeFeature ? 'active' : ''}`}
+              onClick={() => setActiveFeature(idx)}
+              aria-label={`Go to feature ${idx + 1}`}
+            />
+          ))}
+        </div>
       </section>
 
-      {/* Main Grid */}
+      {/* Primary Service Grid */}
       <main className="card-grid">
-        <div className="animate-fade-in-up delay-2">
-                  {isInternal ? (
-                    <ScientificCard 
-                      title="Official FDALabel" 
-                      description=""
-                      icon="🏛️"
-                    >
-          
-              <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
-                <a 
-                  href="https://fdalabel.fda.gov/fdalabel/ui/search" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  style={{
-                    flex: 1,
-                    textAlign: 'center',
-                    padding: '6px',
-                    backgroundColor: '#f1f5f9',
-                    color: '#002e5d',
-                    borderRadius: '4px',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                    border: '1px solid #cbd5e1'
-                  }}
-                >
-                  FDA
-                </a>
-                <a 
-                  href="https://fdalabel.fda.gov/fdalabel-r/ui/search" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  style={{
-                    flex: 1,
-                    textAlign: 'center',
-                    padding: '6px',
-                    backgroundColor: '#f1f5f9',
-                    color: '#002e5d',
-                    borderRadius: '4px',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                    border: '1px solid #cbd5e1'
-                  }}
-                >
-                  CDER-CBER
-                </a>
-              </div>
-            </ScientificCard>
-          ) : (
+        <div className="card-grid-inner">
+          <div className="animate-fade-in-up delay-1">
+            {isInternal ? (
+              <ScientificCard 
+                title="Official FDALabel" 
+                description="Internal FDA interface for searching over 150,000 product labels and reference listed drugs."
+                icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>}
+              >
+                <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
+                  <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '6px', backgroundColor: '#f1f5f9', color: '#002e5d', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none', border: '1px solid #cbd5e1' }}>FDA Official</a>
+                  <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '6px', backgroundColor: '#f1f5f9', color: '#002e5d', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none', border: '1px solid #cbd5e1' }}>CDER-CBER</a>
+                </div>
+              </ScientificCard>
+            ) : (
+              <ScientificCard 
+                title="FDALabel Search" 
+                description="Public interface for the official FDA drug label database and Structured Product Labeling (SPL)."
+                href="https://nctr-crs.fda.gov/fdalabel/ui/search"
+                icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>}
+              />
+            )}
+          </div>
+          <div className="animate-fade-in-up delay-2">
             <ScientificCard 
-              title="FDALabel Search" 
-              description="Public interface for the official FDA drug label database."
-              href="https://nctr-crs.fda.gov/fdalabel/ui/search"
-              icon="🏛️"
+              title="AFL Agent" 
+              description="Large language model powered reasoning across drug label datasets for complex clinical questions."
+              href="/search"
+              className="scientific-card-flagship"
+              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>}
             />
-          )}
-        </div>
-        <div className="animate-fade-in-up delay-3">
-          <ScientificCard 
-            title="Agentic Search" 
-            description="Large language model powered reasoning across drug label datasets."
-            href="/search"
-            icon="🔍"
-          />
-        </div>
-        <div className="animate-fade-in-up delay-4">
-          <ScientificCard 
-            title="Labeling Dashboard" 
-            description="Integrated analysis dashboard for safety trends and label metadata."
-            href="/dashboard"
-            icon="📊"
-          />
-        </div>
-        <div className="animate-fade-in-up delay-5">
-          <ScientificCard 
-            title="Label Compare" 
-            description="Detailed side-by-side linguistic and regulatory comparison of labels."
-            href="/labelcomp"
-            icon="⚖️"
-          />
-        </div>
-        <div className="animate-fade-in-up delay-6">
-          <ScientificCard 
-            title="DrugTox Intelligence" 
-            description="Advanced toxicological data for DILI, DICT and DIRI."
-            href="/drugtox"
-            icon="🧪"
-          />
-        </div>
-        <div className="animate-fade-in-up" style={{ animationDelay: '0.7s' }}>
-          <ScientificCard 
-            title="Scientific Snippets" 
-            description="Developer tools, bookmarklets, and code utilities for label data extraction."
-            href="/snippet"
-            icon="📋"
-          />
-        </div>
-      </main>
-
-      {/* Research Focus / Mission Section */}
-      <section style={{ 
-        backgroundColor: '#f1f5f9', 
-        padding: '4rem 2rem', 
-        borderTop: '1px solid #e2e8f0',
-        borderBottom: '1px solid #e2e8f0'
-      }}>
-        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-          <h3 style={{ color: '#002e5d', fontSize: '1.75rem', fontWeight: 700, marginBottom: '1.5rem', textAlign: 'center' }}>
-            Advancing Regulatory Science through AI
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem' }}>
-            <div>
-              <h4 style={{ color: '#0071bc', fontWeight: 700, marginBottom: '0.5rem' }}>Agentic Reasoning</h4>
-              <p style={{ color: '#475569', lineHeight: 1.6, fontSize: '0.95rem' }}>
-                We leverage large language models to move beyond keyword search, enabling researchers to ask complex clinical and pharmacological questions directly of the FDA label corpus.
-              </p>
-            </div>
-            <div>
-              <h4 style={{ color: '#0071bc', fontWeight: 700, marginBottom: '0.5rem' }}>Safety Surveillance</h4>
-              <p style={{ color: '#475569', lineHeight: 1.6, fontSize: '0.95rem' }}>
-                By integrating FAERS data trends with label comparison tools, we provide a unified dashboard for signal detection and regulatory history analysis.
-              </p>
-            </div>
+          </div>
+          <div className="animate-fade-in-up delay-3">
+            <ScientificCard 
+              title="Labeling Dashboard" 
+              description="Integrated analysis dashboard for safety trends, metadata tracking, and project management."
+              href="/dashboard"
+              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>}
+            />
+          </div>
+          <div className="animate-fade-in-up delay-4">
+            <ScientificCard 
+              title="Label Compare" 
+              description="Detailed side-by-side linguistic and regulatory comparison of multiple drug labels."
+              href="/labelcomp"
+              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>}
+            />
+          </div>
+          <div className="animate-fade-in-up delay-5">
+            <ScientificCard 
+              title="DrugTox Intelligence" 
+              description="Advanced toxicological data and safety profiles for DILI, heart, and kidney risk tracking."
+              href="/drugtox"
+              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v8"></path><path d="M14 2v8"></path><path d="M8.5 15c.7 0 1.3-.5 1.5-1.2l.5-2.3c.2-.7.8-1.2 1.5-1.2s1.3.5 1.5 1.2l.5 2.3c.2.7.8 1.2 1.5 1.2"></path><path d="M6 18h12"></path><path d="M6 22h12"></path><circle cx="12" cy="13" r="10"></circle></svg>}
+            />
+          </div>
+          <div className="animate-fade-in-up delay-6">
+            <ScientificCard 
+              title="Snippet Store" 
+              description="Specialized browser tools and bookmarklets for automated label extraction and term highlighting."
+              href="/snippet"
+              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>}
+            />
           </div>
         </div>
-      </section>
+      </main>
       
       <footer style={{ 
         backgroundColor: '#002e5d', 
         color: 'white', 
-        padding: '3rem 2rem', 
-        marginTop: '4rem',
-        textAlign: 'center'
+        padding: '1rem 2rem', 
+        marginTop: '0',
+        textAlign: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        borderTop: '1px solid rgba(255,255,255,0.1)'
       }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', opacity: 0.8, fontSize: '0.875rem' }}>
-          <p style={{ marginBottom: '1rem' }}>
-            <strong>askFDALabel Suite</strong> &copy; 2026. This platform is intended for research and professional use.
+        <div style={{ maxWidth: '800px', opacity: 0.8, fontSize: '0.875rem' }}>
+          <p style={{ marginBottom: '1.5rem', lineHeight: 1.6, color: 'white' }}>
+            <strong>AskFDALabel Suite</strong> &copy; 2026. FDA/NCTR ** This is an on-going research effort that is not for official use yet.**.
           </p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
-            <Link href="/" style={{ color: 'white' }}>Home</Link>
-            <a href="https://www.fda.gov" target="_blank" style={{ color: 'white' }}>FDA.gov</a>
-            <Link href="/dashboard" style={{ color: 'white' }}>Dashboard</Link>
-          </div>
         </div>
       </footer>
+
+      <Modal 
+        isOpen={activeModal === 'login'} 
+        onClose={() => { setActiveModal(null); setAuthError(null); setShowPassword(false); }}
+        title="Sign In"
+      >
+        <form onSubmit={handleAuthAction} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {authError && <div style={{ color: '#ef4444', background: '#fef2f2', padding: '12px', borderRadius: '8px', fontSize: '0.875rem', fontWeight: 500, border: '1px solid #fee2e2' }}>{authError}</div>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569' }}>Username</label>
+            <input 
+              type="text" 
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              style={{ padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none', transition: 'border-color 0.2s' }}
+              placeholder="Enter your username"
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569' }}>Password</label>
+            <div style={{ position: 'relative' }}>
+              <input 
+                type={showPassword ? "text" : "password"} 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={{ width: '100%', padding: '12px 48px 12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
+                placeholder="••••••••"
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
+              >
+                {showPassword ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                )}
+              </button>
+            </div>
+          </div>
+          <button 
+            type="submit" 
+            disabled={authLoading}
+            style={{ 
+              marginTop: '8px',
+              padding: '14px', 
+              borderRadius: '12px', 
+              border: 'none', 
+              backgroundColor: '#002e5d', 
+              color: 'white', 
+              fontWeight: 800, 
+              fontSize: '1rem',
+              cursor: authLoading ? 'not-allowed' : 'pointer',
+              opacity: authLoading ? 0.7 : 1,
+              boxShadow: '0 4px 6px -1px rgba(0, 46, 93, 0.2)'
+            }}
+          >
+            {authLoading ? 'Signing in...' : 'Sign In'}
+          </button>
+          <div style={{ textAlign: 'center', fontSize: '0.875rem', color: '#64748b' }}>
+            Don't have an account? <button type="button" onClick={() => { setActiveModal('register'); setAuthError(null); setShowPassword(false); }} style={{ color: '#3b82f6', fontWeight: 700, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>Create one</button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal 
+        isOpen={activeModal === 'register'} 
+        onClose={() => { setActiveModal(null); setAuthError(null); setShowPassword(false); }}
+        title="Create Account"
+      >
+        <form onSubmit={handleAuthAction} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {authError && <div style={{ color: '#ef4444', background: '#fef2f2', padding: '12px', borderRadius: '8px', fontSize: '0.875rem', fontWeight: 500, border: '1px solid #fee2e2' }}>{authError}</div>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569' }}>Username</label>
+            <input 
+              type="text" 
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              style={{ padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
+              placeholder="Choose a username"
+            />
+            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Use only letters, numbers, and . @ _ - +</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569' }}>Password</label>
+            <div style={{ position: 'relative' }}>
+              <input 
+                type={showPassword ? "text" : "password"} 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={{ width: '100%', padding: '12px 48px 12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
+                placeholder="••••••••"
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
+              >
+                {showPassword ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                )}
+              </button>
+            </div>
+          </div>
+          <button 
+            type="submit" 
+            disabled={authLoading}
+            style={{ 
+              marginTop: '8px',
+              padding: '14px', 
+              borderRadius: '12px', 
+              border: 'none', 
+              backgroundColor: '#002e5d', 
+              color: 'white', 
+              fontWeight: 800, 
+              fontSize: '1rem',
+              cursor: authLoading ? 'not-allowed' : 'pointer',
+              opacity: authLoading ? 0.7 : 1
+            }}
+          >
+            {authLoading ? 'Creating account...' : 'Create Account'}
+          </button>
+          <div style={{ textAlign: 'center', fontSize: '0.875rem', color: '#64748b' }}>
+            Already have an account? <button type="button" onClick={() => { setActiveModal('login'); setAuthError(null); setShowPassword(false); }} style={{ color: '#3b82f6', fontWeight: 700, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>Sign in</button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal 
+        isOpen={activeModal === 'change_password'} 
+        onClose={() => { setActiveModal(null); setAuthError(null); setShowPassword(false); }}
+        title="Update Password"
+      >
+        <form onSubmit={handleAuthAction} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {authError && <div style={{ color: '#ef4444', background: '#fef2f2', padding: '12px', borderRadius: '8px', fontSize: '0.875rem', fontWeight: 500, border: '1px solid #fee2e2' }}>{authError}</div>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569' }}>New Password</label>
+            <div style={{ position: 'relative' }}>
+              <input 
+                type={showPassword ? "text" : "password"} 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={{ width: '100%', padding: '12px 48px 12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
+                placeholder="••••••••"
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
+              >
+                {showPassword ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                )}
+              </button>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569' }}>Confirm New Password</label>
+            <input 
+              type={showPassword ? "text" : "password"} 
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              style={{ padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
+              placeholder="••••••••"
+            />
+          </div>
+          <button 
+            type="submit" 
+            disabled={authLoading || (password !== confirmPassword && password !== '')}
+            style={{ 
+              marginTop: '8px',
+              padding: '14px', 
+              borderRadius: '12px', 
+              border: 'none', 
+              backgroundColor: '#002e5d', 
+              color: 'white', 
+              fontWeight: 800, 
+              fontSize: '1rem',
+              cursor: (authLoading || (password !== confirmPassword && password !== '')) ? 'not-allowed' : 'pointer',
+              opacity: (authLoading || (password !== confirmPassword && password !== '')) ? 0.7 : 1
+            }}
+          >
+            {authLoading ? 'Updating...' : 'Update Password'}
+          </button>
+          {password !== confirmPassword && confirmPassword !== '' && (
+            <div style={{ color: '#ef4444', fontSize: '0.75rem', textAlign: 'center', fontWeight: 600 }}>Passwords do not match</div>
+          )}
+        </form>
+      </Modal>
     </div>
   );
 }
 
-function ScientificCard({ title, description, href, icon, children }: { title: string, description: string, href?: string, icon: string, children?: React.ReactNode }) {
+function ScientificCard({ title, description, href, icon, children, className }: { title: string, description: string, href?: string, icon: React.ReactNode, children?: React.ReactNode, className?: string }) {
   const content = (
-    <div className="scientific-card">
-      <div className="icon">{icon}</div>
+    <div className={`scientific-card ${className || ''}`}>
+      <div className="icon" style={{ color: 'var(--fda-blue)', marginBottom: '1.25rem', display: 'flex' }}>{icon}</div>
       <h2>{title}</h2>
       <p style={{ fontSize: '0.9375rem', color: '#475569', lineHeight: 1.5, marginBottom: '1.5rem', flex: 1 }}>{description}</p>
       {children}

@@ -1035,39 +1035,6 @@ body {
   margin: 2rem auto;
 }
 
-.intro-title {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #0a2c5e;
-  margin-bottom: 1.25rem;
-}
-
-.no-results-disclaimer {
-  font-size: 1.05rem;
-  color: #333;
-  line-height: 1.7;
-  margin-bottom: 2rem;
-  text-align: left;
-}
-.no-results-disclaimer a {
-  color: #1a3e72;
-  text-decoration: underline;
-}
-
-.disclaimer-box {
-  font-size: 0.95rem;
-  background-color: #fff8dc;
-  color: #555;
-  border-left: 4px solid #f2c94c;
-  padding: 1rem 1.25rem;
-  border-radius: 8px;
-  text-align: left;
-
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
-  max-width: 800px;
-  margin: 0 auto;
-}
-
 
 .med-answer {
   background-color: #f8f9fa;

@@ -44,10 +44,31 @@ interface Project {
 function LabelCompContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { session } = useUser();
+  const { session, loading: userLoading } = useUser();
   const [data, setData] = useState<LabelCompData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | null>(null);
+  const [isInternal, setIsInternal] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = () => setActiveDropdown(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const checkInternalStatus = async () => {
+      try {
+        const response = await fetch("/api/check-fdalabel", { method: 'POST' });
+        const data = await response.json();
+        setIsInternal(data.isInternal);
+      } catch (error) {
+        setIsInternal(false);
+      }
+    };
+    checkInternalStatus();
+  }, []);
   
   // Modal States
   const [showAddModal, setShowAddModal] = useState(false);
@@ -274,55 +295,234 @@ function LabelCompContent() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-      {/* Header */}
-      <header className="header-main" style={{ position: 'sticky', top: 0, zIndex: 1000 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+      {/* Unified Header & Menu */}
+      <header className="header-main" style={{ position: 'sticky', top: 0, zIndex: 1000, justifyContent: 'space-between', padding: '0.5rem 2rem' }}>
+        {/* Left: Home Button & Title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: '0 0 250px' }}>
           <Link href="/" style={{ 
-            backgroundColor: 'white', 
-            padding: '5px', 
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textDecoration: 'none'
+            color: 'white', 
+            textDecoration: 'none', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            opacity: 0.9,
+            background: 'rgba(255,255,255,0.15)',
+            padding: '5px 14px',
+            borderRadius: '20px',
+            transition: 'all 0.2s ease'
           }}>
-             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '24px' }} />
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+               <polyline points="9 22 9 12 15 12 15 22"></polyline>
+             </svg>
+             Home
           </Link>
-          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
+          <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
             Label Comparison
           </h1>
         </div>
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</Link>
-        </nav>
-      </header>
 
-      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <h2 style={{ color: '#002e5d', fontSize: '1.75rem', fontWeight: 800 }}>Side-by-Side Analysis</h2>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'white' }}>
-                <button onClick={expandAll} style={{ padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#64748b', borderRight: '1px solid #e2e8f0' }}>Expand All</button>
-                <button onClick={collapseAll} style={{ padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#64748b' }}>Collapse All</button>
+        {/* Center: Main Navigation */}
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {isInternal ? (
+            <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('nav')} onMouseLeave={() => setActiveDropdown(null)}>
+              <button className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
+                FDALabel <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
+              </button>
+              <div className={`hp-dropdown-content ${activeDropdown === 'nav' ? 'visible' : ''}`} style={{ marginTop: '0', opacity: activeDropdown === 'nav' ? 1 : 0, visibility: activeDropdown === 'nav' ? 'visible' : 'hidden' }}>
+                <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-dropdown-item">
+                  <span className="hp-dropdown-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
+                  </span>
+                  <div>
+                    <div style={{ fontWeight: 800 }}>FDA Official</div>
+                    <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Global Public Interface</div>
+                  </div>
+                </a>
+                <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer" className="hp-dropdown-item">
+                  <span className="hp-dropdown-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                  </span>
+                  <div>
+                    <div style={{ fontWeight: 800 }}>CDER-CBER</div>
+                    <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Internal Review Interface</div>
+                  </div>
+                </a>
+              </div>
             </div>
-            <button 
-                onClick={() => setShowAddModal(true)}
-                style={{ 
-                backgroundColor: '#10b981', 
+          ) : (
+            <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
+              FDALabel
+            </a>
+          )}
+
+                  <Link href="/search" className="hp-nav-item hp-nav-item-flagship" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
+                    AFL Agent
+                  </Link>
+          <Link href="/dashboard" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            Dashboard
+          </Link>
+
+          <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('more')} onMouseLeave={() => setActiveDropdown(null)}>
+            <button className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
+              More <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
+            </button>
+            <div className={`hp-dropdown-content ${activeDropdown === 'more' ? 'visible' : ''}`} style={{ marginTop: '0', opacity: activeDropdown === 'more' ? 1 : 0, visibility: activeDropdown === 'more' ? 'visible' : 'hidden' }}>
+              <Link href="/labelcomp" className="hp-dropdown-item">
+                <span className="hp-dropdown-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>
+                </span>
+                <div>
+                  <div style={{ fontWeight: 800 }}>Label Compare</div>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Side-by-side analysis</div>
+                </div>
+              </Link>
+              <Link href="/drugtox" className="hp-dropdown-item">
+                <span className="hp-dropdown-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v8"></path><path d="M14 2v8"></path><path d="M8.5 15c.7 0 1.3-.5 1.5-1.2l.5-2.3c.2-.7.8-1.2 1.5-1.2s1.3.5 1.5 1.2l.5 2.3c.2.7.8 1.2 1.5 1.2"></path><path d="M6 18h12"></path><path d="M6 22h12"></path><circle cx="12" cy="13" r="10"></circle></svg>
+                </span>
+                <div>
+                  <div style={{ fontWeight: 800 }}>DrugTox Intelligence</div>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Toxicity profile tracking</div>
+                </div>
+              </Link>
+              <Link href="/snippet" className="hp-dropdown-item">
+                <span className="hp-dropdown-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>
+                </span>
+                <div>
+                  <div style={{ fontWeight: 800 }}>Snippet Store</div>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Browser research tools</div>
+                </div>
+              </Link>
+            </div>
+          </div>
+        </nav>
+        {/* Right: User Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '0 0 250px', justifyContent: 'flex-end' }}>
+          {userLoading ? (
+            <span style={{ fontSize: '0.875rem', opacity: 0.8, color: 'white' }}>Loading...</span>
+          ) : session?.is_authenticated ? (
+            <>
+              {/* AI Provider Indicator (Static) */}
+              <div style={{ 
+                fontSize: '0.85rem', 
                 color: 'white', 
-                border: 'none', 
-                padding: '10px 24px', 
-                borderRadius: '8px', 
-                fontWeight: 700, 
-                cursor: 'pointer',
+                background: 'rgba(255,255,255,0.1)', 
+                padding: '4px 12px', 
+                borderRadius: '20px',
+                border: '1px solid rgba(255,255,255,0.2)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px'
-                }}
-            >
-                <span style={{ fontSize: '1.2rem' }}>+</span> Add Label
-            </button>
+                gap: '6px'
+              }} title="AI model is set on the Suite Home page">
+                <span style={{ opacity: 0.7 }}>AI:</span>
+                <span style={{ fontWeight: 700 }}>{session.ai_provider?.toUpperCase()}</span>
+              </div>
+
+              {/* User Settings Dropdown */}
+              <div className="custom-dropdown" onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
+                <button 
+                  className="dropdown-trigger"
+                  onClick={() => setActiveDropdown(activeDropdown === 'user' ? null : 'user')}
+                  style={{ background: 'rgba(255,255,255,0.05)', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'white' }}
+                >
+                  <div style={{ 
+                    width: '24px', 
+                    height: '24px', 
+                    background: '#3b82f6', 
+                    borderRadius: '50%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    color: 'white'
+                  }}>
+                    {session.username?.[0].toUpperCase()}
+                  </div>
+                  <span style={{ fontSize: '0.875rem', color: 'white' }}>{session.username}</span>
+                </button>
+
+                {activeDropdown === 'user' && (
+                  <div className="dropdown-menu" style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '8px',
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    border: '1px solid #f1f5f9',
+                    minWidth: '200px',
+                    zIndex: 1001,
+                    overflow: 'hidden',
+                    textAlign: 'left'
+                  }}>
+                    <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ACCOUNT</div>
+                      <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
+                    </div>
+                    <div style={{ padding: '4px 0' }}>
+                      <a href="/dashboard" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>My Dashboard</a>
+                      <a href="/api/dashboard/auth/change_password" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Change Password</a>
+                      <a href="/api/dashboard/auth/logout" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#ef4444', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Sign Out</a>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <a href="/api/dashboard/auth/login?next=/labelcomp" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px' }}>Sign In</a>
+          )}
           </div>
+      </header>
+
+      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '4rem 2rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
+          <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
+            Side-by-Side Analysis
+          </h1>
+          <p className="hero-subtitle-animated" style={{ fontSize: '1.25rem', color: '#64748b', fontWeight: '500' }}>
+            Compare and analyze drug labeling differences with AI assistance
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '3rem', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <button onClick={expandAll} style={{ padding: '10px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, color: '#64748b', borderRight: '1px solid #e2e8f0', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Expand All</button>
+              <button onClick={collapseAll} style={{ padding: '10px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, color: '#64748b', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Collapse All</button>
+          </div>
+          <button 
+              onClick={() => setShowAddModal(true)}
+              style={{ 
+              backgroundColor: '#10b981', 
+              color: 'white', 
+              border: 'none', 
+              padding: '12px 32px', 
+              borderRadius: '10px', 
+              fontWeight: 800, 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)',
+              transition: 'all 0.2s ease',
+              fontSize: '0.95rem'
+              }}
+              onMouseOver={e => { e.currentTarget.style.backgroundColor = '#059669'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseOut={e => { e.currentTarget.style.backgroundColor = '#10b981'; e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              Add Label
+          </button>
         </div>
 
         {loading && <div style={{ textAlign: 'center', padding: '4rem' }}>Loading comparison data...</div>}
@@ -636,48 +836,82 @@ function LabelCompContent() {
             <div style={{ marginBottom: '1.5rem', position: 'relative' }}>
                 <input 
                     type="text" 
-                    placeholder="Search all labels in current project..."
+                    placeholder="Search labels..."
                     value={labelFilter}
                     onChange={(e) => setLabelFilter(e.target.value)}
                     style={{ 
                         width: '100%', 
-                        padding: '10px 12px 10px 35px', 
-                        borderRadius: '8px', 
+                        padding: '12px 12px 12px 40px', 
+                        borderRadius: '10px', 
                         border: '1px solid #e2e8f0', 
-                        fontSize: '0.9rem',
-                        outline: 'none'
+                        fontSize: '0.95rem',
+                        outline: 'none',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        transition: 'all 0.2s ease'
                     }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#3b82f6'}
+                    onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
                 />
-                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>🔍</span>
+                <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', display: 'flex' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </span>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', background: '#f8fafc', padding: '4px', borderRadius: '12px', border: '1px solid #eef2f7' }}>
                 <button 
                     onClick={() => setAddTab('projects')}
                     style={{ 
-                        padding: '8px 16px', 
-                        borderRadius: '20px', 
+                        flex: 1,
+                        padding: '10px 16px', 
+                        borderRadius: '10px', 
                         border: 'none', 
-                        backgroundColor: addTab === 'projects' ? '#002e5d' : 'transparent',
-                        color: addTab === 'projects' ? 'white' : '#64748b',
-                        fontWeight: 600,
-                        cursor: 'pointer'
+                        backgroundColor: addTab === 'projects' ? '#ffffff' : 'transparent',
+                        color: addTab === 'projects' ? '#0f172a' : '#64748b',
+                        fontWeight: 700,
+                        fontSize: '0.9rem',
+                        cursor: 'pointer',
+                        boxShadow: addTab === 'projects' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s ease'
                     }}
                 >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
                     My Projects
                 </button>
                 <button 
                     onClick={() => setAddTab('setid')}
                     style={{ 
-                        padding: '8px 16px', 
-                        borderRadius: '20px', 
+                        flex: 1,
+                        padding: '10px 16px', 
+                        borderRadius: '10px', 
                         border: 'none', 
-                        backgroundColor: addTab === 'setid' ? '#002e5d' : 'transparent',
-                        color: addTab === 'setid' ? 'white' : '#64748b',
-                        fontWeight: 600,
-                        cursor: 'pointer'
+                        backgroundColor: addTab === 'setid' ? '#ffffff' : 'transparent',
+                        color: addTab === 'setid' ? '#0f172a' : '#64748b',
+                        fontWeight: 700,
+                        fontSize: '0.9rem',
+                        cursor: 'pointer',
+                        boxShadow: addTab === 'setid' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s ease'
                     }}
                 >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
                     SET-ID Input
                 </button>
             </div>
@@ -685,22 +919,37 @@ function LabelCompContent() {
             {addTab === 'projects' ? (
                 <div>
                     {!session?.is_authenticated ? (
-                        <p style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>Please sign in to access your projects.</p>
+                        <div style={{ textAlign: 'center', color: '#64748b', padding: '3rem 2rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
+                          <p style={{ margin: '0 0 1rem 0', fontWeight: 600 }}>Sign in to access your projects</p>
+                          <a href="/api/dashboard/auth/login?next=/labelcomp" style={{ display: 'inline-block', padding: '8px 20px', background: '#002e5d', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700 }}>Sign In Now</a>
+                        </div>
                     ) : selectedProject ? (
                         <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                <button onClick={() => setSelectedProject(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.85rem' }}>&larr; Back to Projects</button>
-                                <h4 style={{ margin: 0, fontWeight: 800 }}>📁 {selectedProject.title}</h4>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', padding: '0 4px' }}>
+                                <button onClick={() => setSelectedProject(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                                  Back to Projects
+                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ color: selectedProject.title === 'Favorite' ? '#eab308' : '#6366f1' }}>
+                                    {selectedProject.title === 'Favorite' ? (
+                                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                    ) : (
+                                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                                    )}
+                                  </span>
+                                  <h4 style={{ margin: 0, fontWeight: 800, color: '#0f172a' }}>{selectedProject.title}</h4>
+                                </div>
                             </div>
                             {loadingLabels ? (
-                                <p style={{ textAlign: 'center', padding: '2rem' }}>Loading labels...</p>
+                                <p style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Loading labels...</p>
                             ) : (
-                                <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                                <div style={{ maxHeight: '380px', overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '8px' }} className="custom-scrollbar">
                                     {projectLabels
                                       .filter(label => 
                                         !labelFilter || 
-                                        label.brand_name.toLowerCase().includes(labelFilter.toLowerCase()) || 
-                                        label.manufacturer_name.toLowerCase().includes(labelFilter.toLowerCase())
+                                        (label.brand_name?.toLowerCase() || '').includes(labelFilter.toLowerCase()) || 
+                                        (label.manufacturer_name?.toLowerCase() || '').includes(labelFilter.toLowerCase())
                                       )
                                       .map(label => {
                                         const isSelected = selectedLabelsForAdd.find(l => l.set_id === label.set_id);
@@ -709,31 +958,39 @@ function LabelCompContent() {
                                                 key={label.set_id} 
                                                 onClick={() => toggleLabelSelection(label)}
                                                 style={{ 
-                                                    padding: '12px', 
-                                                    borderBottom: '1px solid #f1f5f9', 
+                                                    padding: '14px 16px', 
+                                                    borderRadius: '12px',
+                                                    border: '1px solid',
+                                                    borderColor: isSelected ? '#3b82f6' : '#f1f5f9', 
                                                     display: 'flex', 
                                                     justifyContent: 'space-between', 
                                                     alignItems: 'center',
                                                     cursor: 'pointer',
-                                                    backgroundColor: isSelected ? '#f0f9ff' : 'transparent',
-                                                    transition: 'background-color 0.2s'
+                                                    backgroundColor: isSelected ? '#eff6ff' : '#ffffff',
+                                                    transition: 'all 0.2s ease',
+                                                    boxShadow: isSelected ? '0 2px 8px rgba(59, 130, 246, 0.1)' : '0 1px 2px rgba(0,0,0,0.02)'
                                                 }}
+                                                onMouseOver={e => !isSelected && (e.currentTarget.style.borderColor = '#e2e8f0')}
+                                                onMouseOut={e => !isSelected && (e.currentTarget.style.borderColor = '#f1f5f9')}
                                             >
-                                                <div>
-                                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: isSelected ? '#0369a1' : 'inherit' }}>{label.brand_name}</div>
-                                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{label.manufacturer_name}</div>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: isSelected ? '#1e40af' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label.brand_name}</div>
+                                                    <div style={{ fontSize: '0.8rem', color: isSelected ? '#3b82f6' : '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label.manufacturer_name}</div>
                                                 </div>
                                                 <div style={{ 
-                                                    width: '20px', 
-                                                    height: '20px', 
-                                                    borderRadius: '4px', 
-                                                    border: `2px solid ${isSelected ? '#0369a1' : '#cbd5e1'}`,
+                                                    marginLeft: '16px',
+                                                    width: '22px', 
+                                                    height: '22px', 
+                                                    borderRadius: '6px', 
+                                                    border: '2px solid',
+                                                    borderColor: isSelected ? '#3b82f6' : '#cbd5e1',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    backgroundColor: isSelected ? '#0369a1' : 'white'
+                                                    backgroundColor: isSelected ? '#3b82f6' : 'white',
+                                                    transition: 'all 0.2s ease'
                                                 }}>
-                                                    {isSelected && <span style={{ color: 'white', fontSize: '12px' }}>✓</span>}
+                                                    {isSelected && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                                                 </div>
                                             </div>
                                         );
@@ -742,15 +999,57 @@ function LabelCompContent() {
                             )}
                         </div>
                     ) : (
-                        <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
-                            {loadingProjects ? <p style={{ textAlign: 'center', padding: '2rem' }}>Loading projects...</p> : projects.map(p => (
+                        <div style={{ maxHeight: '400px', overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '12px' }} className="custom-scrollbar">
+                            {loadingProjects ? <p style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Loading projects...</p> : projects.map(p => (
                                 <div
                                   key={p.id}
                                   onClick={() => fetchProjectLabels(p)}
-                                  className="p-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50"
+                                  style={{
+                                    padding: '16px 20px',
+                                    borderRadius: '14px',
+                                    border: '1px solid #f1f5f9',
+                                    backgroundColor: '#ffffff',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '16px',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                                  }}
+                                  onMouseOver={e => {
+                                    e.currentTarget.style.borderColor = '#e2e8f0';
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)';
+                                  }}
+                                  onMouseOut={e => {
+                                    e.currentTarget.style.borderColor = '#f1f5f9';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
+                                  }}
                                 >
-                                  <div className="font-bold text-[#002e5d]">{p.title === 'Favorite' ? '⭐' : '📁'} {p.title}</div>
-                                  <div className="text-sm text-slate-500">{p.count} labels • {p.role}</div>
+                                  <div style={{ 
+                                    width: '44px', 
+                                    height: '44px', 
+                                    borderRadius: '12px', 
+                                    backgroundColor: p.title === 'Favorite' ? '#fef9c3' : '#f5f3ff', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center',
+                                    color: p.title === 'Favorite' ? '#eab308' : '#6366f1'
+                                  }}>
+                                    {p.title === 'Favorite' ? (
+                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                    ) : (
+                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                                    )}
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a', marginBottom: '2px' }}>{p.title}</div>
+                                    <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>{p.count} labels • {p.role}</div>
+                                  </div>
+                                  <div style={{ color: '#cbd5e1' }}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                  </div>
                                 </div>
                             ))}
                         </div>
@@ -758,20 +1057,50 @@ function LabelCompContent() {
                 </div>
             ) : (
                 <div>
-                    <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1rem' }}>Enter the unique SPL SET-ID (UUID) of the label you wish to add.</p>
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                    <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '1.25rem', lineHeight: 1.5 }}>Enter the unique SPL SET-ID (UUID) of the label you wish to add.</p>
+                    <div style={{ display: 'flex', gap: '12px' }}>
                         <input 
                             type="text" 
                             placeholder="e.g. 01e46f58-8bda-4ff3-ab21-..."
                             value={setIdInput}
                             onChange={(e) => setSetIdInput(e.target.value)}
-                            style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontFamily: 'monospace', fontSize: '0.85rem' }}
+                            style={{ 
+                              flex: 1, 
+                              padding: '14px', 
+                              borderRadius: '10px', 
+                              border: '1px solid #e2e8f0', 
+                              outline: 'none', 
+                              fontFamily: 'monospace', 
+                              fontSize: '0.9rem',
+                              backgroundColor: '#f8fafc',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onFocus={e => {
+                              e.currentTarget.style.borderColor = '#3b82f6';
+                              e.currentTarget.style.backgroundColor = '#ffffff';
+                            }}
+                            onBlur={e => {
+                              e.currentTarget.style.borderColor = '#e2e8f0';
+                              e.currentTarget.style.backgroundColor = '#f8fafc';
+                            }}
                         />
                         <button 
                             onClick={() => handleAddLabel(setIdInput)}
-                            style={{ backgroundColor: '#002e5d', color: 'white', border: 'none', padding: '0 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+                            style={{ 
+                              backgroundColor: '#002e5d', 
+                              color: 'white', 
+                              border: 'none', 
+                              padding: '0 28px', 
+                              borderRadius: '10px', 
+                              cursor: 'pointer', 
+                              fontWeight: 700,
+                              boxShadow: '0 4px 12px rgba(0, 46, 93, 0.15)',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseOver={e => e.currentTarget.style.backgroundColor = '#003d7a'}
+                            onMouseOut={e => e.currentTarget.style.backgroundColor = '#002e5d'}
                         >
-                            Add
+                            Add Label
                         </button>
                     </div>
                 </div>
@@ -836,6 +1165,21 @@ function LabelCompContent() {
           visibility: visible;
           opacity: 1;
           transform: translateX(-50%) translateY(0);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #f8fafc;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
         }
 
         .ai-summary-content h3 { color: #002e5d; margin-top: 0; font-size: 1.25rem; }
