@@ -135,28 +135,40 @@ body {
 }
 
 .card-grid {
+  width: 100%;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 40%, #f1f5f9 100%);
+  padding: 6rem 0 !important;
+  border-top: 1px solid #e2e8f0;
+}
+
+.card-grid-inner {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
-  padding: 3rem 2rem;
-  max-width: 1200px;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 2rem;
+  max-width: 1400px;
   margin: 0 auto;
+  padding: 0 2rem;
 }
 
 .scientific-card {
-  background: white;
-  border: 1px solid var(--fda-border);
-  padding: 1.5rem;
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  padding: 2rem;
+  border-radius: 24px;
   display: flex;
   flex-direction: column;
-  transition: box-shadow 0.2s, border-color 0.2s;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
   text-decoration: none;
   color: inherit;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01);
+  height: 100%;
 }
 
 .scientific-card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  border-color: var(--fda-blue);
+  background: linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%);
+  box-shadow: 0 20px 40px -12px rgba(0, 46, 93, 0.12);
+  border-color: #3b82f6;
+  transform: translateY(-8px);
 }
 
 .scientific-card h2 {
@@ -453,12 +465,12 @@ body {
   text-decoration: none;
   color: white;
   font-weight: 800;
-  font-size: 1.05rem;
+  font-size: 1.2rem;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 20px;
+  padding: 8px 16px;
   border-radius: 12px;
   border: none;
   background: none;

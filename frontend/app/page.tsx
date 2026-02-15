@@ -61,7 +61,7 @@ export default function HomePage() {
       {/* Unified Header & Menu */}
       <header className="header-main" style={{ justifyContent: 'space-between', padding: '0.5rem 2rem' }}>
         {/* Left: Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: '0 0 250px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: '0 0 350px' }}>
           <Link href="/" style={{ 
             backgroundColor: 'white', 
             padding: '5px', 
@@ -71,9 +71,9 @@ export default function HomePage() {
             justifyContent: 'center',
             textDecoration: 'none'
           }}>
-             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '24px' }} />
+             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '32px' }} />
           </Link>
-          <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
+          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
             askFDALabel <span style={{ fontWeight: 300, opacity: 0.8 }}>Suite</span>
           </h1>
         </div>
@@ -82,7 +82,7 @@ export default function HomePage() {
         <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           {isInternal ? (
             <div className="hp-nav-dropdown">
-              <button className="hp-nav-item" style={{ fontSize: '0.85rem', padding: '8px 12px' }}>
+              <button className="hp-nav-item" style={{ fontSize: '1.25rem', padding: '8px 12px' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
                 FDALabel <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
               </button>
@@ -108,24 +108,24 @@ export default function HomePage() {
               </div>
             </div>
           ) : (
-            <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item" style={{ fontSize: '0.85rem', padding: '8px 12px' }}>
+            <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
               FDALabel
             </a>
           )}
 
-          <Link href="/search" className="hp-nav-item" style={{ fontSize: '0.85rem', padding: '8px 12px' }}>
+          <Link href="/search" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
             Agentic Search
           </Link>
 
-          <Link href="/dashboard" className="hp-nav-item" style={{ fontSize: '0.85rem', padding: '8px 12px' }}>
+          <Link href="/dashboard" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
             Dashboard
           </Link>
 
           <div className="hp-nav-dropdown">
-            <button className="hp-nav-item" style={{ fontSize: '0.85rem', padding: '8px 12px' }}>
+            <button className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
               More <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
             </button>
@@ -304,6 +304,73 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* Primary Service Grid */}
+      <main className="card-grid">
+        <div className="card-grid-inner">
+          <div className="animate-fade-in-up delay-1">
+            {isInternal ? (
+              <ScientificCard 
+                title="Official FDALabel" 
+                description="Internal FDA interface for searching over 150,000 product labels and reference listed drugs."
+                icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>}
+              >
+                <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
+                  <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '6px', backgroundColor: '#f1f5f9', color: '#002e5d', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none', border: '1px solid #cbd5e1' }}>FDA Official</a>
+                  <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '6px', backgroundColor: '#f1f5f9', color: '#002e5d', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none', border: '1px solid #cbd5e1' }}>CDER-CBER</a>
+                </div>
+              </ScientificCard>
+            ) : (
+              <ScientificCard 
+                title="FDALabel Search" 
+                description="Public interface for the official FDA drug label database and Structured Product Labeling (SPL)."
+                href="https://nctr-crs.fda.gov/fdalabel/ui/search"
+                icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>}
+              />
+            )}
+          </div>
+          <div className="animate-fade-in-up delay-2">
+            <ScientificCard 
+              title="Agentic Search" 
+              description="Large language model powered reasoning across drug label datasets for complex clinical questions."
+              href="/search"
+              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>}
+            />
+          </div>
+          <div className="animate-fade-in-up delay-3">
+            <ScientificCard 
+              title="Labeling Dashboard" 
+              description="Integrated analysis dashboard for safety trends, metadata tracking, and project management."
+              href="/dashboard"
+              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>}
+            />
+          </div>
+          <div className="animate-fade-in-up delay-4">
+            <ScientificCard 
+              title="Label Compare" 
+              description="Detailed side-by-side linguistic and regulatory comparison of multiple drug labels."
+              href="/labelcomp"
+              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>}
+            />
+          </div>
+          <div className="animate-fade-in-up delay-5">
+            <ScientificCard 
+              title="DrugTox Intelligence" 
+              description="Advanced toxicological data and safety profiles for DILI, heart, and kidney risk tracking."
+              href="/drugtox"
+              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v8"></path><path d="M14 2v8"></path><path d="M8.5 15c.7 0 1.3-.5 1.5-1.2l.5-2.3c.2-.7.8-1.2 1.5-1.2s1.3.5 1.5 1.2l.5 2.3c.2.7.8 1.2 1.5 1.2"></path><path d="M6 18h12"></path><path d="M6 22h12"></path><circle cx="12" cy="13" r="10"></circle></svg>}
+            />
+          </div>
+          <div className="animate-fade-in-up delay-6">
+            <ScientificCard 
+              title="Snippet Store" 
+              description="Specialized browser tools and bookmarklets for automated label extraction and term highlighting."
+              href="/snippet"
+              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>}
+            />
+          </div>
+        </div>
+      </main>
       
       <footer style={{ 
         backgroundColor: '#002e5d', 
@@ -343,6 +410,35 @@ function MiniScientificCard({ title, href, icon, children }: { title: string, hr
     <div className="mini-service-card">
       <div className="mini-icon">{icon}</div>
       <h2>{title}</h2>
+      {children}
+    </div>
+  );
+
+  if (href) {
+    const isExternal = href.startsWith('http');
+    if (isExternal) {
+      return (
+        <a href={href} style={{ textDecoration: 'none' }} target="_blank" rel="noopener noreferrer">
+          {content}
+        </a>
+      );
+    }
+    return (
+      <Link href={href} style={{ textDecoration: 'none' }}>
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
+}
+
+function ScientificCard({ title, description, href, icon, children }: { title: string, description: string, href?: string, icon: React.ReactNode, children?: React.ReactNode }) {
+  const content = (
+    <div className="scientific-card">
+      <div className="icon" style={{ color: 'var(--fda-blue)', marginBottom: '1.25rem', display: 'flex' }}>{icon}</div>
+      <h2>{title}</h2>
+      <p style={{ fontSize: '0.9375rem', color: '#475569', lineHeight: 1.5, marginBottom: '1.5rem', flex: 1 }}>{description}</p>
       {children}
     </div>
   );
