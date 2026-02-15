@@ -12,40 +12,62 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
+        if request.is_json:
+            return jsonify({'success': True, 'message': 'Already authenticated'})
         return redirect('/')
     
-    # Retrieve next_page from query params (GET) or form data (POST)
-    next_page = request.args.get('next') or request.form.get('next')
-
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        if request.is_json:
+            data = request.get_json()
+            username = data.get('username')
+            password = data.get('password')
+        else:
+            username = request.form.get('username')
+            password = request.form.get('password')
+
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
             login_user(user)
+            if request.is_json:
+                return jsonify({'success': True})
             return redirect('/')
         else:
-            return render_template('login.html', error='Invalid username or password', next=next_page)
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Invalid username or password'}), 401
+            return render_template('login.html', error='Invalid username or password')
             
     return render_template('login.html')
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
+        if request.is_json:
+            return jsonify({'success': True, 'message': 'Already authenticated'})
         return redirect('/')
+
     if request.method == 'POST':
-        username = request.form.get('username').strip()
-        password = request.form.get('password')
+        if request.is_json:
+            data = request.get_json()
+            username = data.get('username', '').strip()
+            password = data.get('password')
+        else:
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password')
         
         if not username:
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Username is required'}), 400
             return render_template('register.html', error='Username is required')
             
-        # Validate username: allow alphanumeric, ., _, @, -, +
-        # Disallow spaces and other special symbols
         if not re.match(r'^[a-zA-Z0-9.@_\+-]+$', username):
-            return render_template('register.html', error='Invalid username. Use only letters, numbers, and . @ _ - + (no spaces)')
+            error_msg = 'Invalid username. Use only letters, numbers, and . @ _ - + (no spaces)'
+            if request.is_json:
+                return jsonify({'success': False, 'error': error_msg}), 400
+            return render_template('register.html', error=error_msg)
 
         if User.query.filter_by(username=username).first():
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Username already exists'}), 400
             return render_template('register.html', error='Username already exists')
         
         new_user = User(username=username)
@@ -54,6 +76,8 @@ def register():
         db.session.commit()
         
         login_user(new_user)
+        if request.is_json:
+            return jsonify({'success': True})
         return redirect('/')
     return render_template('register.html')
 
@@ -61,18 +85,30 @@ def register():
 @login_required
 def logout():
     logout_user()
+    if request.is_json or request.headers.get('Accept') == 'application/json':
+        return jsonify({'success': True})
     return redirect('/')
 
 @auth_bp.route('/change_password', methods=['GET', 'POST'])
 @login_required
 def change_password():
     if request.method == 'POST':
-        new_password = request.form.get('password')
+        if request.is_json:
+            data = request.get_json()
+            new_password = data.get('password')
+        else:
+            new_password = request.form.get('password')
+
         if not new_password:
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Password cannot be empty'}), 400
             return render_template('change_password.html', error='Password cannot be empty')
         
         current_user.set_password(new_password)
         db.session.commit()
+        
+        if request.is_json:
+            return jsonify({'success': True})
         return redirect('/')
     return render_template('change_password.html')
 
