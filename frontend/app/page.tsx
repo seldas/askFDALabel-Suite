@@ -29,7 +29,7 @@ export default function HomePage() {
     {
       title: "Side-by-Side Analysis",
       description: "Pinpoint critical regulatory differences. Compare linguistic nuances and safety updates across multiple drug labels with high-precision highlighting.",
-      image: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=1200"
+      image: "https://images.unsplash.com/photo-1568667256549-094345857637?auto=format&fit=crop&q=80&w=1200"
     },
     {
       title: "DrugTox Intelligence",
@@ -74,20 +74,26 @@ export default function HomePage() {
       {/* Unified Header & Menu */}
       <header className="header-main" style={{ justifyContent: 'space-between', padding: '0.5rem 2rem' }}>
         {/* Left: Branding */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: '0 0 350px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '0 0 350px' }}>
           <Link href="/" style={{ 
-            backgroundColor: 'white', 
-            padding: '5px', 
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center',
+            display: 'flex', 
+            alignItems: 'center', 
             justifyContent: 'center',
-            textDecoration: 'none'
+            textDecoration: 'none',
+            color: 'white'
           }}>
-             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '32px' }} />
+             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#3b82f6' }}>
+               <path d="M12 2l8.66 5V17L12 22l-8.66-5V7L12 2z" strokeOpacity="0.3" />
+               <path d="M12 22V12" strokeOpacity="0.3" />
+               <path d="M12 12L3.34 7" strokeOpacity="0.3" />
+               <path d="M12 12l8.66-5" strokeOpacity="0.3" />
+               <path d="M7 16l5-9 5 9" stroke="#ffffff" strokeWidth="2.5" />
+               <path d="M9 12h6" stroke="#ffffff" strokeWidth="2.5" />
+               <circle cx="12" cy="12" r="2" fill="#3b82f6" stroke="#3b82f6" />
+             </svg>
           </Link>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
-            askFDALabel <span style={{ fontWeight: 300, opacity: 0.8 }}>Suite</span>
+          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: 'white', letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
+            AskFDALabel <span style={{ fontWeight: 300, opacity: 0.7 }}>Suite</span>
           </h1>
         </div>
 
