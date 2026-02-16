@@ -15,32 +15,32 @@ export default function HomePage() {
     {
       title: "AskFDALabel Suite",
       description: "The ultimate intelligence layer for FDA drug labeling research. Seamlessly navigate over 150,000 product labels with AI-driven insights and advanced safety analytics.",
-      image: "https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=1200"
+      image: "/carousel_bg/askfdalbel_bg.png"
     },
     {
       title: "AFL Agent",
       description: "Reason beyond keywords. Ask complex clinical and pharmacological questions directly of the FDA label corpus using large language models grounded in real text.",
-      image: "https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&q=80&w=1200"
+      image: "/carousel_bg/afl_agent_bg.png"
     },
     {
       title: "Labeling Dashboard",
       description: "Visualize safety trends and manage clinical workspaces. Track metadata, monitor signal detection, and organize your labeling projects in one unified dashboard.",
-      image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1200"
+      image: "/carousel_bg/dashboard_bg.png"
     },
     {
       title: "Side-by-Side Analysis",
       description: "Pinpoint critical regulatory differences. Compare linguistic nuances and safety updates across multiple drug labels with high-precision highlighting.",
-      image: "https://images.unsplash.com/photo-1568667256549-094345857637?auto=format&fit=crop&q=80&w=1200"
+      image: "/carousel_bg/labelcomp_bg.png"
     },
     {
       title: "DrugTox Intelligence",
       description: "Deep toxicological tracking. Monitor DILI, cardiac, and renal toxicity profiles across thousands of drugs using harmonized evidence-based data.",
-      image: "https://images.unsplash.com/photo-1518152006812-edab29b069ac?auto=format&fit=crop&q=80&w=1200"
+      image: "/carousel_bg/drugtox_bg.png"
     },
     {
       title: "Snippet Store",
       description: "Power up your research workflow. Draggable browser bookmarklets that instantly extract metadata and highlight safety terms directly on any clinical webpage.",
-      image: "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&q=80&w=1200"
+      image: "/carousel_bg/snippetstore_bg_2.png"
     }
   ];
 
