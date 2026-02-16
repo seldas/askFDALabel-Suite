@@ -1957,7 +1957,8 @@ table.diff .diff_chg { background-color: #fff8dc; color: #856404; }
 /* Table Extraction */
 .table-wrapper {
     position: relative;
-    margin-bottom: 1.5em;
+    margin-bottom: 2em;
+    padding-top: 35px; /* Create space for the button above the table */
 }
 
 .btn-extract-table {
@@ -1969,16 +1970,16 @@ table.diff .diff_chg { background-color: #fff8dc; color: #856404; }
     color: white;
     border: none;
     border-radius: 6px;
-    padding: 4px 10px;
-    font-size: 0.75em;
+    padding: 6px 12px;
+    font-size: 0.8em;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    opacity: 0.7; /* More visible by default */
+    opacity: 0.8; 
     box-shadow: 0 2px 6px rgba(0,0,0,0.15);
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
 }
 
 .btn-extract-table:hover {

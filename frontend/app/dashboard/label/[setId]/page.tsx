@@ -679,9 +679,25 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
 
       <div id="table-extract-modal" className="custom-modal" style={{ display: 'none' }}>
         <div className="custom-modal-content" style={{ maxWidth: '95%', height: '90vh' }}>
-          <div className="custom-modal-header">
-            <h3 id="table-extract-title">Table Data</h3>
-            <span className="close-modal" id="close-table-extract">&times;</span>
+          <div className="custom-modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 id="table-extract-title" style={{ margin: 0 }}>Table Data</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <button id="copy-selection-btn" className="button" style={{ 
+                    display: 'none', 
+                    padding: '6px 12px', 
+                    fontSize: '0.85rem', 
+                    backgroundColor: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    alignItems: 'center',
+                    gap: '5px'
+                }}>
+                    <span>{"\uD83D\uDCCB"}</span> Copy Selection
+                </button>
+                <span className="close-modal" id="close-table-extract" style={{ cursor: 'pointer', fontSize: '1.5rem' }}>&times;</span>
+            </div>
           </div>
           <div className="custom-modal-body" id="table-extract-container"></div>
         </div>
