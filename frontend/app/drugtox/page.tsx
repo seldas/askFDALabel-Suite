@@ -1636,7 +1636,7 @@ export default function DrugToxPage() {
                           paddingAngle={8}
                           dataKey="count"
                           nameKey="Toxicity_Class"
-                          label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                          label={(p: any) => `${((p.percent || 0) * 100).toFixed(0)}%`}
                         >
                           {companyStats.distribution.map((e, i) => (
                             <Cell 

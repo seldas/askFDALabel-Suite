@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Script from 'next/script';
 import Link from 'next/link';
+import { useUser } from '../../../context/UserContext';
 
 interface Section {
   id?: string;
@@ -84,11 +85,25 @@ function SectionComponent({ section }: { section: Section }) {
 function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   const { setId } = use(params);
   const router = useRouter();
+  const { session, loading: userLoading, openAuthModal } = useUser();
   const [data, setData] = useState<LabelData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('label-view');
   const [tocCollapsed, setTocCollapsed] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | null>(null);
+
+  const tabs = [
+    { id: 'label-view', label: 'Label' },
+    { id: 'faers-view', label: 'FAERS' },
+    { id: 'tox-view', label: 'Agents' },
+  ];
+
+  useEffect(() => {
+    const handleClickOutside = () => setActiveDropdown(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     async function fetchData() {
@@ -322,7 +337,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
         }
       `}</style>
       {/* Main Header */}
-      <header className="header-main" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2000, width: '100vw' }}>
+      <header className="header-main" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2000, width: '100vw', justifyContent: 'space-between', padding: '0.5rem 2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <button onClick={() => setTocCollapsed(!tocCollapsed)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.25rem' }}>
              ☰
@@ -347,19 +362,98 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
              </svg>
              Home
           </a>
-          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
-            Label View
+          <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
+            Label Intelligence
           </h1>
         </div>
 
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <div className="view-tabs" style={{ marginBottom: 0, display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.1)', padding: '4px', borderRadius: '8px' }}>
-            <button className={`tab-btn ${activeTab === 'label-view' ? 'active' : ''}`} onClick={() => setActiveTab('label-view')} data-target="label-view" style={{ color: 'white', border: 'none', background: activeTab === 'label-view' ? 'var(--fda-blue)' : 'transparent', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>Label</button>
-            <button className={`tab-btn ${activeTab === 'faers-view' ? 'active' : ''}`} onClick={() => setActiveTab('faers-view')} data-target="faers-view" style={{ color: 'white', border: 'none', background: activeTab === 'faers-view' ? 'var(--fda-blue)' : 'transparent', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>FAERS</button>
-            <button className={`tab-btn ${activeTab === 'tox-view' ? 'active' : ''}`} onClick={() => setActiveTab('tox-view')} data-target="tox-view" style={{ color: 'white', border: 'none', background: activeTab === 'tox-view' ? 'var(--fda-blue)' : 'transparent', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>Agents</button>
-          </div>
-          <Link href="/dashboard" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Dashboard</Link>
-        </nav>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '0 0 250px', justifyContent: 'flex-end' }}>
+          {userLoading ? (
+            <span style={{ fontSize: '0.875rem', opacity: 0.8, color: 'white' }}>Loading...</span>
+          ) : session?.is_authenticated ? (
+            <>
+              <div style={{ 
+                fontSize: '0.8rem', 
+                color: 'white', 
+                background: 'rgba(255,255,255,0.1)', 
+                padding: '4px 12px', 
+                borderRadius: '20px',
+                border: '1px solid rgba(255,255,255,0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }} title="AI model is set on the Suite Home page">
+                <span style={{ opacity: 0.7 }}>AI:</span>
+                <span style={{ fontWeight: 700 }}>{session.ai_provider?.toUpperCase()}</span>
+              </div>
+
+              <div className="custom-dropdown" onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
+                <button 
+                  className="dropdown-trigger"
+                  onClick={() => setActiveDropdown(activeDropdown === 'user' ? null : 'user')}
+                  style={{ background: 'rgba(255,255,255,0.05)', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'white' }}
+                >
+                  <div style={{ 
+                    width: '24px', 
+                    height: '24px', 
+                    background: '#3b82f6', 
+                    borderRadius: '50%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    color: 'white'
+                  }}>
+                    {session.username?.[0].toUpperCase()}
+                  </div>
+                  <span style={{ fontSize: '0.875rem', color: 'white' }}>{session.username}</span>
+                </button>
+
+                {activeDropdown === 'user' && (
+                  <div className="dropdown-menu" style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '8px',
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    border: '1px solid #f1f5f9',
+                    minWidth: '200px',
+                    zIndex: 1001,
+                    overflow: 'hidden',
+                    textAlign: 'left'
+                  }}>
+                    <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ACCOUNT</div>
+                      <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
+                    </div>
+                    <div style={{ padding: '4px 0' }}>
+                      <Link href="/dashboard" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>My Dashboard</Link>
+                      <button 
+                        onClick={() => { openAuthModal('change_password'); setActiveDropdown(null); }}
+                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155' }} 
+                        onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} 
+                        onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        Change Password
+                      </button>
+                      <a href="/api/dashboard/auth/logout" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#ef4444', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Sign Out</a>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <button 
+              onClick={() => openAuthModal('login')}
+              style={{ color: 'white', fontSize: '0.875rem', border: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px', cursor: 'pointer' }}
+            >
+              Sign In
+            </button>
+          )}
+        </div>
       </header>
 
       <div style={{ display: 'flex', paddingTop: '60px' }}>
@@ -397,17 +491,100 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             padding: '20px'
         }}>
           <div className="container" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            
+            {/* User Session Notice Bar (Only for Guest) */}
+            {!userLoading && !session?.is_authenticated && (
+              <div className="auth-notice-bar animate-fade-in" style={{
+                padding: '12px 20px',
+                borderRadius: '12px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                backgroundColor: '#fff7ed',
+                border: '1px solid #fed7aa',
+                color: '#9a3412',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.2rem' }}>💡</span>
+                  <span>You are in <strong>Guest Mode</strong>. Sign in to unlock saved notes, projects, and advanced AI features.</span>
+                </div>
+                <button 
+                  onClick={() => openAuthModal('login')}
+                  style={{ 
+                    backgroundColor: '#ea580c', 
+                    color: 'white', 
+                    padding: '8px 18px', 
+                    borderRadius: '20px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 4px 12px rgba(234, 88, 12, 0.2)'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  SIGN IN / LOGIN
+                </button>
+              </div>
+            )}
+
+            {/* View Selection Tabs */}
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              padding: '4px',           // Reduced padding
+              backgroundColor: '#f1f5f9',
+              borderRadius: '12px',
+              width: 'fit-content',
+              margin: '0 auto 10px auto' // Reduced bottom margin from 25px to 10px
+            }}>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {tabs.map((tab) => {
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <button 
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)} 
+                      style={{ 
+                        border: 'none', 
+                        background: isActive ? 'white' : 'transparent', 
+                        color: isActive ? '#0f172a' : '#64748b',
+                        padding: '6px 20px', // Slightly tighter padding
+                        borderRadius: '8px', 
+                        cursor: 'pointer', 
+                        fontSize: '0.9rem', 
+                        fontWeight: 700,
+                        boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                        transition: 'all 0.2s ease',
+                        lineHeight: '1.2'   // Ensures no extra height from line-height
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="label-header" style={{ marginBottom: '25px', marginTop: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1 }}>
                         <h1 className="DocumentTitle" style={{ marginBottom: '5px', lineHeight: '1.2' }}>{data.brand_name || data.drug_name}</h1>
                         <h2 style={{ marginTop: 0, fontSize: '1.1em', color: '#666', fontWeight: 400, marginBottom: 0 }}>{data.original_title || data.generic_name}</h2>
                     </div>
-                    <div style={{ marginLeft: '20px' }}>
-                        <button id="favorite-btn" className="favorite-btn" title="Toggle Project" style={{ background:'none', border:'none', cursor:'pointer', fontSize: '1.8em', color: '#ccc', padding: 0 }}>
-                            {"\u2606"}
-                        </button>
-                    </div>
+                    {session?.is_authenticated && (
+                      <div style={{ marginLeft: '20px' }}>
+                          <button id="favorite-btn" className="favorite-btn" title="Toggle Project" style={{ background:'none', border:'none', cursor:'pointer', fontSize: '1.8em', color: '#ccc', padding: 0 }}>
+                              {"\u2606"}
+                          </button>
+                      </div>
+                    )}
                 </div>
 
                 <div className="label-meta-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginTop: '15px', border: '1px solid #eee' }}>
@@ -617,9 +794,11 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       </div>
 
       {/* Floating Action Buttons */}
-      <div id="user-notes-btn" className="floating-action-btn" title="My Notes" style={{ bottom: '160px', backgroundColor: '#0071bc' }}>
-        <span>{"\u270E"}</span>
-      </div>
+      {session?.is_authenticated && (
+        <div id="user-notes-btn" className="floating-action-btn" title="My Notes" style={{ bottom: '160px', backgroundColor: '#0071bc' }}>
+          <span>{"\u270E"}</span>
+        </div>
+      )}
       <div id="meddra-stats-btn" className="floating-action-btn" title="MedDRA Stats" style={{ bottom: '90px', backgroundColor: '#0071bc' }}>
         <span>{"\u2126"}</span>
       </div>
