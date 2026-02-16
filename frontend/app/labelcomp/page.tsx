@@ -50,6 +50,7 @@ function LabelCompContent() {
   const [error, setError] = useState<string | null>(null);
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | null>(null);
   const [isInternal, setIsInternal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = () => setActiveDropdown(null);
@@ -296,20 +297,12 @@ function LabelCompContent() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       {/* Unified Header & Menu */}
-      <header className="header-main" style={{ position: 'sticky', top: 0, zIndex: 1000, justifyContent: 'space-between', padding: '0.5rem 2rem' }}>
-        {/* Left: Home Button & Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: '0 0 250px' }}>
-          <Link href="/" style={{ 
-            color: 'white', 
-            textDecoration: 'none', 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            opacity: 0.9,
+      <header className="header-main">
+        {/* Left: Branding & Page Title */}
+        <div className="header-branding">
+          <Link href="/" className="header-logo-link" style={{ 
             background: 'rgba(255,255,255,0.15)',
-            padding: '5px 14px',
+            padding: '4px 12px',
             borderRadius: '20px',
             transition: 'all 0.2s ease'
           }}>
@@ -317,22 +310,35 @@ function LabelCompContent() {
                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                <polyline points="9 22 9 12 15 12 15 22"></polyline>
              </svg>
-             Home
+             <span style={{ marginLeft: '8px', fontSize: '0.85rem', fontWeight: 700 }}>Home</span>
           </Link>
-          <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
+          <h1 className="header-title" style={{ fontSize: '1.1rem' }}>
             Label Comparison
           </h1>
         </div>
 
+        {/* Mobile Toggle Button */}
+        <button 
+          className="mobile-menu-toggle"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          {mobileMenuOpen ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          )}
+        </button>
+
         {/* Center: Main Navigation */}
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <nav className={`header-nav ${mobileMenuOpen ? 'open' : ''}`}>
           {isInternal ? (
             <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('nav')} onMouseLeave={() => setActiveDropdown(null)}>
-              <button className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+              <button className="hp-nav-item">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
-                FDALabel <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
+                FDALabel <span className="dropdown-caret">▼</span>
               </button>
-              <div className={`hp-dropdown-content ${activeDropdown === 'nav' ? 'visible' : ''}`} style={{ marginTop: '0', opacity: activeDropdown === 'nav' ? 1 : 0, visibility: activeDropdown === 'nav' ? 'visible' : 'hidden' }}>
+              <div className={`hp-dropdown-content ${activeDropdown === 'nav' ? 'visible' : ''}`}>
                 <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-dropdown-item">
                   <span className="hp-dropdown-icon">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
@@ -354,27 +360,27 @@ function LabelCompContent() {
               </div>
             </div>
           ) : (
-            <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+            <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
               FDALabel
             </a>
           )}
 
-                  <Link href="/search" className="hp-nav-item hp-nav-item-flagship" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
-                    AFL Agent
-                  </Link>
-          <Link href="/dashboard" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+          <Link href="/search" className="hp-nav-item hp-nav-item-flagship">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
+            AFL Agent
+          </Link>
+          <Link href="/dashboard" className="hp-nav-item">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
             Dashboard
           </Link>
 
           <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('more')} onMouseLeave={() => setActiveDropdown(null)}>
-            <button className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+            <button className="hp-nav-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
-              More <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
+              More <span className="dropdown-caret">▼</span>
             </button>
-            <div className={`hp-dropdown-content ${activeDropdown === 'more' ? 'visible' : ''}`} style={{ marginTop: '0', opacity: activeDropdown === 'more' ? 1 : 0, visibility: activeDropdown === 'more' ? 'visible' : 'hidden' }}>
+            <div className={`hp-dropdown-content ${activeDropdown === 'more' ? 'visible' : ''}`}>
               <Link href="/labelcomp" className="hp-dropdown-item">
                 <span className="hp-dropdown-icon">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>
@@ -406,7 +412,7 @@ function LabelCompContent() {
           </div>
         </nav>
         {/* Right: User Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '0 0 250px', justifyContent: 'flex-end' }}>
+        <div className={`header-controls ${mobileMenuOpen ? 'open' : ''}`}>
           {userLoading ? (
             <span style={{ fontSize: '0.875rem', opacity: 0.8, color: 'white' }}>Loading...</span>
           ) : session?.is_authenticated ? (
@@ -448,24 +454,11 @@ function LabelCompContent() {
                   }}>
                     {session.username?.[0].toUpperCase()}
                   </div>
-                  <span style={{ fontSize: '0.875rem', color: 'white' }}>{session.username}</span>
+                  <span className="username-text" style={{ fontSize: '0.875rem', color: 'white' }}>{session.username}</span>
                 </button>
 
                 {activeDropdown === 'user' && (
-                  <div className="dropdown-menu" style={{
-                    position: 'absolute',
-                    top: '100%',
-                    right: 0,
-                    marginTop: '8px',
-                    backgroundColor: 'white',
-                    borderRadius: '8px',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                    border: '1px solid #f1f5f9',
-                    minWidth: '200px',
-                    zIndex: 1001,
-                    overflow: 'hidden',
-                    textAlign: 'left'
-                  }}>
+                  <div className="dropdown-menu">
                     <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9' }}>
                       <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ACCOUNT</div>
                       <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
@@ -485,17 +478,24 @@ function LabelCompContent() {
           </div>
       </header>
 
-      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '4rem 2rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
-          <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
+      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: 'clamp(2rem, 5vh, 4rem) clamp(1rem, 5vw, 2rem)' }}>
+        <div style={{ textAlign: 'center', marginBottom: 'clamp(2rem, 5vh, 4rem)' }}>
+          <h1 className="hero-title-animated" style={{ fontSize: 'clamp(2rem, 8vw, 3.5rem)', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
             Side-by-Side Analysis
           </h1>
-          <p className="hero-subtitle-animated" style={{ fontSize: '1.25rem', color: '#64748b', fontWeight: '500' }}>
+          <p className="hero-subtitle-animated" style={{ 
+            fontSize: 'clamp(1rem, 3vw, 1.25rem)', 
+            color: '#64748b', 
+            fontWeight: '500',
+            textAlign: 'center',
+            maxWidth: '800px',
+            margin: '0 auto'
+          }}>
             Compare and analyze drug labeling differences with AI assistance
           </p>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '3rem', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '3rem', gap: '1.5rem', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <button onClick={expandAll} style={{ padding: '10px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, color: '#64748b', borderRight: '1px solid #e2e8f0', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Expand All</button>
               <button onClick={collapseAll} style={{ padding: '10px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, color: '#64748b', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Collapse All</button>
@@ -529,7 +529,7 @@ function LabelCompContent() {
         {error && <div style={{ textAlign: 'center', padding: '4rem', color: '#ef4444' }}>Error: {error}</div>}
         
         {data && data.selected_labels_metadata.length > 0 && (
-          <section style={{ display: 'grid', gridTemplateColumns: `repeat(${data.selected_labels_metadata.length}, 1fr)`, gap: '1.5rem', marginBottom: '3rem' }}>
+          <section className="side-by-side-grid" style={{ marginBottom: '3rem' }}>
             {data.selected_labels_metadata.map((meta) => (
               <div key={meta.set_id} style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0', position: 'relative' }}>
                 <button 
@@ -616,7 +616,6 @@ function LabelCompContent() {
             {data.comparison_data.map((section, idx) => (
               <div key={idx} style={{ 
                 borderBottom: '1px solid #f1f5f9', 
-                marginLeft: `${section.nesting_level * 20}px`,
                 backgroundColor: section.is_same ? '#fcfcfd' : 'white'
               }}>
                 <div 
@@ -627,7 +626,8 @@ function LabelCompContent() {
                         alignItems: 'center', 
                         padding: '1rem 1.5rem',
                         cursor: 'pointer',
-                        userSelect: 'none'
+                        userSelect: 'none',
+                        marginLeft: `${section.nesting_level * 20}px`,
                     }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -670,11 +670,7 @@ function LabelCompContent() {
                                         <div style={{ fontSize: '0.8rem', opacity: 0.9 }}>Extensively rewritten. Granular highlighting disabled for readability.</div>
                                     </div>
                                 </div>
-                                <div style={{ 
-                                    display: 'grid', 
-                                    gridTemplateColumns: `repeat(${data.labels.length}, 1fr)`, 
-                                    gap: '1rem' 
-                                }}>
+                                <div className="side-by-side-grid" style={{ gap: '1rem' }}>
                                     {section.contents.map((content, cIdx) => {
                                         const meta = data.selected_labels_metadata[cIdx];
                                         return (
@@ -698,11 +694,7 @@ function LabelCompContent() {
                                 </div>
                             </div>
                         ) : (
-                            <div style={{ 
-                                display: 'grid', 
-                                gridTemplateColumns: `repeat(${data.labels.length}, 1fr)`, 
-                                gap: '1rem' 
-                            }}>
+                            <div className="side-by-side-grid" style={{ gap: '1rem' }}>
                                 {section.contents.map((content, cIdx) => {
                                     const meta = data.selected_labels_metadata[cIdx];
                                     const manufacturerSnippet = meta.manufacturer_name ? `${meta.manufacturer_name.substring(0, 5)}...` : 'N/A';
@@ -758,10 +750,10 @@ function LabelCompContent() {
             ))}
           </div>
         ) : !loading && (
-          <div style={{ textAlign: 'center', padding: '5rem', color: '#94a3b8' }}>
+          <div style={{ textAlign: 'center', padding: '5rem 2rem', color: '#94a3b8', maxWidth: '600px', margin: '0 auto' }}>
             <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>⚖️</div>
-            <h3>No labels selected for comparison</h3>
-            <p>Use the "Add Label" button above to start your side-by-side research.</p>
+            <h3 style={{ color: '#0f172a', marginBottom: '1rem' }}>No labels selected for comparison</h3>
+            <p style={{ lineHeight: 1.6 }}>Use the "Add Label" button above to start your side-by-side research.</p>
           </div>
         )}
       </main>
@@ -769,7 +761,7 @@ function LabelCompContent() {
       {/* Add Label Modal */}
       {showAddModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-          <div style={{ backgroundColor: 'white', borderRadius: '12px', width: '100%', maxWidth: '700px', padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '12px', width: '95%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(1rem, 5vw, 2rem)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative' }}>
             
             {/* Bulk Add Button (Top Right) */}
             {selectedLabelsForAdd.length > 0 && (
@@ -777,12 +769,12 @@ function LabelCompContent() {
                     onClick={handleBulkAdd}
                     style={{ 
                         position: 'absolute', 
-                        top: '2rem', 
-                        right: '4.5rem', 
+                        top: '1rem', 
+                        right: '3.5rem', 
                         backgroundColor: '#10b981', 
                         color: 'white', 
                         border: 'none', 
-                        padding: '8px 20px', 
+                        padding: '8px 16px', 
                         borderRadius: '6px', 
                         fontWeight: 700, 
                         cursor: 'pointer',
@@ -790,12 +782,12 @@ function LabelCompContent() {
                         zIndex: 10
                     }}
                 >
-                    Add {selectedLabelsForAdd.length} Selected
+                    Add {selectedLabelsForAdd.length}
                 </button>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: 0, color: '#002e5d' }}>Add Labels to Compare</h3>
+              <h3 style={{ margin: 0, color: '#002e5d' }}>Add Labels</h3>
               <button onClick={() => { setShowAddModal(false); setSelectedProject(null); }} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
             </div>
 

@@ -30,6 +30,8 @@ export default function SnippetPage() {
     checkInternalStatus();
   }, []);
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   useEffect(() => {
     if (drugBookmarkletRef.current) {
       // Fetch + Eval approach to bypass CSP blocking of script.src
@@ -47,20 +49,12 @@ export default function SnippetPage() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       {/* Unified Header & Menu */}
-      <header className="header-main" style={{ justifyContent: 'space-between', padding: '0.5rem 2rem' }}>
-        {/* Left: Home Button & Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: '0 0 250px' }}>
-          <Link href="/" style={{ 
-            color: 'white', 
-            textDecoration: 'none', 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            opacity: 0.9,
+      <header className="header-main">
+        {/* Left: Branding & Page Title */}
+        <div className="header-branding">
+          <Link href="/" className="header-logo-link" style={{ 
             background: 'rgba(255,255,255,0.15)',
-            padding: '5px 14px',
+            padding: '4px 12px',
             borderRadius: '20px',
             transition: 'all 0.2s ease'
           }}>
@@ -68,22 +62,35 @@ export default function SnippetPage() {
                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                <polyline points="9 22 9 12 15 12 15 22"></polyline>
              </svg>
-             Home
+             <span style={{ marginLeft: '8px', fontSize: '0.85rem', fontWeight: 700 }}>Home</span>
           </Link>
-          <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
+          <h1 className="header-title" style={{ fontSize: '1.1rem' }}>
             Snippet Store
           </h1>
         </div>
 
+        {/* Mobile Toggle Button */}
+        <button 
+          className="mobile-menu-toggle"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          {mobileMenuOpen ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          )}
+        </button>
+
         {/* Center: Main Navigation */}
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <nav className={`header-nav ${mobileMenuOpen ? 'open' : ''}`}>
           {isInternal ? (
             <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('nav')} onMouseLeave={() => setActiveDropdown(null)}>
-              <button className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+              <button className="hp-nav-item">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
-                FDALabel <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
+                FDALabel <span className="dropdown-caret">▼</span>
               </button>
-              <div className={`hp-dropdown-content ${activeDropdown === 'nav' ? 'visible' : ''}`} style={{ marginTop: '0', opacity: activeDropdown === 'nav' ? 1 : 0, visibility: activeDropdown === 'nav' ? 'visible' : 'hidden' }}>
+              <div className={`hp-dropdown-content ${activeDropdown === 'nav' ? 'visible' : ''}`}>
                 <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-dropdown-item">
                   <span className="hp-dropdown-icon">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
@@ -105,27 +112,27 @@ export default function SnippetPage() {
               </div>
             </div>
           ) : (
-            <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+            <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
               FDALabel
             </a>
           )}
 
-                  <Link href="/search" className="hp-nav-item hp-nav-item-flagship" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
-                    AFL Agent
-                  </Link>
-          <Link href="/dashboard" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+          <Link href="/search" className="hp-nav-item hp-nav-item-flagship">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
+            AFL Agent
+          </Link>
+          <Link href="/dashboard" className="hp-nav-item">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
             Dashboard
           </Link>
 
           <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('more')} onMouseLeave={() => setActiveDropdown(null)}>
-            <button className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+            <button className="hp-nav-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
-              More <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
+              More <span className="dropdown-caret">▼</span>
             </button>
-            <div className={`hp-dropdown-content ${activeDropdown === 'more' ? 'visible' : ''}`} style={{ marginTop: '0', opacity: activeDropdown === 'more' ? 1 : 0, visibility: activeDropdown === 'more' ? 'visible' : 'hidden' }}>
+            <div className={`hp-dropdown-content ${activeDropdown === 'more' ? 'visible' : ''}`}>
               <Link href="/labelcomp" className="hp-dropdown-item">
                 <span className="hp-dropdown-icon">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>
@@ -158,7 +165,7 @@ export default function SnippetPage() {
         </nav>
 
         {/* Right: User Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '0 0 250px', justifyContent: 'flex-end' }}>
+        <div className={`header-controls ${mobileMenuOpen ? 'open' : ''}`}>
           {userLoading ? (
             <span style={{ fontSize: '0.875rem', opacity: 0.8, color: 'white' }}>Loading...</span>
           ) : session?.is_authenticated ? (
@@ -200,24 +207,11 @@ export default function SnippetPage() {
                   }}>
                     {session.username?.[0].toUpperCase()}
                   </div>
-                  <span style={{ fontSize: '0.875rem', color: 'white' }}>{session.username}</span>
+                  <span className="username-text" style={{ fontSize: '0.875rem', color: 'white' }}>{session.username}</span>
                 </button>
 
                 {activeDropdown === 'user' && (
-                  <div className="dropdown-menu" style={{
-                    position: 'absolute',
-                    top: '100%',
-                    right: 0,
-                    marginTop: '8px',
-                    backgroundColor: 'white',
-                    borderRadius: '8px',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                    border: '1px solid #f1f5f9',
-                    minWidth: '200px',
-                    zIndex: 1001,
-                    overflow: 'hidden',
-                    textAlign: 'left'
-                  }}>
+                  <div className="dropdown-menu">
                     <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9' }}>
                       <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ACCOUNT</div>
                       <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
@@ -242,17 +236,17 @@ export default function SnippetPage() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          padding: '4rem 20px',
+          padding: 'clamp(2rem, 5vh, 4rem) 20px',
           textAlign: 'center',
           maxWidth: '1200px',
           margin: '0 auto'
         }}
       >
-        <div style={{ marginBottom: '4rem' }}>
-          <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
+        <div style={{ marginBottom: 'clamp(2rem, 5vh, 4rem)' }}>
+          <h1 className="hero-title-animated" style={{ fontSize: 'clamp(2rem, 8vw, 3.5rem)', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
             Snippet Store
           </h1>
-          <p className="hero-subtitle-animated" style={{ fontSize: '1.25rem', color: '#64748b', fontWeight: '500' }}>
+          <p className="hero-subtitle-animated" style={{ fontSize: 'clamp(1rem, 3vw, 1.25rem)', color: '#64748b', fontWeight: '500' }}>
             Specialized research tools for your browser
           </p>
         </div>
@@ -262,10 +256,10 @@ export default function SnippetPage() {
           width: '100%', 
           maxWidth: '900px', 
           backgroundColor: '#ffffff', 
-          padding: '2rem', 
+          padding: 'clamp(1.5rem, 5vw, 2.5rem)', 
           borderRadius: '24px', 
           border: '1px solid #e2e8f0', 
-          marginBottom: '4rem',
+          marginBottom: 'clamp(2rem, 5vh, 4rem)',
           textAlign: 'left',
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
         }}>
@@ -273,7 +267,7 @@ export default function SnippetPage() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
             How to use these snippets
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '2rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
             <div>
               <div style={{ fontWeight: 800, color: '#1e40af', fontSize: '0.9rem', marginBottom: '8px', textTransform: 'uppercase' }}>1. Show Bookmarks Bar</div>
               <p style={{ fontSize: '0.95rem', color: '#475569', lineHeight: 1.5, margin: 0 }}>Ensure your browser's bookmarks bar is visible (Ctrl+Shift+B or Cmd+Shift+B).</p>
@@ -293,7 +287,7 @@ export default function SnippetPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
             gap: '2.5rem',
             width: '100%',
             marginBottom: '4rem'
@@ -303,7 +297,7 @@ export default function SnippetPage() {
           <div
             style={{
               backgroundColor: 'white',
-              padding: '2.5rem',
+              padding: 'clamp(1.5rem, 5vw, 2.5rem)',
               borderRadius: '28px',
               boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
               border: '1px solid #e2e8f0',
@@ -372,7 +366,7 @@ export default function SnippetPage() {
           <div
             style={{
               backgroundColor: 'white',
-              padding: '2.5rem',
+              padding: 'clamp(1.5rem, 5vw, 2.5rem)',
               borderRadius: '28px',
               boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
               border: '1px solid #e2e8f0',

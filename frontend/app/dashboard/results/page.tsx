@@ -61,30 +61,26 @@ function ResultsContent() {
   return (
     <div className="hp-main-layout" style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       {/* Main Header */}
-      <header className="header-main" style={{ position: 'sticky', top: 0, zIndex: 1000 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <Link href="/" style={{ 
+      <header className="header-main">
+        <div className="header-branding">
+          <Link href="/" className="header-logo-link" style={{ 
             backgroundColor: 'white', 
             padding: '5px', 
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textDecoration: 'none'
+            borderRadius: '4px'
           }}>
-             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '24px' }} />
+             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '20px' }} />
           </Link>
-          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
-            askFDALabel <span style={{ fontWeight: 300, opacity: 0.8 }}>Search</span>
+          <h1 className="header-title" style={{ fontSize: '1.25rem' }}>
+            askFDALabel <span className="header-title-suffix">Search</span>
           </h1>
         </div>
 
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9 }}>Suite Home</Link>
+        <nav className="header-nav">
+          <Link href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9, fontWeight: 600 }}>Suite Home</Link>
         </nav>
       </header>
 
-      <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 2rem' }}>
+      <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem' }}>
         <div style={{ 
             backgroundColor: 'white', 
             borderRadius: '12px', 
@@ -92,7 +88,7 @@ function ResultsContent() {
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
             overflow: 'hidden'
         }}>
-            <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
                     <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#002e5d' }}>{data.page_title}</h2>
                     <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#64748b' }}>
@@ -101,47 +97,49 @@ function ResultsContent() {
                 </div>
             </div>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                <thead>
-                    <tr style={{ backgroundColor: '#f8fafc' }}>
-                        <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Trade Name</th>
-                        <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '26px solid #f1f5f9' }}>Generic Name</th>
-                        <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Manufacturer</th>
-                        <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Published</th>
-                        <th style={{ padding: '1rem 1.5rem', textAlign: 'right', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {data.labels.map((label) => (
-                        <tr key={label.set_id} style={{ borderBottom: '1px solid #f1f5f9' }} className="table-row-hover">
-                            <td style={{ padding: '1rem 1.5rem', fontWeight: 700, color: '#002e5d' }}>{label.brand_name}</td>
-                            <td style={{ padding: '1rem 1.5rem', color: '#475569', fontStyle: 'italic' }}>{label.generic_name}</td>
-                            <td style={{ padding: '1rem 1.5rem' }}>{label.manufacturer_name}</td>
-                            <td style={{ padding: '1rem 1.5rem' }}>{label.effective_time}</td>
-                            <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
-                                <Link 
-                                    href={`/dashboard/label/${label.set_id}`}
-                                    style={{ 
-                                        display: 'inline-flex',
-                                        padding: '6px 16px',
-                                        backgroundColor: 'white',
-                                        border: '1px solid #0071bc',
-                                        color: '#0071bc',
-                                        borderRadius: '6px',
-                                        textDecoration: 'none',
-                                        fontWeight: 600,
-                                        fontSize: '0.85rem',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    className="btn-view-snippet"
-                                >
-                                    View
-                                </Link>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+            <div style={{ overflowX: 'auto', width: '100%' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '800px' }}>
+                  <thead>
+                      <tr style={{ backgroundColor: '#f8fafc' }}>
+                          <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Trade Name</th>
+                          <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Generic Name</th>
+                          <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Manufacturer</th>
+                          <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Published</th>
+                          <th style={{ padding: '1rem 1.5rem', textAlign: 'right', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', borderBottom: '2px solid #f1f5f9' }}>Action</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      {data.labels.map((label) => (
+                          <tr key={label.set_id} style={{ borderBottom: '1px solid #f1f5f9' }} className="table-row-hover">
+                              <td style={{ padding: '1rem 1.5rem', fontWeight: 700, color: '#002e5d' }}>{label.brand_name}</td>
+                              <td style={{ padding: '1rem 1.5rem', color: '#475569', fontStyle: 'italic' }}>{label.generic_name}</td>
+                              <td style={{ padding: '1rem 1.5rem' }}>{label.manufacturer_name}</td>
+                              <td style={{ padding: '1rem 1.5rem' }}>{label.effective_time}</td>
+                              <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                                  <Link 
+                                      href={`/dashboard/label/${label.set_id}`}
+                                      style={{ 
+                                          display: 'inline-flex',
+                                          padding: '6px 16px',
+                                          backgroundColor: 'white',
+                                          border: '1px solid #0071bc',
+                                          color: '#0071bc',
+                                          borderRadius: '6px',
+                                          textDecoration: 'none',
+                                          fontWeight: 600,
+                                          fontSize: '0.85rem',
+                                          transition: 'all 0.2s'
+                                      }}
+                                      className="btn-view-snippet"
+                                  >
+                                      View
+                                  </Link>
+                              </td>
+                          </tr>
+                      ))}
+                  </tbody>
+              </table>
+            </div>
         </div>
 
         {totalPages > 1 && (

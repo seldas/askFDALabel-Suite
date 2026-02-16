@@ -1102,6 +1102,7 @@ body {
 
 .chat-column {
   width: 40%;
+  min-width: 400px;
   border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
@@ -1113,6 +1114,57 @@ body {
   overflow-y: auto;
   padding: 20px;
   background-color: #f1f5f9;
+}
+
+@media (max-width: 1200px) {
+  .chat-column {
+    width: 45%;
+    min-width: 350px;
+  }
+  .results-column {
+    width: 55%;
+  }
+}
+
+@media (max-width: 992px) {
+  .app-container {
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+  }
+  .chat-column {
+    width: 100%;
+    min-width: 0;
+    height: 600px;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .results-column {
+    width: 100%;
+    height: auto;
+    padding: 10px;
+  }
+}
+
+@media (max-width: 600px) {
+  .chat-column {
+    height: 500px;
+  }
+  .metadata-grid {
+    grid-template-columns: 1fr;
+  }
+  .search-results {
+    width: 95%;
+    padding: 10px;
+  }
+  .pagination-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .controls-wrapper {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
 }
 
 /* Chat Panel Styles */

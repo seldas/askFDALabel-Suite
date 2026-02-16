@@ -10,6 +10,7 @@ export default function HomePage() {
   const [isInternal, setIsInternal] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | 'ai' | null>(null);
   const [activeFeature, setActiveFeature] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Modal states
   const [activeModal, setActiveModal] = useState<'login' | 'register' | 'change_password' | null>(null);
@@ -135,17 +136,11 @@ export default function HomePage() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       {/* Unified Header & Menu */}
-      <header className="header-main" style={{ justifyContent: 'space-between', padding: '0.5rem 2rem' }}>
+      <header className="header-main">
         {/* Left: Branding */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '0 0 350px' }}>
-          <Link href="/" style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            textDecoration: 'none',
-            color: 'white'
-          }}>
-             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#3b82f6' }}>
+        <div className="header-branding">
+          <Link href="/" className="header-logo-link">
+             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#3b82f6' }}>
                <path d="M12 2l8.66 5V17L12 22l-8.66-5V7L12 2z" strokeOpacity="0.3" />
                <path d="M12 22V12" strokeOpacity="0.3" />
                <path d="M12 12L3.34 7" strokeOpacity="0.3" />
@@ -155,20 +150,33 @@ export default function HomePage() {
                <circle cx="12" cy="12" r="2" fill="#3b82f6" stroke="#3b82f6" />
              </svg>
           </Link>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: 'white', letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
-            AskFDALabel <span style={{ fontWeight: 300, opacity: 0.7 }}>Suite</span>
+          <h1 className="header-title">
+            AskFDALabel <span className="header-title-suffix">Suite</span>
           </h1>
         </div>
 
+        {/* Mobile Toggle Button */}
+        <button 
+          className="mobile-menu-toggle"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          {mobileMenuOpen ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          )}
+        </button>
+
         {/* Center: Main Navigation */}
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <nav className={`header-nav ${mobileMenuOpen ? 'open' : ''}`}>
           {isInternal ? (
             <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('nav')} onMouseLeave={() => setActiveDropdown(null)}>
-              <button className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+              <button className="hp-nav-item">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
-                FDALabel <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
+                FDALabel <span className="dropdown-caret">▼</span>
               </button>
-              <div className={`hp-dropdown-content ${activeDropdown === 'nav' ? 'visible' : ''}`} style={{ marginTop: '0', opacity: activeDropdown === 'nav' ? 1 : 0, visibility: activeDropdown === 'nav' ? 'visible' : 'hidden' }}>
+              <div className={`hp-dropdown-content ${activeDropdown === 'nav' ? 'visible' : ''}`}>
                 <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-dropdown-item">
                   <span className="hp-dropdown-icon">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
@@ -190,28 +198,28 @@ export default function HomePage() {
               </div>
             </div>
           ) : (
-            <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+            <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
               FDALabel
             </a>
           )}
 
-          <Link href="/search" className="hp-nav-item hp-nav-item-flagship" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+          <Link href="/search" className="hp-nav-item hp-nav-item-flagship">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
             AFL Agent
           </Link>
 
-          <Link href="/dashboard" className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+          <Link href="/dashboard" className="hp-nav-item">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
             Dashboard
           </Link>
 
           <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('more')} onMouseLeave={() => setActiveDropdown(null)}>
-            <button className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+            <button className="hp-nav-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
-              More <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
+              More <span className="dropdown-caret">▼</span>
             </button>
-            <div className={`hp-dropdown-content ${activeDropdown === 'more' ? 'visible' : ''}`} style={{ marginTop: '0', opacity: activeDropdown === 'more' ? 1 : 0, visibility: activeDropdown === 'more' ? 'visible' : 'hidden' }}>
+            <div className={`hp-dropdown-content ${activeDropdown === 'more' ? 'visible' : ''}`}>
               <Link href="/labelcomp" className="hp-dropdown-item">
                 <span className="hp-dropdown-icon">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>
@@ -244,7 +252,7 @@ export default function HomePage() {
         </nav>
 
         {/* Right: User Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '0 0 250px', justifyContent: 'flex-end' }}>
+        <div className={`header-controls ${mobileMenuOpen ? 'open' : ''}`}>
           {loading ? (
             <span style={{ fontSize: '0.875rem', opacity: 0.8 }}>Loading...</span>
           ) : session?.is_authenticated ? (
@@ -269,7 +277,7 @@ export default function HomePage() {
                     {session.is_internal && (
                       <>
                         <button className={`dropdown-item ${session.ai_provider === 'openai' ? 'active' : ''}`} onClick={() => { updateAiProvider('openai'); setActiveDropdown(null); }}>LLAMA</button>
-                        <button className={`dropdown-item ${session.ai_provider === 'elsa' ? 'active' : ''}`} onClick={() => { updateAiProvider('elsa'); setActiveDropdown(null); }}>ELSA</button>
+                        <button className={`dropdown-item ${session.elsa === 'elsa' ? 'active' : ''}`} onClick={() => { updateAiProvider('elsa'); setActiveDropdown(null); }}>ELSA</button>
                       </>
                     )}
                   </div>
@@ -296,7 +304,7 @@ export default function HomePage() {
                   }}>
                     {session.username?.[0].toUpperCase()}
                   </div>
-                  <span style={{ fontSize: '0.875rem' }}>{session.username}</span>
+                  <span className="username-text">{session.username}</span>
                 </button>
 
                 {activeDropdown === 'user' && (
@@ -326,32 +334,16 @@ export default function HomePage() {
               </div>
             </>
           ) : (
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="header-auth-buttons">
               <button 
                 onClick={() => setActiveModal('login')}
-                style={{ 
-                  background: 'none',
-                  border: 'none',
-                  color: 'white', 
-                  fontSize: '0.875rem', 
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
+                className="btn-login"
               >
                 Login
               </button>
               <button 
                 onClick={() => setActiveModal('register')}
-                style={{ 
-                  color: 'white', 
-                  fontSize: '0.875rem', 
-                  fontWeight: 600,
-                  background: 'var(--fda-blue)',
-                  padding: '4px 12px',
-                  borderRadius: '4px',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
+                className="btn-register"
               >
                 Register
               </button>
@@ -361,27 +353,50 @@ export default function HomePage() {
       </header>
 
       {/* Hero / Immersive Mission Section */}
-      <section className="mission-section" style={{ padding: '2rem 2rem 4rem 2rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-          <div style={{ position: 'relative', display: 'inline-block' }}>
-            <h1 className="suite-home-title-animated" style={{ fontSize: '7.5rem', fontWeight: 900, marginBottom: '0.5rem' }}>
-              AskFDALabel
-            </h1>  
-            <span className="suite-home-title-animated" style={{ 
-              position: 'absolute', 
-              top: '18px', 
-              right: '-20px',
-              fontSize: '1.1rem', 
-              fontWeight: 800,
+      <section className="mission-section" style={{ padding: '4rem 2rem 6rem 2rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
+          <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+            <h1 className="suite-home-title-animated" style={{ 
+              fontSize: 'clamp(3.5rem, 10vw, 7.5rem)', 
+              fontWeight: 900, 
+              marginBottom: '0',
+              lineHeight: 1.1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1rem',
+              flexWrap: 'wrap'
+            }}>
+              <span>AskFDALabel</span>
+              <span className="suite-home-title-animated no-reveal" style={{ 
+                fontSize: 'clamp(0.8rem, 2vw, 1.1rem)', 
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                background: 'linear-gradient(to right, #166534 20%, #4ade80 50%, #166534 80%)',
+                backgroundSize: '200% auto',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                letterSpacing: '0.1em',
+                padding: '4px 12px',
+                border: '1px solid rgba(74, 222, 128, 0.3)',
+                borderRadius: '12px',
+                alignSelf: 'center',
+                marginTop: '0.5rem'
+              }}>[dev]</span>
+            </h1>
+            <div className="suite-home-title-animated" style={{ 
+              fontSize: 'clamp(1.2rem, 3.5vw, 2.5rem)', 
+              fontWeight: 300, 
+              opacity: 0.6,
+              marginTop: '0.25rem',
+              letterSpacing: '0.3em',
               textTransform: 'uppercase',
-              background: 'linear-gradient(to right, #166534 20%, #4ade80 50%, #166534 80%)',
-              backgroundSize: '200% auto',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              letterSpacing: '0.05em'
-            }}>[dev]</span>
+              animationDelay: '0.2s'
+            }}>
+              Suite
+            </div>
           </div>
-          <p className="hero-subtitle-animated" style={{ color: '#94a3b8', fontSize: '1.25rem', maxWidth: '800px', margin: '0 auto', fontWeight: 500 }}>
+          <p className="hero-subtitle-animated" style={{ color: '#94a3b8', fontSize: 'clamp(1rem, 2vw, 1.25rem)', maxWidth: '800px', margin: '2rem auto 0 auto', fontWeight: 500, lineHeight: 1.6 }}>
             Advancing Regulatory Science of Drug Labeling through AI
           </p>
         </div>
