@@ -125,6 +125,14 @@ interface CompanyStats {
   total_drugs: number;
 }
 
+const TOX_ORDER: Record<string, number> = {
+  'Most': 1,
+  'Less': 2,
+  'No': 3,
+  'Precaution': 4,
+  'Unknown': 5,
+};
+
 const API_BASE = '/api/drugtox';
 
 export default function DrugToxPage() {
@@ -183,6 +191,7 @@ export default function DrugToxPage() {
   const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
   const [companyPortfolio, setCompanyPortfolio] = useState<DrugSummary[]>([]);
   const [companyLoading, setCompanyLoading] = useState(false);
+  const [companyFilter, setCompanyFilter] = useState<string | null>(null);
 
   // Drawer Resizing State
   const [drawerWidth, setDrawerWidth] = useState(800);
@@ -399,6 +408,7 @@ export default function DrugToxPage() {
   useEffect(() => {
     if (selectedCompany) {
       setCompanyLoading(true);
+      setCompanyFilter(null); // Reset filter when company changes
       Promise.all([
         axios.get(`${API_BASE}/companies/${encodeURIComponent(selectedCompany)}/stats`, { params: { tox_type: toxType } }),
         axios.get(`${API_BASE}/companies/${encodeURIComponent(selectedCompany)}/portfolio`, { params: { tox_type: toxType } }),
@@ -414,6 +424,24 @@ export default function DrugToxPage() {
         });
     }
   }, [selectedCompany, toxType]);
+
+  const filteredCompanyPortfolio = useMemo(() => {
+    let result = [...companyPortfolio];
+    
+    // Sorting by Tox Class then Trade Name
+    result.sort((a, b) => {
+      const orderA = TOX_ORDER[a.Toxicity_Class] || 99;
+      const orderB = TOX_ORDER[b.Toxicity_Class] || 99;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.Trade_Name.localeCompare(b.Trade_Name);
+    });
+
+    if (companyFilter) {
+      result = result.filter(d => d.Toxicity_Class === companyFilter);
+    }
+    
+    return result;
+  }, [companyPortfolio, companyFilter]);
 
   const getToxColor = (toxClass: string) => {
     if (!toxClass) return 'default';
@@ -1535,9 +1563,19 @@ export default function DrugToxPage() {
               <Typography variant="h5" sx={{ fontWeight: 900, color: '#1a237e' }}>
                 {selectedCompany}
               </Typography>
-              <Typography variant="caption" sx={{ fontWeight: 700, color: '#546e7a' }}>
-                Manufacturer Portfolio Analysis
-              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="caption" sx={{ fontWeight: 700, color: '#546e7a' }}>
+                  Manufacturer Portfolio Analysis
+                </Typography>
+                {companyStats && (
+                  <Chip 
+                    label={`${companyStats.total_drugs} Drugs`} 
+                    size="small" 
+                    color="primary" 
+                    sx={{ height: 20, fontSize: '0.7rem', fontWeight: 800 }} 
+                  />
+                )}
+              </Stack>
             </Box>
           </Box>
           <IconButton 
@@ -1559,79 +1597,142 @@ export default function DrugToxPage() {
           </IconButton>
         </DialogTitle>
 
-        <DialogContent sx={{ p: 4 }}>
+        <DialogContent sx={{ p: 4, backgroundColor: '#fcfcfd' }}>
           {companyLoading ? (
-            <Box display="flex" justifyContent="center" py={6}>
-              <CircularProgress />
+            <Box display="flex" justifyContent="center" alignItems="center" py={10}>
+              <CircularProgress size={40} thickness={4} />
             </Box>
           ) : companyStats ? (
-            <Grid container spacing={4}>
-              <Grid xs={12} md={5}>
-                <Card variant="outlined" sx={{ mb: 3 }}>
-                  <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="overline" sx={{ fontWeight: 800 }}>
-                      Total Sponsored Drugs
-                    </Typography>
-                    <Typography variant="h3" sx={{ fontWeight: 900, color: '#1a237e' }}>
-                      {companyStats.total_drugs}
-                    </Typography>
-                  </CardContent>
-                </Card>
-
-                <Paper variant="outlined" sx={{ p: 2, height: 300 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2, textAlign: 'center' }}>
-                    Toxicity Profile ({toxType})
+            <Grid container spacing={3}>
+              {/* Left Column: Chart Card */}
+              <Grid item xs={12} md={5}>
+                <Paper 
+                  elevation={0} 
+                  variant="outlined" 
+                  sx={{ 
+                    p: 3, 
+                    height: '100%', 
+                    minHeight: 400, 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    borderRadius: 2,
+                    borderColor: '#e0e4ec'
+                  }}
+                >
+                  <Typography 
+                    variant="subtitle2" 
+                    sx={{ fontWeight: 800, mb: 3, textAlign: 'center', color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}
+                  >
+                    Toxicity Distribution ({toxType})
                   </Typography>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={companyStats.distribution}
-                        innerRadius={60}
-                        outerRadius={90}
-                        paddingAngle={5}
-                        dataKey="count"
-                        nameKey="Toxicity_Class"
-                        label={(p: any) => `${(p.percent * 100).toFixed(0)}%`}
-                      >
-                        {companyStats.distribution.map((e, i) => (
-                          <Cell key={`cell-${i}`} fill={COLORS[e.Toxicity_Class] || '#757575'} />
-                        ))}
-                      </Pie>
-                      <RechartsTooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  
+                  <Box sx={{ flexGrow: 1, width: '100%', minHeight: 250 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={companyStats.distribution}
+                          innerRadius={70}
+                          outerRadius={100}
+                          paddingAngle={8}
+                          dataKey="count"
+                          nameKey="Toxicity_Class"
+                          label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                        >
+                          {companyStats.distribution.map((e, i) => (
+                            <Cell 
+                              key={`cell-${i}`} 
+                              fill={COLORS[e.Toxicity_Class] || '#9ca3af'} 
+                              stroke="none"
+                            />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip />
+                        <Legend 
+                          verticalAlign="bottom" 
+                          align="center"
+                          iconType="circle"
+                          wrapperStyle={{ paddingTop: '20px', fontSize: '12px', fontWeight: 600 }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Box>
                 </Paper>
               </Grid>
 
-              <Grid xs={12} md={7}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 2, color: '#1a237e' }}>
-                  Sponsored Agents
-                </Typography>
-                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400 }}>
+              {/* Right Column: Table and Filter */}
+              <Grid item xs={12} md={7}>
+                <Box sx={{ mb: 2, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { sm: 'center' }, gap: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 800, color: '#1a237e' }}>
+                    Sponsored Agents
+                  </Typography>
+                  
+                  <ToggleButtonGroup
+                    value={companyFilter || ''}
+                    exclusive
+                    onChange={(_e, v) => setCompanyFilter(v || null)}
+                    size="small"
+                    sx={{ 
+                      backgroundColor: '#fff',
+                      '& .MuiToggleButton-root': { 
+                        px: 1.5, 
+                        py: 0.5, 
+                        fontSize: '0.7rem', 
+                        fontWeight: 700,
+                        border: '1px solid #e0e4ec',
+                        '&.Mui-selected': {
+                          backgroundColor: '#1a237e',
+                          color: '#fff',
+                          '&:hover': { backgroundColor: '#283593' }
+                        }
+                      } 
+                    }}
+                  >
+                    <ToggleButton value="">ALL</ToggleButton>
+                    {companyStats.distribution
+                      .filter(d => d.count > 0)
+                      .map(d => (
+                        <ToggleButton key={d.Toxicity_Class} value={d.Toxicity_Class}>
+                          {d.Toxicity_Class}
+                        </ToggleButton>
+                      ))}
+                  </ToggleButtonGroup>
+                </Box>
+
+                <TableContainer 
+                  component={Paper} 
+                  variant="outlined" 
+                  sx={{ 
+                    maxHeight: 450, 
+                    borderRadius: 2,
+                    borderColor: '#e0e4ec',
+                    '&::-webkit-scrollbar': { width: '6px' },
+                    '&::-webkit-scrollbar-thumb': { backgroundColor: '#d1d5db', borderRadius: '10px' }
+                  }}
+                >
                   <Table size="small" stickyHeader>
                     <TableHead>
                       <TableRow>
-                        <TableCell sx={{ fontWeight: 800, backgroundColor: '#f8f9fa' }}>TRADE NAME</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 800, backgroundColor: '#f8f9fa' }}>
-                          STATUS
-                        </TableCell>
+                        <TableCell sx={{ fontWeight: 800, backgroundColor: '#f8f9fa', color: '#4b5563', py: 1.5 }}>TRADE NAME</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 800, backgroundColor: '#f8f9fa', color: '#4b5563' }}>STATUS</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {companyPortfolio.map((drug) => (
+                      {filteredCompanyPortfolio.map((drug) => (
                         <TableRow
                           key={drug.SETID}
                           hover
-                          sx={{ cursor: 'pointer' }}
+                          sx={{ cursor: 'pointer', '&:last-child td, &:last-child th': { border: 0 } }}
                           onClick={() => {
                             setSelectedSetid(drug.SETID);
                             setSelectedCompany(null);
                           }}
                         >
-                          <TableCell sx={{ fontWeight: 700, py: 1.5 }}>
+                          <TableCell sx={{ fontWeight: 600, py: 1.5, color: '#1f2937' }}>
                             <Stack direction="row" alignItems="center" spacing={1}>
                               {drug.Trade_Name}
-                              {drug.Changed === 'Yes' && <NewReleasesIcon sx={{ color: '#ed6c02', fontSize: 16 }} />}
+                              {drug.Changed === 'Yes' && (
+                                <NewReleasesIcon sx={{ color: '#ed6c02', fontSize: 16 }} />
+                              )}
                             </Stack>
                           </TableCell>
                           <TableCell align="center">
@@ -1639,7 +1740,12 @@ export default function DrugToxPage() {
                               label={drug.Toxicity_Class}
                               size="small"
                               color={getToxColor(drug.Toxicity_Class) as any}
-                              sx={{ fontWeight: 800, fontSize: '0.65rem' }}
+                              sx={{ 
+                                fontWeight: 800, 
+                                fontSize: '0.65rem', 
+                                width: 70,
+                                borderRadius: '4px' 
+                              }}
                             />
                           </TableCell>
                         </TableRow>
