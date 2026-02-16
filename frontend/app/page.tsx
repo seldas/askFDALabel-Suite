@@ -82,6 +82,13 @@ export default function HomePage() {
     checkInternalStatus();
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('login') === 'true') {
+      setActiveModal('login');
+    }
+  }, []);
+
   const handleAuthAction = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);

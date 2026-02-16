@@ -376,27 +376,14 @@ export default function DashboardPage() {
                 </button>
 
                 {activeDropdown === 'user' && (
-                  <div className="dropdown-menu" style={{
-                    position: 'absolute',
-                    top: '100%',
-                    right: 0,
-                    marginTop: '8px',
-                    backgroundColor: 'white',
-                    borderRadius: '8px',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                    border: '1px solid #f1f5f9',
-                    minWidth: '200px',
-                    zIndex: 1001,
-                    overflow: 'hidden',
-                    textAlign: 'left'
-                  }}>
+                  <div className="dropdown-menu">
                     <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9' }}>
                       <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ACCOUNT</div>
                       <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
                     </div>
                     <div style={{ padding: '4px 0' }}>
-                      <a href="/dashboard" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>My Dashboard</a>
-                      <a href="/api/dashboard/auth/change_password" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Change Password</a>
+                      <Link href="/dashboard" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>My Dashboard</Link>
+                      <Link href="/?login=true" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Change Password</Link>
                       <a href="/api/dashboard/auth/logout" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#ef4444', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Sign Out</a>
                     </div>
                   </div>
@@ -404,7 +391,7 @@ export default function DashboardPage() {
               </div>
             </>
           ) : (
-            <a href="/api/dashboard/auth/login?next=/dashboard" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px' }}>Sign In</a>
+            <Link href="/?login=true" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px' }}>Sign In</Link>
           )}
         </div>
       </header>
@@ -422,6 +409,24 @@ export default function DashboardPage() {
           <div className="hp-hero" style={{ marginBottom: '3rem' }}>
             <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: '800', marginBottom: '1rem', letterSpacing: '-0.025em' }}>AFDL Dashboard</h1>
             <p className="hp-hero-subtitle hero-subtitle-animated" style={{ fontSize: '1.25rem', color: '#64748b', fontWeight: '500' }}>The Intelligence Layer for Drug Safety & Analysis</p>
+            {!loading && !session?.is_authenticated && (
+              <div className="animate-fade-in" style={{ 
+                marginTop: '1.5rem', 
+                padding: '0.75rem 1.5rem', 
+                backgroundColor: '#fef2f2', 
+                border: '1px solid #fee2e2', 
+                borderRadius: '12px', 
+                color: '#dc2626', 
+                fontSize: '0.95rem', 
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                Authentication Required: All dashboard functions require login.
+              </div>
+            )}
           </div>
 
           <div style={{ 
@@ -437,7 +442,7 @@ export default function DashboardPage() {
             <div 
               onClick={() => {
                 if (!session?.is_authenticated) {
-                  router.push('/api/dashboard/auth/login?next=/dashboard');
+                  router.push('/?login=true');
                   return;
                 }
                 setShowProjects(!showProjects);
@@ -486,6 +491,11 @@ export default function DashboardPage() {
             {/* Panel 2: Create from Import */}
             <div 
               className={`dashboard-action-panel ${uploading ? 'uploading' : ''}`}
+              onClick={() => {
+                if (!session?.is_authenticated) {
+                  router.push('/?login=true');
+                }
+              }}
               style={{ 
                 padding: '1.5rem 2rem',
                 borderRadius: '24px',
@@ -499,7 +509,8 @@ export default function DashboardPage() {
                 position: 'relative',
                 overflow: 'hidden',
                 minHeight: '240px',
-                width: '500px'
+                width: '500px',
+                cursor: !session?.is_authenticated ? 'pointer' : 'default'
               }}
             >
               <div style={{ 

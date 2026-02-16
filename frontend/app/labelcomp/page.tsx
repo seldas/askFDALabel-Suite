@@ -464,8 +464,8 @@ function LabelCompContent() {
                       <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
                     </div>
                     <div style={{ padding: '4px 0' }}>
-                      <a href="/dashboard" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>My Dashboard</a>
-                      <a href="/api/dashboard/auth/change_password" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Change Password</a>
+                      <Link href="/dashboard" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>My Dashboard</Link>
+                      <Link href="/?login=true" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Change Password</Link>
                       <a href="/api/dashboard/auth/logout" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#ef4444', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Sign Out</a>
                     </div>
                   </div>
@@ -473,7 +473,7 @@ function LabelCompContent() {
               </div>
             </>
           ) : (
-            <a href="/api/dashboard/auth/login?next=/labelcomp" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px' }}>Sign In</a>
+            <Link href="/?login=true" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px' }}>Sign In</Link>
           )}
           </div>
       </header>
@@ -913,7 +913,7 @@ function LabelCompContent() {
                     {!session?.is_authenticated ? (
                         <div style={{ textAlign: 'center', color: '#64748b', padding: '3rem 2rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
                           <p style={{ margin: '0 0 1rem 0', fontWeight: 600 }}>Sign in to access your projects</p>
-                          <a href="/api/dashboard/auth/login?next=/labelcomp" style={{ display: 'inline-block', padding: '8px 20px', background: '#002e5d', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700 }}>Sign In Now</a>
+                          <Link href="/?login=true" style={{ display: 'inline-block', padding: '8px 20px', background: '#002e5d', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700 }}>Sign In Now</Link>
                         </div>
                     ) : selectedProject ? (
                         <div>
