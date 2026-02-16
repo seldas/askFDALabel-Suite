@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "./context/UserContext";
+import AuthModals from "./components/AuthModals";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -36,6 +37,7 @@ export default function RootLayout({
       }}>
         <UserProvider>
           {children}
+          <AuthModals />
         </UserProvider>
       </body>
     </html>

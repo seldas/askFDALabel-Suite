@@ -3,25 +3,13 @@
 import Link from 'next/link';
 import { useUser } from './context/UserContext';
 import { useState, useEffect } from 'react';
-import Modal from './components/Modal';
 
 export default function HomePage() {
-  const { session, loading, updateAiProvider, refreshSession } = useUser();
+  const { session, loading, updateAiProvider, refreshSession, openAuthModal } = useUser();
   const [isInternal, setIsInternal] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | 'ai' | null>(null);
   const [activeFeature, setActiveFeature] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Modal states
-  const [activeModal, setActiveModal] = useState<'login' | 'register' | 'change_password' | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [authLoading, setAuthLoading] = useState(false);
-
-  // Form states
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   const features = [
     {
@@ -85,46 +73,9 @@ export default function HomePage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('login') === 'true') {
-      setActiveModal('login');
+      openAuthModal('login');
     }
-  }, []);
-
-  const handleAuthAction = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    setAuthLoading(true);
-
-    let endpoint = '/api/dashboard/auth/login';
-    let body: any = { username, password };
-
-    if (activeModal === 'register') {
-      endpoint = '/api/dashboard/auth/register';
-    } else if (activeModal === 'change_password') {
-      endpoint = '/api/dashboard/auth/change_password';
-      body = { password };
-    }
-
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
-      if (data.success) {
-        await refreshSession();
-        setActiveModal(null);
-        setUsername('');
-        setPassword('');
-      } else {
-        setAuthError(data.error || 'Authentication failed');
-      }
-    } catch (err) {
-      setAuthError('An unexpected error occurred');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
+  }, [openAuthModal]);
 
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -284,7 +235,7 @@ export default function HomePage() {
                     {session.is_internal && (
                       <>
                         <button className={`dropdown-item ${session.ai_provider === 'openai' ? 'active' : ''}`} onClick={() => { updateAiProvider('openai'); setActiveDropdown(null); }}>LLAMA</button>
-                        <button className={`dropdown-item ${session.elsa === 'elsa' ? 'active' : ''}`} onClick={() => { updateAiProvider('elsa'); setActiveDropdown(null); }}>ELSA</button>
+                        <button className={`dropdown-item ${session.ai_provider === 'elsa' ? 'active' : ''}`} onClick={() => { updateAiProvider('elsa'); setActiveDropdown(null); }}>ELSA</button>
                       </>
                     )}
                   </div>
@@ -322,7 +273,7 @@ export default function HomePage() {
                     </div>
                     <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
                       <button 
-                        onClick={() => { setActiveModal('change_password'); setActiveDropdown(null); }} 
+                        onClick={() => { openAuthModal('change_password'); setActiveDropdown(null); }} 
                         className="dropdown-item"
                         style={{ width: '100%', cursor: 'pointer' }}
                       >
@@ -343,13 +294,13 @@ export default function HomePage() {
           ) : (
             <div className="header-auth-buttons">
               <button 
-                onClick={() => setActiveModal('login')}
+                onClick={() => openAuthModal('login')}
                 className="btn-login"
               >
                 Login
               </button>
               <button 
-                onClick={() => setActiveModal('register')}
+                onClick={() => openAuthModal('register')}
                 className="btn-register"
               >
                 Register
@@ -524,206 +475,6 @@ export default function HomePage() {
           </p>
         </div>
       </footer>
-
-      <Modal 
-        isOpen={activeModal === 'login'} 
-        onClose={() => { setActiveModal(null); setAuthError(null); setShowPassword(false); }}
-        title="Sign In"
-      >
-        <form onSubmit={handleAuthAction} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {authError && <div style={{ color: '#ef4444', background: '#fef2f2', padding: '12px', borderRadius: '8px', fontSize: '0.875rem', fontWeight: 500, border: '1px solid #fee2e2' }}>{authError}</div>}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569' }}>Username</label>
-            <input 
-              type="text" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              style={{ padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none', transition: 'border-color 0.2s' }}
-              placeholder="Enter your username"
-            />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569' }}>Password</label>
-            <div style={{ position: 'relative' }}>
-              <input 
-                type={showPassword ? "text" : "password"} 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                style={{ width: '100%', padding: '12px 48px 12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
-                placeholder="••••••••"
-              />
-              <button 
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
-              >
-                {showPassword ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                )}
-              </button>
-            </div>
-          </div>
-          <button 
-            type="submit" 
-            disabled={authLoading}
-            style={{ 
-              marginTop: '8px',
-              padding: '14px', 
-              borderRadius: '12px', 
-              border: 'none', 
-              backgroundColor: '#002e5d', 
-              color: 'white', 
-              fontWeight: 800, 
-              fontSize: '1rem',
-              cursor: authLoading ? 'not-allowed' : 'pointer',
-              opacity: authLoading ? 0.7 : 1,
-              boxShadow: '0 4px 6px -1px rgba(0, 46, 93, 0.2)'
-            }}
-          >
-            {authLoading ? 'Signing in...' : 'Sign In'}
-          </button>
-          <div style={{ textAlign: 'center', fontSize: '0.875rem', color: '#64748b' }}>
-            Don't have an account? <button type="button" onClick={() => { setActiveModal('register'); setAuthError(null); setShowPassword(false); }} style={{ color: '#3b82f6', fontWeight: 700, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>Create one</button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal 
-        isOpen={activeModal === 'register'} 
-        onClose={() => { setActiveModal(null); setAuthError(null); setShowPassword(false); }}
-        title="Create Account"
-      >
-        <form onSubmit={handleAuthAction} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {authError && <div style={{ color: '#ef4444', background: '#fef2f2', padding: '12px', borderRadius: '8px', fontSize: '0.875rem', fontWeight: 500, border: '1px solid #fee2e2' }}>{authError}</div>}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569' }}>Username</label>
-            <input 
-              type="text" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              style={{ padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
-              placeholder="Choose a username"
-            />
-            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Use only letters, numbers, and . @ _ - +</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569' }}>Password</label>
-            <div style={{ position: 'relative' }}>
-              <input 
-                type={showPassword ? "text" : "password"} 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                style={{ width: '100%', padding: '12px 48px 12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
-                placeholder="••••••••"
-              />
-              <button 
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
-              >
-                {showPassword ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                )}
-              </button>
-            </div>
-          </div>
-          <button 
-            type="submit" 
-            disabled={authLoading}
-            style={{ 
-              marginTop: '8px',
-              padding: '14px', 
-              borderRadius: '12px', 
-              border: 'none', 
-              backgroundColor: '#002e5d', 
-              color: 'white', 
-              fontWeight: 800, 
-              fontSize: '1rem',
-              cursor: authLoading ? 'not-allowed' : 'pointer',
-              opacity: authLoading ? 0.7 : 1
-            }}
-          >
-            {authLoading ? 'Creating account...' : 'Create Account'}
-          </button>
-          <div style={{ textAlign: 'center', fontSize: '0.875rem', color: '#64748b' }}>
-            Already have an account? <button type="button" onClick={() => { setActiveModal('login'); setAuthError(null); setShowPassword(false); }} style={{ color: '#3b82f6', fontWeight: 700, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>Sign in</button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal 
-        isOpen={activeModal === 'change_password'} 
-        onClose={() => { setActiveModal(null); setAuthError(null); setShowPassword(false); }}
-        title="Update Password"
-      >
-        <form onSubmit={handleAuthAction} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {authError && <div style={{ color: '#ef4444', background: '#fef2f2', padding: '12px', borderRadius: '8px', fontSize: '0.875rem', fontWeight: 500, border: '1px solid #fee2e2' }}>{authError}</div>}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569' }}>New Password</label>
-            <div style={{ position: 'relative' }}>
-              <input 
-                type={showPassword ? "text" : "password"} 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                style={{ width: '100%', padding: '12px 48px 12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
-                placeholder="••••••••"
-              />
-              <button 
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
-              >
-                {showPassword ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                )}
-              </button>
-            </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569' }}>Confirm New Password</label>
-            <input 
-              type={showPassword ? "text" : "password"} 
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              style={{ padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
-              placeholder="••••••••"
-            />
-          </div>
-          <button 
-            type="submit" 
-            disabled={authLoading || (password !== confirmPassword && password !== '')}
-            style={{ 
-              marginTop: '8px',
-              padding: '14px', 
-              borderRadius: '12px', 
-              border: 'none', 
-              backgroundColor: '#002e5d', 
-              color: 'white', 
-              fontWeight: 800, 
-              fontSize: '1rem',
-              cursor: (authLoading || (password !== confirmPassword && password !== '')) ? 'not-allowed' : 'pointer',
-              opacity: (authLoading || (password !== confirmPassword && password !== '')) ? 0.7 : 1
-            }}
-          >
-            {authLoading ? 'Updating...' : 'Update Password'}
-          </button>
-          {password !== confirmPassword && confirmPassword !== '' && (
-            <div style={{ color: '#ef4444', fontSize: '0.75rem', textAlign: 'center', fontWeight: 600 }}>Passwords do not match</div>
-          )}
-        </form>
-      </Modal>
     </div>
   );
 }

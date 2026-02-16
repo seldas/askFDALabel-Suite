@@ -7,9 +7,10 @@ import Link from 'next/link';
 export default function SnippetPage() {
   const drugBookmarkletRef = useRef<HTMLAnchorElement>(null);
   const highlightBookmarkletRef = useRef<HTMLAnchorElement>(null);
-  const { session, loading: userLoading } = useUser();
+  const { session, loading: userLoading, openAuthModal } = useUser();
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | null>(null);
   const [isInternal, setIsInternal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = () => setActiveDropdown(null);
@@ -29,8 +30,6 @@ export default function SnippetPage() {
     };
     checkInternalStatus();
   }, []);
-
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (drugBookmarkletRef.current) {
@@ -217,8 +216,15 @@ export default function SnippetPage() {
                       <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
                     </div>
                     <div style={{ padding: '4px 0' }}>
-                      <a href="/dashboard" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>My Dashboard</a>
-                      <a href="/api/dashboard/auth/change_password" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Change Password</a>
+                      <Link href="/dashboard" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>My Dashboard</Link>
+                      <button 
+                        onClick={() => { openAuthModal('change_password'); setActiveDropdown(null); }}
+                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155' }} 
+                        onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} 
+                        onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        Change Password
+                      </button>
                       <a href="/api/dashboard/auth/logout" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#ef4444', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Sign Out</a>
                     </div>
                   </div>
@@ -226,7 +232,12 @@ export default function SnippetPage() {
               </div>
             </>
           ) : (
-            <a href="/api/dashboard/auth/login?next=/snippet" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px' }}>Sign In</a>
+            <button 
+              onClick={() => openAuthModal('login')}
+              style={{ color: 'white', fontSize: '0.875rem', border: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px', cursor: 'pointer' }}
+            >
+              Sign In
+            </button>
           )}
         </div>
       </header>

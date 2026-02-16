@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchContext } from '../context/SearchContext';
 import { useUser } from '../../context/UserContext';
 import Link from 'next/link';
 
 const Header: React.FC = () => {
-  const { searchMode, setSearchMode } = useSearchContext();
-  const { session, loading, updateAiProvider } = useUser();
+  const { setSearchMode } = useSearchContext();
+  const { session, loading, updateAiProvider, openAuthModal } = useUser();
   const [activeDropdown, setActiveDropdown] = useState<'ai' | 'user' | 'nav' | 'more' | null>(null);
   const [isInternal, setIsInternal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = () => setActiveDropdown(null);
@@ -29,43 +30,48 @@ const Header: React.FC = () => {
   }, []);
 
   return (
-    <header className="header-main" style={{ justifyContent: 'space-between', padding: '0.5rem 2rem' }}>
-      {/* Left: Home Button & Title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: '0 0 250px' }}>
-        <Link href="/" style={{ 
-          color: 'white', 
-          textDecoration: 'none', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px',
-          fontSize: '0.85rem',
-          fontWeight: 600,
-          opacity: 0.9,
+    <header className="header-main">
+      {/* Left: Branding & Page Title */}
+      <div className="header-branding">
+        <Link href="/" className="header-logo-link" style={{ 
           background: 'rgba(255,255,255,0.15)',
-          padding: '5px 14px',
+          padding: '4px 12px',
           borderRadius: '20px',
           transition: 'all 0.2s ease'
-        }} onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'} onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}>
+        }}>
            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
              <polyline points="9 22 9 12 15 12 15 22"></polyline>
            </svg>
-           Home
+           <span style={{ marginLeft: '8px', fontSize: '0.85rem', fontWeight: 700 }}>Home</span>
         </Link>
-        <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
+        <h1 className="header-title" style={{ fontSize: '1.1rem' }}>
           AFL Agent
         </h1>
       </div>
 
+      {/* Mobile Toggle Button */}
+      <button 
+        className="mobile-menu-toggle"
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        aria-label="Toggle menu"
+      >
+        {mobileMenuOpen ? (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        ) : (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        )}
+      </button>
+
       {/* Center: Main Navigation */}
-      <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <nav className={`header-nav ${mobileMenuOpen ? 'open' : ''}`}>
         {isInternal ? (
           <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('nav')} onMouseLeave={() => setActiveDropdown(null)}>
-            <button className="hp-nav-item" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+            <button className="hp-nav-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
-              FDALabel <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
+              FDALabel <span className="dropdown-caret">▼</span>
             </button>
-            <div className={`hp-dropdown-content ${activeDropdown === 'nav' ? 'visible' : ''}`} style={{ marginTop: '0', opacity: activeDropdown === 'nav' ? 1 : 0, visibility: activeDropdown === 'nav' ? 'visible' : 'hidden' }}>
+            <div className={`hp-dropdown-content ${activeDropdown === 'nav' ? 'visible' : ''}`}>
               <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-dropdown-item">
                 <span className="hp-dropdown-icon">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
@@ -87,28 +93,28 @@ const Header: React.FC = () => {
             </div>
           </div>
         ) : (
-          <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item" style={{ fontSize: '1.15rem', padding: '8px 12px' }}>
+          <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
             FDALabel
           </a>
         )}
 
-        <Link href="/search" className="hp-nav-item hp-nav-item-flagship" style={{ fontSize: '1.35rem', padding: '8px 12px' }}>
+        <Link href="/search" className="hp-nav-item hp-nav-item-flagship">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
           AFL Agent
         </Link>
 
-        <Link href="/dashboard" className="hp-nav-item" style={{ fontSize: '1.15rem', padding: '8px 12px' }}>
+        <Link href="/dashboard" className="hp-nav-item">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           Dashboard
         </Link>
 
         <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('more')} onMouseLeave={() => setActiveDropdown(null)}>
-          <button className="hp-nav-item" style={{ fontSize: '1.15rem', padding: '8px 12px' }}>
+          <button className="hp-nav-item">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
-            More <span style={{ fontSize: '0.5rem', marginLeft: '2px', opacity: 0.5 }}>▼</span>
+            More <span className="dropdown-caret">▼</span>
           </button>
-          <div className={`hp-dropdown-content ${activeDropdown === 'more' ? 'visible' : ''}`} style={{ marginTop: '0', opacity: activeDropdown === 'more' ? 1 : 0, visibility: activeDropdown === 'more' ? 'visible' : 'hidden' }}>
+          <div className={`hp-dropdown-content ${activeDropdown === 'more' ? 'visible' : ''}`}>
             <Link href="/labelcomp" className="hp-dropdown-item">
               <span className="hp-dropdown-icon">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>
@@ -141,68 +147,79 @@ const Header: React.FC = () => {
       </nav>
 
       {/* Right: User Controls */}
-      <div className="header-controls" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flex: '0 0 250px', justifyContent: 'flex-end' }}>
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {loading ? (
-            <span style={{ fontSize: '0.875rem', opacity: 0.8, color: 'white' }}>Loading...</span>
-          ) : session?.is_authenticated ? (
-            <>
-              {/* AI Provider Indicator (Static) */}
-              <div style={{ 
-                fontSize: '0.85rem', 
-                color: 'white', 
-                background: 'rgba(255,255,255,0.1)', 
-                padding: '4px 12px', 
-                borderRadius: '20px',
-                border: '1px solid rgba(255,255,255,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }} title="AI model is set on the Suite Home page">
-                <span style={{ opacity: 0.7 }}>AI:</span>
-                <span style={{ fontWeight: 700 }}>{session.ai_provider?.toUpperCase()}</span>
-              </div>
+      <div className={`header-controls ${mobileMenuOpen ? 'open' : ''}`}>
+        {loading ? (
+          <span style={{ fontSize: '0.875rem', opacity: 0.8, color: 'white' }}>Loading...</span>
+        ) : session?.is_authenticated ? (
+          <>
+            {/* AI Provider Indicator (Static) */}
+            <div style={{ 
+              fontSize: '0.85rem', 
+              color: 'white', 
+              background: 'rgba(255,255,255,0.1)', 
+              padding: '4px 12px', 
+              borderRadius: '20px',
+              border: '1px solid rgba(255,255,255,0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }} title="AI model is set on the Suite Home page">
+              <span style={{ opacity: 0.7 }}>AI:</span>
+              <span style={{ fontWeight: 700 }}>{session.ai_provider?.toUpperCase()}</span>
+            </div>
 
-              {/* User Settings Dropdown */}
-              <div className="custom-dropdown" onClick={(e) => e.stopPropagation()}>
-                <button 
-                  className="dropdown-trigger"
-                  onClick={() => setActiveDropdown(activeDropdown === 'user' ? null : 'user')}
-                  style={{ background: 'rgba(255,255,255,0.05)', border: 'none' }}
-                >
-                  <div style={{ 
-                    width: '24px', 
-                    height: '24px', 
-                    background: '#3b82f6', 
-                    borderRadius: '50%', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    fontSize: '0.75rem',
-                    fontWeight: 800
-                  }}>
-                    {session.username?.[0].toUpperCase()}
-                  </div>
-                  <span style={{ fontSize: '0.875rem', color: 'white' }}>{session.username}</span>
-                </button>
+            {/* User Settings Dropdown */}
+            <div className="custom-dropdown" onClick={(e) => e.stopPropagation()}>
+              <button 
+                className="dropdown-trigger"
+                onClick={() => setActiveDropdown(activeDropdown === 'user' ? null : 'user')}
+                style={{ background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <div style={{ 
+                  width: '24px', 
+                  height: '24px', 
+                  background: '#3b82f6', 
+                  borderRadius: '50%', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  color: 'white'
+                }}>
+                  {session.username?.[0].toUpperCase()}
+                </div>
+                <span className="username-text" style={{ fontSize: '0.875rem', color: 'white' }}>{session.username}</span>
+              </button>
 
-                {activeDropdown === 'user' && (
-                  <div className="dropdown-menu">
-                    <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9' }}>
-                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ACCOUNT</div>
-                      <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
-                    </div>
-                    <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
-                      <Link href="/dashboard" className="dropdown-item">My Dashboard</Link>
-                      <a href="/api/dashboard/auth/change_password" className="dropdown-item">Change Password</a>
-                      <a href="/api/dashboard/auth/logout" className="dropdown-item" style={{ color: '#ef4444' }}>Sign Out</a>
-                    </div>
+              {activeDropdown === 'user' && (
+                <div className="dropdown-menu">
+                  <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ACCOUNT</div>
+                    <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
                   </div>
-                )}
-              </div>
-            </>
-          ) : null}
-        </nav>
+                  <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
+                    <Link href="/dashboard" className="dropdown-item">My Dashboard</Link>
+                    <button 
+                      onClick={() => { openAuthModal('change_password'); setActiveDropdown(null); }}
+                      style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', display: 'block', padding: 10, fontSize: '0.875rem', color: '#1e293b' }} 
+                    >
+                      Change Password
+                    </button>
+                    <a href="/api/dashboard/auth/logout" className="dropdown-item" style={{ color: '#ef4444' }}>Sign Out</a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <button 
+            onClick={() => openAuthModal('login')}
+            style={{ color: 'white', fontSize: '0.875rem', border: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px', cursor: 'pointer' }}
+          >
+            Sign In
+          </button>
+        )}
       </div>
     </header>
   );

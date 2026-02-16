@@ -44,7 +44,7 @@ interface Project {
 function LabelCompContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { session, loading: userLoading } = useUser();
+  const { session, loading: userLoading, openAuthModal } = useUser();
   const [data, setData] = useState<LabelCompData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -465,7 +465,14 @@ function LabelCompContent() {
                     </div>
                     <div style={{ padding: '4px 0' }}>
                       <Link href="/dashboard" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>My Dashboard</Link>
-                      <Link href="/?login=true" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Change Password</Link>
+                      <button 
+                        onClick={() => { openAuthModal('change_password'); setActiveDropdown(null); }}
+                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155' }} 
+                        onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} 
+                        onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        Change Password
+                      </button>
                       <a href="/api/dashboard/auth/logout" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#ef4444', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Sign Out</a>
                     </div>
                   </div>
@@ -473,7 +480,12 @@ function LabelCompContent() {
               </div>
             </>
           ) : (
-            <Link href="/?login=true" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px' }}>Sign In</Link>
+            <button 
+              onClick={() => openAuthModal('login')}
+              style={{ color: 'white', fontSize: '0.875rem', border: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px', cursor: 'pointer' }}
+            >
+              Sign In
+            </button>
           )}
           </div>
       </header>
@@ -913,7 +925,12 @@ function LabelCompContent() {
                     {!session?.is_authenticated ? (
                         <div style={{ textAlign: 'center', color: '#64748b', padding: '3rem 2rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
                           <p style={{ margin: '0 0 1rem 0', fontWeight: 600 }}>Sign in to access your projects</p>
-                          <Link href="/?login=true" style={{ display: 'inline-block', padding: '8px 20px', background: '#002e5d', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700 }}>Sign In Now</Link>
+                          <button 
+                            onClick={() => openAuthModal('login')}
+                            style={{ display: 'inline-block', padding: '10px 24px', background: '#002e5d', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700 }}
+                          >
+                            Sign In Now
+                          </button>
                         </div>
                     ) : selectedProject ? (
                         <div>

@@ -35,7 +35,7 @@ export default function DashboardPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [newImportProjectName, setNewImportProjectName] = useState('');
   const router = useRouter();
-  const { session, loading, refreshSession } = useUser();
+  const { session, loading, refreshSession, openAuthModal } = useUser();
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | null>(null);
   const [isInternal, setIsInternal] = useState(false);
 
@@ -383,7 +383,14 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ padding: '4px 0' }}>
                       <Link href="/dashboard" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>My Dashboard</Link>
-                      <Link href="/?login=true" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Change Password</Link>
+                      <button 
+                        onClick={() => { openAuthModal('change_password'); setActiveDropdown(null); }}
+                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155' }} 
+                        onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} 
+                        onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        Change Password
+                      </button>
                       <a href="/api/dashboard/auth/logout" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#ef4444', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Sign Out</a>
                     </div>
                   </div>
@@ -391,7 +398,12 @@ export default function DashboardPage() {
               </div>
             </>
           ) : (
-            <Link href="/?login=true" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px' }}>Sign In</Link>
+            <button 
+              onClick={() => openAuthModal('login')}
+              style={{ color: 'white', fontSize: '0.875rem', border: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px', cursor: 'pointer' }}
+            >
+              Sign In
+            </button>
           )}
         </div>
       </header>
@@ -442,7 +454,7 @@ export default function DashboardPage() {
             <div 
               onClick={() => {
                 if (!session?.is_authenticated) {
-                  router.push('/?login=true');
+                  openAuthModal('login');
                   return;
                 }
                 setShowProjects(!showProjects);
@@ -493,7 +505,7 @@ export default function DashboardPage() {
               className={`dashboard-action-panel ${uploading ? 'uploading' : ''}`}
               onClick={() => {
                 if (!session?.is_authenticated) {
-                  router.push('/?login=true');
+                  openAuthModal('login');
                 }
               }}
               style={{ 

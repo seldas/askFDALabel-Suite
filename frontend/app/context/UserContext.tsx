@@ -18,6 +18,8 @@ interface UserContextType {
   loading: boolean;
   updateAiProvider: (provider: string) => Promise<void>;
   refreshSession: () => Promise<void>;
+  authModal: 'login' | 'register' | 'change_password' | null;
+  openAuthModal: (type: 'login' | 'register' | 'change_password' | null) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -25,6 +27,11 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authModal, setAuthModal] = useState<'login' | 'register' | 'change_password' | null>(null);
+
+  const openAuthModal = (type: 'login' | 'register' | 'change_password' | null) => {
+    setAuthModal(type);
+  };
 
   const fetchSession = useCallback(async () => {
     try {
@@ -62,7 +69,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <UserContext.Provider value={{ session, loading, updateAiProvider, refreshSession: fetchSession }}>
+    <UserContext.Provider value={{ session, loading, updateAiProvider, refreshSession: fetchSession, authModal, openAuthModal }}>
       {children}
     </UserContext.Provider>
   );
