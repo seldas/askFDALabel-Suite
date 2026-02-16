@@ -311,8 +311,8 @@ export default function HomePage() {
       </header>
 
       {/* Hero / Immersive Mission Section */}
-      <section className="mission-section" style={{ padding: '4rem 2rem 6rem 2rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
+      <section className="mission-section" style={{ padding: '0rem 2rem 3rem 2rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2rem', marginTop: '-2rem' }}>
           <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
             <h1 className="suite-home-title-animated" style={{ 
               fontSize: 'clamp(3.5rem, 10vw, 7.5rem)', 
@@ -354,7 +354,7 @@ export default function HomePage() {
               Suite
             </div>
           </div>
-          <p className="hero-subtitle-animated" style={{ color: '#94a3b8', fontSize: 'clamp(1rem, 2vw, 1.25rem)', maxWidth: '800px', margin: '2rem auto 0 auto', fontWeight: 500, lineHeight: 1.6 }}>
+          <p className="hero-subtitle-animated" style={{ color: '#94a3b8', fontSize: 'clamp(1rem, 2vw, 1.25rem)', maxWidth: '800px', margin: '2rem auto 0 auto', fontWeight: 500, lineHeight: 1.6, textAlign: 'center' }}>
             Advancing Regulatory Science of Drug Labeling through AI
           </p>
         </div>
