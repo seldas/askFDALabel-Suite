@@ -3,32 +3,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useUser } from '../context/UserContext';
 import Link from 'next/link';
+import Header from "../components/Header";
 
 export default function SnippetPage() {
   const drugBookmarkletRef = useRef<HTMLAnchorElement>(null);
   const highlightBookmarkletRef = useRef<HTMLAnchorElement>(null);
   const { session, loading: userLoading, openAuthModal } = useUser();
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | null>(null);
-  const [isInternal, setIsInternal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = () => setActiveDropdown(null);
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    const checkInternalStatus = async () => {
-      try {
-        const response = await fetch("/api/check-fdalabel", { method: 'POST' });
-        const data = await response.json();
-        setIsInternal(data.isInternal);
-      } catch (error) {
-        setIsInternal(false);
-      }
-    };
-    checkInternalStatus();
   }, []);
 
   useEffect(() => {
@@ -48,199 +35,7 @@ export default function SnippetPage() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       {/* Unified Header & Menu */}
-      <header className="header-main">
-        {/* Left: Branding & Page Title */}
-        <div className="header-branding">
-          <Link href="/" className="header-logo-link" style={{ 
-            background: 'rgba(255,255,255,0.15)',
-            padding: '4px 12px',
-            borderRadius: '20px',
-            transition: 'all 0.2s ease'
-          }}>
-             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-               <polyline points="9 22 9 12 15 12 15 22"></polyline>
-             </svg>
-             <span style={{ marginLeft: '8px', fontSize: '0.85rem', fontWeight: 700 }}>Home</span>
-          </Link>
-          <h1 className="header-title" style={{ fontSize: '1.1rem' }}>
-            Snippet Store
-          </h1>
-        </div>
-
-        {/* Mobile Toggle Button */}
-        <button 
-          className="mobile-menu-toggle"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Toggle menu"
-        >
-          {mobileMenuOpen ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          ) : (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-          )}
-        </button>
-
-        {/* Center: Main Navigation */}
-        <nav className={`header-nav ${mobileMenuOpen ? 'open' : ''}`}>
-          {isInternal ? (
-            <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('nav')} onMouseLeave={() => setActiveDropdown(null)}>
-              <button className="hp-nav-item">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
-                FDALabel <span className="dropdown-caret">▼</span>
-              </button>
-              <div className={`hp-dropdown-content ${activeDropdown === 'nav' ? 'visible' : ''}`}>
-                <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-dropdown-item">
-                  <span className="hp-dropdown-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
-                  </span>
-                  <div>
-                    <div style={{ fontWeight: 800 }}>FDA Official</div>
-                    <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Global Public Interface</div>
-                  </div>
-                </a>
-                <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer" className="hp-dropdown-item">
-                  <span className="hp-dropdown-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                  </span>
-                  <div>
-                    <div style={{ fontWeight: 800 }}>CDER-CBER</div>
-                    <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Internal Review Interface</div>
-                  </div>
-                </a>
-              </div>
-            </div>
-          ) : (
-            <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" className="hp-nav-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
-              FDALabel
-            </a>
-          )}
-
-          <Link href="/search" className="hp-nav-item hp-nav-item-flagship">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
-            AFL Agent
-          </Link>
-          <Link href="/dashboard" className="hp-nav-item">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-            Dashboard
-          </Link>
-
-          <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('more')} onMouseLeave={() => setActiveDropdown(null)}>
-            <button className="hp-nav-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
-              More <span className="dropdown-caret">▼</span>
-            </button>
-            <div className={`hp-dropdown-content ${activeDropdown === 'more' ? 'visible' : ''}`}>
-              <Link href="/labelcomp" className="hp-dropdown-item">
-                <span className="hp-dropdown-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>
-                </span>
-                <div>
-                  <div style={{ fontWeight: 800 }}>Label Compare</div>
-                  <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Side-by-side analysis</div>
-                </div>
-              </Link>
-              <Link href="/drugtox" className="hp-dropdown-item">
-                <span className="hp-dropdown-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v8"></path><path d="M14 2v8"></path><path d="M8.5 15c.7 0 1.3-.5 1.5-1.2l.5-2.3c.2-.7.8-1.2 1.5-1.2s1.3.5 1.5 1.2l.5 2.3c.2.7.8 1.2 1.5 1.2"></path><path d="M6 18h12"></path><path d="M6 22h12"></path><circle cx="12" cy="13" r="10"></circle></svg>
-                </span>
-                <div>
-                  <div style={{ fontWeight: 800 }}>DrugTox Intelligence</div>
-                  <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Toxicity profile tracking</div>
-                </div>
-              </Link>
-              <Link href="/snippet" className="hp-dropdown-item">
-                <span className="hp-dropdown-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>
-                </span>
-                <div>
-                  <div style={{ fontWeight: 800 }}>Snippet Store</div>
-                  <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>Browser research tools</div>
-                </div>
-              </Link>
-            </div>
-          </div>
-        </nav>
-
-        {/* Right: User Controls */}
-        <div className={`header-controls ${mobileMenuOpen ? 'open' : ''}`}>
-          {userLoading ? (
-            <span style={{ fontSize: '0.875rem', opacity: 0.8, color: 'white' }}>Loading...</span>
-          ) : session?.is_authenticated ? (
-            <>
-              {/* AI Provider Indicator (Static) */}
-              <div style={{ 
-                fontSize: '0.85rem', 
-                color: 'white', 
-                background: 'rgba(255,255,255,0.1)', 
-                padding: '4px 12px', 
-                borderRadius: '20px',
-                border: '1px solid rgba(255,255,255,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }} title="AI model is set on the Suite Home page">
-                <span style={{ opacity: 0.7 }}>AI:</span>
-                <span style={{ fontWeight: 700 }}>{session.ai_provider?.toUpperCase()}</span>
-              </div>
-
-              {/* User Settings Dropdown */}
-              <div className="custom-dropdown" onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
-                <button 
-                  className="dropdown-trigger"
-                  onClick={() => setActiveDropdown(activeDropdown === 'user' ? null : 'user')}
-                  style={{ background: 'rgba(255,255,255,0.05)', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'white' }}
-                >
-                  <div style={{ 
-                    width: '24px', 
-                    height: '24px', 
-                    background: '#3b82f6', 
-                    borderRadius: '50%', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    fontSize: '0.75rem',
-                    fontWeight: 800,
-                    color: 'white'
-                  }}>
-                    {session.username?.[0].toUpperCase()}
-                  </div>
-                  <span className="username-text" style={{ fontSize: '0.875rem', color: 'white' }}>{session.username}</span>
-                </button>
-
-                {activeDropdown === 'user' && (
-                  <div className="dropdown-menu">
-                    <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9' }}>
-                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ACCOUNT</div>
-                      <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{session.username}</div>
-                    </div>
-                    <div style={{ padding: '4px 0' }}>
-                      <Link href="/dashboard" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>My Dashboard</Link>
-                      <button 
-                        onClick={() => { openAuthModal('change_password'); setActiveDropdown(null); }}
-                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#334155' }} 
-                        onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} 
-                        onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                      >
-                        Change Password
-                      </button>
-                      <a href="/api/dashboard/auth/logout" style={{ display: 'block', padding: '8px 16px', fontSize: '0.875rem', color: '#ef4444', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Sign Out</a>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <button 
-              onClick={() => openAuthModal('login')}
-              style={{ color: 'white', fontSize: '0.875rem', border: 'none', background: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px', cursor: 'pointer' }}
-            >
-              Sign In
-            </button>
-          )}
-        </div>
-      </header>
+      <Header/>
 
       <main
         style={{
