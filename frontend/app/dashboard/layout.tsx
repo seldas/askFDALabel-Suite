@@ -14,7 +14,6 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="dashboard-suite">
-      <link id="theme-stylesheet" rel="stylesheet" href="./modern.css" />
       {children}
     </div>
   );

@@ -679,12 +679,12 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
             <div style={{ 
               display: 'flex', 
               justifyContent: 'center', 
-              marginBottom: '24px',
+              marginBottom: '4px',
               padding: '4px',
               background: '#f1f5f9',
               borderRadius: '99px',
               width: 'fit-content',
-              margin: '0 auto 24px auto',
+              margin: '0 auto 0 auto',
               border: '1px solid #e2e8f0'
             }}>
               <button
@@ -723,7 +723,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
               </button>
             </div>
 
-            <h2 className="hero-title-animated" style={{ 
+            <h2 style={{ 
               fontWeight: 950, 
               fontSize: '1.25rem', 
               marginBottom: '20px',
@@ -733,18 +733,6 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
             </h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <img
-                src="/flowchart_agent_v3.png"
-                alt="askFDALabel agentic system flowchart"
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  borderRadius: 12,
-                  border: '1px solid #eef2f7',
-                  background: '#f8fafc',
-                }}
-              />
-
               <div
                 style={{
                   padding: '16px 20px',

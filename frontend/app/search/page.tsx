@@ -2,6 +2,8 @@
 import { useState } from "react";
 import "./search_global.css";
 import Header from "../components/Header";
+import Footer from '../components/Footer';
+
 import ChatPanel from "./components/ChatPanel";
 import Results from "./components/Results";
 import { SearchProvider } from "./context/SearchContext";
@@ -11,7 +13,7 @@ const App = () => {
   
   return (
     <SearchProvider>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '110vh' }}>
         <Header/>
         <div className="app-container" style={{ flex: 1, height: 'auto' }}>
           <div className="chat-column">
@@ -21,6 +23,7 @@ const App = () => {
              <Results hasSearched={hasSearched} />
           </div>
         </div>
+        <Footer/>
       </div>
     </SearchProvider>
   );
