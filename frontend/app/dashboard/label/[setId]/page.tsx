@@ -92,12 +92,60 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   const [activeTab, setActiveTab] = useState('label-view');
   const [tocCollapsed, setTocCollapsed] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | null>(null);
+  const [ndcModalOpen, setNdcModalOpen] = useState(false);
+
+  const ndcRaw = (data?.ndc || '').trim();
+  const ndcTooLong = ndcRaw.length > 40;
+
+  const ndcList = (() => {
+    if (!ndcRaw) return [];
+    // split by common delimiters: comma, semicolon, newline
+    return ndcRaw
+      .split(/[\n,;]+/g)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  })();
+
+  const closeNdcModal = () => setNdcModalOpen(false);
 
   const tabs = [
     { id: 'label-view', label: 'Label' },
     { id: 'faers-view', label: 'FAERS' },
     { id: 'tox-view', label: 'Agents' },
   ];
+
+  const [faersCoverageFilter, setFaersCoverageFilter] = useState<'all' | 'not_presented'>('all');
+
+  // Optional helper: tries to detect "not presented" from the row's Status cell text.
+  // If your status wording differs, adjust the keywords below.
+  const isNotPresentedStatus = (statusText: string) => {
+    const t = (statusText || '').toLowerCase();
+    return (
+      t.includes('not presented') ||
+      t.includes('not in label') ||
+      t.includes('not present') ||
+      t.includes('absent')
+    );
+  };
+
+  useEffect(() => {
+    const tbody = document.getElementById('coverageTable-body');
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    rows.forEach((tr) => {
+      // assume "Status" is the last column, as in your header
+      const statusCell = tr.querySelector('td:last-child');
+      const statusText = statusCell?.textContent?.trim() || '';
+
+      const shouldShow =
+        faersCoverageFilter === 'all' ? true : isNotPresentedStatus(statusText);
+
+      (tr as HTMLElement).style.display = shouldShow ? '' : 'none';
+    });
+  }, [faersCoverageFilter, activeTab, data]);
+
 
   useEffect(() => {
     const handleClickOutside = () => setActiveDropdown(null);
@@ -122,6 +170,15 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
     }
     fetchData();
   }, [setId]);
+
+  useEffect(() => {
+    if (!ndcModalOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeNdcModal();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [ndcModalOpen]);
 
   useEffect(() => {
     if (!loading && data) {
@@ -149,44 +206,43 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
     }
   }, [loading, data]);
 
-      useEffect(() => {
+  useEffect(() => {
+    if (activeTab === 'faers-view') {
+      const win = window as any;
+      if (win.loadFaersData) {
+        win.loadFaersData();
+      }
+    }
 
-        if (activeTab === 'faers-view') {
+    // Auto-hide TOC sidebar for non-label views to give more space
+    if (activeTab !== 'label-view') {
+      setTocCollapsed(true);
+    } else {
+      setTocCollapsed(false);
+    }
+  }, [activeTab]);
 
-          const win = window as any;
+  if (loading) {
+    return (
+      <div className="hp-main-layout">
+        <div className="hp-container">
+          <div className="loader" style={{ margin: '50px auto' }}></div>
+          <p style={{ textAlign: 'center' }}>Loading label...</p>
+        </div>
+      </div>
+    );
+  }
 
-          if (win.loadFaersData) {
+  if (error) {
+    return (
+      <div className="hp-main-layout">
+        <div className="hp-container">
+          <p style={{ color: 'red', textAlign: 'center' }}>Error: {error}</p>
+        </div>
+      </div>
+    );
+  }
 
-            win.loadFaersData();
-
-          }
-
-        }
-
-        
-
-        // Auto-hide TOC sidebar for non-label views to give more space
-
-        if (activeTab !== 'label-view') {
-
-          setTocCollapsed(true);
-
-        } else {
-
-          setTocCollapsed(false);
-
-        }
-
-      }, [activeTab]);
-
-    
-
-  
-
-    if (loading) return <div className="hp-main-layout">
-
-  <div className="hp-container"><div className="loader" style={{margin:'50px auto'}}></div><p style={{textAlign:'center'}}>Loading label...</p></div></div>;
-  if (error) return <div className="hp-main-layout"><div className="hp-container"><p style={{color:'red', textAlign:'center'}}>Error: {error}</p></div></div>;
   if (!data) return null;
 
   return (
@@ -490,8 +546,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             width: '100%',
             padding: '20px'
         }}>
-          <div className="container" style={{ maxWidth: '1200px', margin: '0 auto' }}>
-            
+          <div className="container-top" style={{ maxWidth: '1200px', margin: '0 auto' }}>
             {/* User Session Notice Bar (Only for Guest) */}
             {!userLoading && !session?.is_authenticated && (
               <div className="auth-notice-bar animate-fade-in" style={{
@@ -534,44 +589,78 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
               </div>
             )}
 
-            {/* View Selection Tabs */}
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              padding: '4px',           // Reduced padding
-              backgroundColor: '#f1f5f9',
-              borderRadius: '12px',
-              width: 'fit-content',
-              margin: '0 auto 10px auto' // Reduced bottom margin from 25px to 10px
-            }}>
-              <div style={{ display: 'flex', gap: '4px' }}>
-                {tabs.map((tab) => {
-                  const isActive = activeTab === tab.id;
-                  return (
-                    <button 
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)} 
-                      style={{ 
-                        border: 'none', 
-                        background: isActive ? 'white' : 'transparent', 
-                        color: isActive ? '#0f172a' : '#64748b',
-                        padding: '6px 20px', // Slightly tighter padding
-                        borderRadius: '8px', 
-                        cursor: 'pointer', 
-                        fontSize: '0.9rem', 
-                        fontWeight: 700,
-                        boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                        transition: 'all 0.2s ease',
-                        lineHeight: '1.2'   // Ensures no extra height from line-height
-                      }}
-                    >
-                      {tab.label}
-                    </button>
-                  );
-                })}
+            {/* View Selection Tabs (STICKY, FULL-BLEED, TALLER) */}
+            <div
+              className="hp-sticky-tabs"
+              style={{
+                position: 'sticky',
+                top: '10px', // header height
+                zIndex: 1600,
+
+                // full-bleed trick (break out of centered container)
+                width: '100vw',
+                marginLeft: 'calc(50% - 50vw)',
+                marginRight: 'calc(50% - 50vw)',
+
+                // make it taller
+                padding: '6px 0', // ↑ higher Y height
+
+                background: '#f9fafb',
+                borderBottom: '1px solid #e2e8f0',
+                boxShadow: '0 6px 18px rgba(0,0,0,0.05)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  minHeight: '64px', // ↑ extra height; adjust to taste
+                  padding: '0 16px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '6px',
+                    backgroundColor: '#f1f5f9',
+                    padding: '6px',
+                    borderRadius: '14px',
+                  }}
+                >
+                  {tabs.map((tab) => {
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        style={{
+                          border: 'none',
+                          background: isActive ? 'white' : 'transparent',
+                          color: isActive ? '#0f172a' : '#64748b',
+
+                          // slightly bigger buttons for a “taller” feel
+                          padding: '10px 26px',
+                          borderRadius: '12px',
+                          cursor: 'pointer',
+                          fontSize: '0.95rem',
+                          fontWeight: 800,
+                          letterSpacing: '-0.01em',
+                          boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.10)' : 'none',
+                          transition: 'all 0.2s ease',
+                          lineHeight: '1.1',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-
+          </div>
+          <div className="container" style={{ maxWidth: '1200px', margin: '0 auto' }}>
             <div className="label-header" style={{ marginBottom: '25px', marginTop: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1 }}>
@@ -614,9 +703,51 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                         <span>{data.effective_time || 'N/A'}</span>
                     </div>
                     <div className="meta-item">
-                        <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>NDC Code</span>
-                        <span style={{ fontFamily: 'monospace', color: '#333' }}>{data.ndc || 'N/A'}</span>
+                      <span
+                        style={{
+                          display: 'block',
+                          fontSize: '0.75em',
+                          color: '#888',
+                          textTransform: 'uppercase',
+                          letterSpacing: '1px',
+                          marginBottom: '3px'
+                        }}
+                      >
+                        NDC Code
+                      </span>
+
+                      {!ndcRaw ? (
+                        <span style={{ fontFamily: 'monospace', color: '#333' }}>N/A</span>
+                      ) : ndcTooLong ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontFamily: 'monospace', color: '#333' }}>
+                            {ndcRaw.slice(0, 12)}…
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setNdcModalOpen(true);
+                            }}
+                            style={{
+                              border: '1px solid #e2e8f0',
+                              background: 'white',
+                              color: '#334155',
+                              padding: '4px 10px',
+                              borderRadius: '999px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            View full
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{ fontFamily: 'monospace', color: '#333' }}>{ndcRaw}</span>
+                      )}
                     </div>
+
                     <div className="meta-item">
                         <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Application Number</span>
                         <span style={{ fontFamily: 'monospace', color: '#333' }}>{data.application_number || 'N/A'}</span>
@@ -664,7 +795,57 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                 <div id="faers-loading" className="loader"></div>
                 <div id="dashboard-content" className="dashboard-grid" style={{ display: 'none' }}>
                     <div className="chart-card full-width">
-                    <h3>Label Coverage Analysis</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                      <h3 style={{ margin: 0 }}>Label Coverage Analysis</h3>
+
+                      {/* Toggle */}
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          gap: '4px',
+                          padding: '4px',
+                          background: '#f1f5f9',
+                          borderRadius: '999px',
+                          border: '1px solid #e2e8f0',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setFaersCoverageFilter('all')}
+                          style={{
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '6px 12px',
+                            borderRadius: '999px',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            background: faersCoverageFilter === 'all' ? 'white' : 'transparent',
+                            boxShadow: faersCoverageFilter === 'all' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                            color: faersCoverageFilter === 'all' ? '#0f172a' : '#64748b',
+                          }}
+                        >
+                          All
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setFaersCoverageFilter('not_presented')}
+                          style={{
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '6px 12px',
+                            borderRadius: '999px',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            background: faersCoverageFilter === 'not_presented' ? 'white' : 'transparent',
+                            boxShadow: faersCoverageFilter === 'not_presented' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                            color: faersCoverageFilter === 'not_presented' ? '#0f172a' : '#64748b',
+                          }}
+                        >
+                          Not Presented
+                        </button>
+                      </div>
+                    </div>
                     <div className="table-container">
                         <table id="coverageTable" className="coverage-table">
                             <thead>
@@ -902,6 +1083,129 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             <button id="chat-send">Send</button>
         </div>
       </div>
+
+      {ndcModalOpen && (
+        <div
+          onClick={closeNdcModal} // clicking outside closes
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            zIndex: 5000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()} // keep clicks inside from closing
+            style={{
+              width: 'min(720px, 92vw)',
+              maxHeight: 'min(520px, 80vh)',
+              background: 'white',
+              borderRadius: '16px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+              border: '1px solid #e2e8f0',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <div
+              style={{
+                padding: '14px 16px',
+                borderBottom: '1px solid #f1f5f9',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: '#f8fafc'
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }}>
+                  NDC Codes
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>
+                  ESC or outside click to close
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeNdcModal}
+                aria-label="Close"
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '10px',
+                  border: '1px solid #e2e8f0',
+                  background: 'white',
+                  cursor: 'pointer',
+                  fontSize: '18px',
+                  lineHeight: 1,
+                  color: '#334155',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ padding: '16px', overflow: 'auto' }}>
+              {ndcList.length > 0 ? (
+                <div
+                  style={{
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {ndcList.map((code, i) => (
+                    <div
+                      key={`${code}-${i}`}
+                      style={{
+                        padding: '10px 12px',
+                        display: 'flex',
+                        gap: '12px',
+                        alignItems: 'baseline',
+                        borderTop: i === 0 ? 'none' : '1px solid #f1f5f9',
+                        background: i % 2 === 0 ? '#ffffff' : '#fbfdff'
+                      }}
+                    >
+                      <div
+                        style={{
+                          minWidth: '44px',
+                          fontSize: '0.75rem',
+                          color: '#94a3b8',
+                          fontWeight: 800
+                        }}
+                      >
+                        #{i + 1}
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                          color: '#0f172a',
+                          fontSize: '0.95rem',
+                          userSelect: 'text'
+                        }}
+                      >
+                        {code}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ color: '#64748b' }}>No NDC codes available.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

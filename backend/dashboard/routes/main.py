@@ -1,17 +1,20 @@
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_from_directory, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_from_directory, current_app, send_file
 from flask_login import login_required, current_user
 import os
 import zipfile
 import re
 import json
-from difflib import HtmlDiff
+from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+from datetime import datetime
+from collections import Counter
 
-from database import db, Favorite, Annotation, FavoriteComparison, ToxAgent
+from database import db, Favorite, Annotation, ToxAgent
+from dashboard.services.fdalabel_db import FDALabelDBService
 from dashboard.services.xml_handler import (
     parse_spl_xml,
     extract_metadata_from_xml,
-    flatten_sections,
-    get_aggregate_content
 )
 from dashboard.services.fda_client import (
     get_label_metadata,
@@ -19,12 +22,7 @@ from dashboard.services.fda_client import (
     find_labels,
     find_labels_by_set_ids
 )
-from dashboard.utils import (
-    normalize_text_for_diff,
-    extract_numeric_section_id,
-    normalize_title_text,
-    get_section_sort_key
-)
+
 from dashboard.config import Config
 import uuid
 from openpyxl import load_workbook
@@ -216,26 +214,6 @@ def import_fdalabel():
                 'dailymed_pdf_link': dailymed_pdf_link,
                 'source': 'excel'
             })
-
-        if not labels:
-            return jsonify({'success': False, 'error': 'No valid labels found in the Excel file.'}), 400
-
-        # Store in temporary file
-        import_id = str(uuid.uuid4())
-        import_filename = f"import_{import_id}.json"
-        import_path = os.path.join(Config.UPLOAD_FOLDER, import_filename)
-        
-        with open(import_path, 'w', encoding='utf-8') as f:
-            json.dump(labels, f)
-
-        return jsonify({
-            'success': True, 
-            'redirect_url': url_for('main.search', import_id=import_id)
-        })
-
-    except Exception as e:
-        current_app.logger.error(f"Error importing Excel: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
 
         if not labels:
             return jsonify({'success': False, 'error': 'No valid labels found in the Excel file.'}), 400
@@ -572,8 +550,6 @@ def preferences():
     
     return jsonify({'success': True, 'message': 'Preferences saved successfully!'})
 
-from dashboard.services.fdalabel_db import FDALabelDBService
-
 @main_bp.route("/snippet-preview", methods=["GET"])
 def snippet_preview():
     """
@@ -603,3 +579,396 @@ def snippet_preview():
     except Exception as e:
         current_app.logger.error(f"Error in snippet_preview: {e}")
         return jsonify({"error": str(e)}), 500
+
+## export excel of a selected project.
+def _safe_str(v):
+    if v is None:
+        return ''
+    return str(v)
+
+def _fmt_eff_time(v):
+    """
+    Export as a string that your importer can read.
+    Prefer YYYY/MM/DD if we can normalize it; otherwise keep as-is.
+    """
+    if v is None:
+        return ''
+    if isinstance(v, datetime):
+        return v.strftime('%Y/%m/%d')
+
+    s = str(v).strip()
+    if not s:
+        return ''
+
+    digits = ''.join([c for c in s if c.isdigit()])
+    if len(digits) == 8:
+        y, m, d = digits[:4], digits[4:6], digits[6:8]
+        return f'{y}/{m}/{d}'
+
+    # try parse ISO-ish strings
+    try:
+        dt = datetime.fromisoformat(s.replace('Z', ''))
+        return dt.strftime('%Y/%m/%d')
+    except Exception:
+        return s
+
+@main_bp.route('/export_project', methods=['GET'])
+@login_required
+def export_project():
+    """
+    Export a project's labels into an FDALabel-importable Excel (.xlsx).
+
+    Import compatibility notes:
+      - Includes required "SET ID" column.
+      - Uses column headers that your import_fdalabel() recognizes.
+      - Includes additional fields too; importer ignores unknown columns.
+    """
+    project_id = request.args.get('project_id', type=int)
+    if not project_id:
+        return jsonify({'success': False, 'error': 'Missing project_id'}), 400
+
+    try:
+        # Fetch project favorites/labels.
+        # Your system stores favorites per-user + per-project, so filter by both.
+        favs = Favorite.query.filter_by(user_id=current_user.id, project_id=project_id).all()
+
+        if not favs:
+            return jsonify({'success': False, 'error': 'No labels found for this project'}), 404
+
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "FDALabel Export"
+
+        # Headers chosen to match the candidates in import_fdalabel()
+        headers = [
+            # --- REQUIRED ---
+            "SET ID",
+
+            # --- Columns your importer recognizes ---
+            "Trade Name",
+            "Generic/Proper Name(s)",
+            "Company",
+            "SPL Effective Date (YYYY/MM/DD)",
+            "Application Number(s)",
+            "Labeling Type",
+            "NDC(s)",
+            "Marketing Category",
+            "Dosage Form(s)",
+            "Route(s) of Administration",
+            "Established Pharmacologic Class(es)",
+            "Active Ingredient(s)",
+            "FDALabel Link",
+            "DailyMed SPL Link",
+            "DailyMed PDF Link",
+
+            # --- Extra fields (safe; ignored by importer) ---
+            "Product Type",
+            "Label Format",
+            "Source",
+            "Project ID"
+        ]
+        ws.append(headers)
+
+        # Write rows
+        for f in favs:
+            ws.append([
+                _safe_str(getattr(f, 'set_id', None)),
+                _safe_str(getattr(f, 'brand_name', None)),
+                _safe_str(getattr(f, 'generic_name', None)),
+                _safe_str(getattr(f, 'manufacturer_name', None)),
+                _fmt_eff_time(getattr(f, 'effective_time', None)),
+
+                _safe_str(getattr(f, 'application_number', None)),
+                _safe_str(getattr(f, 'labeling_type', None)),
+                _safe_str(getattr(f, 'ndc', None)),
+                _safe_str(getattr(f, 'marketing_category', None)),
+                _safe_str(getattr(f, 'dosage_forms', None)),
+                _safe_str(getattr(f, 'routes', None)),
+                _safe_str(getattr(f, 'epc', None)),
+                _safe_str(getattr(f, 'active_ingredients', None)),
+                _safe_str(getattr(f, 'fdalabel_link', None)),
+                _safe_str(getattr(f, 'dailymed_spl_link', None)),
+                _safe_str(getattr(f, 'dailymed_pdf_link', None)),
+
+                _safe_str(getattr(f, 'product_type', None)),
+                _safe_str(getattr(f, 'label_format', None)),
+                _safe_str(getattr(f, 'source', None)),
+                str(project_id),
+            ])
+
+        # Freeze header row and apply filter
+        ws.freeze_panes = "A2"
+        ws.auto_filter.ref = ws.dimensions
+
+        # Optional: reasonable column widths
+        widths = {
+            "A": 40,  # SET ID
+            "B": 28,  # Trade Name
+            "C": 32,  # Generic
+            "D": 28,  # Company
+            "E": 18,  # Effective
+            "F": 22,  # App #
+            "G": 18,  # Labeling type
+            "H": 24,  # NDC
+            "I": 22,  # Marketing category
+            "J": 22,  # Dosage forms
+            "K": 22,  # Routes
+            "L": 30,  # EPC
+            "M": 36,  # Active ingredients
+            "N": 36,  # FDALabel link
+            "O": 36,  # DailyMed SPL link
+            "P": 36,  # DailyMed PDF link
+        }
+        for col, w in widths.items():
+            ws.column_dimensions[col].width = w
+
+        # Save to BytesIO and return
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        # Filename: use project_id; if you later add Project model lookup, swap it in.
+        filename = f"project_{project_id}.xlsx"
+
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+        current_app.logger.exception(f"Error exporting project {project_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+def _norm_str(v):
+    if v is None:
+        return ""
+    s = str(v).strip()
+    return s
+
+def _parse_eff_time_to_date(v):
+    """
+    Returns a date object or None.
+    Handles YYYYMMDD, YYYY/MM/DD, YYYY-MM-DD, ISO strings, datetime.
+    """
+    if v is None:
+        return None
+    if isinstance(v, datetime):
+        return v.date()
+
+    s = str(v).strip()
+    if not s or s.lower() == "n/a":
+        return None
+
+    digits = "".join([c for c in s if c.isdigit()])
+    if len(digits) == 8:
+        try:
+            return datetime(int(digits[0:4]), int(digits[4:6]), int(digits[6:8])).date()
+        except Exception:
+            return None
+
+    try:
+        return datetime.fromisoformat(s.replace("Z", "")).date()
+    except Exception:
+        return None
+
+@main_bp.route('/project_stats', methods=['GET'])
+@login_required
+def project_stats():
+    """
+    Project Summary endpoint.
+
+    Always returns:
+      - total_labels, unique_manufacturers, unique_brands
+      - date_min, date_max
+      - product_type_counts, top_manufacturers
+      - document_type (with fallback if internal DB unavailable)
+      - cumulative_by_effective_time (for line chart)
+      - effective_time_summary (quality info)
+
+    Optionally returns:
+      - ingredient_breakdown (only when ?ingredient=... is provided)
+    """
+    project_id = request.args.get('project_id', type=int)
+    ingredient = request.args.get('ingredient', default=None, type=str)
+
+    if not project_id:
+        return jsonify({"success": False, "error": "Missing project_id"}), 400
+
+    try:
+        favs = Favorite.query.filter_by(user_id=current_user.id, project_id=project_id).all()
+
+        # Empty project: consistent payload
+        if not favs:
+            return jsonify({
+                "success": True,
+                "project_id": project_id,
+                "total_labels": 0,
+                "unique_manufacturers": 0,
+                "unique_brands": 0,
+                "date_min": None,
+                "date_max": None,
+                "product_type_counts": {},
+                "top_manufacturers": [],
+                "document_type": {
+                    "raw": {},
+                    "buckets": {
+                        "human_rx": 0, "human_otc": 0, "vaccine": 0,
+                        "animal_rx": 0, "animal_otc": 0,
+                        "other": 0, "unknown": 0
+                    },
+                    "note": "No labels in project."
+                },
+                "effective_time_summary": {
+                    "dated_labels": 0,
+                    "missing_effective_time": 0,
+                    "filled_from_db": 0
+                },
+                "cumulative_by_effective_time": [],
+                "ingredient_breakdown": None
+            }), 200
+
+        manufacturers = []
+        brands = []
+        eff_dates = []     # store date objects
+        product_types = []
+        set_ids = []
+
+        # Track which set_ids are missing local dates
+        missing_date_set_ids = []
+
+        for f in favs:
+            sid = getattr(f, "set_id", None)
+            if sid:
+                sid = str(sid)
+                set_ids.append(sid)
+
+            manufacturers.append(_norm_str(getattr(f, "manufacturer_name", None)) or "Unknown")
+            brands.append(_norm_str(getattr(f, "brand_name", None)) or "Unknown")
+
+            # Prefer your existing parser if present:
+            # dt = _parse_eff_time_to_dt(getattr(f, "effective_time", None))
+            # d = dt.date() if dt else None
+            d = _parse_eff_time_to_date(getattr(f, "effective_time", None))
+            if d:
+                eff_dates.append(d)
+            else:
+                if sid:
+                    missing_date_set_ids.append(sid)
+
+            pt = _norm_str(getattr(f, "product_type", None))
+            if not pt:
+                lt = _norm_str(getattr(f, "labeling_type", None)).upper()
+                mc = _norm_str(getattr(f, "marketing_category", None)).upper()
+                if "OTC" in lt or "OTC" in mc:
+                    pt = "OTC"
+                elif lt or mc:
+                    pt = "Rx"
+                else:
+                    pt = "Unknown"
+            product_types.append(pt)
+
+        manu_set = {m for m in manufacturers if m and m != "Unknown"}
+        brand_set = {b for b in brands if b and b != "Unknown"}
+
+        # DB-powered breakdowns
+        internal_ok = FDALabelDBService.check_connectivity()
+
+        # ---- Fill missing effective_time from internal DB (biggest impact on your curve) ----
+        filled_from_db = 0
+        if internal_ok and missing_date_set_ids:
+            db_map = FDALabelDBService.effective_time_map_for_set_ids(missing_date_set_ids)
+            for sid in missing_date_set_ids:
+                v = db_map.get(sid)
+                d = _parse_eff_time_to_date(v)
+                if d:
+                    eff_dates.append(d)
+                    filled_from_db += 1
+
+        # Date range (after fill)
+        date_min = min(eff_dates).isoformat() if eff_dates else None
+        date_max = max(eff_dates).isoformat() if eff_dates else None
+
+        pt_counts = dict(Counter(product_types))
+        manu_counts = Counter(manufacturers)
+
+        top_manufacturers = [
+            {"name": name, "count": count}
+            for name, count in manu_counts.most_common(10)
+            if name and name != "Unknown"
+        ]
+
+        # Document type
+        if internal_ok and set_ids:
+            document_type = FDALabelDBService.document_type_breakdown_for_set_ids(set_ids)
+        else:
+            document_type = {
+                "raw": {},
+                "buckets": {
+                    "human_rx": 0, "human_otc": 0, "vaccine": 0,
+                    "animal_rx": 0, "animal_otc": 0,
+                    "other": 0,
+                    "unknown": len(set_ids) if set_ids else len(favs)
+                },
+                "note": "Internal DB not available; document_type breakdown unavailable."
+            }
+
+        # ---- Cumulative curve series (daily -> cumulative) ----
+        daily = Counter(eff_dates)
+        cumulative_by_effective_time = []
+        if daily:
+            cum = 0
+            for day in sorted(daily.keys()):
+                cum += daily[day]
+                cumulative_by_effective_time.append({
+                    "date": day.isoformat(),
+                    "cumulative_count": cum
+                })
+
+        effective_time_summary = {
+            "dated_labels": len(eff_dates),
+            "missing_effective_time": max(len(favs) - len(eff_dates), 0),
+            "filled_from_db": filled_from_db
+        }
+
+        # Ingredient breakdown (optional)
+        ingredient_breakdown = None
+        if ingredient and ingredient.strip():
+            q = ingredient.strip()
+            if internal_ok and set_ids:
+                ingredient_breakdown = FDALabelDBService.ingredient_role_breakdown_for_set_ids(
+                    set_ids=set_ids,
+                    substance_name=q
+                )
+            else:
+                ingredient_breakdown = {
+                    "query": q,
+                    "active_count": 0,
+                    "inactive_count": 0,
+                    "both_count": 0,
+                    "not_found_count": len(set_ids) if set_ids else len(favs),
+                    "matches": {},
+                    "note": "Internal DB not available; ingredient role breakdown unavailable."
+                }
+
+        return jsonify({
+            "success": True,
+            "project_id": project_id,
+            "total_labels": len(favs),
+            "unique_manufacturers": len(manu_set),
+            "unique_brands": len(brand_set),
+            "date_min": date_min,
+            "date_max": date_max,
+            "product_type_counts": pt_counts,
+            "top_manufacturers": top_manufacturers,
+            "document_type": document_type,
+            "effective_time_summary": effective_time_summary,
+            "cumulative_by_effective_time": cumulative_by_effective_time,
+            "ingredient_breakdown": ingredient_breakdown
+        }), 200
+
+    except Exception as e:
+        current_app.logger.exception(f"Error computing project_stats for {project_id}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500

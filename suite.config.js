@@ -1,11 +1,11 @@
 // suite.config.js
 module.exports = {
   frontend: {
-    port: 8848,
+    port: 8841,
     host: '0.0.0.0'
   },
   backend: {
-    port: 8849,
+    port: 8842,
     host: '0.0.0.0'
   }
 };
