@@ -102,6 +102,7 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
                 "top_k": kwargs.get("top_k", 50),
             }
 
+            stream = kwargs.get("stream", False)
             response = client.chat.completions.create(
                 model=model,
                 messages=messages,
@@ -109,9 +110,18 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
                 max_tokens=max_tokens,
                 top_p=top_p,
                 extra_body=vllm_extras,
-                stream=kwargs.get("stream", False)
+                stream=stream
             )
-            return response.choices[0].message.content
+
+            if stream:
+                full_content = ""
+                for chunk in response:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        full_content += chunk.choices[0].delta.content
+                return full_content
+            else:
+                return response.choices[0].message.content
+
         except Exception as e:
             logger.error(f"LLM error: {e}")
             raise e
