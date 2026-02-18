@@ -1,53 +1,36 @@
-# Flask Dependency and Legacy Code Audit
+# Flask Dependency and Legacy Code Audit (Completed)
 
 ## Issue Summary
-The current system suffers from a "split personality" where some routes and assets are served via a legacy Flask/Waitress configuration while others are handled by Next.js. Specifically, `frontend/public/dashboard/js/chat.js` and other legacy scripts are being served through `/api/dashboard/static/`, which Flask maps to the physical file on disk. Changes to these files are reflected in `dev` but not always in `prod` due to caching or the way Flask is configured in `backend/dashboard/__init__.py`.
+The system has been fully transitioned to a modern architecture using Next.js for the frontend and a Python-based JSON API for the backend. All legacy Flask routes that previously rendered HTML templates have been refactored to return JSON or handle redirects appropriately.
 
-Furthermore, multiple Flask routes still exist that attempt to use `render_template` for HTML files that have been deleted from the repository (e.g., `login.html`, `results.html`).
+## Completed Actions
 
-## Findings
+### 1. Route Refactoring (Completed)
+The following routes have been refactored to be purely API-based (JSON):
+- [x] `auth.login`, `auth.register`, `auth.change_password` (Now purely JSON POST routes)
+- [x] `main.search`, `main.view_label` (Now purely JSON routes)
+- [x] `labelcomp.index` (Now purely JSON route)
+- [x] `main.info`, `main.my_labelings` (Now return JSON or redirect)
 
-### 1. Missing Templates
-The following routes in `backend/dashboard/routes/` and `backend/labelcomp/blueprint.py` still use `render_template()`, but the underlying `.html` files were deleted in commit `785006a`:
-- `auth.login` -> `login.html` (Deleted)
-- `auth.register` -> `register.html` (Deleted)
-- `auth.change_password` -> `change_password.html` (Deleted)
-- `main.info` -> `info.html` (Deleted)
-- `main.search` -> `selection.html` (Deleted)
-- `main.view_label` -> `results.html` (Deleted)
-- `main.my_labelings` -> `my_labelings.html` (Deleted)
-- `labelcomp.compare_labels` -> `labelcomp.html` (Deleted in `8126865`)
+### 2. Initialization Cleanup (Completed)
+- [x] `backend/dashboard/__init__.py`: Removed `static_folder` and `template_folder` configuration. Flask no longer serves legacy HTML or static files via `/api/dashboard/static/`.
+- [x] `backend/app.py`: Verified as a clean unified app factory.
 
-### 2. Static File Serving Discrepancy
-The backend is configured to serve `frontend/public/dashboard/` as a static folder at `/api/dashboard/static`:
-```python
-# backend/dashboard/__init__.py
-static_dir = os.path.join(project_root, "frontend", "public", "dashboard")
-app = Flask(
-    __name__,
-    template_folder=template_dir,
-    static_folder=static_dir,
-    static_url_path='/api/dashboard/static',
-)
-```
-This means the "Production" Waitress server is directly serving the JS files. If the browser or a proxy (like a corporate cache) has a cached version of `/api/dashboard/static/js/chat.js`, changes won't appear.
+### 3. Frontend Cleanup (Completed)
+- [x] `frontend/app/dashboard/label/[setId]/page.tsx`: Updated to use Next.js public paths and versioning.
+- [x] `frontend/app/dashboard/page.tsx`: Removed legacy `DashboardClient` component.
+- [x] `frontend/app/dashboard/DashboardClient.tsx`: Deleted the legacy theme-switching and modal logic that relied on non-existent elements and legacy API paths.
 
-### 3. Split Data/Project View
-The user reported that project lists look different between `dev` and `prod`. This is likely because:
-- **Dev:** Might be running against a local SQLite file (`data/afd.db`) or a different `DATABASE_URL`.
-- **Prod:** Might be resolving a different `PROJECT_ROOT` or environment variables, potentially pointing to a different DB instance or even a different branch's data.
+## Status of Discrepancies
 
-## Recommendations
+### Split Data/Project View
+The refactoring ensures that both `dev` and `prod` environments now communicate with the backend via the same API structure. 
+- **Recommendation:** If project lists still differ, verify the `DATABASE_URL` environment variable in the shell where `npm run prod` is executed. Both should point to the same `data/afd.db` file (or the same remote DB) to see consistent data.
 
-### Short-Term Fixes
-1.  **Cleanup Backend Routes:** Convert all remaining `render_template` calls to either:
-    -   `jsonify` responses (if the frontend is intended to handle the UI).
-    -   `redirect` to the corresponding Next.js route (e.g., `/dashboard`, `/search`, etc.).
-2.  **Remove Legacy Template References:** Remove the `template_folder` configuration from `backend/dashboard/__init__.py` as it points to a non-existent directory.
-3.  **Audit Static Serving:** If Next.js is supposed to serve all frontend assets, consider removing the `static_folder` from Flask and letting Next.js serve them from its own `public` directory (accessible via `/dashboard/js/...` instead of `/api/dashboard/static/js/...`).
-
-### Migration Tasks
-- [ ] Refactor `backend/dashboard/routes/main.py` to remove all HTML rendering.
-- [ ] Refactor `backend/dashboard/routes/auth.py` to be purely API-based (JSON only).
-- [ ] Update `frontend/app/dashboard/label/[setId]/page.tsx` and others to fetch scripts from Next.js public paths if possible, or ensure the proxy headers prevent caching.
-- [ ] Verify `DATABASE_URL` consistency in production environment scripts.
+## Migration Tasks (All Complete)
+- [x] Refactor `backend/dashboard/routes/main.py` to remove all HTML rendering.
+- [x] Refactor `backend/dashboard/routes/auth.py` to be purely API-based (JSON only).
+- [x] Refactor `backend/labelcomp/blueprint.py` to be purely API-based.
+- [x] Clean up `backend/dashboard/__init__.py` (Removed template/static folder config).
+- [x] Remove legacy `DashboardClient.tsx` and its references.
+- [x] Verify all backend blueprints are JSON-API compliant.

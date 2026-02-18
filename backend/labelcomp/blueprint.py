@@ -1,22 +1,23 @@
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app
 from flask_login import current_user, login_required
-from database import Favorite
+from database import Favorite, ComparisonSummary
 from dashboard.services.xml_handler import parse_spl_xml, flatten_sections, get_aggregate_content
-from dashboard.services.fdalabel_db import FDALabelDBService
 from dashboard.services.fda_client import get_label_metadata, get_label_xml
 from dashboard.utils import normalize_text_for_diff, get_section_sort_key, normalize_title_text, extract_numeric_section_id
 import re
 import json
 import hashlib
-from difflib import HtmlDiff
+from difflib import SequenceMatcher
 from .compare import get_comparison_summary
 
-labelcomp_bp = Blueprint('labelcomp', __name__, template_folder='templates')
+labelcomp_bp = Blueprint('labelcomp', __name__)
 
 @labelcomp_bp.route('/summarize', methods=['POST'])
 @login_required
 def summarize():
     data = request.json
+    if not data:
+        return jsonify({'error': 'Missing JSON data'}), 400
     set_ids = data.get('set_ids')
     comparison_data = data.get('comparison_data')
     label_names = data.get('label_names')
@@ -32,7 +33,7 @@ def summarize():
 
 @labelcomp_bp.route('/', methods=['GET', 'POST'], strict_slashes=False)
 def index():
-    """Homepage for Label Comparison app."""
+    """Returns label comparison data as JSON."""
     if request.method == 'POST':
         set_ids = request.form.getlist('set_ids')
         drug_name = request.form.get('drug_name')
@@ -40,46 +41,35 @@ def index():
         set_ids = request.args.getlist('set_ids')
         drug_name = request.args.get('drug_name')
     
-    # If no set_ids, we just show the base page with an 'Add Label' option
     if not set_ids:
-        return render_template('labelcomp.html', 
-                               labels=[], 
-                               comparison_data=[],
-                               selected_labels_metadata=[],
-                               drug_name=drug_name,
-                               current_set_ids=[])
+        return jsonify({
+            'labels': [], 
+            'comparison_data': [],
+            'selected_labels_metadata': [],
+            'drug_name': drug_name,
+            'current_set_ids': []
+        })
 
-    # Reuse logic from dashboard/routes/main.py:compare() but adapted for labelcomp
-    # For now, let's keep it simple and see what's needed.
-    # I'll basically copy the core comparison logic here.
-    
     selected_labels_metadata = []
-    formats = set()
     labels_data = []
     all_section_keys = {}
     comparison_format = 'PLR'
 
     for set_id in set_ids:
-        # User requested to use DailyMed like other apps
         label_xml_raw = get_label_xml(set_id)
-        
         if label_xml_raw:
             from dashboard.services.xml_handler import extract_metadata_from_xml
-            doc_title, sections, _, _, _ = parse_spl_xml(label_xml_raw)
+            doc_title, sections, _, _, _ = parse_spl_xml(label_xml_raw, set_id)
             flat_sections = flatten_sections(sections)
             
-            # Use metadata from XML if possible
             meta = extract_metadata_from_xml(label_xml_raw)
             if not meta.get('brand_name') or meta.get('brand_name') == 'N/A':
-                # Fallback to metadata service which checks more sources
                 meta = get_label_metadata(set_id) or meta
             
-            # Ensure set_id is in meta for frontend
             if not meta.get('set_id'):
                 meta['set_id'] = set_id
 
             selected_labels_metadata.append(meta)
-            formats.add(meta.get('label_format', 'PLR'))
             comparison_format = meta.get('label_format', 'PLR')
 
             sections_by_key = {}
@@ -116,26 +106,18 @@ def index():
         sorted_keys = sorted(all_section_keys.keys())
 
     comparison_data = []
-    from difflib import SequenceMatcher
 
     def nuanced_word_diff(text1, text2):
-        """Performs word-level diff and returns two HTML strings."""
         if not text1: text1 = ""
         if not text2: text2 = ""
-        
-        # Simple tokenization by whitespace
         words1 = text1.split()
         words2 = text2.split()
-        
         matcher = SequenceMatcher(None, words1, words2)
-        html1 = []
-        html2 = []
-        
+        html1, html2 = [], []
         for tag, i1, i2, j1, j2 in matcher.get_opcodes():
             if tag == 'equal':
                 chunk = " ".join(words1[i1:i2])
-                html1.append(chunk)
-                html2.append(chunk)
+                html1.append(chunk); html2.append(chunk)
             elif tag == 'insert':
                 chunk = " ".join(words2[j1:j2])
                 html2.append(f'<ins class="diff-add">{chunk}</ins>')
@@ -143,11 +125,9 @@ def index():
                 chunk = " ".join(words1[i1:i2])
                 html1.append(f'<del class="diff-sub">{chunk}</del>')
             elif tag == 'replace':
-                chunk1 = " ".join(words1[i1:i2])
-                chunk2 = " ".join(words2[j1:j2])
+                chunk1, chunk2 = " ".join(words1[i1:i2]), " ".join(words2[j1:j2])
                 html1.append(f'<del class="diff-sub">{chunk1}</del>')
                 html2.append(f'<ins class="diff-add">{chunk2}</ins>')
-        
         return " ".join(html1), " ".join(html2)
 
     def aggressive_normalize(lines):
@@ -156,41 +136,25 @@ def index():
         return re.sub(r'[^a-z0-9]', '', text)
 
     for key in sorted_keys:
-        contents = []
-        for label in labels_data:
-            contents.append(label['sections_by_key'].get(key))
-        
+        contents = [label['sections_by_key'].get(key) for label in labels_data]
         display_titles = sorted(list(all_section_keys[key].values()))
         display_title = " / ".join(display_titles)
-
         normalized_contents = [tuple(normalize_text_for_diff(c)) if c else None for c in contents]
         agg_normalized_contents = [aggressive_normalize(nc) for nc in normalized_contents]
-        
         is_empty = all(not nc for nc in agg_normalized_contents)
         has_all = all(nc is not None for nc in agg_normalized_contents)
         is_same = has_all and len(set(agg_normalized_contents)) == 1
-
-        diff_html_output = None
         is_major_change = False
         nuanced_contents = [None, None]
         
         if not is_same and len(contents) == 2:
-            plain_text1_lines = normalized_contents[0] if normalized_contents[0] is not None else []
-            plain_text2_lines = normalized_contents[1] if normalized_contents[1] is not None else []
-            
-            t1 = " ".join(plain_text1_lines)
-            t2 = " ".join(plain_text2_lines)
-            
-            similarity = 0
-            if t1 and t2:
-                similarity = SequenceMatcher(None, t1, t2).ratio()
-            
+            t1 = " ".join(normalized_contents[0]) if normalized_contents[0] else ""
+            t2 = " ".join(normalized_contents[1]) if normalized_contents[1] else ""
+            similarity = SequenceMatcher(None, t1, t2).ratio() if t1 and t2 else 0
             if similarity < 0.3 and len(t1) > 200 and len(t2) > 200:
                 is_major_change = True
             else:
-                # Generate nuanced word diffs
-                h1, h2 = nuanced_word_diff(t1, t2)
-                nuanced_contents = [h1, h2]
+                nuanced_contents = list(nuanced_word_diff(t1, t2))
 
         comparison_data.append({
             'title': display_title,
@@ -200,42 +164,23 @@ def index():
             'nuanced_contents': nuanced_contents,
             'is_same': is_same,
             'is_empty': is_empty,
-            'is_major_change': is_major_change,
-            'diff_html': diff_html_output
+            'is_major_change': is_major_change
         })
 
-    user_favorites = []
-    user_obj = current_user._get_current_object() if current_user.is_authenticated else None
-    if user_obj:
-        user_favorites = Favorite.query.filter_by(user_id=user_obj.id).order_by(Favorite.timestamp.desc()).all()
-
-    # Check for existing summary in cache
     existing_summary = None
     if set_ids:
-        from database import ComparisonSummary
         sorted_ids = sorted(set_ids)
         ids_hash = hashlib.sha256(json.dumps(sorted_ids).encode('utf-8')).hexdigest()
         cached = ComparisonSummary.query.filter_by(set_ids_hash=ids_hash).first()
         if cached:
             existing_summary = cached.summary_content
 
-    # JSON Response for new frontend
-    if request.args.get('json') == '1' or request.headers.get('Accept') == 'application/json':
-        return jsonify({
-            'labels': [ld['title'] for ld in labels_data],
-            'comparison_data': comparison_data,
-            'selected_labels_metadata': selected_labels_metadata,
-            'drug_name': drug_name,
-            'current_set_ids': set_ids,
-            'existing_summary': existing_summary,
-            'is_authenticated': current_user.is_authenticated
-        })
-
-    return render_template('labelcomp.html', 
-                           labels=[ld['title'] for ld in labels_data], 
-                           comparison_data=comparison_data,
-                           selected_labels_metadata=selected_labels_metadata,
-                           drug_name=drug_name,
-                           current_set_ids=set_ids,
-                           user_favorites=user_favorites,
-                           existing_summary=existing_summary)
+    return jsonify({
+        'labels': [ld['title'] for ld in labels_data],
+        'comparison_data': comparison_data,
+        'selected_labels_metadata': selected_labels_metadata,
+        'drug_name': drug_name,
+        'current_set_ids': set_ids,
+        'existing_summary': existing_summary,
+        'is_authenticated': current_user.is_authenticated
+    })

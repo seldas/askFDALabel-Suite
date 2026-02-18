@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import DashboardClient from './DashboardClient';
+
 import { useUser } from '../context/UserContext';
 import Header from "../components/Header";
 import ProjectSummary, { type ProjectStats } from './components/ProjectSummary';
@@ -466,7 +466,7 @@ export default function DashboardPage() {
 
   return (
     <main className="hp-main-layout" suppressHydrationWarning style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-      <DashboardClient />
+
 
       {/* Unified Header & Menu */}
       <Header activeApp="dashboard" />

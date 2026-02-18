@@ -1,116 +1,86 @@
 import re
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify
+from flask import Blueprint, request, jsonify
 from flask_login import login_user, login_required, logout_user, current_user
-from urllib.parse import urlparse
-from database import db, User, Project
+from database import db, User
 import logging
 
 logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__)
 
-@auth_bp.route('/login', methods=['GET', 'POST'])
+@auth_bp.route('/login', methods=['POST'])
 def login():
     if current_user.is_authenticated:
-        if request.is_json:
-            return jsonify({'success': True, 'message': 'Already authenticated'})
-        return redirect('/')
+        return jsonify({'success': True, 'message': 'Already authenticated'})
     
-    if request.method == 'POST':
-        if request.is_json:
-            data = request.get_json()
-            username = data.get('username')
-            password = data.get('password')
-        else:
-            username = request.form.get('username')
-            password = request.form.get('password')
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'Missing JSON data'}), 400
 
-        user = User.query.filter_by(username=username).first()
-        if user and user.check_password(password):
-            login_user(user)
-            if request.is_json:
-                return jsonify({'success': True})
-            return redirect('/')
-        else:
-            if request.is_json:
-                return jsonify({'success': False, 'error': 'Invalid username or password'}), 401
-            return render_template('login.html', error='Invalid username or password')
-            
-    return render_template('login.html')
+    username = data.get('username')
+    password = data.get('password')
 
-@auth_bp.route('/register', methods=['GET', 'POST'])
+    user = User.query.filter_by(username=username).first()
+    if user and user.check_password(password):
+        login_user(user)
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False, 'error': 'Invalid username or password'}), 401
+
+@auth_bp.route('/register', methods=['POST'])
 def register():
     if current_user.is_authenticated:
-        if request.is_json:
-            return jsonify({'success': True, 'message': 'Already authenticated'})
-        return redirect('/')
+        return jsonify({'success': True, 'message': 'Already authenticated'})
 
-    if request.method == 'POST':
-        if request.is_json:
-            data = request.get_json()
-            username = data.get('username', '').strip()
-            password = data.get('password')
-        else:
-            username = request.form.get('username', '').strip()
-            password = request.form.get('password')
-        
-        if not username:
-            if request.is_json:
-                return jsonify({'success': False, 'error': 'Username is required'}), 400
-            return render_template('register.html', error='Username is required')
-            
-        if not re.match(r'^[a-zA-Z0-9.@_\+-]+$', username):
-            error_msg = 'Invalid username. Use only letters, numbers, and . @ _ - + (no spaces)'
-            if request.is_json:
-                return jsonify({'success': False, 'error': error_msg}), 400
-            return render_template('register.html', error=error_msg)
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'Missing JSON data'}), 400
 
-        if User.query.filter_by(username=username).first():
-            if request.is_json:
-                return jsonify({'success': False, 'error': 'Username already exists'}), 400
-            return render_template('register.html', error='Username already exists')
+    username = data.get('username', '').strip()
+    password = data.get('password')
+    
+    if not username:
+        return jsonify({'success': False, 'error': 'Username is required'}), 400
         
-        new_user = User(username=username)
-        new_user.set_password(password)
-        db.session.add(new_user)
-        db.session.commit()
-        
-        login_user(new_user)
-        if request.is_json:
-            return jsonify({'success': True})
-        return redirect('/')
-    return render_template('register.html')
+    if not re.match(r'^[a-zA-Z0-9.@_\+-]+$', username):
+        return jsonify({
+            'success': False, 
+            'error': 'Invalid username. Use only letters, numbers, and . @ _ - + (no spaces)'
+        }), 400
+
+    if User.query.filter_by(username=username).first():
+        return jsonify({'success': False, 'error': 'Username already exists'}), 400
+    
+    new_user = User(username=username)
+    new_user.set_password(password)
+    db.session.add(new_user)
+    db.session.commit()
+    
+    login_user(new_user)
+    return jsonify({'success': True})
 
 @auth_bp.route('/logout')
 @login_required
 def logout():
     logout_user()
-    if request.is_json or request.headers.get('Accept') == 'application/json':
-        return jsonify({'success': True})
-    return redirect('/')
+    return jsonify({'success': True})
 
-@auth_bp.route('/change_password', methods=['GET', 'POST'])
+@auth_bp.route('/change_password', methods=['POST'])
 @login_required
 def change_password():
-    if request.method == 'POST':
-        if request.is_json:
-            data = request.get_json()
-            new_password = data.get('password')
-        else:
-            new_password = request.form.get('password')
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'Missing JSON data'}), 400
 
-        if not new_password:
-            if request.is_json:
-                return jsonify({'success': False, 'error': 'Password cannot be empty'}), 400
-            return render_template('change_password.html', error='Password cannot be empty')
-        
-        current_user.set_password(new_password)
-        db.session.commit()
-        
-        if request.is_json:
-            return jsonify({'success': True})
-        return redirect('/')
-    return render_template('change_password.html')
+    new_password = data.get('password')
+
+    if not new_password:
+        return jsonify({'success': False, 'error': 'Password cannot be empty'}), 400
+    
+    current_user.set_password(new_password)
+    db.session.commit()
+    
+    return jsonify({'success': True})
 
 @auth_bp.route('/session')
 def session():

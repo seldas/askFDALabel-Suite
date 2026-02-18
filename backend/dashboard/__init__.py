@@ -4,23 +4,13 @@ from dotenv import load_dotenv
 
 from pathlib import Path
 from dashboard.config import Config
-from database import db, migrate, login_manager, User, Project, Favorite, FavoriteComparison, PgxBiomarker, PgxAssessment, PgxSynonym, MeddraSOC
+from database import db, migrate, login_manager, User, Project, Favorite, FavoriteComparison, MeddraSOC
 
 def create_app(config_class=Config):
     env_path = Path(__file__).resolve().parent.parent.parent / '.env'
     load_dotenv(dotenv_path=env_path)
     
-    base_dir = os.path.abspath(os.path.dirname(__file__))
-    project_root = os.path.abspath(os.path.join(base_dir, "..", ".."))
-    template_dir = os.path.join(project_root, "frontend", "public", "dashboard", "templates")
-    static_dir = os.path.join(project_root, "frontend", "public", "dashboard")
-
-    app = Flask(
-        __name__,
-        template_folder=template_dir,
-        static_folder=static_dir,
-        static_url_path='/api/dashboard/static',
-    )
+    app = Flask(__name__)
     app.config.from_object(config_class)
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
