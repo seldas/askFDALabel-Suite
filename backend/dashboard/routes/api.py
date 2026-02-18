@@ -1455,10 +1455,14 @@ def api_diri_assess(set_id):
 
 @api_bp.route('/pgx/assess/<set_id>')
 def api_pgx_assess(set_id):
-    force_refresh = request.args.get('refresh') == 'true'
-    user_obj = current_user._get_current_object() if current_user.is_authenticated else None
-    result = run_pgx_assessment(set_id, user=user_obj, force_refresh=force_refresh)
-    if 'error' in result:
-        return jsonify({'error': result['error']}), 500
-    return jsonify(result)
+    try:
+        force_refresh = request.args.get('refresh') == 'true'
+        user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+        result = run_pgx_assessment(set_id, user=user_obj, force_refresh=force_refresh)
+        if 'error' in result:
+            return jsonify({'error': result['error']}), 500
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Critical error in api_pgx_assess: {e}")
+        return jsonify({'error': 'Internal Server Error during PGx assessment'}), 500
 

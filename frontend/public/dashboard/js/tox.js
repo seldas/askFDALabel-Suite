@@ -1175,9 +1175,35 @@ window.initToxAgents = function() {
             
             pgxDataLoaded = true;
         } catch (error) {
-            console.error('Error fetching PGx data:', error);
-            if (loadingEl) loadingEl.style.display = 'none';
-            if (errorEl) errorEl.style.display = 'block';
+            console.error('Error fetching PGx data, attempting lazy recovery...', error);
+            
+            setTimeout(async () => {
+                try {
+                    const checkResp = await fetch(`/api/dashboard/pgx/assess/${currentSetId}?refresh=false`);
+                    const checkData = await checkResp.json();
+                    if (checkData.report && !checkData.error) {
+                        if (loadingEl) loadingEl.style.display = 'none';
+                        if (contentEl) contentEl.style.display = 'grid';
+                        renderPgxResults(checkData.report);
+                        pgxDataLoaded = true;
+                        
+                        const container = document.getElementById('pgx-results-container');
+                        if (container) {
+                            const recoveryMsg = document.createElement('div');
+                            recoveryMsg.style.cssText = "color: #28a745; font-size: 0.85em; text-align: right; margin-bottom: 10px;";
+                            recoveryMsg.innerHTML = "✓ Recovered from background";
+                            container.prepend(recoveryMsg);
+                        }
+                        return;
+                    }
+                } catch (e) { console.error("PGx recovery check failed", e); }
+
+                if (loadingEl) loadingEl.style.display = 'none';
+                if (errorEl) {
+                    errorEl.style.display = 'block';
+                    errorEl.querySelector('p').textContent = "Failed to complete the assessment. Please try again.";
+                }
+            }, 3000);
         }
     }
 
