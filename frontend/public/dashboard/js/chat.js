@@ -1,8 +1,3 @@
-// Drop-in replacement: ONLY uses the CURRENT session as history.
-// - Does NOT render or include other sessions (home/last session/etc.)
-// - Removes globalHistory + toggle-history behavior
-// - Payload history === currentSessionHistory only
-
 window.initChat = function () {
   // Chatbox Functionality
   const chatBubble = document.getElementById("chat-bubble");
