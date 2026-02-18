@@ -227,6 +227,16 @@ window.initToxAgents = function() {
 
         try {
             const response = await fetch(`/api/dashboard/dili/assess/${currentSetId}`);
+            
+            if (!response.ok) {
+                throw new Error(`Server returned status ${response.status}`);
+            }
+
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                throw new TypeError("Oops, we haven't got JSON!");
+            }
+
             const data = await response.json();
             
             if (data.error) {
@@ -255,17 +265,45 @@ window.initToxAgents = function() {
             document.getElementById('btn-run-dili-assessment').addEventListener('click', runDiliAssessment);
 
         } catch (error) {
-            console.error('Error running DILI assessment:', error);
-            signalsContainer.innerHTML = `
-                <div style="padding: 15px; color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;">
-                    Failed to complete the assessment. Please try again.
-                </div>
-                <div style="text-align: center; margin-top: 15px;">
-                     <button id="btn-run-dili-assessment" class="button" style="background-color: #6c757d; color: white;">Try Again</button>
-                </div>
-            `;
-            const retryBtn = document.getElementById('btn-run-dili-assessment');
-            if(retryBtn) retryBtn.addEventListener('click', runDiliAssessment);
+            console.error('Error running DILI assessment, attempting lazy recovery...', error);
+            
+            // Wait 3 seconds and check if it actually finished in the background
+            setTimeout(async () => {
+                try {
+                    const checkResp = await fetch(`/api/dashboard/dili/faers/${currentSetId}`);
+                    const checkData = await checkResp.json();
+                    if (checkData.existing_assessment) {
+                        renderDiliSignals(checkData.existing_assessment);
+                        
+                        const controlsDiv = document.createElement('div');
+                        controlsDiv.style.marginTop = '20px';
+                        controlsDiv.style.textAlign = 'right';
+                        controlsDiv.style.borderTop = '1px solid #eee';
+                        controlsDiv.style.paddingTop = '10px';
+                        controlsDiv.innerHTML = `
+                            <span style="color: #28a745; font-size: 0.85em; margin-right: 15px;">✓ Recovered from background</span>
+                            <button id="btn-run-dili-assessment" class="button" style="background-color: #6c757d; color: white; font-size: 0.9em; padding: 5px 15px;">
+                                &#x21bb; Re-assess
+                            </button>
+                        `;
+                        signalsContainer.appendChild(controlsDiv);
+                        document.getElementById('btn-run-dili-assessment').addEventListener('click', runDiliAssessment);
+                        return;
+                    }
+                } catch (e) { console.error("Recovery check failed", e); }
+
+                // If still no assessment, show error UI
+                signalsContainer.innerHTML = `
+                    <div style="padding: 15px; color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;">
+                        Failed to complete the assessment. Please try again.
+                    </div>
+                    <div style="text-align: center; margin-top: 15px;">
+                         <button id="btn-run-dili-assessment" class="button" style="background-color: #6c757d; color: white;">Try Again</button>
+                    </div>
+                `;
+                const retryBtn = document.getElementById('btn-run-dili-assessment');
+                if(retryBtn) retryBtn.addEventListener('click', runDiliAssessment);
+            }, 3000);
         }
     }
 
@@ -562,6 +600,16 @@ window.initToxAgents = function() {
 
         try {
             const response = await fetch(`/api/dashboard/dict/assess/${currentSetId}`);
+            
+            if (!response.ok) {
+                throw new Error(`Server returned status ${response.status}`);
+            }
+
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                throw new TypeError("Oops, we haven't got JSON!");
+            }
+
             const data = await response.json();
             
             if (data.error) {
@@ -589,17 +637,43 @@ window.initToxAgents = function() {
             document.getElementById('btn-run-dict-assessment').addEventListener('click', runDictAssessment);
 
         } catch (error) {
-            console.error('Error running DICT assessment:', error);
-            signalsContainer.innerHTML = `
-                <div style="padding: 15px; color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;">
-                    Failed to complete the assessment. Please try again.
-                </div>
-                <div style="text-align: center; margin-top: 15px;">
-                     <button id="btn-run-dict-assessment" class="button" style="background-color: #6c757d; color: white;">Try Again</button>
-                </div>
-            `;
-            const retryBtn = document.getElementById('btn-run-dict-assessment');
-            if(retryBtn) retryBtn.addEventListener('click', runDictAssessment);
+            console.error('Error running DICT assessment, attempting lazy recovery...', error);
+            
+            setTimeout(async () => {
+                try {
+                    const checkResp = await fetch(`/api/dashboard/dict/faers/${currentSetId}`);
+                    const checkData = await checkResp.json();
+                    if (checkData.existing_assessment) {
+                        renderDictSignals(checkData.existing_assessment);
+                        
+                        const controlsDiv = document.createElement('div');
+                        controlsDiv.style.marginTop = '20px';
+                        controlsDiv.style.textAlign = 'right';
+                        controlsDiv.style.borderTop = '1px solid #eee';
+                        controlsDiv.style.paddingTop = '10px';
+                        controlsDiv.innerHTML = `
+                            <span style="color: #28a745; font-size: 0.85em; margin-right: 15px;">✓ Recovered from background</span>
+                            <button id="btn-run-dict-assessment" class="button" style="background-color: #6c757d; color: white; font-size: 0.9em; padding: 5px 15px;">
+                                &#x21bb; Re-assess
+                            </button>
+                        `;
+                        signalsContainer.appendChild(controlsDiv);
+                        document.getElementById('btn-run-dict-assessment').addEventListener('click', runDictAssessment);
+                        return;
+                    }
+                } catch (e) { console.error("Recovery check failed", e); }
+
+                signalsContainer.innerHTML = `
+                    <div style="padding: 15px; color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;">
+                        Failed to complete the assessment. Please try again.
+                    </div>
+                    <div style="text-align: center; margin-top: 15px;">
+                         <button id="btn-run-dict-assessment" class="button" style="background-color: #6c757d; color: white;">Try Again</button>
+                    </div>
+                `;
+                const retryBtn = document.getElementById('btn-run-dict-assessment');
+                if(retryBtn) retryBtn.addEventListener('click', runDictAssessment);
+            }, 3000);
         }
     }
 
@@ -842,6 +916,16 @@ window.initToxAgents = function() {
 
         try {
             const response = await fetch(`/api/dashboard/diri/assess/${currentSetId}`);
+            
+            if (!response.ok) {
+                throw new Error(`Server returned status ${response.status}`);
+            }
+
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                throw new TypeError("Oops, we haven't got JSON!");
+            }
+
             const data = await response.json();
             
             if (data.error) {
@@ -869,17 +953,43 @@ window.initToxAgents = function() {
             document.getElementById('btn-run-diri-assessment').addEventListener('click', runDiriAssessment);
 
         } catch (error) {
-            console.error('Error running DIRI assessment:', error);
-            signalsContainer.innerHTML = `
-                <div style="padding: 15px; color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;">
-                    Failed to complete the assessment. Please try again.
-                </div>
-                <div style="text-align: center; margin-top: 15px;">
-                     <button id="btn-run-diri-assessment" class="button" style="background-color: #6c757d; color: white;">Try Again</button>
-                </div>
-            `;
-            const retryBtn = document.getElementById('btn-run-diri-assessment');
-            if(retryBtn) retryBtn.addEventListener('click', runDiriAssessment);
+            console.error('Error running DIRI assessment, attempting lazy recovery...', error);
+            
+            setTimeout(async () => {
+                try {
+                    const checkResp = await fetch(`/api/dashboard/diri/faers/${currentSetId}`);
+                    const checkData = await checkResp.json();
+                    if (checkData.existing_assessment) {
+                        renderDiriSignals(checkData.existing_assessment);
+                        
+                        const controlsDiv = document.createElement('div');
+                        controlsDiv.style.marginTop = '20px';
+                        controlsDiv.style.textAlign = 'right';
+                        controlsDiv.style.borderTop = '1px solid #eee';
+                        controlsDiv.style.paddingTop = '10px';
+                        controlsDiv.innerHTML = `
+                            <span style="color: #28a745; font-size: 0.85em; margin-right: 15px;">✓ Recovered from background</span>
+                            <button id="btn-run-diri-assessment" class="button" style="background-color: #6c757d; color: white; font-size: 0.9em; padding: 5px 15px;">
+                                &#x21bb; Re-assess
+                            </button>
+                        `;
+                        signalsContainer.appendChild(controlsDiv);
+                        document.getElementById('btn-run-diri-assessment').addEventListener('click', runDiriAssessment);
+                        return;
+                    }
+                } catch (e) { console.error("Recovery check failed", e); }
+
+                signalsContainer.innerHTML = `
+                    <div style="padding: 15px; color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;">
+                        Failed to complete the assessment. Please try again.
+                    </div>
+                    <div style="text-align: center; margin-top: 15px;">
+                         <button id="btn-run-diri-assessment" class="button" style="background-color: #6c757d; color: white;">Try Again</button>
+                    </div>
+                `;
+                const retryBtn = document.getElementById('btn-run-diri-assessment');
+                if(retryBtn) retryBtn.addEventListener('click', runDiriAssessment);
+            }, 3000);
         }
     }
 
@@ -1036,6 +1146,16 @@ window.initToxAgents = function() {
 
         try {
             const response = await fetch(`/api/dashboard/pgx/assess/${currentSetId}?refresh=${forceRefresh}`);
+            
+            if (!response.ok) {
+                throw new Error(`Server returned status ${response.status}`);
+            }
+
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                throw new TypeError("Oops, we haven't got JSON!");
+            }
+
             const data = await response.json();
             
             if (loadingEl) loadingEl.style.display = 'none';
