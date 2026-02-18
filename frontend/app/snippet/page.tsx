@@ -162,9 +162,9 @@ export default function SnippetPage() {
                   if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
                 }}
               >
-                Drag to Bookmarks
+                Drug Snippet
               </a>
-              <div className="bookmarklet-tooltip">Ready to drag!</div>
+              <div className="bookmarklet-tooltip">Drag to Bookmarks Bar</div>
             </div>
           </div>
 
@@ -234,9 +234,9 @@ export default function SnippetPage() {
                   if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
                 }}
               >
-                Drag to Bookmarks
+                Smart Highlighter
               </a>
-              <div className="bookmarklet-tooltip">Ready to drag!</div>
+              <div className="bookmarklet-tooltip">Drag to Bookmarks Bar</div>
             </div>
           </div>
         </div>

@@ -100,7 +100,7 @@ Do not explain these tags to the user.]`;
 
     // 3. Hook Input
     function hookInput() {
-        if (!highlighterEnabled) return;
+        // Always hook so listeners are ready when enabled
         const inputs = document.querySelectorAll('textarea, [contenteditable="true"]');
         inputs.forEach(input => {
             if (input.dataset.highlightsHooked) return;
@@ -134,6 +134,7 @@ Do not explain these tags to the user.]`;
     }
 
     function appendInstruction(input) {
+        if (!highlighterEnabled) return;
         let currentVal = input.value !== undefined ? input.value : input.innerText;
         if (currentVal && !currentVal.includes('[System Instruction: You are acting')) {
             if (input.value !== undefined) {
@@ -148,6 +149,7 @@ Do not explain these tags to the user.]`;
 
     // 4. Process AI Response
     function processResponse(node) {
+        if (!highlighterEnabled) return;
         if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
         
         let html = node.innerHTML;
