@@ -976,14 +976,14 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
 
       {/* Floating Action Buttons */}
       {session?.is_authenticated && (
-        <div id="user-notes-btn" className="floating-action-btn" title="My Notes" style={{ bottom: '160px', backgroundColor: '#0071bc' }}>
+        <div id="user-notes-btn" className="floating-action-btn" title="My Notes" style={{ bottom: '160px', backgroundColor: '#0071bc', zIndex: 2500, }}>
           <span>{"\u270E"}</span>
         </div>
       )}
-      <div id="meddra-stats-btn" className="floating-action-btn" title="MedDRA Stats" style={{ bottom: '90px', backgroundColor: '#0071bc' }}>
+      <div id="meddra-stats-btn" className="floating-action-btn" title="MedDRA Stats" style={{ bottom: '90px', backgroundColor: '#0071bc', zIndex: 2500, }}>
         <span>{"\u2126"}</span>
       </div>
-      <div id="chat-bubble" className="floating-action-btn chat-bubble" title="AI Assistant" style={{ bottom: '20px', backgroundColor: '#002e5d' }}>
+      <div id="chat-bubble" className="floating-action-btn chat-bubble" title="AI Assistant" style={{ bottom: '20px', backgroundColor: '#002e5d', zIndex: 2500, }}>
         <span>{"\uD83D\uDCAC"}</span>
       </div>
 
@@ -1070,7 +1070,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
          </div>
       </div>
 
-      <div id="chatbox" className="chatbox" style={{ display: 'none' }}>
+      <div id="chatbox" className="chatbox" style={{ display: 'none', zIndex: 2500, }}>
         <div className="chat-header" id="chat-header">
             <h3>AI Assistant</h3>
             <div className="chat-header-buttons">
