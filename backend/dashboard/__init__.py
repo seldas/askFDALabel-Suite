@@ -22,6 +22,7 @@ def create_app(config_class=Config):
         static_url_path='/api/dashboard/static',
     )
     app.config.from_object(config_class)
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
     # Initialize Extensions
     db.init_app(app)
