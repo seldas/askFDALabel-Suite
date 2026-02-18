@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 const suiteConfig = require("../suite.config.js");
 
-const BACKEND = process.env.BACKEND_URL ?? `http://localhost:${suiteConfig.backend.port}`;
+// Resolve Backend URL: Priority: BACKEND_URL > (.env/shell BACKEND_PORT + HOST) > suiteConfig
+const backendHost = process.env.HOST || suiteConfig.backend.host || 'localhost';
+const backendPort = process.env.BACKEND_PORT || suiteConfig.backend.port || 8842;
+const BACKEND = process.env.BACKEND_URL ?? `http://${backendHost}:${backendPort}`;
 
 const nextConfig: NextConfig = {
   async rewrites() {

@@ -3,15 +3,13 @@
   "version": "1.0",
   "private": true,
   "scripts": {
-    "dev:https": "NODE_ENV=development node server.js",
-    "start:https": "NODE_ENV=production node server.js",
-    "prod:https": "concurrently \"npm run build && npm run start:https\" \"npm run dev:backend\"",
     "dev": "node scripts/start-frontend.js",
     "dev:backend": "node scripts/start-backend.js",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:backend\"",
-    "dev:all_https": "concurrently \"npm run dev:https\" \"npm run dev:backend\"",
     "build": "next build",
-    "start": "next start",
+    "start": "cross-env NODE_ENV=production node scripts/start-frontend.js",
+    "start:backend": "cross-env NODE_ENV=production node scripts/start-backend.js",
+    "prod": "npm run build && concurrently \"npm run start\" \"npm run start:backend\"",
     "lint": "next lint"
   },
   "dependencies": {
@@ -20,6 +18,7 @@
     "@mui/icons-material": "^7.3.7",
     "@mui/material": "^7.3.7",
     "axios": "^1.13.5",
+    "cross-env": "^10.1.0",
     "datatables.net": "^2.3.7",
     "datatables.net-autofill-bs5": "^2.7.1",
     "datatables.net-bs5": "^2.3.7",

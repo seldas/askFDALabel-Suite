@@ -1,67 +1,43 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const config = require('../../suite.config.js');
 
-function parseDotEnv(contents) {
-  const out = {};
-  const lines = contents.split(/\r?\n/);
-
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-
-    const eq = line.indexOf('=');
-    if (eq === -1) continue;
-
-    const key = line.slice(0, eq).trim();
-    let val = line.slice(eq + 1).trim();
-
-    // strip surrounding quotes
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
-      val = val.slice(1, -1);
-    }
-
-    out[key] = val;
-  }
-  return out;
-}
-
-// 1) Read ../../.env first (but don't override already-set shell env vars)
+// 1. Load .env from project root
 const envPath = path.resolve(__dirname, '../../.env');
 if (fs.existsSync(envPath)) {
-  try {
-    const parsed = parseDotEnv(fs.readFileSync(envPath, 'utf8'));
-
-    // accept either HOST / host, BACKEND_PORT / backend_port
-    const hostFromFile = parsed.HOST ?? parsed.host;
-    const portFromFile = parsed.BACKEND_PORT ?? parsed.backend_port;
-
-    if (hostFromFile && !process.env.HOST) process.env.HOST = hostFromFile;
-    if (portFromFile && !process.env.BACKEND_PORT) process.env.BACKEND_PORT = portFromFile;
-  } catch (e) {
-    console.warn(`Warning: failed to read ${envPath}:`, e);
-  }
-} else {
-  console.warn(`Warning: .env not found at ${envPath} (falling back to suite.config.js)`);
+  require('dotenv').config({ path: envPath });
 }
 
-// 2) Fallback to suite.config.js if still missing
+// 2. Load suite config as fallback
+const config = require('../../suite.config.js');
+
+// 3. Resolve host and port
+const host = process.env.HOST || config.backend.host || '0.0.0.0';
+const port = process.env.BACKEND_PORT || config.backend.port || 8842;
+const isProd = process.env.NODE_ENV === 'production';
+
 const backendPath = path.resolve(__dirname, '../../backend/app.py');
-const port = process.env.BACKEND_PORT || config.backend.port;
-const host = process.env.HOST || config.backend.host;
 
-console.log(`Starting backend from: ${backendPath} on http://${host}:${port}`);
+let cmd, args;
 
-const pythonProcess = spawn('python', [backendPath], {
+if (isProd) {
+  // Use Waitress for production on Windows (or Gunicorn if user preferred Linux)
+  console.log(`> Starting backend in PRODUCTION on http://${host}:${port} using waitress`);
+  // Assuming the Flask app instance is named 'app' in 'app.py'
+  cmd = 'waitress-serve';
+  args = [`--host=${host}`, `--port=${port}`, 'app:app'];
+} else {
+  console.log(`> Starting backend in DEVELOPMENT on http://${host}:${port}`);
+  cmd = 'python';
+  args = [backendPath];
+}
+
+const pythonProcess = spawn(cmd, args, {
   stdio: 'inherit',
   shell: true,
+  cwd: path.resolve(__dirname, '../../backend'), // Run from backend directory
   env: {
     ...process.env,
-    // keep these for the Python app if it expects them
     PORT: String(port),
     HOST: String(host),
   },
@@ -72,5 +48,7 @@ pythonProcess.on('error', (err) => {
 });
 
 pythonProcess.on('close', (code) => {
-  console.log(`Backend process exited with code ${code}`);
+  if (code !== 0 && code !== null) {
+    console.log(`Backend process exited with code ${code}`);
+  }
 });

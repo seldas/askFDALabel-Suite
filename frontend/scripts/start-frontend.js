@@ -1,71 +1,60 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const config = require('../../suite.config.js');
+const http = require('http');
+const https = require('https');
+const next = require('next');
 
-function parseDotEnv(contents) {
-  const out = {};
-  const lines = contents.split(/\r?\n/);
-
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-
-    const eq = line.indexOf('=');
-    if (eq === -1) continue;
-
-    const key = line.slice(0, eq).trim();
-    let val = line.slice(eq + 1).trim();
-
-    // strip surrounding quotes
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
-      val = val.slice(1, -1);
-    }
-
-    out[key] = val;
-  }
-  return out;
-}
-
-// 1) Read ../../.env first (but don't override already-set shell env vars)
+// 1. Load .env from project root
 const envPath = path.resolve(__dirname, '../../.env');
 if (fs.existsSync(envPath)) {
-  try {
-    const parsed = parseDotEnv(fs.readFileSync(envPath, 'utf8'));
-
-    // accept either HOST / host, FRONTEND_PORT / frontend_port
-    const hostFromFile = parsed.HOST ?? parsed.host;
-    const portFromFile = parsed.FRONTEND_PORT ?? parsed.frontend_port;
-
-    if (hostFromFile && !process.env.HOST) process.env.HOST = hostFromFile;
-    if (portFromFile && !process.env.FRONTEND_PORT) process.env.FRONTEND_PORT = portFromFile;
-  } catch (e) {
-    console.warn(`Warning: failed to read ${envPath}:`, e);
-  }
-} else {
-  console.warn(`Warning: .env not found at ${envPath} (falling back to suite.config.js)`);
+  require('dotenv').config({ path: envPath });
 }
 
-// 2) Fallback to suite.config.js if still missing
-const port = process.env.FRONTEND_PORT || config.frontend.port;
-const host = process.env.HOST || config.frontend.host;
+const config = require('../../suite.config.js');
+const host = process.env.HOST || config.frontend.host || '0.0.0.0';
+const port = parseInt(process.env.FRONTEND_PORT || config.frontend.port || 8841);
+const isProd = process.env.NODE_ENV === 'production';
 
-console.log(`> Starting Next.js on http://${host}:${port}`);
+// 2. Automatic HTTPS Detection
+const certPath = path.resolve(__dirname, '../cert.pem');
+const keyPath = path.resolve(__dirname, '../key.pem');
+const useHttps = fs.existsSync(certPath) && fs.existsSync(keyPath);
+const protocol = useHttps ? 'https' : 'http';
 
-const nextProcess = spawn('npx', ['next', 'dev', '-p', String(port), '-H', String(host)], {
-  stdio: 'inherit',
-  shell: true,
-  env: {
-    ...process.env,
-    // keep for completeness in case your app reads them
-    FRONTEND_PORT: String(port),
-    HOST: String(host),
-  },
-});
+console.log(`> Starting Next.js in ${isProd ? 'production' : 'development'} on ${protocol}://${host}:${port}`);
 
-nextProcess.on('error', (err) => {
-  console.error('Failed to start frontend:', err);
-});
+if (isProd) {
+  // PRODUCTION LOGIC
+  const app = next({ dev: false });
+  const handle = app.getRequestHandler();
+
+  app.prepare().then(() => {
+    const serverCreator = useHttps ? 
+      (handler) => https.createServer({ key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) }, handler) :
+      (handler) => http.createServer(handler);
+
+    serverCreator((req, res) => {
+      handle(req, res);
+    }).listen(port, host, (err) => {
+      if (err) throw err;
+      console.log(`> Production server ready on ${protocol}://${host}:${port}`);
+    });
+  });
+} else {
+  // DEVELOPMENT LOGIC (using Next.js CLI for HMR support)
+  const args = ['next', 'dev', '-p', String(port), '-H', String(host)];
+  if (useHttps) {
+    args.push('--experimental-https');
+    args.push('--experimental-https-key', keyPath);
+    args.push('--experimental-https-cert', certPath);
+  }
+
+  const nextProcess = spawn('npx', args, {
+    stdio: 'inherit',
+    shell: true,
+    env: { ...process.env, FRONTEND_PORT: String(port), HOST: String(host) },
+  });
+
+  nextProcess.on('error', (err) => console.error('Failed to start frontend:', err));
+}
