@@ -692,7 +692,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                         const isLastMsg = index === chatHistory.length - 1;
                         const snippetCount = getSnippetCount(debugStats);
                         //const evidenceLimited = getEvidenceLimited(debugStats, results?.length || 0);
-                        console.log(debugStats);
+                        //console.log(debugStats);
                         const shouldShow =
                             searchMode === 'v2' &&
                             msg.role === 'assistant' &&
