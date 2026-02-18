@@ -137,8 +137,8 @@ window.initUI = function() {
                 try {
                     const response = await fetch('/api/dashboard/preferences', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams(payload)
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
                     });
 
                     if (response.ok) {
