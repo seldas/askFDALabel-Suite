@@ -443,13 +443,7 @@ def view_label(set_id):
         'user_id': current_user.id if current_user.is_authenticated else None
     })
 
-@main_bp.route('/my_labelings')
-@login_required
-def my_labelings():
-    """ Returns user projects summary as JSON. """
-    return jsonify({'success': True, 'message': 'Endpoint migrated to /api/dashboard/projects'})
-
-@main_bp.route('/preferences', methods=['POST'])
+@main_bp.route('/preferences', methods=['GET', 'POST'])
 @login_required
 def preferences():
     data = request.get_json()
