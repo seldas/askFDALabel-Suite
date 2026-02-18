@@ -111,10 +111,32 @@ export default function SnippetPage() {
               flexDirection: 'column',
               alignItems: 'center',
               textAlign: 'center',
-              transition: 'all 0.3s ease'
+              transition: 'all 0.3s ease',
+              position: 'relative'
             }}
             className="snippet-card"
           >
+            {/* Bookmarklet Overlay */}
+            <a
+              ref={drugBookmarkletRef}
+              href="#"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 20,
+                color: 'transparent',
+                textDecoration: 'none',
+                cursor: 'grab',
+                userSelect: 'none',
+                borderRadius: '28px'
+              }}
+              onClick={(e) => {
+                if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
+              }}
+            >
+              Drug Snippet
+            </a>
+
             <div style={{ 
               width: '80px', 
               height: '80px', 
@@ -138,9 +160,7 @@ export default function SnippetPage() {
             </p>
             
             <div className="bookmarklet-container" style={{ position: 'relative', width: '100%' }}>
-              <a
-                ref={drugBookmarkletRef}
-                href="#"
+              <div
                 className="bookmarklet-button"
                 style={{
                   backgroundColor: '#002e5d',
@@ -150,7 +170,6 @@ export default function SnippetPage() {
                   textDecoration: 'none',
                   fontSize: '0.95rem',
                   fontWeight: '800',
-                  cursor: 'grab',
                   border: 'none',
                   boxShadow: '0 4px 12px rgba(0, 46, 93, 0.15)',
                   display: 'inline-block',
@@ -158,13 +177,10 @@ export default function SnippetPage() {
                   width: '100%',
                   boxSizing: 'border-box'
                 }}
-                onClick={(e) => {
-                  if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
-                }}
               >
                 Drug Snippet
-              </a>
-              <div className="bookmarklet-tooltip">Drag to Bookmarks Bar</div>
+              </div>
+              <div className="bookmarklet-tooltip">Drag card to Bookmarks Bar</div>
             </div>
           </div>
 
@@ -180,10 +196,32 @@ export default function SnippetPage() {
               flexDirection: 'column',
               alignItems: 'center',
               textAlign: 'center',
-              transition: 'all 0.3s ease'
+              transition: 'all 0.3s ease',
+              position: 'relative'
             }}
             className="snippet-card"
           >
+            {/* Bookmarklet Overlay */}
+            <a
+              ref={highlightBookmarkletRef}
+              href="#"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 20,
+                color: 'transparent',
+                textDecoration: 'none',
+                cursor: 'grab',
+                userSelect: 'none',
+                borderRadius: '28px'
+              }}
+              onClick={(e) => {
+                if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
+              }}
+            >
+              Smart Highlighter
+            </a>
+
             <div style={{ 
               width: '80px', 
               height: '80px', 
@@ -210,9 +248,7 @@ export default function SnippetPage() {
             </p>
             
             <div className="bookmarklet-container" style={{ position: 'relative', width: '100%' }}>
-              <a
-                ref={highlightBookmarkletRef}
-                href="#"
+              <div
                 className="bookmarklet-button"
                 style={{
                   backgroundColor: '#002e5d',
@@ -222,7 +258,6 @@ export default function SnippetPage() {
                   textDecoration: 'none',
                   fontSize: '0.95rem',
                   fontWeight: '800',
-                  cursor: 'grab',
                   border: 'none',
                   boxShadow: '0 4px 12px rgba(0, 46, 93, 0.15)',
                   display: 'inline-block',
@@ -230,13 +265,10 @@ export default function SnippetPage() {
                   width: '100%',
                   boxSizing: 'border-box'
                 }}
-                onClick={(e) => {
-                  if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
-                }}
               >
                 Smart Highlighter
-              </a>
-              <div className="bookmarklet-tooltip">Drag to Bookmarks Bar</div>
+              </div>
+              <div className="bookmarklet-tooltip">Drag card to Bookmarks Bar</div>
             </div>
           </div>
         </div>
@@ -261,12 +293,9 @@ export default function SnippetPage() {
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1) !important;
             border-color: #3b82f6 !important;
           }
-          .bookmarklet-button:hover {
+          .snippet-card:hover .bookmarklet-button {
             filter: brightness(1.1);
             transform: scale(1.02);
-          }
-          .bookmarklet-button:active {
-            transform: scale(0.98);
           }
           .bookmarklet-tooltip {
             visibility: hidden;
@@ -296,7 +325,7 @@ export default function SnippetPage() {
             border-style: solid;
             border-color: transparent transparent #1e293b transparent;
           }
-          .bookmarklet-container:hover .bookmarklet-tooltip {
+          .snippet-card:hover .bookmarklet-tooltip {
             visibility: visible;
             opacity: 1;
             transform: translateX(-50%) translateY(0);
