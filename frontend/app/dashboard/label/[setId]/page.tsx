@@ -1003,7 +1003,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       </Script>
 
       {/* Legacy Scripts */}
-      <Script src="/api/dashboard/static/js/chart.js" strategy="afterInteractive" />
+      <Script src="/api/dashboard/static/js/Chart.js" strategy="afterInteractive" />
       <Script src="/api/dashboard/static/js/marked.min.js" strategy="afterInteractive" />
       <Script src="/api/dashboard/static/js/utils.js" strategy="afterInteractive" />
       <Script src="/api/dashboard/static/js/ui.js" strategy="afterInteractive" />
