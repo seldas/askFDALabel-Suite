@@ -1,36 +1,28 @@
-# Flask Dependency and Legacy Code Audit (Completed)
+## Resolved Issues
 
-## Issue Summary
-The system has been fully transitioned to a modern architecture using Next.js for the frontend and a Python-based JSON API for the backend. All legacy Flask routes that previously rendered HTML templates have been refactored to return JSON or handle redirects appropriately.
+### 1. Missing Templates (Resolved)
+- [x] All routes in `backend/dashboard/routes/` and `backend/labelcomp/blueprint.py` now return JSON or handle redirects instead of using `render_template`.
 
-## Completed Actions
+### 2. Static File Serving Discrepancy (Resolved)
+- [x] Removed `static_folder` and `template_folder` from Flask app factory.
+- [x] Migrated all script paths in `frontend/` to use Next.js public paths.
 
-### 1. Route Refactoring (Completed)
-The following routes have been refactored to be purely API-based (JSON):
-- [x] `auth.login`, `auth.register`, `auth.change_password` (Now purely JSON POST routes)
-- [x] `main.search`, `main.view_label` (Now purely JSON routes)
-- [x] `labelcomp.index` (Now purely JSON route)
-- [x] `main.info`, `main.my_labelings` (Now return JSON or redirect)
+### 3. Preferences 415 Error (Resolved)
+- [x] Refactored `preferences` route in `main.py` to be robust, handling both `application/json` and `application/x-www-form-urlencoded`.
+- [x] Updated Next.js `UserContext.tsx` and legacy `ui.js` to send JSON data.
 
-### 2. Initialization Cleanup (Completed)
-- [x] `backend/dashboard/__init__.py`: Removed `static_folder` and `template_folder` configuration. Flask no longer serves legacy HTML or static files via `/api/dashboard/static/`.
-- [x] `backend/app.py`: Verified as a clean unified app factory.
+### 4. API Logic Errors (Resolved)
+- [x] Fixed a bug in `toggle_favorite` where the `meta` variable was used without being defined.
 
-### 3. Frontend Cleanup (Completed)
-- [x] `frontend/app/dashboard/label/[setId]/page.tsx`: Updated to use Next.js public paths and versioning.
-- [x] `frontend/app/dashboard/page.tsx`: Removed legacy `DashboardClient` component.
-- [x] `frontend/app/dashboard/DashboardClient.tsx`: Deleted the legacy theme-switching and modal logic that relied on non-existent elements and legacy API paths.
+## Recommendations
+1.  **DATABASE_URL Consistency:** Verify that both environments (dev/prod) point to the same database file if parity is desired.
+2.  **Waitress Timeout:** Consider increasing the Waitress timeout if AI assessments continue to hang up.
 
-## Status of Discrepancies
-
-### Split Data/Project View
-The refactoring ensures that both `dev` and `prod` environments now communicate with the backend via the same API structure. 
-- **Recommendation:** If project lists still differ, verify the `DATABASE_URL` environment variable in the shell where `npm run prod` is executed. Both should point to the same `data/afd.db` file (or the same remote DB) to see consistent data.
-
-## Migration Tasks (All Complete)
+## Migration Tasks (Completed)
 - [x] Refactor `backend/dashboard/routes/main.py` to remove all HTML rendering.
 - [x] Refactor `backend/dashboard/routes/auth.py` to be purely API-based (JSON only).
 - [x] Refactor `backend/labelcomp/blueprint.py` to be purely API-based.
 - [x] Clean up `backend/dashboard/__init__.py` (Removed template/static folder config).
 - [x] Remove legacy `DashboardClient.tsx` and its references.
 - [x] Verify all backend blueprints are JSON-API compliant.
+- [x] Fix `toggle_favorite` and `preferences` route logic.

@@ -443,18 +443,27 @@ def view_label(set_id):
         'user_id': current_user.id if current_user.is_authenticated else None
     })
 
-@main_bp.route('/preferences', methods=['GET', 'POST'])
+@main_bp.route('/preferences', methods=['POST'])
 @login_required
 def preferences():
-    data = request.get_json()
-    if not data:
-        return jsonify({'success': False, 'error': 'Missing JSON data'}), 400
+    if request.is_json:
+        data = request.get_json()
+    else:
+        data = request.form
 
-    current_user.ai_provider = data.get('ai_provider')
-    current_user.custom_gemini_key = data.get('custom_gemini_key')
-    current_user.openai_api_key = data.get('openai_api_key')
-    current_user.openai_base_url = data.get('openai_base_url')
-    current_user.openai_model_name = data.get('openai_model_name')
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+    if 'ai_provider' in data:
+        current_user.ai_provider = data.get('ai_provider')
+    if 'custom_gemini_key' in data:
+        current_user.custom_gemini_key = data.get('custom_gemini_key')
+    if 'openai_api_key' in data:
+        current_user.openai_api_key = data.get('openai_api_key')
+    if 'openai_base_url' in data:
+        current_user.openai_base_url = data.get('openai_base_url')
+    if 'openai_model_name' in data:
+        current_user.openai_model_name = data.get('openai_model_name')
     
     db.session.commit()
     return jsonify({'success': True, 'message': 'Preferences saved successfully!'})

@@ -414,6 +414,7 @@ def toggle_favorite():
         if existing:
              return jsonify({'success': True, 'is_favorite': True})
             
+        meta = get_label_metadata(set_id, import_id=import_id)
         if not meta:
             return jsonify({'error': 'Could not fetch label metadata'}), 404
 

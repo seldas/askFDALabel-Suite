@@ -56,8 +56,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await fetch('/api/dashboard/preferences', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ 'ai_provider': provider })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 'ai_provider': provider })
       });
       const data = await res.json();
       if (data.success) {
