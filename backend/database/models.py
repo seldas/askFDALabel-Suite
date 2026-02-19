@@ -84,7 +84,7 @@ class FavoriteComparison(db.Model):
 
 class LabelAnnotation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=True)
     set_id = db.Column(db.String(100), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     section_id = db.Column(db.String(100), nullable=False)

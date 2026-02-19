@@ -8,6 +8,23 @@ window.initFaers = function() {
     let currentFaersData = null; // Store fetched reactions for pagination
     let currentCoveragePage = 1;
     const itemsPerPage = 10;
+
+    window.faersCoverageFilter = 'all';
+
+    function isNotPresentedStatusText(statusText) {
+        const t = (statusText || '').toLowerCase();
+        return (
+            t.includes('not presented') ||
+            t.includes('not in label') ||
+            t.includes('not present') ||
+            t.includes('absent')
+        );
+        }
+        window.setCoverageFilter = function(filter) {
+        window.faersCoverageFilter = (filter === 'not_presented') ? 'not_presented' : 'all';
+        currentCoveragePage = 1; // reset
+        renderCoverageTable();
+    };
     
     // Global state for trend comparison
     window.selectedTerms = new Set();
@@ -203,41 +220,51 @@ window.initFaers = function() {
         const filterText = aeFilterInput ? aeFilterInput.value.toLowerCase().trim() : '';
         const labelText = getCleanLabelText();
         
-        // 1. Filter Data
-        const filteredReactions = currentFaersData.reactions.filter(item => {
-            if (!filterText) return true;
-            
-            const term = item.term.toLowerCase();
-            const soc = (item.soc || '').toLowerCase();
-            const hlt = (item.hlt || '').toLowerCase();
-            
-            // Check if filterText is present in term, soc, or hlt
-            const matchesFilter = term.includes(filterText) ||
-                                  soc.includes(filterText) ||
-                                  hlt.includes(filterText);
-            
-            // Basic Status (for display, not filtering the table itself)
-            // This part is retained for the coverage logic within renderCoverageTable
-            const isFound = labelText.includes(term); 
-            let statusText = isFound ? "found" : "not in label";
-            
-            // Check cache for AI augmented status
-            if (!isFound) {
-                const cacheKey = `ai_coverage_${currentSetId}_${term}`;
-                const cached = localStorage.getItem(cacheKey);
-                if (cached) {
-                    try {
-                        const aiData = JSON.parse(cached);
-                        const match = (aiData.match || "").toLowerCase();
-                        if (match === 'yes' || match === 'probably') {
-                            statusText += " ai identified";
-                        }
-                    } catch(e) {}
-                }
+        // 1) Build derived fields we need for filtering
+        const reactionsWithStatus = currentFaersData.reactions.map(item => {
+        const termLower = (item.term || '').toLowerCase();
+        const isFound = labelText.includes(termLower);
+
+        // Match your existing status wording conventions
+        // Base status used in the Status cell (before AI augmentation)
+        let statusText = isFound ? 'found' : 'not in label';
+
+        // Respect cached AI augmentation the same way your UI does
+        if (!isFound) {
+            const cacheKey = `ai_coverage_${currentSetId}_${termLower}`;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+            try {
+                const aiData = JSON.parse(cached);
+                const match = (aiData.match || '').toLowerCase();
+                if (match === 'yes') statusText = 'yes (ai)';
+                else if (match === 'probably') statusText = 'probable (ai)';
+            } catch (e) {}
             }
-            
-            return matchesFilter; // Only filter based on term, soc, hlt
+        }
+
+        return { ...item, __statusText: statusText, __isFound: isFound };
         });
+
+        // 2) Text filter (term/soc/hlt)
+        let filteredReactions = reactionsWithStatus.filter(item => {
+            if (!filterText) return true;
+
+            const term = (item.term || '').toLowerCase();
+            const soc  = (item.soc || '').toLowerCase();
+            const hlt  = (item.hlt || '').toLowerCase();
+
+            return term.includes(filterText) || soc.includes(filterText) || hlt.includes(filterText);
+        });
+
+        // 3) Toggle filter (All vs Not Presented) — APPLY BEFORE PAGINATION
+        if (window.faersCoverageFilter === 'not_presented') {
+            filteredReactions = filteredReactions.filter(item =>
+                // "Not Presented" should mean NOT in label, and also not positively AI-matched
+                isNotPresentedStatusText(item.__statusText)
+            );
+        }
+
 
         // Update Count Display
         const countDisplay = document.getElementById('ae-filter-count');
@@ -268,13 +295,13 @@ window.initFaers = function() {
         }
 
         pageData.forEach(item => {
-            const term = item.term.toLowerCase();
-            const isFound = labelText.includes(term);
+            const term = (item.term || '').toLowerCase();
+            const isFound = !!item.__isFound;
             
             const row = document.createElement('tr');
             let statusHtml = `
                 <span class="status-badge ${isFound ? 'found' : 'not-found'}">
-                    ${isFound ? '✓ Found' : '✗ Not in Label'}
+                    ${isFound ? '✓ Found' : '✗ Not'}
                 </span>
             `;
 
@@ -395,11 +422,44 @@ window.initFaers = function() {
         iconEl.classList.add('loading');
         iconEl.style.cursor = 'wait';
 
-        const question = `Analyze the labeling for the adverse event "${term}".
-                          Criteria: > Include semantic matches and medical synonyms. Categorize as "Yes" (direct match), "Probably" (semantic/indirect match), or "No" (absent).
-                          Your response MUST be ONLY a single, raw JSON object and nothing else. Do not include explanations, apologies, or any conversational text before or after the JSON object. 
-                          Output strictly in this JSON format: { "match": "Yes | Probably | No", "citation": "Section name with numbers, if applicable, or null", "quote": "Exact quote, or null" }
-                          Constraint: If match is "No", citation and quote must be null.`;
+        const question = `
+        You are reviewing an FDA drug labeling document (structured XML) to determine whether the adverse event "${term}" is addressed.
+
+        Goal:
+        - The exact phrase "${term}" was NOT found via literal string match. Now you MUST search for semantically similar, clinically equivalent, or commonly related labeling language.
+
+        Instructions (be strict):
+        1) Search for direct mentions and close variants of "${term}" (spelling variants, plural/singular, hyphenation, abbreviations).
+        2) Search for medical synonyms and near-synonyms (e.g., clinical/lay terms, MedDRA-style variants).
+        3) Search for conceptually related label language that indicates the same event or a clearly overlapping clinical concept, including:
+        - Signs/symptoms, diagnoses, syndromes
+        - Lab abnormalities or clinical findings that imply the event
+        - Organ-system injury terms (e.g., hepatic injury, transaminase elevations, jaundice)
+        - Common complication terms or umbrella terms used in labeling (e.g., hypersensitivity, anaphylaxis, bleeding)
+        4) If found, prefer the MOST specific and relevant match (not generic “adverse reactions occurred” boilerplate).
+        5) Only use evidence from the labeling text provided in xml_content.
+
+        Decision rules:
+        - "Yes": The labeling explicitly mentions "${term}" OR an unambiguous clinical synonym (same diagnosis/event).
+        - "Probably": The labeling does not name "${term}" directly, but contains strong semantically related language that reasonably indicates the same event or a closely overlapping concept (include the best supporting quote).
+        - "No": No relevant or semantically related mention is found.
+
+        Output requirements (VERY IMPORTANT):
+        - Return ONLY one raw JSON object and nothing else.
+        - JSON schema (exact keys):
+        {
+            "match": "Yes" | "Probably" | "No",
+            "matched_terms": string[] ,
+            "citation": string | null,
+            "quote": string | null
+        }
+
+        Field rules:
+        - matched_terms: include 1–6 exact phrases you found in the label that support your decision (empty array if "No").
+        - citation: the section name/number (e.g., "5 WARNINGS AND PRECAUTIONS" or "6.1") if applicable, else null.
+        - quote: the shortest exact quote from the label that best supports the match (must be verbatim), else null.
+        - If match is "No": citation MUST be null, quote MUST be null, matched_terms MUST be [].
+        `.trim();
         
         // Add to chat history visually (optional, but good for context)
         const chatMessages = document.getElementById('chat-messages');
@@ -428,10 +488,10 @@ window.initFaers = function() {
                     chat_type: 'TERM_VERIFY'
                 }),
             });
-
             const data = await response.json();
             let answerText = data.response || "{}";
             
+            console.log(answerText);
             // Robust JSON extraction helper
             const extractJson = (text) => {
                 // Try markdown block first

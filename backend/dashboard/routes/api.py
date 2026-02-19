@@ -634,87 +634,24 @@ def import_favorites():
         'errors': errors
     })
 
-@api_bp.route('/favorite_all', methods=['POST'])
-@login_required
-def favorite_all():
-    data = request.get_json()
-    drug_name = data.get('drug_name')
-    batch_id_search = data.get('batch_id_search')
-    import_id = data.get('import_id')
-    project_id = data.get('project_id')
-    new_project_name = data.get('new_project_name')
-
-    target_project = None
-    if new_project_name:
-        if Project.query.filter_by(owner_id=current_user.id).count() >= 5:
-             return jsonify({'error': 'Project limit reached (Max 5). Cannot create new project.'}), 403
-        
-        target_project = Project(title=new_project_name, owner_id=current_user.id)
-        db.session.add(target_project)
-        db.session.commit()
-    elif project_id:
-        target_project = Project.query.get(project_id)
-        if not target_project or (target_project.owner_id != current_user.id and current_user not in target_project.members):
-            return jsonify({'error': 'Invalid project or unauthorized access.'}), 403
-    else:
-        target_project = Project.query.filter_by(owner_id=current_user.id, title="Favorite").first()
-        if not target_project:
-             target_project = Project(title="Favorite", owner_id=current_user.id, display_order=0)
-             db.session.add(target_project)
-             db.session.commit()
-
-    labels = []
-    MAX_FETCH = 100
-    
-    if batch_id_search:
-        ids_list = [sid.strip() for sid in batch_id_search.split(',') if sid.strip()]
-        labels, _ = find_labels_by_set_ids(ids_list, skip=0, limit=MAX_FETCH)
-    elif import_id:
-        import_path = os.path.join(Config.UPLOAD_FOLDER, f"import_{import_id}.json")
-        if os.path.exists(import_path):
-            with open(import_path, 'r', encoding='utf-8') as f:
-                labels = json.load(f)
-    elif drug_name:
-        labels, _ = find_labels(drug_name, skip=0, limit=MAX_FETCH)
-    
-    if not labels:
-         return jsonify({'success': True, 'added_count': 0, 'project_title': target_project.title})
-
-    added_count = 0
-    for label in labels:
-        set_id = label['set_id']
-        # Check if already exists IN THIS PROJECT (regardless of user)
-        existing = Favorite.query.filter_by(set_id=set_id, project_id=target_project.id).first()
-        if not existing:
-            new_fav = Favorite(
-                user_id=current_user.id,
-                project_id=target_project.id,
-                set_id=set_id,
-                brand_name=label.get('brand_name', 'n/a'),
-                generic_name=label.get('generic_name', 'n/a'),
-                manufacturer_name=label.get('manufacturer_name', 'n/a'),
-                market_category=label.get('market_category', 'n/a'),
-                application_number=label.get('application_number', 'n/a'),
-                ndc=label.get('ndc', 'n/a'),
-                effective_time=label.get('effective_time', 'n/a')
-            )
-            db.session.add(new_fav)
-            added_count += 1
-            
-    db.session.commit()
-    
-    return jsonify({
-        'success': True, 
-        'added_count': added_count, 
-        'project_title': target_project.title
-    })
+# --- Label Annotations ---
+from flask import request, jsonify
+from sqlalchemy import or_
 
 # --- Label Annotations ---
 @api_bp.route('/annotations/save', methods=['POST'])
 @login_required
 def save_label_annotation():
-    data = request.json
-    project_id = data.get('project_id','')
+    data = request.get_json(silent=True) or {}
+
+    raw_project_id = data.get('project_id', None)
+    project_id = None
+    if raw_project_id not in (None, '', 'null'):
+        try:
+            project_id = int(raw_project_id)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid project_id'}), 400
+
     set_id = data.get('set_id')
     section_id = data.get('section_id')
     start_offset = data.get('start_offset')
@@ -724,9 +661,7 @@ def save_label_annotation():
     color = data.get('color')
     comment = data.get('comment')
 
-    # Check for missing required fields
     required_fields = {
-        'project_id': project_id,
         'set_id': set_id,
         'section_id': section_id,
         'start_offset': start_offset,
@@ -734,23 +669,32 @@ def save_label_annotation():
         'selected_text': selected_text,
         'annotation_type': annotation_type
     }
-    
-    missing_fields = [field for field, value in required_fields.items() 
-                      if value is None or (isinstance(value, str) and value == '')]
-    
+    missing_fields = [
+        k for k, v in required_fields.items()
+        if v is None or (isinstance(v, str) and v.strip() == '')
+    ]
     if missing_fields:
-        return jsonify({
-            'error': f"Missing required fields: {', '.join(missing_fields)}"
-        }), 400
+        return jsonify({'error': f"Missing required fields: {', '.join(missing_fields)}"}), 400
 
-    project = Project.query.get(project_id)
-    if not project:
-        return jsonify({'error': 'Project not found'}), 404
-    if project.owner_id != current_user.id and current_user not in project.members:
-        return jsonify({'error': 'Unauthorized access to project'}), 403
+    try:
+        start_offset = int(start_offset)
+        end_offset = int(end_offset)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'start_offset and end_offset must be integers'}), 400
+
+    if start_offset < 0 or end_offset <= start_offset:
+        return jsonify({'error': 'Invalid offset range'}), 400
+
+    # Validate project access only if project_id provided
+    if project_id is not None:
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({'error': 'Project not found'}), 404
+        if project.owner_id != current_user.id and current_user not in project.members:
+            return jsonify({'error': 'Unauthorized access to project'}), 403
 
     new_ann = LabelAnnotation(
-        project_id=project_id,
+        project_id=project_id,  # None => global
         set_id=set_id,
         user_id=current_user.id,
         section_id=section_id,
@@ -761,32 +705,55 @@ def save_label_annotation():
         color=color,
         comment=comment
     )
-    
     db.session.add(new_ann)
     db.session.commit()
-    
+
     return jsonify({
-        'success': True, 
+        'success': True,
         'id': new_ann.id,
+        'project_id': new_ann.project_id,
+        'is_global': new_ann.project_id is None,
         'username': current_user.username,
         'created_at': new_ann.created_at.isoformat()
     })
+
+from sqlalchemy import or_
 
 @api_bp.route('/annotations/get/<set_id>')
 @login_required
 def get_label_annotations(set_id):
     project_id = request.args.get('project_id', type=int)
-    if not project_id:
-        return jsonify({'error': 'Project ID required'}), 400
-        
-    project = Project.query.get(project_id)
-    if not project:
-         return jsonify({'error': 'Project not found'}), 404
-    if project.owner_id != current_user.id and current_user not in project.members:
-        return jsonify({'error': 'Unauthorized access to project'}), 403
 
-    annotations = LabelAnnotation.query.filter_by(set_id=set_id, project_id=project_id).all()
-    
+    # If a project_id is provided, validate access to that project
+    if project_id:
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({'error': 'Project not found'}), 404
+
+        if project.owner_id != current_user.id and current_user not in project.members:
+            return jsonify({'error': 'Unauthorized access to project'}), 403
+
+        # Return BOTH:
+        # - project-specific annotations (project_id == project_id)
+        # - global annotations for this user (project_id IS NULL)
+        annotations = (
+            LabelAnnotation.query
+            .filter(LabelAnnotation.set_id == set_id)
+            .filter(LabelAnnotation.user_id == current_user.id)
+            .filter(or_(LabelAnnotation.project_id == project_id,
+                        LabelAnnotation.project_id.is_(None)))
+            .all()
+        )
+    else:
+        # No project specified: return only global annotations for this user
+        annotations = (
+            LabelAnnotation.query
+            .filter(LabelAnnotation.set_id == set_id)
+            .filter(LabelAnnotation.user_id == current_user.id)
+            .filter(LabelAnnotation.project_id.is_(None))
+            .all()
+        )
+
     return jsonify({
         'annotations': [{
             'id': ann.id,
@@ -798,10 +765,13 @@ def get_label_annotations(set_id):
             'color': ann.color,
             'comment': ann.comment,
             'user_id': ann.user_id,
-            'username': ann.user.username,
-            'created_at': ann.created_at.isoformat()
+            'username': ann.user.username if ann.user else None,
+            'created_at': ann.created_at.isoformat() if ann.created_at else None,
+            'project_id': ann.project_id,  # helpful for debugging/UI
+            'is_global': ann.project_id is None
         } for ann in annotations]
     })
+
 
 @api_bp.route('/annotations/delete', methods=['POST'])
 @login_required

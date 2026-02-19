@@ -3864,3 +3864,7 @@ textarea.import-input {
 #btn-agent-diri.active-agent { border-color: #ffc107; background-color: #fffbf0; }
 #btn-agent-pgx.active-agent { border-color: #6610f2; background-color: #f3e5f5; }
 
+#coverageTable th:last-child,
+#coverageTable td.status-cell {
+  white-space: nowrap; /* optional: keeps badge on one line */
+}

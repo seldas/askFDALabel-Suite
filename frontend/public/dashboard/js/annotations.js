@@ -1,4 +1,6 @@
 window.initAnnotations = function() {
+    if (window.LabelAnnotationManager) return; 
+
     /* --- Label Annotation Logic --- */
     const LabelAnnotationManager = {
         currentSelection: null,
@@ -20,8 +22,10 @@ window.initAnnotations = function() {
         },
 
         fetchAnnotations: function() {
-            if (typeof currentSetId === 'undefined' || !currentSetId || !this.activeProjectId) return;
-            fetch(`/api/dashboard/annotations/get/${currentSetId}?project_id=${this.activeProjectId}`)
+            if (typeof currentSetId === 'undefined' || !currentSetId) return;
+
+            const qs = this.activeProjectId ? `?project_id=${this.activeProjectId}` : '';
+            fetch(`/api/dashboard/annotations/get/${currentSetId}${qs}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.annotations) {
@@ -77,22 +81,29 @@ window.initAnnotations = function() {
             toolbar.style.top = `${y}px`;
             
             toolbar.innerHTML = `
-                <button id="btn-ann-highlight" title="Highlight"><span style="background:yellow; width:14px; height:14px; border-radius:2px; border:1px solid #ccc;"></span></button>
-                <button id="btn-ann-comment" title="Comment">💬</button>
+            <button class="btn-ann-highlight" title="Highlight">
+                <span style="background:yellow; width:14px; height:14px; border-radius:2px; border:1px solid #ccc;"></span>
+            </button>
+            <button class="btn-ann-comment" title="Comment">💬</button>
             `;
+
+            const highlightBtn = toolbar.querySelector('.btn-ann-highlight');
+            const commentBtn = toolbar.querySelector('.btn-ann-comment');
+
+            highlightBtn?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.showColorPalette(toolbar);
+            });
+
+            commentBtn?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.showCommentInput(toolbar);
+            });
 
             document.body.appendChild(toolbar);
             this.toolbarEl = toolbar;
-
-            document.getElementById('btn-ann-highlight').addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.showColorPalette(toolbar);
-            });
-
-            document.getElementById('btn-ann-comment').addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.showCommentInput(toolbar);
-            });
         },
 
         closeToolbar: function() {
@@ -190,7 +201,7 @@ window.initAnnotations = function() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    project_id: this.activeProjectId,
+                    project_id: this.activeProjectId || null,
                     set_id: currentSetId,
                     section_id: sectionId,
                     start_offset: offsets.start,

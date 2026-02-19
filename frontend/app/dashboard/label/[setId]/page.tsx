@@ -129,23 +129,12 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   };
 
   useEffect(() => {
-    const tbody = document.getElementById('coverageTable-body');
-    if (!tbody) return;
-
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-
-    rows.forEach((tr) => {
-      // assume "Status" is the last column, as in your header
-      const statusCell = tr.querySelector('td:last-child');
-      const statusText = statusCell?.textContent?.trim() || '';
-
-      const shouldShow =
-        faersCoverageFilter === 'all' ? true : isNotPresentedStatus(statusText);
-
-      (tr as HTMLElement).style.display = shouldShow ? '' : 'none';
-    });
-  }, [faersCoverageFilter, activeTab, data]);
-
+    if (activeTab !== 'faers-view') return;
+    const win = window as any;
+    if (typeof win.setCoverageFilter === 'function') {
+      win.setCoverageFilter(faersCoverageFilter);
+    }
+  }, [faersCoverageFilter, activeTab]);
 
   useEffect(() => {
     const handleClickOutside = () => setActiveDropdown(null);
