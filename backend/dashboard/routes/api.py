@@ -1125,6 +1125,81 @@ def api_check_favorites_batch():
         
     return jsonify(result)
 
+@api_bp.route('/favorite_all', methods=['POST'])
+@login_required
+def favorite_all():
+    data = request.get_json()
+    drug_name = data.get('drug_name')
+    batch_id_search = data.get('batch_id_search')
+    import_id = data.get('import_id')
+    project_id = data.get('project_id')
+    new_project_name = data.get('new_project_name')
+
+    target_project = None
+    if new_project_name:
+        if Project.query.filter_by(owner_id=current_user.id).count() >= 5:
+             return jsonify({'error': 'Project limit reached (Max 5). Cannot create new project.'}), 403
+        
+        target_project = Project(title=new_project_name, owner_id=current_user.id)
+        db.session.add(target_project)
+        db.session.commit()
+    elif project_id:
+        target_project = Project.query.get(project_id)
+        if not target_project or (target_project.owner_id != current_user.id and current_user not in target_project.members):
+            return jsonify({'error': 'Invalid project or unauthorized access.'}), 403
+    else:
+        target_project = Project.query.filter_by(owner_id=current_user.id, title="Favorite").first()
+        if not target_project:
+             target_project = Project(title="Favorite", owner_id=current_user.id, display_order=0)
+             db.session.add(target_project)
+             db.session.commit()
+
+    labels = []
+    MAX_FETCH = 100
+    
+    if batch_id_search:
+        ids_list = [sid.strip() for sid in batch_id_search.split(',') if sid.strip()]
+        labels, _ = find_labels_by_set_ids(ids_list, skip=0, limit=MAX_FETCH)
+    elif import_id:
+        import_path = os.path.join(Config.UPLOAD_FOLDER, f"import_{import_id}.json")
+        if os.path.exists(import_path):
+            with open(import_path, 'r', encoding='utf-8') as f:
+                labels = json.load(f)
+    elif drug_name:
+        labels, _ = find_labels(drug_name, skip=0, limit=MAX_FETCH)
+    
+    if not labels:
+         return jsonify({'success': True, 'added_count': 0, 'project_title': target_project.title})
+
+    added_count = 0
+    for label in labels:
+        set_id = label['set_id']
+        # Check if already exists IN THIS PROJECT (regardless of user)
+        existing = Favorite.query.filter_by(set_id=set_id, project_id=target_project.id).first()
+        if not existing:
+            new_fav = Favorite(
+                user_id=current_user.id,
+                project_id=target_project.id,
+                set_id=set_id,
+                brand_name=label.get('brand_name', 'n/a'),
+                generic_name=label.get('generic_name', 'n/a'),
+                manufacturer_name=label.get('manufacturer_name', 'n/a'),
+                market_category=label.get('market_category', 'n/a'),
+                application_number=label.get('application_number', 'n/a'),
+                ndc=label.get('ndc', 'n/a'),
+                effective_time=label.get('effective_time', 'n/a')
+            )
+            db.session.add(new_fav)
+            added_count += 1
+            
+    db.session.commit()
+    
+    return jsonify({
+        'success': True, 
+        'added_count': added_count, 
+        'project_title': target_project.title
+    })
+
 @api_bp.route('/my_labelings', methods=['GET'])
 @login_required
 def get_my_labelings():
