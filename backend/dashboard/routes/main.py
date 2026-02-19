@@ -622,15 +622,15 @@ def project_stats():
         for f in favs:
             sid = str(f.set_id) if f.set_id else None
             if sid: set_ids.append(sid)
-            manufacturers.append(_norm_str(f.manufacturer_name) or "Unknown")
-            brands.append(_norm_str(f.brand_name) or "Unknown")
-            d = _parse_eff_time_to_date(f.effective_time)
+            manufacturers.append(_norm_str(getattr(f, 'manufacturer_name', None)) or "Unknown")
+            brands.append(_norm_str(getattr(f, 'brand_name', None)) or "Unknown")
+            d = _parse_eff_time_to_date(getattr(f, 'effective_time', None))
             if d: eff_dates.append(d)
             elif sid: missing_date_set_ids.append(sid)
-            pt = _norm_str(f.product_type)
+            pt = _norm_str(getattr(f, 'product_type', None))
             if not pt:
-                lt = _norm_str(f.labeling_type).upper()
-                mc = _norm_str(f.market_category).upper()
+                lt = _norm_str(getattr(f, 'labeling_type', None)).upper()
+                mc = _norm_str(getattr(f, 'market_category', None)).upper()
                 pt = "OTC" if "OTC" in lt or "OTC" in mc else ("Rx" if lt or mc else "Unknown")
             product_types.append(pt)
 
