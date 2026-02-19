@@ -11,6 +11,20 @@ window.initFaers = function() {
 
     window.faersCoverageFilter = 'all';
 
+    // SOC abbrevs to EXCLUDE (non-AE-ish buckets).
+    const NON_AE_SOC_ABBREV = new Set([
+    // 'INV',   // Investigations (often labs, not events)
+    'SOC',   // Social circumstances
+    'PRD',   // Product issues
+    'SMP',   // Surgical and medical procedures
+    ]);
+
+    function isAeSoc(item) {
+        const abbr = (item.soc_abbrev || '').trim().toUpperCase();
+        if (!abbr) return true;            // if missing abbrev, don't drop it
+        return !NON_AE_SOC_ABBREV.has(abbr);
+    }
+
     function isNotPresentedStatusText(statusText) {
         const t = (statusText || '').toLowerCase();
         return (
@@ -256,6 +270,9 @@ window.initFaers = function() {
 
             return term.includes(filterText) || soc.includes(filterText) || hlt.includes(filterText);
         });
+
+        // 2.5) AE-only SOC filter (ABBREV-based) — APPLY BEFORE PAGINATION
+        filteredReactions = filteredReactions.filter(isAeSoc);
 
         // 3) Toggle filter (All vs Not Presented) — APPLY BEFORE PAGINATION
         if (window.faersCoverageFilter === 'not_presented') {
