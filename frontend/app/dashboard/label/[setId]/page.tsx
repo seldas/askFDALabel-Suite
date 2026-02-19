@@ -380,7 +380,79 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             font-size: 0.6rem;
             text-transform: uppercase;
         }
+
+        /* SOC summary bar (gov/simple pill chips) */
+        .soc-chip-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          padding: 10px 12px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+        }
+
+        .soc-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+
+          padding: 6px 12px;
+          border-radius: 999px;
+
+          background: #ffffff;
+          border: 1px solid #cbd5e1;
+          color: #0f172a;
+
+          font-size: 0.85rem;
+          font-weight: 700;
+          cursor: pointer;
+
+          transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+        }
+
+        .soc-chip:hover {
+          border-color: #0071bc;
+          background: #f1f7fd;
+        }
+
+        .soc-chip:active {
+          transform: translateY(1px);
+        }
+
+        .soc-chip.active {
+          border-color: #0071bc;
+          background: #e6f2fb;
+          color: #002e5d;
+        }
+
+        .soc-chip-count {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+
+          min-width: 28px;
+          height: 22px;
+          padding: 0 8px;
+
+          border-radius: 999px;
+          background: #f1f5f9;
+          border: 1px solid #e2e8f0;
+          color: #334155;
+
+          font-size: 0.78rem;
+          font-weight: 800;
+        }
+
+        .soc-chip.active .soc-chip-count {
+          background: #ffffff;
+          border-color: #b6d7f2;
+          color: #002e5d;
+        }
+
+
       `}</style>
+      
       {/* Main Header */}
       <header className="header-main" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2000, width: '100vw', justifyContent: 'space-between', padding: '0.5rem 2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -835,6 +907,22 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                         </button>
                       </div>
                     </div>
+
+                    <div
+                      style={{
+                        marginTop: '6px',
+                        fontSize: '0.85rem',
+                        color: '#475569',
+                        fontWeight: 500
+                      }}
+                    >
+                      Note: For clarity, we exclude SOC-level terms and non-AE groupings (e.g., PRD, SMP) from the summary bar.
+                    </div>
+
+                    {/* SOC summary bar injected by faers.js */}
+                    <div id="soc-summary-bar" style={{ marginTop: '12px' }} />
+
+
                     <div className="table-container">
                         <table id="coverageTable" className="coverage-table">
                             <thead>

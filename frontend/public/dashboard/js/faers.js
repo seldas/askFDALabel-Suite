@@ -11,17 +11,24 @@ window.initFaers = function() {
 
     window.faersCoverageFilter = 'all';
 
+    window.faersSocFilter = 'ALL'; // SOC abbrev or 'ALL'
+
+    window.setSocFilter = function(socAbbrev) {
+        window.faersSocFilter = socAbbrev || 'ALL';
+        currentCoveragePage = 1;
+        renderCoverageTable();
+    };
+
     // SOC abbrevs to EXCLUDE (non-AE-ish buckets).
     const NON_AE_SOC_ABBREV = new Set([
-    // 'INV',   // Investigations (often labs, not events)
-    'SOC',   // Social circumstances
-    'PRD',   // Product issues
-    'SMP',   // Surgical and medical procedures
+        // 'INV',   // Investigations (often labs, not events)
+        'SOCCI',   // Social circumstances
+        'PROD',   // Product issues
+        'SURG',   // Surgical and medical procedures
     ]);
 
     function isAeSoc(item) {
         const abbr = (item.soc_abbrev || '').trim().toUpperCase();
-        if (!abbr) return true;            // if missing abbrev, don't drop it
         return !NON_AE_SOC_ABBREV.has(abbr);
     }
 
@@ -228,6 +235,72 @@ window.initFaers = function() {
         });
     }
 
+    function renderSocSummaryBar(reactions) {
+        const bar = document.getElementById('soc-summary-bar');
+        if (!bar) return;
+
+        // Exclusions requested
+        const EXCLUDED = new Set(['SOC', 'PRD', 'SMP']);
+
+        // Count UNIQUE TERMS per SOC abbrev
+        const map = new Map(); // abbrev -> Set(terms)
+        (reactions || []).forEach(r => {
+            const abbr = (r.soc_abbrev || '').trim();
+            const term = (r.term || '').trim();
+            if (!abbr || !term) return;
+            if (EXCLUDED.has(abbr)) return;
+
+            if (!map.has(abbr)) map.set(abbr, new Set());
+            map.get(abbr).add(term.toLowerCase());
+        });
+
+        const items = Array.from(map.entries())
+            .map(([abbr, set]) => ({ abbr, n: set.size }))
+            .sort((a, b) => b.n - a.n);
+
+        // Total unique terms across all included SOC abbrevs
+        const allSet = new Set();
+        items.forEach(x => {
+            const s = map.get(x.abbr);
+            if (s) s.forEach(t => allSet.add(t));
+        });
+
+        const active = window.faersSocFilter || 'ALL';
+
+        const btnHtml = (abbr, n, isAll=false) => {
+            const isActive = active === abbr || (isAll && active === 'ALL');
+            return `
+            <button
+                type="button"
+                class="soc-chip ${isActive ? 'active' : ''}"
+                data-soc="${abbr}"
+            >
+                <span class="soc-chip-label">${abbr}</span>
+                <span class="soc-chip-count">${n}</span>
+            </button>
+            `;
+        };
+
+        bar.innerHTML = `
+            <div class="soc-chip-row">
+            ${btnHtml('ALL', allSet.size, true)}
+            ${items.map(x => btnHtml(x.abbr, x.n)).join('')}
+            </div>
+        `;
+
+        // Bind click handlers
+        bar.querySelectorAll('button.soc-chip').forEach(btn => {
+            btn.addEventListener('click', () => {
+            const soc = btn.getAttribute('data-soc') || 'ALL';
+            window.faersSocFilter = soc;
+            currentCoveragePage = 1;
+            renderCoverageTable();
+            });
+        });
+        }
+
+
+
     function renderCoverageTable() {
         if (!currentFaersData || !currentFaersData.reactions) return;
 
@@ -271,10 +344,10 @@ window.initFaers = function() {
             return term.includes(filterText) || soc.includes(filterText) || hlt.includes(filterText);
         });
 
-        // 2.5) AE-only SOC filter (ABBREV-based) — APPLY BEFORE PAGINATION
+        // 2.5) AE-only SOC filter (ABBREV-based)
         filteredReactions = filteredReactions.filter(isAeSoc);
 
-        // 3) Toggle filter (All vs Not Presented) — APPLY BEFORE PAGINATION
+        // 3) Toggle filter (All vs Not Presented) 
         if (window.faersCoverageFilter === 'not_presented') {
             filteredReactions = filteredReactions.filter(item =>
                 // "Not Presented" should mean NOT in label, and also not positively AI-matched
@@ -282,6 +355,14 @@ window.initFaers = function() {
             );
         }
 
+        // 3.5) SOC filter (by abbrev) 
+        const socFilter = (window.faersSocFilter || 'ALL');
+            if (socFilter !== 'ALL') {
+            filteredReactions = filteredReactions.filter(item => {
+                const abbrev = (item.soc_abbrev || '').trim() || 'UNK';
+                return abbrev === socFilter;
+            });
+        }
 
         // Update Count Display
         const countDisplay = document.getElementById('ae-filter-count');
@@ -392,6 +473,8 @@ window.initFaers = function() {
             `;
             coverageBody.appendChild(row);
         });
+
+        renderSocSummaryBar(filteredReactions);
 
         // Bind custom tooltips (defined in results logic, check ui.js or similar? No, tooltips were in script.js)
         // Note: bindAiTooltips needs to be available. We will implement it here or in a shared module.
