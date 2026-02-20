@@ -59,7 +59,7 @@ def index():
         label_xml_raw = get_label_xml(set_id)
         if label_xml_raw:
             from dashboard.services.xml_handler import extract_metadata_from_xml
-            doc_title, sections, _, _, _ = parse_spl_xml(label_xml_raw, set_id)
+            doc_title, sections, _, _, _, _ = parse_spl_xml(label_xml_raw, set_id)
             flat_sections = flatten_sections(sections)
             
             meta = extract_metadata_from_xml(label_xml_raw)

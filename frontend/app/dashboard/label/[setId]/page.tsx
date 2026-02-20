@@ -36,7 +36,7 @@ function TOCItemComponent({
 
   return (
     <li className={`toc-item-level-${level} ${specialClass}`}>
-      <div className="toc-item-container">
+      <div className="toc-item-container" style={{ padding: '0' }}>
         {hasChildren ? (
           <button 
             className={`toc-expander ${isExpanded ? 'expanded' : ''}`}
@@ -46,12 +46,12 @@ function TOCItemComponent({
               toggleSection(item.id);
             }}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
           </button>
         ) : (
-          <div style={{ width: '20px' }}></div>
+          <div style={{ width: '18px' }}></div>
         )}
         <a 
           href={`#${item.id}`}
@@ -497,13 +497,13 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
         .toc-link {
           text-decoration: none;
           color: #475569;
-          font-size: 0.875rem; /* Slightly larger for readability */
-          padding: 10px 12px;
-          border-radius: 8px;
+          font-size: 0.85rem;
+          padding: 6px 10px;
+          border-radius: 6px;
           display: block;
           transition: all 0.2s ease;
           line-height: 1.2;
-          margin-bottom: 2px;
+          margin-bottom: 1px;
         }
 
         .toc-link:hover {
@@ -513,7 +513,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
 
         /* --- Boxed Warnings Refinement --- */
         .toc-boxed-warning {
-          margin: 8px 0 !important;
+          margin: 4px 0 !important;
           background-color: #fff1f2; /* Ultra-soft red */
           border: 1px solid #fecaca; /* Soft red border */
           border-left: 4px solid #e11d48; /* Strong clinical red accent */
@@ -527,7 +527,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           font-weight: 700;
           text-transform: uppercase;
           letter-spacing: 0.025em;
-          padding: 12px;
+          padding: 8px 10px;
         }
 
         .toc-boxed-warning:hover {
@@ -537,7 +537,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
 
         /* --- Highlights Refinement --- */
         .toc-highlights {
-          margin: 8px 0 !important;
+          margin: 4px 0 !important;
           background-color: #fffbeb; /* Creamy amber */
           border: 1px solid #fde68a;
           border-left: 4px solid #f59e0b; /* Amber accent */
@@ -548,7 +548,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
         .toc-highlights .toc-link {
           color: #92400e !important; /* Deep amber/brown for text */
           font-weight: 700;
-          padding: 12px;
+          padding: 8px 10px;
         }
 
         .toc-highlights:hover {
@@ -558,7 +558,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
 
         /* --- Drug Facts OTC --- */
         .toc-drug-facts {
-          margin: 8px 0 !important;
+          margin: 4px 0 !important;
           background-color: #f0f9ff; /* Ultra-soft blue */
           border: 1px solid #bae6fd;
           border-left: 4px solid #0284c7; /* Strong clinical blue accent */
@@ -569,7 +569,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
         .toc-drug-facts .toc-link {
           color: #0369a1 !important;
           font-weight: 700;
-          padding: 12px;
+          padding: 8px 10px;
         }
 
         .toc-drug-facts:hover {
@@ -878,44 +878,13 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           )}
         </div>
       </header>
-
+      
       <div style={{ display: 'flex', flex: 1, paddingTop: '60px', overflow: 'hidden' }}>
         {/* Table of Contents Side Panel */}
-        <div id="toc-panel" className={`toc-side-panel ${tocCollapsed ? 'hidden' : ''}`} style={{ position: 'fixed', top: '60px', left: 0, bottom: 0, height: 'calc(100vh - 60px)', zIndex: 1500 }}>
-          <div className="toc-box">
-            <div className="toc-header">
-              <h2>Table of Contents</h2>
-              <button id="toc-close-internal" onClick={() => setTocCollapsed(true)} title="Collapse Panel" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 17 6 12 11 7"></polyline><polyline points="18 17 13 12 18 7"></polyline></svg>
-              </button>
-            </div>
-            {data.table_of_contents && data.table_of_contents.length > 0 ? (
-              <ol className="toc-list">
-                {data.table_of_contents.map((item) => (
-                  <TOCItemComponent 
-                    key={item.id} 
-                    item={item} 
-                    expandedSections={expandedSections}
-                    toggleSection={toggleSection}
-                  />
-                ))}
-              </ol>
-            ) : (
-              <p style={{ fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center', marginTop: '2rem' }}>No table of contents available.</p>
-            )}
-          </div>
-          <div className="sidebar-footer">
-            <Link href="/dashboard" className="btn-sidebar-home" style={{ textDecoration: 'none' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-              Return Home
-            </Link>
-          </div>
-        </div>
 
         {/* Main Content Area */}
-        <div id="main-content" className={`main-content ${tocCollapsed ? 'expanded' : ''}`} style={{ 
+        <div id="main-content" className="main-content expanded" style={{ 
             transition: 'margin-left 0.3s ease', 
-            marginLeft: tocCollapsed ? '0' : '300px',
             width: '100%',
             height: '100%',
             display: 'flex',
@@ -923,84 +892,114 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             overflow: 'hidden',
             padding: 0
         }}>
-          <div className="content-scroll-container" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '20px' }}>
-            <div className="container-top" style={{ maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
-            {/* User Session Notice Bar (Only for Guest) */}
-            {!userLoading && !session?.is_authenticated && (
-              <div className="auth-notice-bar animate-fade-in" style={{
-                padding: '12px 20px',
-                borderRadius: '12px',
-                marginBottom: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '0.9rem',
-                fontWeight: 500,
-                backgroundColor: '#fff7ed',
-                border: '1px solid #fed7aa',
-                color: '#9a3412',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '1.2rem' }}>💡</span>
-                  <span>You are in <strong>Guest Mode</strong>. Sign in to unlock saved notes, projects, and advanced AI features.</span>
+          <div className="content-scroll-container" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '0' }}>
+            
+            <div className="container" style={{ maxWidth: '1400px', margin: '0 auto', width: '100%', padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+            
+            {/* DRUG METADATA (Layer 1, Part 1) */}
+            <div className="label-header" style={{ marginBottom: '20px', background: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                            <h1 className="DocumentTitle" style={{ margin: 0, fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#0f172a' }}>{data.brand_name || data.drug_name}</h1>
+                            <span style={{ 
+                                backgroundColor: data.label_format === 'PLR' ? '#dcfce7' : '#f1f5f9',
+                                color: data.label_format === 'PLR' ? '#166534' : '#64748b',
+                                padding: '6px 14px',
+                                borderRadius: '30px',
+                                fontSize: '0.75rem',
+                                fontWeight: 800,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                                flexShrink: 0
+                            }}>
+                                {data.label_format}
+                            </span>
+                        </div>
+                        <h2 style={{ marginTop: 0, fontSize: '1.1rem', color: '#64748b', fontWeight: 500, marginBottom: 0 }}>{data.original_title || data.generic_name}</h2>
+                    </div>
+                    {session?.is_authenticated && (
+                      <div style={{ marginLeft: '20px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                          <button id="favorite-btn" className="favorite-btn" title="Toggle Project" style={{ background:'none', border:'none', cursor:'pointer', fontSize: '2rem', color: '#cbd5e1', padding: 0 }}>
+                              {"\u2606"}
+                          </button>
+                      </div>
+                    )}
                 </div>
-                <button 
-                  onClick={() => openAuthModal('login')}
-                  style={{ 
-                    backgroundColor: '#ea580c', 
-                    color: 'white', 
-                    padding: '8px 18px', 
-                    borderRadius: '20px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: 700,
-                    fontSize: '0.8rem',
-                    transition: 'all 0.2s ease',
-                    boxShadow: '0 4px 12px rgba(234, 88, 12, 0.2)'
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                >
-                  SIGN IN / LOGIN
-                </button>
-              </div>
-            )}
 
-            {/* View Selection Tabs (STICKY, FULL-BLEED, TALLER) */}
+                <div className="label-meta-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginTop: '24px' }}>
+                    {data.has_boxed_warning && (
+                    <div className="meta-item" style={{ gridColumn: '1 / -1', backgroundColor: '#fff1f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '1.5rem', color: '#e11d48' }}>{"\u26A0"}</span>
+                        <div>
+                            <span style={{ display: 'block', fontSize: '0.7rem', color: '#e11d48', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>Clinical Alert</span>
+                            <span style={{ fontWeight: 700, color: '#9f1239', fontSize: '0.95rem' }}>Boxed Warning Information Present</span>
+                        </div>
+                    </div>
+                    )}
+                    <div className="meta-item">
+                        <span style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em', marginBottom: '4px' }}>Manufacturer</span>
+                        <span style={{ fontWeight: 700, color: '#334155', fontSize: '0.9rem' }}>{data.manufacturer_name || 'N/A'}</span>
+                    </div>
+                    <div className="meta-item">
+                        <span style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em', marginBottom: '4px' }}>Product Type</span>
+                        <span style={{ fontWeight: 700, color: '#334155', fontSize: '0.9rem' }}>{data.document_type || 'Label'}</span>
+                    </div>
+                    <div className="meta-item">
+                        <span style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em', marginBottom: '4px' }}>NDC</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 700, color: '#334155', fontSize: '0.9rem', fontFamily: 'ui-monospace, monospace' }}>{ndcTooLong ? ndcRaw.slice(0, 12) + '...' : (ndcRaw || 'N/A')}</span>
+                          {ndcTooLong && (
+                            <button onClick={() => setNdcModalOpen(true)} style={{ background: '#f1f5f9', border: 'none', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>MORE</button>
+                          )}
+                        </div>
+                    </div>
+                    <div className="meta-item">
+                        <span style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em', marginBottom: '4px' }}>Application No.</span>
+                        <span style={{ fontWeight: 700, color: '#334155', fontSize: '0.9rem', fontFamily: 'ui-monospace, monospace' }}>{data.application_number || 'N/A'}</span>
+                    </div>
+                </div>
+
+                {/* Technical Product Data Strategy: Separated from book, show here in metadata */}
+                {data.product_data && data.product_data.length > 0 && (
+                   <div style={{ marginTop: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '15px' }}>
+                      <button 
+                        onClick={() => {
+                          const el = document.getElementById('tech-details-dropdown');
+                          if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+                        }}
+                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '8px 16px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 800, color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                      >
+                         📦 Technical Product Details ({data.product_data.length}) <span style={{ opacity: 0.5 }}>▼</span>
+                      </button>
+                      <div id="tech-details-dropdown" style={{ display: 'none', marginTop: '12px', background: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0' }}>
+                          {data.product_data.map((prod, pIdx) => (
+                             <div key={pIdx} style={{ marginBottom: pIdx < data.product_data.length - 1 ? '16px' : 0, paddingBottom: pIdx < data.product_data.length - 1 ? '16px' : 0, borderBottom: pIdx < data.product_data.length - 1 ? '1px dashed #cbd5e1' : 'none' }}>
+                                <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>{prod.name} - {prod.form}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                   <strong>NDC:</strong> {prod.ndc} | <strong>Ingredients:</strong> {prod.ingredients.map(i => `${i.name} (${i.strength})`).join(', ')}
+                                </div>
+                             </div>
+                          ))}
+                      </div>
+                   </div>
+                )}
+            </div>
+            
+            {/* FUNCTION PANELS (Layer 1, Part 2) */}
             <div
-              className="hp-sticky-tabs"
+              className="function-tabs-bar"
               style={{
-                position: 'sticky',
-                top: '10px', // header height
-                zIndex: 1600,
-
-                // full-bleed trick (break out of centered container)
-                width: '100vw',
-                marginLeft: 'calc(50% - 50vw)',
-                marginRight: 'calc(50% - 50vw)',
-
-                // make it taller
-                padding: '6px 0', // ↑ higher Y height
-
-                background: '#f9fafb',
-                borderBottom: '1px solid #e2e8f0',
-                boxShadow: '0 6px 18px rgba(0,0,0,0.05)',
+                width: '100%',
+                padding: '0 0 20px 0',
+                display: 'flex',
+                justifyContent: 'center'
               }}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  minHeight: '64px', // ↑ extra height; adjust to taste
-                  padding: '0 16px',
-                }}
-              >
                 <div
                   style={{
                     display: 'flex',
-                    gap: '6px',
+                    gap: '8px',
                     backgroundColor: '#f1f5f9',
                     padding: '6px',
                     borderRadius: '14px',
@@ -1016,12 +1015,10 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                           border: 'none',
                           background: isActive ? 'white' : 'transparent',
                           color: isActive ? '#0f172a' : '#64748b',
-
-                          // slightly bigger buttons for a “taller” feel
-                          padding: '10px 26px',
+                          padding: '10px 32px',
                           borderRadius: '12px',
                           cursor: 'pointer',
-                          fontSize: '0.95rem',
+                          fontSize: '1rem',
                           fontWeight: 800,
                           letterSpacing: '-0.01em',
                           boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.10)' : 'none',
@@ -1035,142 +1032,17 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                     );
                   })}
                 </div>
-              </div>
-            </div>
-          </div>
-          <div className="container" style={{ maxWidth: '1200px', margin: '0 auto', width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <div className="label-header" style={{ marginBottom: '25px', marginTop: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '5px' }}>
-                            <h1 className="DocumentTitle" style={{ margin: 0, lineHeight: '1.2' }}>{data.brand_name || data.drug_name}</h1>
-                            <span style={{ 
-                                backgroundColor: data.label_format === 'PLR' ? '#e0f2fe' : '#f1f5f9',
-                                color: data.label_format === 'PLR' ? '#0369a1' : '#64748b',
-                                padding: '4px 10px',
-                                borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                fontWeight: 800,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em',
-                                flexShrink: 0
-                            }}>
-                                {data.label_format}
-                            </span>
-                        </div>
-                        <h2 style={{ marginTop: 0, fontSize: '1.1em', color: '#666', fontWeight: 400, marginBottom: 0 }}>{data.original_title || data.generic_name}</h2>
-                    </div>
-                    {session?.is_authenticated && (
-                      <div style={{ marginLeft: '20px' }}>
-                          <button id="favorite-btn" className="favorite-btn" title="Toggle Project" style={{ background:'none', border:'none', cursor:'pointer', fontSize: '1.8em', color: '#ccc', padding: 0 }}>
-                              {"\u2606"}
-                          </button>
-                      </div>
-                    )}
-                </div>
-
-                <div className="label-meta-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginTop: '15px', border: '1px solid #eee' }}>
-                    {data.has_boxed_warning && (
-                    <div className="meta-item" style={{ gridColumn: '1 / -1', backgroundColor: '#fff5f5', border: '1px solid #f5c6cb', borderRadius: '6px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '1.5em', color: '#dc3545' }}>{"\u26A0"}</span>
-                        <div>
-                            <span style={{ display: 'block', fontSize: '0.75em', color: '#dc3545', textTransform: 'uppercase', fontWeight: 700 }}>Safety Alert</span>
-                            <span style={{ fontWeight: 600, color: '#721c24' }}>Contains Boxed Warning</span>
-                        </div>
-                    </div>
-                    )}
-                    <div className="meta-item">
-                        <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Manufacturer</span>
-                        <span style={{ fontWeight: 600, color: '#333' }}>{data.manufacturer_name || 'N/A'}</span>
-                    </div>
-                    <div className="meta-item">
-                        <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Product Type</span>
-                        <span style={{ fontWeight: 600, color: '#333' }}>{data.document_type || 'Label'}</span>
-                    </div>
-                    <div className="meta-item">
-                        <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Version</span>
-                        <span style={{ fontFamily: 'monospace', color: '#555' }}>v{data.version_number || '1'}</span>
-                    </div>
-                    <div className="meta-item">
-                        <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Last Revised</span>
-                        <span>{data.effective_time || 'N/A'}</span>
-                    </div>
-                    <div className="meta-item">
-                      <span
-                        style={{
-                          display: 'block',
-                          fontSize: '0.75em',
-                          color: '#888',
-                          textTransform: 'uppercase',
-                          letterSpacing: '1px',
-                          marginBottom: '3px'
-                        }}
-                      >
-                        NDC Code
-                      </span>
-
-                      {!ndcRaw ? (
-                        <span style={{ fontFamily: 'monospace', color: '#333' }}>N/A</span>
-                      ) : ndcTooLong ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontFamily: 'monospace', color: '#333' }}>
-                            {ndcRaw.slice(0, 12)}…
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setNdcModalOpen(true);
-                            }}
-                            style={{
-                              border: '1px solid #e2e8f0',
-                              background: 'white',
-                              color: '#334155',
-                              padding: '4px 10px',
-                              borderRadius: '999px',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            View full
-                          </button>
-                        </div>
-                      ) : (
-                        <span style={{ fontFamily: 'monospace', color: '#333' }}>{ndcRaw}</span>
-                      )}
-                    </div>
-
-                    <div className="meta-item">
-                        <span style={{ display: 'block', fontSize: '0.75em', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Application Number</span>
-                        <span style={{ fontFamily: 'monospace', color: '#333' }}>{data.application_number || 'N/A'}</span>
-                    </div>
-                </div>
-
-                {data.original_title && (
-                    <div style={{ 
-                        marginTop: '20px', 
-                        padding: '15px 20px', 
-                        backgroundColor: '#f1f5f9', 
-                        borderRadius: '8px', 
-                        borderLeft: '4px solid #64748b',
-                        color: '#334155',
-                        fontSize: '0.9rem',
-                        lineHeight: '1.5',
-                        fontStyle: 'italic',
-                        fontWeight: 500
-                    }}>
-                        {data.original_title}
-                    </div>
-                )}
             </div>
 
-            <div id="top-annotations-container" className="top-annotations-container"></div>
-
-            {/* Tab Contents */}
-            <LabelView data={data} activeTab={activeTab} />
-            <FaersView activeTab={activeTab} faersCoverageFilter={faersCoverageFilter} setFaersCoverageFilter={setFaersCoverageFilter} />
-            <AgentView activeTab={activeTab} />
+            {/* FUNCTION CONTENT PLACEHOLDER (Layer 1, Part 3) */}
+            <div className="function-content-area" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div id="top-annotations-container" className="top-annotations-container"></div>
+                
+                {/* Layer 2 (Inside Label function) handled within LabelView */}
+                <LabelView data={data} activeTab={activeTab} tocCollapsed={tocCollapsed} setTocCollapsed={setTocCollapsed} expandedSections={expandedSections} toggleSection={toggleSection} TOCItemComponent={TOCItemComponent} />
+                <FaersView activeTab={activeTab} faersCoverageFilter={faersCoverageFilter} setFaersCoverageFilter={setFaersCoverageFilter} />
+                <AgentView data={data} activeTab={activeTab} />
+            </div>
           </div>
         </div>
       </div>

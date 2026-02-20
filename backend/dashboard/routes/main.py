@@ -313,7 +313,7 @@ def view_label(set_id):
     if not label_xml_raw:
         return jsonify({'error': "Could not fetch the label data."}), 500
 
-    doc_title, sections, fallback_html, highlights, table_of_contents = parse_spl_xml(label_xml_raw, set_id)
+    doc_title, sections, fallback_html, highlights, table_of_contents, product_data = parse_spl_xml(label_xml_raw, set_id)
     
     metadata = extract_metadata_from_xml(label_xml_raw)
     
@@ -445,6 +445,7 @@ def view_label(set_id):
         'fallback_html': fallback_html, 
         'highlights': highlights, 
         'table_of_contents': table_of_contents,
+        'product_data': product_data,
         'label_xml_raw': label_xml_raw,
         'set_id': set_id,
         'metadata': metadata,

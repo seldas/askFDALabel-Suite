@@ -32,6 +32,25 @@ export interface Annotation {
   is_public: boolean;
 }
 
+export interface ProductIngredient {
+  type: string;
+  name: string;
+  strength: string;
+}
+
+export interface ProductPackaging {
+  quantity: string;
+  form: string;
+}
+
+export interface ProductData {
+  ndc: string;
+  name: string;
+  form: string;
+  ingredients: ProductIngredient[];
+  packaging: ProductPackaging[];
+}
+
 export interface LabelData {
   drug_name: string;
   brand_name: string | null;
@@ -51,6 +70,7 @@ export interface LabelData {
   fallback_html: string | null;
   highlights: Highlight[];
   table_of_contents: TOCItem[];
+  product_data: ProductData[];
   label_xml_raw: string;
   set_id: string;
   metadata: any;

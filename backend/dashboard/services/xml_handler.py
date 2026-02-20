@@ -293,10 +293,88 @@ def parse_spl_xml(xml_string, set_id=None):
 
         sections = []
         highlights = []
+        product_data = []
+
+        # Official FDA Titles for Reconstruction
+        PLR_TITLE_MAP = {
+            '1': 'Indications and Usage',
+            '2': 'Dosage and Administration',
+            '3': 'Dosage Forms and Strengths',
+            '4': 'Contraindications',
+            '5': 'Warnings and Precautions',
+            '6': 'Adverse Reactions',
+            '7': 'Drug Interactions',
+            '8': 'Use in Specific Populations',
+            '9': 'Drug Abuse and Dependence',
+            '10': 'Overdosage',
+            '11': 'Description',
+            '12': 'Clinical Pharmacology',
+            '13': 'Nonclinical Toxicology',
+            '14': 'Clinical Studies',
+            '15': 'References',
+            '16': 'How Supplied/Storage and Handling',
+            '17': 'Patient Counseling Information'
+        }
+
+        # Standard PLR Section Mapping (Code -> Canonical Number)
+        PLR_CODE_MAP = {
+            '34067-9': '1', '34068-7': '2', '43678-2': '3', '34070-3': '4',
+            '43685-7': '5', '34084-4': '6', '34073-7': '7', '43684-0': '8',
+            '42227-9': '9', '34088-5': '10', '34089-3': '11', '34090-1': '12',
+            '34091-9': '13', '34092-7': '14', '34093-5': '15', '34069-5': '16',
+            '34076-0': '17'
+        }
+
+        def parse_product_section(sec_el):
+            """Parses the SPL product data elements section (code 48780-1)."""
+            products = []
+            for subject in [c for c in sec_el if local(c.tag) == 'subject']:
+                for manuf_prod_wrapper in [c for c in subject if local(c.tag) == 'manufacturedProduct']:
+                    for manuf_prod in [c for c in manuf_prod_wrapper if local(c.tag) == 'manufacturedProduct']:
+                        product = {'ndc': '', 'name': '', 'form': '', 'ingredients': [], 'packaging': []}
+                        code_nodes = [c for c in manuf_prod if local(c.tag) == 'code']
+                        if code_nodes: product['ndc'] = code_nodes[0].get('code', '')
+                        name_nodes = [c for c in manuf_prod if local(c.tag) == 'name']
+                        if name_nodes: product['name'] = "".join(name_nodes[0].itertext()).strip()
+                        form_nodes = [c for c in manuf_prod if local(c.tag) == 'formCode']
+                        if form_nodes: product['form'] = form_nodes[0].get('displayName', '')
+                        for ingr in [c for c in manuf_prod if local(c.tag) == 'ingredient']:
+                            ingr_data = {'type': ingr.get('classCode', ''), 'name': '', 'strength': ''}
+                            subst_nodes = [c for c in ingr if local(c.tag) in ['ingredientSubstance', 'activeMedicine']]
+                            if subst_nodes:
+                                name_nodes = [c for c in subst_nodes[0] if local(c.tag) == 'name']
+                                if name_nodes: ingr_data['name'] = "".join(name_nodes[0].itertext()).strip()
+                            qty_nodes = [c for c in ingr if local(c.tag) == 'quantity']
+                            if qty_nodes:
+                                num = qty_nodes[0].find('{*}numerator')
+                                den = qty_nodes[0].find('{*}denominator')
+                                if num is not None:
+                                    val, unit = num.get('value', ''), num.get('unit', '')
+                                    ingr_data['strength'] = f"{val} {unit}".strip()
+                                    if den is not None and den.get('value') and den.get('value') != '1':
+                                        ingr_data['strength'] += f" / {den.get('value')} {den.get('unit', '')}".strip()
+                            product['ingredients'].append(ingr_data)
+                        for content in [c for c in manuf_prod if local(c.tag) == 'asContent']:
+                            pkg = {'quantity': '', 'form': ''}
+                            qty_nodes = [c for c in content if local(c.tag) == 'quantity']
+                            if qty_nodes:
+                                num = qty_nodes[0].find('{*}numerator')
+                                if num is not None:
+                                    pkg['quantity'] = num.get('value', '')
+                                    trans = num.find('{*}translation')
+                                    if trans is not None: pkg['form'] = trans.get('displayName', '')
+                            product['packaging'].append(pkg)
+                        products.append(product)
+            return products
+
         def parse_sec(sec_el):
             t_nodes = [n for n in sec_el if local(n.tag) == 'title']
             txt_nodes = [n for n in sec_el if local(n.tag) == 'text']
-            title = "".join(t_nodes[0].itertext()).strip() if t_nodes else ""
+            
+            # 1. Primary Title Extraction with whitespace normalization
+            title = ""
+            if t_nodes:
+                title = " ".join("".join(t_nodes[0].itertext()).split()).strip()
             
             code_node = None
             for child in sec_el:
@@ -307,13 +385,81 @@ def parse_spl_xml(xml_string, set_id=None):
             code_val = code_node.get('code', '') if code_node is not None else ""
             code_display = code_node.get('displayName', '') if code_node is not None else ""
 
-            # Fallback title for OTC sections or others without titles
+            # 2. Fallback to first bold text if title is missing
+            if not title and txt_nodes:
+                # Look for first paragraph's first bold content
+                first_p = [n for n in txt_nodes[0] if local(n.tag) == 'paragraph']
+                if first_p:
+                    # Check for first bold content
+                    first_content = [n for n in first_p[0] if local(n.tag) == 'content' and 'bold' in (n.get('styleCode') or '').lower()]
+                    if first_content:
+                        candidate = " ".join("".join(first_content[0].itertext()).split()).strip()
+                        # If it's a reasonable length and doesn't look like a whole paragraph
+                        if candidate and len(candidate) < 150:
+                            title = candidate.rstrip(':').strip()
+            
+            # 3. Final fallback to code display
             if not title and code_display:
                 title = code_display
                 if title.upper().startswith('OTC - '):
-                    title = title[6:].capitalize()
-                elif title.upper().endswith(' SECTION'):
-                    title = title[:-8].capitalize()
+                    title = title[6:]
+                if title.upper().endswith(' SECTION'):
+                    title = title[:-8]
+                
+                # Cleanup common technical parts
+                title = re.sub(r'\.PRINCIPAL DISPLAY PANEL$', '', title, flags=re.IGNORECASE)
+                title = title.replace('.', ' ').strip()
+
+            # Normalize Case for consistency (especially if it was all caps)
+            if title and title.isupper() and len(title) > 4:
+                title = title.capitalize()
+
+            # PLR LOGIC: ENFORCE CANONICAL TITLES AND NUMBERS
+            # If we detect a standard PLR code, we FORCE the correct number and title structure
+            numeric_id = extract_numeric_section_id(title)
+            
+            if code_val in PLR_CODE_MAP:
+                canonical_num = PLR_CODE_MAP[code_val]
+                canonical_title = PLR_TITLE_MAP.get(canonical_num, title)
+                
+                # If we have a canonical number, USE IT. Do not let extraction override it with something else.
+                numeric_id = canonical_num
+                
+                # Reconstruction: If title is missing or generic, use canonical
+                if not title or 'unclassified' in title.lower():
+                    title = f"{canonical_num} {canonical_title}"
+                # If title exists but lacks the number, prepend it
+                elif not title.startswith(canonical_num):
+                    # Clean existing title if it matches canonical text (e.g. "Warnings and Precautions" -> "5 Warnings and Precautions")
+                    if canonical_title.lower() in title.lower():
+                         title = f"{canonical_num} {canonical_title}"
+                    else:
+                         title = f"{canonical_num} {title}"
+
+            # SPECIAL: Filter out SPL listing data elements section
+            # This section is technical/structured and shouldn't be in the narrative "book"
+            is_listing_section = (code_val == '48780-1') or \
+                                 (title and 'LISTING DATA' in title.upper()) or \
+                                 (title and 'PRODUCT DATA' in title.upper()) or \
+                                 (code_display and 'PRODUCT DATA' in code_display.upper()) or \
+                                 (code_display and 'LISTING DATA' in code_display.upper())
+            
+            if is_listing_section:
+                product_data.extend(parse_product_section(sec_el))
+                return None
+
+            # ID Extraction improvement: check attribute 'ID', then child <id root="...">
+            sec_id = sec_el.get('ID')
+            if not sec_id:
+                id_nodes = [n for n in sec_el if local(n.tag) == 'id']
+                if id_nodes:
+                    sec_id = id_nodes[0].get('root')
+            
+            # Generate stable ID if still missing (needed for TOC anchoring)
+            if not sec_id:
+                import hashlib
+                content_sample = title + (code_val or "")
+                sec_id = "gen_" + hashlib.md5(content_sample.encode()).hexdigest()[:8]
 
             # Extract content and apply heuristic cleaning to heal line breaks
             content = to_html(txt_nodes[0], media_map, set_id) if txt_nodes else ""
@@ -324,27 +470,35 @@ def parse_spl_xml(xml_string, set_id=None):
                 for exc in [c for c in sec_el if local(c.tag) == 'excerpt']:
                     for hl in [c for c in exc if local(c.tag) == 'highlight']:
                         hl_html = to_html(hl, media_map, set_id)
-                        highlights.append({'source_section_title': title, 'content_html': clean_spl_text(hl_html)})
+                        highlights.append({'source_section_title': title or "Highlights", 'content_html': clean_spl_text(hl_html)})
 
             children = []
             for comp in [c for c in sec_el if local(c.tag) == 'component']:
                 for sub in [c for c in comp if local(c.tag) == 'section']:
-                    children.append(parse_sec(sub))
+                    parsed_sub = parse_sec(sub)
+                    if parsed_sub:
+                        children.append(parsed_sub)
             
+            is_boxed = (code_val == '34066-1') or \
+                       (title.upper().startswith('WARNING:')) or \
+                       ('BOXED WARNING' in title.upper())
+
             return {
-                'id': sec_el.get('ID'), 
-                'numeric_id': extract_numeric_section_id(title), 
+                'id': sec_id, 
+                'numeric_id': numeric_id, 
                 'title': title, 
                 'content': content, 
                 'children': children, 
-                'is_boxed_warning': title.upper().startswith('WARNING:'),
+                'is_boxed_warning': is_boxed,
                 'code': code_val
             }
 
         for sb in [n for n in root.iter() if local(n.tag) == 'structuredBody']:
             for comp in [c for c in sb if local(c.tag) == 'component']:
                 for sec in [c for c in comp if local(c.tag) == 'section']:
-                    sections.append(parse_sec(sec))
+                    parsed_sec_item = parse_sec(sec)
+                    if parsed_sec_item:
+                        sections.append(parsed_sec_item)
 
         # --- OTC Virtual Grouping Logic ---
         is_otc = False
@@ -371,18 +525,28 @@ def parse_spl_xml(xml_string, set_id=None):
             drug_facts_item = None
             
             for s in sl:
-                if s['title'] and s['id']:
-                    title = s['title'].strip()
+                title = (s.get('title') or '').strip()
+                sid = s.get('id')
+                code = s.get('code')
+                
+                # We need a title to show in the TOC
+                if not title:
+                    # If it has children but no title, promote children
+                    if s.get('children'):
+                        res.extend(build_toc(s['children'], prefix))
+                    continue
+
+                if sid:
                     is_boxed = s.get('is_boxed_warning', False)
                     if is_boxed:
                         title = "Boxed Warnings"
                     
                     # Special handling for "Drug Facts" grouping in OTC
-                    if is_otc and (s.get('code') in otc_codes or title.upper() == "DRUG FACTS"):
+                    if is_otc and (code in otc_codes or title.upper() == "DRUG FACTS"):
                         if not drug_facts_item:
                             drug_facts_item = {
                                 'title': 'Drug Facts',
-                                'id': s['id'] if title.upper() == "DRUG FACTS" else 'drug-facts-group',
+                                'id': sid if title.upper() == "DRUG FACTS" else 'drug-facts-group',
                                 'numeric_id': None,
                                 'children': [],
                                 'is_drug_facts': True
@@ -393,7 +557,7 @@ def parse_spl_xml(xml_string, set_id=None):
                         if title.upper() != "DRUG FACTS":
                             item = {
                                 'title': title,
-                                'id': s['id'],
+                                'id': sid,
                                 'numeric_id': None,
                                 'is_drug_facts_item': True
                             }
@@ -403,36 +567,49 @@ def parse_spl_xml(xml_string, set_id=None):
                             drug_facts_item['children'].append(item)
                         continue
 
-                    # Auto-numbering for non-PLR if numeric_id is missing
+                    # Determine numeric ID (Now reliable from parse_sec)
                     num_id = s.get('numeric_id')
-                    current_prefix = f"{prefix}{count}"
                     
+                    # Auto-numbering for non-PLR or missing ID fallback
+                    current_prefix = f"{prefix}{count}"
+                    should_increment = True
+
                     if not num_id:
-                        if not any(title.upper().startswith(x) for x in ["HIGHLIGHTS", "BOXED WARNINGS"]):
+                        if any(title.upper().startswith(x) for x in ["HIGHLIGHTS", "BOXED WARNINGS"]):
+                            should_increment = False # Don't use a number for these
+                        else:
+                            # Only auto-number if it doesn't look like it already has one
                             if not re.match(r'^\d', title):
                                 title = f"{current_prefix}. {title}"
                                 num_id = current_prefix
                             else:
                                 num_id = extract_numeric_section_id(title) or current_prefix
-                    
+                    else:
+                        # If we have a num_id, sync the counter if it's a top-level integer
+                        try:
+                            if '.' not in str(num_id):
+                                count = int(num_id)
+                        except: pass
+
                     item = {
                         'title': title, 
-                        'id': s['id'],
+                        'id': sid,
                         'numeric_id': num_id,
                         'is_boxed_warning': is_boxed
                     }
-                    children = build_toc(s.get('children', []), prefix=f"{current_prefix}.")
+                    children = build_toc(s.get('children', []), prefix=f"{num_id}." if num_id else prefix)
                     if children:
                         item['children'] = children
                     res.append(item)
-                    count += 1
+                    if should_increment:
+                        count += 1
             return res
         toc = build_toc(sections)
         if highlights: toc.insert(0, {'title': 'Highlights', 'id': 'highlights-section', 'numeric_id': None, 'is_highlights': True})
-        return doc_title, sections, None, highlights, toc
+        return doc_title, sections, None, highlights, toc, product_data
     except Exception as e:
         logger.error(f"XML parse error: {e}")
-    return "Error", [], None, None, []
+    return "Error", [], None, None, [], []
 
 def get_aggregate_content(section):
     """
