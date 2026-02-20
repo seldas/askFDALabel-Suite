@@ -138,10 +138,50 @@ export default function LabelView({
 
   // Track active section on scroll
   useEffect(() => {
-    // ... (observer logic remains same)
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (disableScrollObserver.current) return;
+        
+        const visible = entries.filter(e => e.isIntersecting);
+        if (visible.length > 0) {
+            // Pick the entry with the highest intersection ratio
+            const bestCandidate = visible.reduce((prev, curr) => 
+                curr.intersectionRatio > prev.intersectionRatio ? curr : prev
+            );
+
+            const index = Number(bestCandidate.target.getAttribute('data-section-index'));
+            if (!isNaN(index)) {
+                setCurrentIndex(index);
+            }
+        }
+      },
+      {
+        root: labelViewRef.current,
+        // Active zone: Trigger when sections enter the top half of the viewport
+        rootMargin: '-10% 0px -60% 0px', 
+        threshold: [0, 0.1, 0.5, 1.0]
+      }
+    );
+
+    const container = labelViewRef.current;
+    if (container) {
+        const children = container.querySelectorAll('.label-section-item');
+        children.forEach(c => observer.observe(c));
+    }
+
+    return () => observer.disconnect();
   }, [sections.length, activeTab]);
 
-  // if (activeTab !== 'label-view') return null; // REMOVED: Do not unmount
+  // Re-apply MedDRA highlights after render
+  useEffect(() => {
+    if (activeTab === 'label-view') {
+        setTimeout(() => {
+            if ((window as any).reapplyMeddraHighlights) {
+                (window as any).reapplyMeddraHighlights();
+            }
+        }, 500); 
+    }
+  }, [activeTab, sections]);
 
   return (
     <div id="label-view" className={`tab-content ${activeTab === 'label-view' ? 'active' : ''}`} style={{ 
@@ -188,6 +228,11 @@ export default function LabelView({
             ) : (
               <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No TOC available.</p>
             )}
+          </div>
+          <div className="sidebar-footer" style={{ padding: '12px', borderTop: '1px solid #f1f5f9' }}>
+            <Link href="/dashboard" className="btn-sidebar-home" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 700, color: '#475569', textDecoration: 'none' }}>
+               🏠 Dashboard
+            </Link>
           </div>
         </div>
 
