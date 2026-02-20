@@ -589,21 +589,29 @@ window.initUI = function() {
 
                 const tagClass = note.type === 'QA' ? 'tag-qa' : (note.type === 'Comment' ? 'tag-comment' : 'tag-highlight');
 
-                
+                // Get ID
+                const noteId = note.type === 'QA' ? 
+                    note.element.getAttribute('data-id') : 
+                    note.element.getAttribute('data-ann-id');
+
+                const deleteBtnHtml = noteId ? `<button class="note-delete-btn" title="Delete Note">🗑️</button>` : '';
 
                 item.innerHTML = `
-
-                    <div class="note-type-tag ${tagClass}">${note.type}</div>
-
-                    <div class="note-summary-text">${note.text.substring(0, 150)}${note.text.length > 150 ? '...' : ''}</div>
-
-                    <div class="note-summary-meta">Location: Section ${note.section}</div>
-
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
+                        <div style="flex:1;">
+                            <div class="note-type-tag ${tagClass}">${note.type}</div>
+                            <div class="note-summary-text">${note.text.substring(0, 150)}${note.text.length > 150 ? '...' : ''}</div>
+                            <div class="note-summary-meta">Location: Section ${note.section}</div>
+                        </div>
+                        ${deleteBtnHtml}
+                    </div>
                 `;
 
     
 
-                item.onclick = () => {
+                // Main Click: Go to note
+                item.onclick = (e) => {
+                    if (e.target.closest('.note-delete-btn')) return;
 
                     notesModal.style.display = 'none';
 
@@ -636,6 +644,61 @@ window.initUI = function() {
                     }
 
                 };
+
+                // Delete Click
+                const delBtn = item.querySelector('.note-delete-btn');
+                if (delBtn) {
+                    delBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        if (!confirm("Are you sure you want to delete this note?")) return;
+
+                        if (note.type === 'QA') {
+                            // Delete QA Note
+                            fetch("/api/dashboard/delete_annotation", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ set_id: currentSetId, id: noteId }),
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.success) {
+                                    note.element.remove();
+                                    item.remove();
+                                    if (container.children.length === 0) {
+                                        container.innerHTML = '<p style="text-align:center; color:#94a3b8; padding: 20px;">No personal notes or annotations found in this label.</p>';
+                                    }
+                                } else {
+                                    alert("Error deleting note.");
+                                }
+                            });
+                        } else {
+                            // Delete Highlight/Comment
+                            fetch('/api/dashboard/annotations/delete', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: noteId })
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.success) {
+                                    // Unwrap text
+                                    const domElement = note.element;
+                                    const parent = domElement.parentNode;
+                                    while(domElement.firstChild) parent.insertBefore(domElement.firstChild, domElement);
+                                    parent.removeChild(domElement);
+                                    parent.normalize();
+                                    
+                                    item.remove();
+                                    if (container.children.length === 0) {
+                                        container.innerHTML = '<p style="text-align:center; color:#94a3b8; padding: 20px;">No personal notes or annotations found in this label.</p>';
+                                    }
+                                } else {
+                                    alert("Error deleting annotation.");
+                                }
+                            });
+                        }
+                    };
+                }
 
     
 

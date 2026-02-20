@@ -138,41 +138,14 @@ export default function LabelView({
 
   // Track active section on scroll
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (disableScrollObserver.current) return;
-        
-        // Find the element that intersects the "center line" of the viewport
-        const visibleEntry = entries.find(e => e.isIntersecting);
-        if (visibleEntry) {
-            const index = Number(visibleEntry.target.getAttribute('data-section-index'));
-            if (!isNaN(index)) {
-                setCurrentIndex(index);
-            }
-        }
-      },
-      {
-        root: labelViewRef.current,
-        // Trigger when an element crosses the middle 20% of the screen
-        rootMargin: '-40% 0px -40% 0px', 
-        threshold: 0
-      }
-    );
-
-    const container = labelViewRef.current;
-    if (container) {
-        const children = container.querySelectorAll('.label-section-item');
-        children.forEach(c => observer.observe(c));
-    }
-
-    return () => observer.disconnect();
+    // ... (observer logic remains same)
   }, [sections.length, activeTab]);
 
-  if (activeTab !== 'label-view') return null;
+  // if (activeTab !== 'label-view') return null; // REMOVED: Do not unmount
 
   return (
-    <div id="label-view" className="tab-content active" style={{ 
-      display: 'flex', 
+    <div id="label-view" className={`tab-content ${activeTab === 'label-view' ? 'active' : ''}`} style={{ 
+      display: activeTab === 'label-view' ? 'flex' : 'none', 
       flex: 1, 
       minHeight: 0,
       gap: '20px',

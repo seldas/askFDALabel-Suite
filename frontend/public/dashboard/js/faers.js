@@ -6,8 +6,38 @@ window.initFaers = function() {
     let faersDataLoaded = false;
     let chartInstances = {}; // Track chart instances to destroy them on update
     let currentFaersData = null; // Store fetched reactions for pagination
+    let meddraScanData = null; // Store initial scan data for re-highlighting
     let currentCoveragePage = 1;
     const itemsPerPage = 10;
+
+    // ... (rest of initFaers)
+
+    window.reapplyMeddraHighlights = function() {
+        const labelContainer = document.getElementById('label-view');
+        if (!labelContainer) return;
+
+        // 1. Re-apply MedDRA Scan (Base terms)
+        if (meddraScanData) {
+            highlightSafetyTerms(labelContainer, meddraScanData);
+        }
+
+        // 2. Re-apply FAERS Signals (Overlays)
+        if (currentFaersData && currentFaersData.reactions) {
+            const termsMap = {};
+            currentFaersData.reactions.forEach(r => {
+                if (r.term && r.term.length > 2) {
+                    termsMap[r.term.toLowerCase()] = {
+                        count: r.count,
+                        term: r.term,
+                        soc: r.soc || 'N/A',
+                        soc_abbrev: r.soc_abbrev || '',
+                        hlt: r.hlt || 'N/A'
+                    };
+                }
+            });
+            highlightSafetyTerms(labelContainer, termsMap);
+        }
+    };
 
     window.faersCoverageFilter = 'all';
 
@@ -1487,6 +1517,8 @@ window.initFaers = function() {
                     }
                 });
                 
+                meddraScanData = termsMap; // Store globally
+
                 const labelContainer = document.getElementById('label-view');
                 if (labelContainer) {
                     highlightSafetyTerms(labelContainer, termsMap);
