@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import logging
 import re
-from dashboard.utils import extract_numeric_section_id
+from dashboard.utils import extract_numeric_section_id, clean_spl_text
 
 logger = logging.getLogger(__name__)
 
@@ -198,19 +198,50 @@ def extract_metadata_from_xml(xml_string):
 
 def to_html(element, media_map=None, set_id=None):
     if element is None: return ""
-    tag_map = {'paragraph': 'p', 'linkHtml': 'a', 'list': 'ul', 'item': 'li', 'content': 'span', 'sub': 'sub', 'sup': 'sup', 'br': 'br', 'renderMultiMedia': 'div', 'caption': 'p'}
+    
+    # Helper to clean text chunks within nodes
+    def _clean_chunk(text):
+        if not text: return ""
+        # Collapse multiple spaces and newlines into a single space
+        return re.sub(r'\s+', ' ', text)
+
     raw_tag = element.tag.split('}')[-1] if '}' in element.tag else element.tag
-    html_tag = tag_map.get(raw_tag, raw_tag) 
-    if raw_tag == 'list' and element.get('listType') == 'ordered': html_tag = 'ol'
+    
+    # 1. Handle Multimedia separately to maintain its unique wrapping
     if raw_tag == 'renderMultiMedia':
         ref_id = element.get('referencedObject')
         filename = media_map.get(ref_id) if media_map else None
-        html = "".join([to_html(child, media_map, set_id) for child in element])
+        
+        # Recursively process children
+        child_html = ""
+        for child in element:
+            child_html += to_html(child, media_map, set_id)
+            
         img_url = f"https://dailymed.nlm.nih.gov/dailymed/image.cfm?setid={set_id}&name={filename}" if filename and set_id else ""
-        return f'<div class="spl-figure" style="text-align: center; margin: 20px 0;">{f"<img src=\'{img_url}\' style=\'max-width:100%\'/>" if img_url else ""}{html}</div>{element.tail or ""}'
+        return f'<div class="spl-figure" style="text-align: center; margin: 20px 0;">{f"<img src=\'{img_url}\' style=\'max-width:100%\'/>" if img_url else ""}{child_html}</div>{_clean_chunk(element.tail)}'
+
+    # 2. Standard Tag Mapping
+    tag_map = {
+        'paragraph': 'p', 
+        'linkHtml': 'a', 
+        'list': 'ul', 
+        'item': 'li', 
+        'content': 'span', 
+        'sub': 'sub', 
+        'sup': 'sup', 
+        'br': 'br', 
+        'caption': 'p'
+    }
+    
+    html_tag = tag_map.get(raw_tag, raw_tag) 
+    if raw_tag == 'list' and element.get('listType') == 'ordered': 
+        html_tag = 'ol'
+    
+    # 3. Attribute Processing
     attrs = []
     for k, v in element.attrib.items():
-        if html_tag == 'a' and k == 'href': attrs.append(f'href="{v}"')
+        if html_tag == 'a' and k == 'href': 
+            attrs.append(f'href="{v}"')
         if k == 'styleCode':
             styles = [s.lower() for s in v.split(' ')]
             classes = []
@@ -218,9 +249,25 @@ def to_html(element, media_map=None, set_id=None):
             if 'italic' in styles: classes.append('Emphasis')
             if 'underline' in styles: classes.append('Underline')
             if classes: attrs.append(f'class="{" ".join(classes)}"')
-    html = (element.text or '') + "".join([to_html(child, media_map, set_id) for child in element])
-    if html_tag == 'br': return f"<br/>{element.tail or ''}"
-    return f"<{html_tag} {' '.join(attrs)}>{html}</{html_tag}>{element.tail or ''}"
+    
+    # 4. Child Processing with Context-Aware Skips
+    inner_html = _clean_chunk(element.text)
+    for child in element:
+        child_raw_tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+        
+        # HEURISTIC: Skip <caption> inside <item> as it's usually a redundant bullet marker
+        if raw_tag == 'item' and child_raw_tag == 'caption':
+            # Skip the tag but include its tail text in the parent's content
+            inner_html += _clean_chunk(child.tail)
+            continue
+            
+        inner_html += to_html(child, media_map, set_id)
+    
+    # 5. Final Assembly
+    if html_tag == 'br': 
+        return f"<br/>{_clean_chunk(element.tail)}"
+        
+    return f"<{html_tag} {' '.join(attrs)}>{inner_html}</{html_tag}>{_clean_chunk(element.tail)}"
 
 def parse_spl_xml(xml_string, set_id=None):
     if not xml_string: return "Error", [], None, None, []
@@ -250,13 +297,17 @@ def parse_spl_xml(xml_string, set_id=None):
             t_nodes = [n for n in sec_el if local(n.tag) == 'title']
             txt_nodes = [n for n in sec_el if local(n.tag) == 'text']
             title = "".join(t_nodes[0].itertext()).strip() if t_nodes else ""
+            
+            # Extract content and apply heuristic cleaning to heal line breaks
             content = to_html(txt_nodes[0], media_map, set_id) if txt_nodes else ""
+            content = clean_spl_text(content)
             
             # Check for highlights in this section
             if any(local(child.tag) == 'excerpt' for child in sec_el):
                 for exc in [c for c in sec_el if local(c.tag) == 'excerpt']:
                     for hl in [c for c in exc if local(c.tag) == 'highlight']:
-                        highlights.append({'source_section_title': title, 'content_html': to_html(hl, media_map, set_id)})
+                        hl_html = to_html(hl, media_map, set_id)
+                        highlights.append({'source_section_title': title, 'content_html': clean_spl_text(hl_html)})
 
             children = []
             for comp in [c for c in sec_el if local(c.tag) == 'component']:
@@ -271,7 +322,9 @@ def parse_spl_xml(xml_string, set_id=None):
 
         if not sections:
             txt_nodes = [n for n in root if local(n.tag) == 'text']
-            if txt_nodes: return doc_title, [], to_html(txt_nodes[0], media_map, set_id), None, []
+            if txt_nodes: 
+                fallback = to_html(txt_nodes[0], media_map, set_id)
+                return doc_title, [], clean_spl_text(fallback), None, []
 
         def build_toc(sl):
             res = []

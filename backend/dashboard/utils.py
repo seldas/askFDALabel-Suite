@@ -73,3 +73,47 @@ def get_section_sort_key(section_title):
     
     # No section number, sort alphabetically at the end
     return (float('inf'), section_title)
+
+def clean_spl_text(text):
+    """
+    Cleans malformatted SPL text by removing consecutive newlines and
+    stitching lines that end mid-sentence using heuristics.
+    """
+    if not text:
+        return ""
+        
+    # 1. Remove multiple consecutive newlines (collapse them)
+    text = re.sub(r'\n+', '\n', text)
+    
+    # 2. Normalize horizontal whitespace (tabs, multiple spaces)
+    text = re.sub(r'[ \t]+', ' ', text)
+    
+    # 3. Heuristic: Stitch lines that end mid-sentence
+    # Logic: Join line if current line doesn't end with terminal punctuation
+    lines = text.split('\n')
+    cleaned_lines = []
+    
+    if not lines:
+        return ""
+        
+    current_buffer = lines[0].strip()
+    for next_line in lines[1:]:
+        next_line = next_line.strip()
+        if not next_line:
+            continue
+            
+        # Check if the buffer is an "incomplete" thought
+        # Doesn't end with ., :, !, ?, ;
+        # AND next line starts with lowercase (highly likely continuation)
+        ends_with_punctuation = current_buffer.endswith(('.', ':', '!', '?', ';'))
+        starts_with_lowercase = next_line and next_line[0].islower()
+        
+        if not ends_with_punctuation or starts_with_lowercase:
+            # Stitch them
+            current_buffer += " " + next_line
+        else:
+            cleaned_lines.append(current_buffer)
+            current_buffer = next_line
+            
+    cleaned_lines.append(current_buffer)
+    return '\n'.join(cleaned_lines)
