@@ -67,7 +67,7 @@ export default function LabelView({
     };
 
     return sections.findIndex(s => {
-      if (s.children && checkNested(s.children, id)) return true;
+      if ('children' in s && s.children && checkNested(s.children, id)) return true;
       return false;
     });
   };
@@ -265,29 +265,35 @@ export default function LabelView({
                                 id={section.id} // Ensure ID is on wrapper for scroll targets
                                 style={{ 
                                     background: 'white',
-                                    borderRadius: '12px',
-                                    padding: '50px 60px',
-                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                                    borderRadius: '8px',
+                                    padding: '40px 50px',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                                     border: '1px solid #e2e8f0',
-                                    borderLeft: isSafetySection ? '8px solid #e11d48' : '1px solid #e2e8f0',
                                     position: 'relative'
                                 }}
                             >
                                 {section.is_highlights ? (
                                     <div id="highlights-content">
-                                        <h2 style={{ fontSize: '1.8rem', color: '#0f172a', marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                            <span style={{ backgroundColor: '#fef3c7', padding: '8px', borderRadius: '10px' }}>✨</span>
-                                            Highlights of Prescribing
+                                        <h2 style={{ 
+                                            fontSize: '1.25rem', 
+                                            color: '#000', 
+                                            marginBottom: '20px', 
+                                            fontWeight: 900, 
+                                            textTransform: 'uppercase', 
+                                            borderBottom: '2px solid #000', 
+                                            paddingBottom: '8px',
+                                            letterSpacing: '0.05em' 
+                                        }}>
+                                            Highlights of Prescribing Information
                                         </h2>
                                         {data.highlights.map((h, i) => (
-                                            <div key={i} className="highlight-item" style={{ marginBottom: '20px', padding: '15px', borderLeft: '4px solid #f59e0b', background: '#fffbeb', borderRadius: '0 8px 8px 0' }}>
+                                            <div key={i} className="highlight-item" style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #e2e8f0' }}>
                                                 {h.source_section_title !== 'Untitled Section' && (
-                                                    <div className="highlight-source-header" style={{ marginBottom: '8px' }}>
-                                                        <span className="source-label" style={{ fontSize: '0.7rem', fontWeight: 800, color: '#b45309', textTransform: 'uppercase', marginRight: '8px' }}>Section</span>
-                                                        <span className="source-title" style={{ fontWeight: 700, color: '#92400e' }}>{h.source_section_title}</span>
+                                                    <div className="highlight-source-header" style={{ marginBottom: '6px' }}>
+                                                        <span className="source-title" style={{ fontWeight: 700, color: '#334155', textTransform: 'uppercase', fontSize: '0.75rem' }}>{h.source_section_title}</span>
                                                     </div>
                                                 )}
-                                                <div className="highlight-body" style={{ color: '#78350f', lineHeight: '1.6' }} dangerouslySetInnerHTML={{ __html: h.content_html }} />
+                                                <div className="highlight-body" style={{ color: '#1e293b', lineHeight: '1.5', fontSize: '0.9rem' }} dangerouslySetInnerHTML={{ __html: h.content_html }} />
                                             </div>
                                         ))}
                                     </div>

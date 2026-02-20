@@ -18,118 +18,105 @@ export default function AgentView({
         <div id="tox-index" style={{ padding: '0 0 30px 0' }}>
             <div style={{ 
                 background: 'white', 
-                padding: '30px', 
-                borderRadius: '16px', 
-                boxShadow: '0 4px 20px rgba(0,0,0,0.04)', 
-                border: '1px solid #f1f5f9',
+                padding: '24px', 
+                borderRadius: '8px', 
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)', 
+                border: '1px solid #e2e8f0',
                 marginBottom: '30px'
             }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ backgroundColor: '#fef2f2', padding: '8px', borderRadius: '10px' }}>🛡️</span>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '2px solid #0f172a', paddingBottom: '8px', display: 'inline-block' }}>
                     Safety Intelligence Dashboard
                 </h2>
-                <p style={{ color: '#64748b', fontSize: '0.95rem', marginBottom: '24px' }}>
+                <p style={{ color: '#334155', fontSize: '0.9rem', marginBottom: '24px', marginTop: '12px', maxWidth: '800px' }}>
                     Consolidated safety signals from Official Labeling, FAERS Adverse Event reports, and AI-driven clinical analysis.
                 </p>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
                     
                     {/* LIVER SAFETY CARD */}
-                    <button id="btn-agent-dili" className="agent-card-modern" style={{ position: 'relative', textAlign: 'left', background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', cursor: 'pointer', transition: 'all 0.2s ease' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                            <div style={{ background: '#ecfeff', color: '#0891b2', padding: '10px', borderRadius: '12px', fontSize: '1.5rem' }}>🧪</div>
-                            <div style={{ textAlign: 'right' }}>
-                                <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Liver Safety</span>
-                                <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>DILI</span>
-                            </div>
+                    <button id="btn-agent-dili" className="agent-card-modern" style={{ position: 'relative', textAlign: 'left', background: 'white', border: '1px solid #e2e8f0', borderLeft: '4px solid #0891b2', borderRadius: '4px', padding: '20px', cursor: 'pointer', transition: 'all 0.2s ease' }}>
+                        <div style={{ marginBottom: '12px' }}>
+                            <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Liver Safety</span>
+                            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>Drug-Induced Liver Injury (DILI)</span>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
-                                <span style={{ color: tox.dili ? '#059669' : '#94a3b8' }}>{tox.dili ? '●' : '○'}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#334155' }}>
+                                <span style={{ color: tox.dili ? '#059669' : '#cbd5e1', fontSize: '1.2rem', lineHeight: 0 }}>{tox.dili ? '•' : '◦'}</span>
                                 Label Analysis {tox.dili ? 'Available' : 'Pending'}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
-                                <span style={{ color: '#0891b2' }}>●</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#334155' }}>
+                                <span style={{ color: '#0891b2', fontSize: '1.2rem', lineHeight: 0 }}>•</span>
                                 FAERS Monitoring
                             </div>
                         </div>
-                        <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0891b2' }}>VIEW DETAILS →</span>
-                            {tox.dili && <span style={{ background: '#dcfce7', color: '#166534', fontSize: '0.65rem', fontWeight: 800, padding: '2px 8px', borderRadius: '10px' }}>CONSULTED</span>}
+                        <div style={{ marginTop: '15px', paddingTop: '12px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#0891b2', textTransform: 'uppercase' }}>View Report →</span>
+                            {tox.dili && <span style={{ background: '#f1f5f9', color: '#334155', fontSize: '0.65rem', fontWeight: 700, padding: '2px 6px', borderRadius: '2px', border: '1px solid #e2e8f0' }}>CONSULTED</span>}
                         </div>
                     </button>
 
                     {/* CARDIAC SAFETY CARD */}
-                    <button id="btn-agent-dict" className="agent-card-modern" style={{ position: 'relative', textAlign: 'left', background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', cursor: 'pointer', transition: 'all 0.2s ease' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                            <div style={{ background: '#fff1f2', color: '#e11d48', padding: '10px', borderRadius: '12px', fontSize: '1.5rem' }}>❤️</div>
-                            <div style={{ textAlign: 'right' }}>
-                                <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cardiac Safety</span>
-                                <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>DICT</span>
-                            </div>
+                    <button id="btn-agent-dict" className="agent-card-modern" style={{ position: 'relative', textAlign: 'left', background: 'white', border: '1px solid #e2e8f0', borderLeft: '4px solid #e11d48', borderRadius: '4px', padding: '20px', cursor: 'pointer', transition: 'all 0.2s ease' }}>
+                        <div style={{ marginBottom: '12px' }}>
+                            <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cardiac Safety</span>
+                            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>Drug-Induced Cardiotoxicity (DICT)</span>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
-                                <span style={{ color: tox.dict ? '#059669' : '#94a3b8' }}>{tox.dict ? '●' : '○'}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#334155' }}>
+                                <span style={{ color: tox.dict ? '#059669' : '#cbd5e1', fontSize: '1.2rem', lineHeight: 0 }}>{tox.dict ? '•' : '◦'}</span>
                                 Label Analysis {tox.dict ? 'Available' : 'Pending'}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
-                                <span style={{ color: '#e11d48' }}>●</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#334155' }}>
+                                <span style={{ color: '#e11d48', fontSize: '1.2rem', lineHeight: 0 }}>•</span>
                                 FAERS Monitoring
                             </div>
                         </div>
-                        <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#e11d48' }}>VIEW DETAILS →</span>
-                            {tox.dict && <span style={{ background: '#dcfce7', color: '#166534', fontSize: '0.65rem', fontWeight: 800, padding: '2px 8px', borderRadius: '10px' }}>CONSULTED</span>}
+                        <div style={{ marginTop: '15px', paddingTop: '12px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#e11d48', textTransform: 'uppercase' }}>View Report →</span>
+                            {tox.dict && <span style={{ background: '#f1f5f9', color: '#334155', fontSize: '0.65rem', fontWeight: 700, padding: '2px 6px', borderRadius: '2px', border: '1px solid #e2e8f0' }}>CONSULTED</span>}
                         </div>
                     </button>
 
                     {/* RENAL SAFETY CARD */}
-                    <button id="btn-agent-diri" className="agent-card-modern" style={{ position: 'relative', textAlign: 'left', background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', cursor: 'pointer', transition: 'all 0.2s ease' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                            <div style={{ background: '#fffbeb', color: '#d97706', padding: '10px', borderRadius: '12px', fontSize: '1.5rem' }}>💧</div>
-                            <div style={{ textAlign: 'right' }}>
-                                <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Renal Safety</span>
-                                <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>DIRI</span>
-                            </div>
+                    <button id="btn-agent-diri" className="agent-card-modern" style={{ position: 'relative', textAlign: 'left', background: 'white', border: '1px solid #e2e8f0', borderLeft: '4px solid #d97706', borderRadius: '4px', padding: '20px', cursor: 'pointer', transition: 'all 0.2s ease' }}>
+                        <div style={{ marginBottom: '12px' }}>
+                            <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Renal Safety</span>
+                            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>Drug-Induced Renal Injury (DIRI)</span>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
-                                <span style={{ color: tox.diri ? '#059669' : '#94a3b8' }}>{tox.diri ? '●' : '○'}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#334155' }}>
+                                <span style={{ color: tox.diri ? '#059669' : '#cbd5e1', fontSize: '1.2rem', lineHeight: 0 }}>{tox.diri ? '•' : '◦'}</span>
                                 Label Analysis {tox.diri ? 'Available' : 'Pending'}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
-                                <span style={{ color: '#d97706' }}>●</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#334155' }}>
+                                <span style={{ color: '#d97706', fontSize: '1.2rem', lineHeight: 0 }}>•</span>
                                 FAERS Monitoring
                             </div>
                         </div>
-                        <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#d97706' }}>VIEW DETAILS →</span>
-                            {tox.diri && <span style={{ background: '#dcfce7', color: '#166534', fontSize: '0.65rem', fontWeight: 800, padding: '2px 8px', borderRadius: '10px' }}>CONSULTED</span>}
+                        <div style={{ marginTop: '15px', paddingTop: '12px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#d97706', textTransform: 'uppercase' }}>View Report →</span>
+                            {tox.diri && <span style={{ background: '#f1f5f9', color: '#334155', fontSize: '0.65rem', fontWeight: 700, padding: '2px 6px', borderRadius: '2px', border: '1px solid #e2e8f0' }}>CONSULTED</span>}
                         </div>
                     </button>
 
                     {/* PGX CARD */}
-                    <button id="btn-agent-pgx" className="agent-card-modern" style={{ position: 'relative', textAlign: 'left', background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', cursor: 'pointer', transition: 'all 0.2s ease' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                            <div style={{ background: '#f5f3ff', color: '#7c3aed', padding: '10px', borderRadius: '12px', fontSize: '1.5rem' }}>🧬</div>
-                            <div style={{ textAlign: 'right' }}>
-                                <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Genomics</span>
-                                <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>PGx</span>
-                            </div>
+                    <button id="btn-agent-pgx" className="agent-card-modern" style={{ position: 'relative', textAlign: 'left', background: 'white', border: '1px solid #e2e8f0', borderLeft: '4px solid #7c3aed', borderRadius: '4px', padding: '20px', cursor: 'pointer', transition: 'all 0.2s ease' }}>
+                        <div style={{ marginBottom: '12px' }}>
+                            <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Genomics</span>
+                            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>Pharmacogenomics (PGx)</span>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
-                                <span style={{ color: '#7c3aed' }}>●</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#334155' }}>
+                                <span style={{ color: '#7c3aed', fontSize: '1.2rem', lineHeight: 0 }}>•</span>
                                 Biomarker Search
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
-                                <span style={{ color: '#94a3b8' }}>○</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#334155' }}>
+                                <span style={{ color: '#cbd5e1', fontSize: '1.2rem', lineHeight: 0 }}>◦</span>
                                 FDA Table Sync
                             </div>
                         </div>
-                        <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#7c3aed' }}>VIEW DETAILS →</span>
+                        <div style={{ marginTop: '15px', paddingTop: '12px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' }}>View Report →</span>
                         </div>
                     </button>
 
