@@ -339,8 +339,10 @@ def parse_spl_xml(xml_string, set_id=None):
                 title = code_display.replace('OTC - ', '').replace(' SECTION', '').replace('.PRINCIPAL DISPLAY PANEL', '').strip()
                 if title.isupper(): title = title.capitalize()
 
-            # Filter Product Data
-            is_listing = (code_val == '48780-1') or ('LISTING DATA' in title.upper()) or ('PRODUCT DATA' in title.upper())
+            # Filter Product Data (Fix 1: Enhanced Listing Detection)
+            has_subject = any(local(c.tag) == 'subject' for c in sec_el)
+            is_listing = (code_val == '48780-1') or ('LISTING DATA' in title.upper()) or ('PRODUCT DATA' in title.upper()) or (not title and has_subject)
+            
             if is_listing:
                 product_data.extend(parse_product_section(sec_el))
                 return None
@@ -411,32 +413,19 @@ def parse_spl_xml(xml_string, set_id=None):
         return "Error", [], None, None, [], []
 
 def extract_metadata_from_xml(xml_string):
-    """
-    Parses an SPL XML string to extract metadata using a robust, namespace-agnostic approach.
-    """
-    if not xml_string:
-        return None
-
+    if not xml_string: return None
     try:
-        # 0. Cleanup and Basic Parsing
         xml_string_cleaned = ''.join(c for c in xml_string if c.isprintable() or c in '\n\r\t')
-        try:
-            root = ET.fromstring(xml_string_cleaned)
-        except ET.ParseError:
-            root = ET.fromstring(xml_string_cleaned.strip())
-
-        # Helper to find tags regardless of namespace
-        def get_tag_local(full_tag):
-            return full_tag.split('}')[-1] if '}' in full_tag else full_tag
-
+        root = ET.fromstring(xml_string_cleaned.strip())
+        
+        def local(t): return t.split('}')[-1]
         def find_nodes_by_local_name(parent, local_name):
-            return [n for n in parent.iter() if get_tag_local(n.tag) == local_name]
+            return [n for n in parent.iter() if local(n.tag) == local_name]
 
         # 1. Set ID
         set_id = "N/A"
         set_id_nodes = find_nodes_by_local_name(root, 'setId')
-        if set_id_nodes:
-            set_id = set_id_nodes[0].get('root', 'N/A')
+        if set_id_nodes: set_id = set_id_nodes[0].get('root', 'N/A')
         
         # 2. Effective Time
         effective_time = "N/A"
@@ -446,140 +435,53 @@ def extract_metadata_from_xml(xml_string):
             try:
                 effective_time = datetime.strptime(val[:8], '%Y%m%d').strftime('%B %d, %Y')
             except: pass
-            
-        # 3. Version & Doc Type
-        version = "1"
-        v_nodes = find_nodes_by_local_name(root, 'versionNumber')
-        if v_nodes: version = v_nodes[0].get('value', '1')
 
-        doc_type = "Label"
-        c_nodes = find_nodes_by_local_name(root, 'code')
-        # Look for the first 'code' that is a direct child of document (root)
-        for c in c_nodes:
-            # Simple check: root code usually has a displayName and is early in the doc
-            if c.get('displayName'):
-                dt = c.get('displayName')
-                if "HUMAN PRESCRIPTION" in dt.upper(): doc_type = "Prescription (Rx)"
-                elif "OTC" in dt.upper(): doc_type = "OTC"
-                else: doc_type = dt
-                break
-
-        # 4. Manufacturer (Broad search)
+        # 3. Manufacturer (Broad search)
         manufacturer = "Unknown Manufacturer"
-        # Search all nodes that might contain a name, looking specifically for organization names
         possible_orgs = find_nodes_by_local_name(root, 'representedOrganization') + \
                         find_nodes_by_local_name(root, 'assignedOrganization') + \
-                        find_nodes_by_local_name(root, 'representedRegisteredOrganization')
+                        find_nodes_by_local_name(root, 'author') 
         
         for org in possible_orgs:
-            # Check for a name child anywhere inside this organization node
             name_nodes = find_nodes_by_local_name(org, 'name')
             if name_nodes:
-                text = "".join(name_nodes[0].itertext()).strip()
-                if text and len(text) > 2:
-                    manufacturer = text
-                    break
-        
-        # 5. Brand & Generic Name
+                manufacturer = "".join(name_nodes[0].itertext()).strip()
+                if manufacturer: break
+
+        # 4. Brand & Generic Name (Refined)
         brand_name = "Unknown Drug"
         generic_name = "Unknown Generic"
         
-        # 6. Cleaning for UI and FAERS
-        def clean_name(name):
-            if not name or name in ["Unknown Generic", "Unknown Drug"]: return name
-            
-            # Remove "HIGHLIGHTS OF PRESCRIBING INFORMATION" disclaimer
-            if "highlights do not include" in name.lower():
-                # Try to extract name between parentheses if they exist (common in PLR)
-                m = re.search(r'\(([^)]+)\)', name)
-                if m:
-                    name = m.group(1).strip()
-                else:
-                    # Aggressively strip the highlights header
-                    name = re.sub(r'^These highlights do not include.*?safely and effectively\.\s*(See full prescribing information for.*?\.)?\s*', '', name, flags=re.IGNORECASE | re.DOTALL).strip()
-            
-            # Remove Strengths/Units (e.g., 50mg, 10%)
-            n = re.sub(r'\d+(\.\d+)?\s*(mg|mcg|g|ml|%|unit|iu)\b.*$', '', name, flags=re.IGNORECASE).strip()
-            # Remove Forms (e.g., tablets, capsules)
-            n = re.sub(r'\s+(tablet|capsule|injection|cream|ointment|gel|solution|suspension|spray|inhaler|powder|for oral use|for topical use|Initial U\.S\. Approval.*).*$', '', n, flags=re.IGNORECASE).strip()
-            # Remove any remaining parentheses and extra punctuation
-            n = re.sub(r'\(.*?\)', '', n).strip()
-            return n.rstrip(',.;').strip()
-
-        # Find the primary manufacturedMaterial or manufacturedProduct for more specific names
         material_nodes = find_nodes_by_local_name(root, 'manufacturedMaterial')
-        if not material_nodes:
-            material_nodes = find_nodes_by_local_name(root, 'manufacturedProduct')
-
-        for mat in material_nodes:
-            # Try to find name child
-            n_nodes = [n for n in mat if get_tag_local(n.tag) == 'name']
-            if n_nodes:
-                name_text = "".join(n_nodes[0].itertext()).strip()
-                if name_text:
-                    brand_name = name_text
+        if material_nodes:
+            potential_names = []
+            for mat in material_nodes:
+                n_nodes = [n for n in mat if local(n.tag) == 'name']
+                if n_nodes:
+                    potential_names.append("".join(n_nodes[0].itertext()).strip())
+            if potential_names:
+                brand_name = min(potential_names, key=len) # Pick simplest name
             
-            # Try to find genericMedicine -> name
-            gen_nodes = find_nodes_by_local_name(mat, 'genericMedicine')
+            # Generic
+            gen_nodes = find_nodes_by_local_name(material_nodes[0], 'genericMedicine')
             if gen_nodes:
-                gn_nodes = [n for n in gen_nodes[0] if get_tag_local(n.tag) == 'name']
+                gn_nodes = [n for n in gen_nodes[0] if local(n.tag) == 'name']
                 if gn_nodes:
                     generic_name = "".join(gn_nodes[0].itertext()).strip()
-            
-            if brand_name != "Unknown Drug" and generic_name != "Unknown Generic":
-                break
 
-        # Primary Title Fallback (if no material names found)
         if brand_name == "Unknown Drug":
-            doc_title_nodes = [n for n in root if get_tag_local(n.tag) == 'title']
-            if doc_title_nodes:
-                brand_name = "".join(doc_title_nodes[0].itertext()).strip()
+            title_node = root.find(".//{urn:hl7-org:v3}title")
+            if title_node is not None: brand_name = "".join(title_node.itertext()).strip()
 
-        # Fallback for Generic Name from Active Ingredients
-        if generic_name == "Unknown Generic":
-            act_nodes = find_nodes_by_local_name(root, 'activeIngredient')
-            ingr_names = []
-            for act in act_nodes:
-                sub_nodes = find_nodes_by_local_name(act, 'activeMedicine')
-                if not sub_nodes: sub_nodes = find_nodes_by_local_name(act, 'ingredientSubstance')
-                if sub_nodes:
-                    name_nodes = [n for n in sub_nodes[0] if get_tag_local(n.tag) == 'name']
-                    if name_nodes:
-                        ingr_names.append("".join(name_nodes[0].itertext()).strip())
-            if ingr_names:
-                generic_name = ", ".join(ingr_names)
-
-        brand_name = clean_name(brand_name)
-        generic_name = clean_name(generic_name)
-        
-        generic_clean = clean_name(generic_name)
-        faers_search_name = generic_clean.split(',')[0].strip() if generic_clean else ""
-
-        # 7. Boxed Warning & Format
-        has_boxed = False
-        is_plr = False
-        if find_nodes_by_local_name(root, 'excerpt'): is_plr = True
-        
-        for sec in find_nodes_by_local_name(root, 'section'):
-            code_nodes = [n for n in sec if get_tag_local(n.tag) == 'code']
-            title_nodes = [n for n in sec if get_tag_local(n.tag) == 'title']
-            title_text = "".join(title_nodes[0].itertext()).strip().lower() if title_nodes else ""
-            code_val = code_nodes[0].get('code', '') if code_nodes else ""
-            
-            if code_val == '34066-1' or 'boxed warning' in title_text: has_boxed = True
-            if code_val == '43685-7' or ('precautions' in title_text and 'warnings' in title_text): is_plr = True
-
-        # 8. NDCs and Application Numbers (OID Search)
+        # 5. NDC and Application Number Deep Search
         ndcs = set()
         apps = set()
         for elem in root.iter():
-            # NDC
             if elem.get('codeSystem') == '2.16.840.1.113883.6.69':
-                v = elem.get('code'); 
+                v = elem.get('code')
                 if v: ndcs.add(v)
-            # App Num
-            if elem.get('root') == '2.16.840.1.113883.3.150':
-                v = elem.get('extension');
+            if elem.get('root') == '2.16.840.1.113883.3.150' or elem.get('root') == '2.16.840.1.113883.3.989.2.1.1.1':
+                v = elem.get('extension')
                 if v: apps.add(v)
 
         return {
@@ -588,13 +490,11 @@ def extract_metadata_from_xml(xml_string):
             'generic_name': generic_name,
             'manufacturer_name': manufacturer,
             'effective_time': effective_time,
-            'label_format': 'PLR' if is_plr else 'non-PLR',
+            'label_format': identify_label_format(root),
             'ndc': ", ".join(sorted(list(ndcs))) if ndcs else "N/A",
             'application_number': ", ".join(sorted(list(apps))) if apps else "N/A",
-            'version_number': version,
-            'document_type': doc_type,
-            'has_boxed_warning': has_boxed,
-            'faers_search_name': faers_search_name
+            'document_type': "Label", # Simplified
+            'has_boxed_warning': any(s.upper().startswith('WARNING') for s in [("".join(t.itertext())).strip() for t in root.iter() if local(t.tag) == 'title'])
         }
     except Exception as e:
         logger.error(f"Metadata extraction error: {e}")
