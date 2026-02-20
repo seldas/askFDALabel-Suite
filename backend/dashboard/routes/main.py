@@ -380,18 +380,15 @@ def view_label(set_id):
         first_app = application_number.split(',')[0].strip()
         clean_app_num = ''.join(filter(str.isdigit, first_app))
 
+    # Simplified display_drug_name logic: just pick the best single name available
+    # The frontend will handle combining Brand - Generic - Date
     if brand_name and brand_name != 'Unknown Drug':
-        display_parts = [brand_name]
-        if generic_name and generic_name != 'Unknown Generic':
-            display_parts.append(f"- {generic_name}")
-        display_drug_name = " ".join(display_parts)
-        if manufacturer_name:
-            display_drug_name += f", {manufacturer_name}"
+        display_drug_name = brand_name
+    elif generic_name and generic_name != 'Unknown Generic':
+        display_drug_name = generic_name
     else:
-        if generic_name and generic_name != 'Unknown Generic':
-            display_drug_name = generic_name
-        else:
-            display_drug_name = drug_name_from_query if drug_name_from_query else original_title
+        # doc_title was already cleaned by parse_spl_xml
+        display_drug_name = display_drug_name 
 
     if metadata and metadata.get('faers_search_name') and metadata.get('faers_search_name') != 'Unknown Generic':
         faers_drug_name = metadata.get('faers_search_name')

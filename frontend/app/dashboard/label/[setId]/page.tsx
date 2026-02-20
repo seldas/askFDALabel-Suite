@@ -225,6 +225,20 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (data) {
+      const brand = data.brand_name || data.drug_name;
+      const generic = data.generic_name;
+      const effective = data.effective_time;
+      
+      const titleParts = [brand, generic, effective]
+        .filter(Boolean)
+        .filter((v, i, a) => a.indexOf(v) === i);
+      
+      document.title = titleParts.join(' - ');
+    }
+  }, [data]);
+
   if (loading) {
     return (
       <div className="hp-main-layout">
@@ -904,25 +918,29 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             {/* DRUG METADATA (Layer 1, Part 1) */}
             <div className="label-header" style={{ marginBottom: '20px', background: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                            <h1 className="DocumentTitle" style={{ margin: 0, fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#0f172a' }}>{data.brand_name || data.drug_name}</h1>
-                            <span style={{ 
-                                backgroundColor: data.label_format === 'PLR' ? '#dcfce7' : '#f1f5f9',
-                                color: data.label_format === 'PLR' ? '#166534' : '#64748b',
-                                padding: '6px 14px',
-                                borderRadius: '30px',
-                                fontSize: '0.75rem',
-                                fontWeight: 800,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em',
-                                flexShrink: 0
-                            }}>
-                                {data.label_format}
-                            </span>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '0' }}>
+                                <h1 className="DocumentTitle" style={{ margin: 0, fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#0f172a' }}>
+                                  {[data.brand_name || data.drug_name, data.generic_name, data.effective_time]
+                                    .filter(Boolean)
+                                    .filter((v, i, a) => a.indexOf(v) === i)
+                                    .join(' - ')}
+                                </h1>
+                                <span style={{ 
+                                    backgroundColor: data.label_format === 'PLR' ? '#dcfce7' : '#f1f5f9',
+                                    color: data.label_format === 'PLR' ? '#166534' : '#64748b',
+                                    padding: '6px 14px',
+                                    borderRadius: '30px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 800,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em',
+                                    flexShrink: 0
+                                }}>
+                                    {data.label_format}
+                                </span>
+                            </div>
                         </div>
-                        <h2 style={{ marginTop: 0, fontSize: '1.1rem', color: '#64748b', fontWeight: 500, marginBottom: 0 }}>{data.original_title || data.generic_name}</h2>
-                    </div>
                     {session?.is_authenticated && (
                       <div style={{ marginLeft: '20px', display: 'flex', gap: '12px', alignItems: 'center' }}>
                           <button id="favorite-btn" className="favorite-btn" title="Toggle Project" style={{ background:'none', border:'none', cursor:'pointer', fontSize: '2rem', color: '#cbd5e1', padding: 0 }}>

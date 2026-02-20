@@ -299,6 +299,16 @@ def parse_spl_xml(xml_string, set_id=None):
         if title_node is None: title_node = root.find(".//title") # fallback
         if title_node is not None:
             doc_title = "".join(title_node.itertext()).strip()
+            # Clean doc_title if it contains SPL boilerplate
+            if "HIGHLIGHTS" in doc_title.upper():
+                m = re.search(r'\(([^)]+)\)', doc_title)
+                if m:
+                    doc_title = m.group(1).strip()
+                else:
+                    doc_title = re.sub(r'(?i)^HIGHLIGHTS OF PRESCRIBING INFORMATION\s*', '', doc_title).strip()
+            # Remove common "Label for..." prefix
+            doc_title = re.sub(r'(?i)^Label for\s+', '', doc_title).strip()
+            doc_title = " ".join(doc_title.split()) # normalize whitespace
 
         # 1. Raw Section Extraction (Recursive)
         def local(t): return t.split('}')[-1]
@@ -452,26 +462,61 @@ def extract_metadata_from_xml(xml_string):
         brand_name = "Unknown Drug"
         generic_name = "Unknown Generic"
         
-        material_nodes = find_nodes_by_local_name(root, 'manufacturedMaterial')
-        if material_nodes:
-            potential_names = []
-            for mat in material_nodes:
-                n_nodes = [n for n in mat if local(n.tag) == 'name']
-                if n_nodes:
-                    potential_names.append("".join(n_nodes[0].itertext()).strip())
-            if potential_names:
-                brand_name = min(potential_names, key=len) # Pick simplest name
+        # Search both manufacturedMaterial and manufacturedProduct
+        potential_nodes = find_nodes_by_local_name(root, 'manufacturedMaterial') + \
+                          find_nodes_by_local_name(root, 'manufacturedProduct')
+        
+        brand_candidates = []
+        generic_candidates = []
+        
+        def clean_drug_name(name):
+            if not name: return ""
+            # Collapse whitespace
+            name = " ".join(name.split())
+            # Strip common suffixes (dosage forms and strengths)
+            name = re.sub(r'(?i)\s+(tablets?|capsules?|injection|solution|suspension|spray|inhaler|powder|cream|ointment|gel|patch|film|liquid|drops?|aerosol|syrup|elixir)\b.*$', '', name).strip()
+            name = re.sub(r'\d+(\.\d+)?\s*(mg|mcg|g|ml|%|unit|iu|mEq|mmol|USP|BP)\b.*$', '', name, flags=re.IGNORECASE).strip()
+            # Remove trailing punctuation
+            name = name.rstrip(':,;. ')
+            return name
+
+        for node in potential_nodes:
+            n_nodes = [n for n in node if local(n.tag) == 'name']
+            if n_nodes:
+                raw_brand = "".join(n_nodes[0].itertext()).strip()
+                if raw_brand: 
+                    brand_candidates.append(clean_drug_name(raw_brand))
             
-            # Generic
-            gen_nodes = find_nodes_by_local_name(material_nodes[0], 'genericMedicine')
-            if gen_nodes:
-                gn_nodes = [n for n in gen_nodes[0] if local(n.tag) == 'name']
-                if gn_nodes:
-                    generic_name = "".join(gn_nodes[0].itertext()).strip()
+            # Look for genericMedicine either directly or under asEntityWithGeneric
+            gen_nodes = find_nodes_by_local_name(node, 'genericMedicine')
+            for gn in gen_nodes:
+                gn_name_nodes = [n for n in gn if local(n.tag) == 'name']
+                if gn_name_nodes:
+                    raw_gen = "".join(gn_name_nodes[0].itertext()).strip()
+                    if raw_gen: generic_candidates.append(clean_drug_name(raw_gen))
+
+        if brand_candidates:
+            # Pick shortest cleaned brand name as the most likely "core" brand
+            brand_name = min([b for b in brand_candidates if b], key=len)
+        
+        if generic_candidates:
+            generic_name = min([g for g in generic_candidates if g], key=len)
 
         if brand_name == "Unknown Drug":
             title_node = root.find(".//{urn:hl7-org:v3}title")
-            if title_node is not None: brand_name = "".join(title_node.itertext()).strip()
+            if title_node is None: title_node = root.find(".//title") # fallback
+            if title_node is not None: 
+                raw_title = "".join(title_node.itertext()).strip()
+                # Clean root title if it contains SPL boilerplate
+                if "HIGHLIGHTS" in raw_title.upper():
+                    m = re.search(r'\(([^)]+)\)', raw_title)
+                    if m:
+                        brand_name = clean_drug_name(m.group(1))
+                    else:
+                        brand_name = re.sub(r'(?i)^HIGHLIGHTS OF PRESCRIBING INFORMATION\s*', '', raw_title).strip()
+                        brand_name = clean_drug_name(brand_name)
+                else:
+                    brand_name = clean_drug_name(raw_title)
 
         # 5. NDC and Application Number Deep Search
         ndcs = set()
