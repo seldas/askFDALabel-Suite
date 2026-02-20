@@ -6,71 +6,13 @@ import Script from 'next/script';
 import Link from 'next/link';
 import { useUser } from '../../../context/UserContext';
 
-interface Section {
-  id?: string;
-  numeric_id?: string;
-  title?: string;
-  content?: string;
-  is_boxed_warning?: boolean;
-  children?: Section[];
-}
+// Modular Components
+import LabelView from './label';
+import FaersView from './faers';
+import AgentView from './agent';
 
-interface Highlight {
-  source_section_title: string;
-  content_html: string;
-}
-
-interface TOCItem {
-  id: string;
-  title: string;
-  numeric_id?: string;
-  children?: TOCItem[];
-  is_boxed_warning?: boolean;
-  is_highlights?: boolean;
-  is_drug_facts?: boolean;
-  is_drug_facts_item?: boolean;
-}
-
-interface Annotation {
-  id: string;
-  section_number: string;
-  question: string;
-  answer: string;
-  keywords: string[];
-  is_public: boolean;
-}
-
-interface LabelData {
-  drug_name: string;
-  brand_name: string | null;
-  generic_name: string | null;
-  original_title: string;
-  faers_drug_name: string;
-  manufacturer_name: string;
-  effective_time: string;
-  label_format: string | null;
-  ndc: string | null;
-  application_number: string | null;
-  version_number: string | null;
-  document_type: string | null;
-  has_boxed_warning: boolean;
-  clean_app_num: string | null;
-  sections: Section[];
-  fallback_html: string | null;
-  highlights: Highlight[];
-  table_of_contents: TOCItem[];
-  label_xml_raw: string;
-  set_id: string;
-  metadata: any;
-  saved_annotations: Annotation[];
-  tox_summary: {
-    dili: boolean;
-    dict: boolean;
-    diri: boolean;
-    last_updated?: string;
-  };
-  user_id: number | null;
-}
+// Shared Types
+import { TOCItem, LabelData } from './types';
 
 function TOCItemComponent({ 
   item, 
@@ -140,22 +82,6 @@ function TOCItemComponent({
   );
 }
 
-function SectionComponent({ section }: { section: Section }) {
-  return (
-    <div 
-      className={`Section ${section.is_boxed_warning ? 'black-boxed-warning' : ''}`}
-      id={section.id}
-      data-section-number={section.numeric_id}
-    >
-      {section.title && <h2>{section.title}</h2>}
-      {section.content && <div dangerouslySetInnerHTML={{ __html: section.content }} />}
-      {section.children && section.children.map((child, idx) => (
-        <SectionComponent key={idx} section={child} />
-      ))}
-    </div>
-  );
-}
-
 function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   const { setId } = use(params);
   const router = useRouter();
@@ -202,18 +128,6 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   ];
 
   const [faersCoverageFilter, setFaersCoverageFilter] = useState<'all' | 'not_presented'>('all');
-
-  // Optional helper: tries to detect "not presented" from the row's Status cell text.
-  // If your status wording differs, adjust the keywords below.
-  const isNotPresentedStatus = (statusText: string) => {
-    const t = (statusText || '').toLowerCase();
-    return (
-      t.includes('not presented') ||
-      t.includes('not in label') ||
-      t.includes('not present') ||
-      t.includes('absent')
-    );
-  };
 
   useEffect(() => {
     if (activeTab !== 'faers-view') return;
@@ -330,7 +244,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   if (!data) return null;
 
   return (
-    <div className="results-container" style={{ minHeight: '100vh', backgroundColor: '#f9fafb', display: 'block' }}>
+    <div className="results-container" style={{ height: '100vh', backgroundColor: '#f9fafb', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <style jsx global>{`
         /* FAERS In-Text Annotation */
         .faers-signal {
@@ -671,6 +585,178 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           font-size: 0.8rem;
           letter-spacing: 0.05em;
         }
+
+        /* --- Book Mode Architecture --- */
+        .book-mode-container {
+          position: relative;
+          background-color: #f1f5f9;
+          border-radius: 12px;
+          padding: 20px;
+          margin-top: 20px;
+          box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+
+        .book-viewport {
+          width: 100%;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          scrollbar-width: none; /* Firefox */
+          display: flex;
+          flex: 1;
+          min-height: 0;
+        }
+
+        .book-viewport::-webkit-scrollbar {
+          display: none; /* Chrome/Safari */
+        }
+
+        .book-pages-flow {
+          display: flex;
+          width: fit-content;
+          min-width: 100%;
+          gap: 40px;
+          padding: 20px 40px;
+          align-items: stretch; /* All pages stretch to the same height */
+        }
+
+        .book-page-item {
+          scroll-snap-align: center;
+          background: white;
+          width: 800px; /* Base width for a "page" */
+          max-width: 85vw;
+          
+          /* Uniform Height: Fills the flex container */
+          height: 100%;
+          min-height: 400px; 
+          
+          overflow-y: auto; /* Allow internal scroll for long sections */
+          
+          padding: 60px;
+          border-radius: 8px;
+          box-shadow: 0 15px 35px rgba(0,0,0,0.1), 0 3px 10px rgba(0,0,0,0.05);
+          position: relative;
+          border: 1px solid #e2e8f0;
+          flex-shrink: 0;
+          
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start; /* Ensure text is at the top */
+          
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        /* Custom scrollbar for the page itself */
+        .book-page-item::-webkit-scrollbar {
+          width: 6px;
+        }
+        .book-page-item::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .book-page-item::-webkit-scrollbar-thumb {
+          background: #e2e8f0;
+          border-radius: 10px;
+        }
+        .book-page-item::-webkit-scrollbar-thumb:hover {
+          background: #cbd5e1;
+        }
+
+        /* Book Gutter effect - more subtle for flexible height */
+        .book-page-item::before {
+          content: "";
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 20px;
+          background: linear-gradient(to right, rgba(0,0,0,0.03) 0%, transparent 100%);
+          pointer-events: none;
+          z-index: 10;
+        }
+
+        /* Responsive Pages */
+        @media (max-width: 1200px) {
+          .book-page-item { width: 700px; padding: 40px; }
+        }
+
+        @media (max-width: 768px) {
+          .book-page-item { width: 90vw; padding: 30px; }
+          .book-pages-flow { gap: 20px; padding: 0 10px; }
+          .book-mode-container { padding: 20px 10px; }
+        }
+
+        /* Navigation Overlays */
+        .book-nav-overlay {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 30px;
+          margin-top: 30px;
+          position: sticky;
+          bottom: 20px;
+          z-index: 100;
+        }
+
+        .book-flip-btn {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          background: white;
+          border: 1px solid #e2e8f0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          color: #64748b;
+          transition: all 0.2s ease;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .book-flip-btn:hover:not(:disabled) {
+          background: #3b82f6;
+          color: white;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 15px rgba(59, 130, 246, 0.2);
+        }
+
+        .book-flip-btn:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
+
+        .book-page-indicator {
+          background: rgba(15, 23, 42, 0.8);
+          color: white;
+          padding: 8px 20px;
+          border-radius: 30px;
+          font-family: ui-monospace, SFMono-Regular, monospace;
+          font-weight: 700;
+          font-size: 0.9rem;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          backdrop-filter: blur(8px);
+        }
+
+        .page-divider { opacity: 0.5; font-weight: 400; }
+        .page-total { opacity: 0.7; }
+
+        /* Smooth Anchor Scrolling for Book Mode */
+        :global(html) {
+          scroll-behavior: smooth;
+        }
+
+        .book-page-item h2 {
+          margin-top: 0;
+          color: #0f172a;
+          font-size: 1.5rem;
+          border-bottom: 2px solid #f1f5f9;
+          padding-bottom: 15px;
+          margin-bottom: 25px;
+        }
       `}</style>
       
       {/* Main Header */}
@@ -793,7 +879,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
         </div>
       </header>
 
-      <div style={{ display: 'flex', paddingTop: '60px' }}>
+      <div style={{ display: 'flex', flex: 1, paddingTop: '60px', overflow: 'hidden' }}>
         {/* Table of Contents Side Panel */}
         <div id="toc-panel" className={`toc-side-panel ${tocCollapsed ? 'hidden' : ''}`} style={{ position: 'fixed', top: '60px', left: 0, bottom: 0, height: 'calc(100vh - 60px)', zIndex: 1500 }}>
           <div className="toc-box">
@@ -826,14 +912,19 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           </div>
         </div>
 
-        {/* Main Content */}
+        {/* Main Content Area */}
         <div id="main-content" className={`main-content ${tocCollapsed ? 'expanded' : ''}`} style={{ 
             transition: 'margin-left 0.3s ease', 
             marginLeft: tocCollapsed ? '0' : '300px',
             width: '100%',
-            padding: '20px'
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            padding: 0
         }}>
-          <div className="container-top" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <div className="content-scroll-container" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '20px' }}>
+            <div className="container-top" style={{ maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
             {/* User Session Notice Bar (Only for Guest) */}
             {!userLoading && !session?.is_authenticated && (
               <div className="auth-notice-bar animate-fade-in" style={{
@@ -947,7 +1038,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
               </div>
             </div>
           </div>
-          <div className="container" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <div className="container" style={{ maxWidth: '1200px', margin: '0 auto', width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div className="label-header" style={{ marginBottom: '25px', marginTop: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1 }}>
@@ -1077,237 +1168,13 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             <div id="top-annotations-container" className="top-annotations-container"></div>
 
             {/* Tab Contents */}
-            <div id="label-view" className={`tab-content ${activeTab === 'label-view' ? 'active' : ''}`} style={{ display: activeTab === 'label-view' ? 'block' : 'none', overflowX: 'auto' }}>
-                {data.highlights && data.highlights.length > 0 && (
-                <div id="highlights-section" className="highlights-box">
-                    <h2>Highlights of Prescribing Information</h2>
-                    {data.highlights.map((h, i) => (
-                    <div key={i} className="highlight-item">
-                        {h.source_section_title !== 'Untitled Section' && (
-                        <div className="highlight-source-header">
-                            <span className="source-label">Section</span>
-                            <span className="source-title">{h.source_section_title}</span>
-                        </div>
-                        )}
-                        <div className="highlight-body" dangerouslySetInnerHTML={{ __html: h.content_html }} />
-                    </div>
-                    ))}
-                    <hr />
-                </div>
-                )}
-
-                {data.sections && data.sections.length > 0 ? (
-                data.sections.map((section, idx) => (
-                    <SectionComponent key={idx} section={section} />
-                ))
-                ) : data.fallback_html ? (
-                <div className="Section">
-                    <h2>Full Document Text</h2>
-                    <div dangerouslySetInnerHTML={{ __html: data.fallback_html }} />
-                </div>
-                ) : (
-                <p>Could not parse the drug label sections.</p>
-                )}
-            </div>
-
-            <div id="faers-view" className={`tab-content ${activeTab === 'faers-view' ? 'active' : ''}`} style={{ display: activeTab === 'faers-view' ? 'block' : 'none' }}>
-                <div id="faers-loading" className="loader"></div>
-                <div id="dashboard-content" className="dashboard-grid" style={{ display: 'none' }}>
-                    <div className="chart-card full-width">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                      <h3 style={{ margin: 0 }}>Label Coverage Analysis</h3>
-
-                      {/* Toggle */}
-                      <div
-                        style={{
-                          display: 'inline-flex',
-                          gap: '4px',
-                          padding: '4px',
-                          background: '#f1f5f9',
-                          borderRadius: '999px',
-                          border: '1px solid #e2e8f0',
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setFaersCoverageFilter('all')}
-                          style={{
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: '6px 12px',
-                            borderRadius: '999px',
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                            background: faersCoverageFilter === 'all' ? 'white' : 'transparent',
-                            boxShadow: faersCoverageFilter === 'all' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-                            color: faersCoverageFilter === 'all' ? '#0f172a' : '#64748b',
-                          }}
-                        >
-                          All
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setFaersCoverageFilter('not_presented')}
-                          style={{
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: '6px 12px',
-                            borderRadius: '999px',
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                            background: faersCoverageFilter === 'not_presented' ? 'white' : 'transparent',
-                            boxShadow: faersCoverageFilter === 'not_presented' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-                            color: faersCoverageFilter === 'not_presented' ? '#0f172a' : '#64748b',
-                          }}
-                        >
-                          Not Presented
-                        </button>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: '6px',
-                        fontSize: '0.85rem',
-                        color: '#475569',
-                        fontWeight: 500
-                      }}
-                    >
-                      Note: For clarity, we exclude SOC-level terms and non-AE groupings (e.g., PRD, SMP) from the summary bar.
-                    </div>
-
-                    {/* SOC summary bar injected by faers.js */}
-                    <div id="soc-summary-bar" style={{ marginTop: '12px' }} />
-
-
-                    <div className="table-container">
-                        <table id="coverageTable" className="coverage-table">
-                            <thead>
-                                <tr>
-                                <th style={{ width: '50px' }}></th>
-                                <th>Reaction</th>
-                                <th>Count</th>
-                                <th>SOC</th>
-                                <th>HLT</th>
-                                <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="coverageTable-body"></tbody>
-                        </table>
-                    </div>
-                    <div className="pagination-controls" style={{ marginTop: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-                            <button id="firstPage" className="button pagination-btn">&laquo;</button>
-                            <button id="prevPage" className="button pagination-btn">&lsaquo;</button>
-                            <input type="number" id="pageInput" defaultValue="1" style={{ width: '50px', textAlign: 'center' }} />
-                            <span className="page-info">of <span id="totalPages">1</span></span>
-                            <button id="nextPage" className="button pagination-btn">&rsaquo;</button>
-                            <button id="lastPage" className="button pagination-btn">&raquo;</button>
-                    </div>
-                    </div>
-                    <div className="chart-card full-width">
-                        <h3>Adverse Events Trends (Time Series)</h3>
-                        <div className="canvas-container" style={{ height: '400px' }}>
-                            <canvas id="trendComparisonChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="tox-view" className={`tab-content ${activeTab === 'tox-view' ? 'active' : ''}`} style={{ display: activeTab === 'tox-view' ? 'block' : 'none' }}>
-                <div id="tox-index" style={{ textAlign: 'center', padding: '20px' }}>
-                    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                    <button id="btn-agent-dili" className="agent-card">
-                        <h3 style={{ margin: 0, color: '#17a2b8', fontSize: '2em' }}>DILI</h3>
-                        <p style={{ margin: '10px 0 0', color: '#555' }}>Liver Injury</p>
-                    </button>
-                    <button id="btn-agent-dict" className="agent-card">
-                        <h3 style={{ margin: 0, color: '#dc3545', fontSize: '2em' }}>DICT</h3>
-                        <p style={{ margin: '10px 0 0', color: '#555' }}>Cardiotoxicity</p>
-                    </button>
-                    <button id="btn-agent-diri" className="agent-card">
-                        <h3 style={{ margin: 0, color: '#ffc107', fontSize: '2em' }}>DIRI</h3>
-                        <p style={{ margin: '10px 0 0', color: '#555' }}>Renal Injury</p>
-                    </button>
-                    <button id="btn-agent-pgx" className="agent-card">
-                        <h3 style={{ margin: 0, color: '#6610f2', fontSize: '2em' }}>PGx</h3>
-                        <p style={{ margin: '10px 0 0', color: '#555' }}>Genomics</p>
-                    </button>
-                    </div>
-                </div>
-
-                {/* DILI Module */}
-                <div id="dili-module" style={{ display: 'none' }}>
-                    <div id="dili-loading" className="loader" style={{ display: 'none' }}></div>
-                    <div id="dili-risk-panel" style={{ display: 'none', marginBottom: '20px' }}></div>
-                    <div id="dili-content" className="dashboard-grid" style={{ display: 'none' }}>
-                        <div className="chart-card full-width">
-                            <h3>Official Label Analysis</h3>
-                            <div id="dili-label-signals"></div>
-                        </div>
-                        <div className="chart-card full-width">
-                            <h3>FAERS Liver-Related Events</h3>
-                            <div className="canvas-container" style={{ height: '400px' }}>
-                                <canvas id="diliFaersChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="dili-error" style={{ display: 'none' }}><p>Error loading DILI data.</p></div>
-                </div>
-
-                {/* DICT Module */}
-                <div id="dict-module" style={{ display: 'none' }}>
-                    <div id="dict-loading" className="loader" style={{ display: 'none' }}></div>
-                    <div id="dict-risk-panel" style={{ display: 'none', marginBottom: '20px' }}></div>
-                    <div id="dict-content" className="dashboard-grid" style={{ display: 'none' }}>
-                        <div className="chart-card full-width">
-                            <h3>Official Label Analysis</h3>
-                            <div id="dict-label-signals"></div>
-                        </div>
-                        <div className="chart-card full-width">
-                            <h3>FAERS Cardiac-Related Events</h3>
-                            <div className="canvas-container" style={{ height: '400px' }}>
-                                <canvas id="dictFaersChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="dict-error" style={{ display: 'none' }}><p>Error loading DICT data.</p></div>
-                </div>
-
-                {/* DIRI Module */}
-                <div id="diri-module" style={{ display: 'none' }}>
-                    <div id="diri-loading" className="loader" style={{ display: 'none' }}></div>
-                    <div id="diri-risk-panel" style={{ display: 'none', marginBottom: '20px' }}></div>
-                    <div id="diri-content" className="dashboard-grid" style={{ display: 'none' }}>
-                        <div className="chart-card full-width">
-                            <h3>Official Label Analysis</h3>
-                            <div id="diri-label-signals"></div>
-                        </div>
-                        <div className="chart-card full-width">
-                            <h3>FAERS Renal-Related Events</h3>
-                            <div className="canvas-container" style={{ height: '400px' }}>
-                                <canvas id="diriFaersChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="diri-error" style={{ display: 'none' }}><p>Error loading DIRI data.</p></div>
-                </div>
-
-                {/* PGx Module */}
-                <div id="pgx-module" style={{ display: 'none' }}>
-                    <div id="pgx-loading" className="loader" style={{ display: 'none' }}></div>
-                    <div id="pgx-content" className="dashboard-grid" style={{ display: 'none' }}>
-                        <div className="chart-card full-width">
-                            <h3>Pharmacogenomic Biomarkers</h3>
-                            <div id="pgx-results-container"></div>
-                        </div>
-                    </div>
-                    <div id="pgx-error" style={{ display: 'none' }}><p>Error loading PGx data.</p></div>
-                </div>
-            </div>
+            <LabelView data={data} activeTab={activeTab} />
+            <FaersView activeTab={activeTab} faersCoverageFilter={faersCoverageFilter} setFaersCoverageFilter={setFaersCoverageFilter} />
+            <AgentView activeTab={activeTab} />
           </div>
         </div>
       </div>
+    </div>
 
       {/* Floating Action Buttons */}
       {session?.is_authenticated && (

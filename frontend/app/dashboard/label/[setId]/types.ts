@@ -1,0 +1,65 @@
+export interface Section {
+  id?: string;
+  numeric_id?: string;
+  title?: string;
+  content?: string;
+  is_boxed_warning?: boolean;
+  children?: Section[];
+}
+
+export interface Highlight {
+  source_section_title: string;
+  content_html: string;
+}
+
+export interface TOCItem {
+  id: string;
+  title: string;
+  numeric_id?: string;
+  children?: TOCItem[];
+  is_boxed_warning?: boolean;
+  is_highlights?: boolean;
+  is_drug_facts?: boolean;
+  is_drug_facts_item?: boolean;
+}
+
+export interface Annotation {
+  id: string;
+  section_number: string;
+  question: string;
+  answer: string;
+  keywords: string[];
+  is_public: boolean;
+}
+
+export interface LabelData {
+  drug_name: string;
+  brand_name: string | null;
+  generic_name: string | null;
+  original_title: string;
+  faers_drug_name: string;
+  manufacturer_name: string;
+  effective_time: string;
+  label_format: string | null;
+  ndc: string | null;
+  application_number: string | null;
+  version_number: string | null;
+  document_type: string | null;
+  has_boxed_warning: boolean;
+  clean_app_num: string | null;
+  sections: Section[];
+  fallback_html: string | null;
+  highlights: Highlight[];
+  table_of_contents: TOCItem[];
+  label_xml_raw: string;
+  set_id: string;
+  metadata: any;
+  saved_annotations: Annotation[];
+  tox_summary: {
+    dili: boolean;
+    dict: boolean;
+    diri: boolean;
+    last_updated?: string;
+  };
+  user_id: number | null;
+}
