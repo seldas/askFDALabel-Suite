@@ -609,7 +609,14 @@ def parse_spl_xml(xml_string, set_id=None):
                 is_boxed = s.get('is_boxed_warning', False)
                 should_increment = False
                 
-                if not num_id and not is_boxed and "HIGHLIGHTS" not in title.upper():
+                # Blacklist for sections that should NEVER get an auto-generated number
+                NON_NUMBERED_SECTIONS = [
+                    "RECENT MAJOR CHANGES", "DOCUMENT HISTORY", "REVISION HISTORY",
+                    "RX ONLY", "PACKAGE LABEL", "PRINCIPAL DISPLAY PANEL"
+                ]
+                is_excluded = any(ex in title.upper() for ex in NON_NUMBERED_SECTIONS)
+
+                if not num_id and not is_boxed and "HIGHLIGHTS" not in title.upper() and not is_excluded:
                     num_id = f"{prefix}{count}" if prefix else str(count)
                     should_increment = True
 
