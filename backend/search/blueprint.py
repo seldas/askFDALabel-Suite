@@ -80,32 +80,6 @@ def search():
     resp, status = search_v1_func(payload, user=user_obj)
     return jsonify(resp), status
 
-@search_bp.route("/find", methods=["GET"])
-def find():
-    query = request.args.get("q", "").strip()
-    skip = request.args.get("skip", 0, type=int)
-    limit = request.args.get("limit", 10, type=int)
-    
-    if not query:
-        return jsonify({"results": [], "total": 0})
-        
-    try:
-        labels, total = find_labels(query, skip=skip, limit=limit)
-        return jsonify({"results": labels, "total": total})
-    except Exception as e:
-        logger.error(f"Error in /find: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@search_bp.route("/search_agentic", methods=["POST"])
-def search_agentic():
-    payload = request.json or {}
-    ai_provider = payload.get("ai_provider")
-    user_obj = current_user._get_current_object() if current_user.is_authenticated else None
-    if user_obj and ai_provider:
-        user_obj.ai_provider = ai_provider
-    resp, status = search_v2_func(payload, user=user_obj)
-    return jsonify(resp), status
-
 @search_bp.route("/generate_answer", methods=["POST"])
 def generate_answer():
     payload = request.json or {}
@@ -408,33 +382,4 @@ def random_query():
         logger.error(f"Error in random_query: {e}")
         return jsonify({"query": "What are the indications for Ozempic?"}), 500
 
-@search_bp.route("/snippet-preview", methods=["GET"])
-def snippet_preview():
-    drug_name = request.args.get("drug_name", "").strip()
-    if not drug_name: return jsonify({"error": "Missing drug_name"}), 400
-    con = None
-    try:
-        con = oracledb.connect(user=FDALabel_USER, password=FDALabel_PSW, dsn=dsnStr)
-        cursor = con.cursor()
-        query = """
-            SELECT s.SET_ID, s.APPR_NUM, s.PRODUCT_NAMES, s.PRODUCT_NORMD_GENERIC_NAMES, s.ACT_INGR_NAMES, rld.RLD, s.EFF_TIME
-            FROM druglabel.DGV_SUM_SPL s
-            LEFT JOIN druglabel.sum_spl_rld rld on rld.spl_id = s.spl_id
-            WHERE (UPPER(s.PRODUCT_NAMES) LIKE UPPER(:dn) OR UPPER(s.PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:dn) OR UPPER(s.ACT_INGR_NAMES) LIKE UPPER(:dn))
-            ORDER BY rld.RLD DESC, s.EFF_TIME DESC
-            FETCH FIRST 1 ROWS ONLY
-        """
-        cursor.execute(query, {"dn": drug_name})
-        row = cursor.fetchone()
-        if not row:
-            cursor.execute(query, {"dn": f"%{drug_name}%"})
-            row = cursor.fetchone()
-            if not row: return jsonify({"found": False, "drug_name": drug_name}), 200
-        data = {"found": True, "set_id": row[0], "appr_num": row[1], "product_name": row[2], "generic_name": row[3], "active_ingredients": row[4], "is_RLD": row[5], "effective_date": row[6]}
-        return jsonify(data)
-    except Exception as e:
-        logger.error(f"Error in snippet_preview: {e}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if con: con.close()
 

@@ -138,63 +138,6 @@ def enrich_faers_with_meddra(faers_list):
             
     return faers_list
 
-@api_bp.route('/suggest-drugs', methods=['GET'])
-def suggest_drugs():
-    query = request.args.get('q', '').strip()
-    
-    if len(query) < 2:
-        return jsonify({'suggestions': []})
-    
-    try:
-        # Escape special characters
-        escaped_query = query.replace('\\', '\\\\').replace('"', '\\"')
-        search_query = f'(openfda.brand_name:{escaped_query}* OR openfda.generic_name:{escaped_query}*)'
-        
-        params = {
-            'search': search_query,
-            'limit': 10
-        }
-        
-        # Add API key if available
-        if Config.OPENFDA_API_KEY:
-            params['api_key'] = Config.OPENFDA_API_KEY
-        
-        response = requests.get(
-            'https://api.fda.gov/drug/label.json',
-            params=params,
-            timeout=5
-        )
-        
-        if response.status_code != 200:
-            return jsonify({'suggestions': []})
-        
-        data = response.json()
-        suggestions = set()
-        query_lower = query.lower()
-        
-        if data.get('results'):
-            for result in data['results']:
-                if result.get('openfda'):
-                    # Add brand names
-                    if result['openfda'].get('brand_name'):
-                        for name in result['openfda']['brand_name']:
-                            if name.lower().startswith(query_lower):
-                                suggestions.add(name)
-                    # Add generic names
-                    if result['openfda'].get('generic_name'):
-                        for name in result['openfda']['generic_name']:
-                            if name.lower().startswith(query_lower):
-                                suggestions.add(name)
-        
-        # Sort and limit
-        sorted_suggestions = sorted(list(suggestions), key=lambda x: x.lower())[:8]
-        
-        return jsonify({'suggestions': sorted_suggestions})
-        
-    except Exception as e:
-        print(f"Error fetching suggestions: {e}")
-        return jsonify({'suggestions': []})
-
 # --- AI Chat ---
 @api_bp.route('/ai_chat', methods=['POST'])
 def ai_chat():
@@ -484,63 +427,6 @@ def toggle_favorite_comparison():
         db.session.commit()
         return jsonify({'success': True, 'is_favorite': True})
 
-@api_bp.route('/delete_favorites_bulk', methods=['POST'])
-@login_required
-def delete_favorites_bulk():
-    data = request.get_json()
-    set_ids = data.get('set_ids', [])
-    project_id = data.get('project_id')
-    
-    if not set_ids:
-        return jsonify({'success': True, 'deleted_count': 0})
-
-    if not project_id:
-        return jsonify({'error': 'Project ID required'}), 400
-
-    # Verify project access
-    project = Project.query.get(project_id)
-    if not project or (project.owner_id != current_user.id and current_user not in project.members):
-         return jsonify({'error': 'Unauthorized'}), 403
-
-    # Delete from project (regardless of creator)
-    query = Favorite.query.filter(
-        Favorite.project_id == project_id,
-        Favorite.set_id.in_(set_ids)
-    )
-
-    deleted_count = query.delete(synchronize_session=False)
-    
-    db.session.commit()
-    return jsonify({'success': True, 'deleted_count': deleted_count})
-
-@api_bp.route('/delete_favorite_comparisons_bulk', methods=['POST'])
-@login_required
-def delete_favorite_comparisons_bulk():
-    data = request.get_json()
-    ids = data.get('ids', [])
-    project_id = data.get('project_id')
-    
-    if not ids:
-        return jsonify({'success': True, 'deleted_count': 0})
-
-    if not project_id:
-        return jsonify({'error': 'Project ID required'}), 400
-
-    # Verify project access
-    project = Project.query.get(project_id)
-    if not project or (project.owner_id != current_user.id and current_user not in project.members):
-         return jsonify({'error': 'Unauthorized'}), 403
-
-    query = FavoriteComparison.query.filter(
-        FavoriteComparison.project_id == project_id,
-        FavoriteComparison.id.in_(ids)
-    )
-
-    deleted_count = query.delete(synchronize_session=False)
-    
-    db.session.commit()
-    return jsonify({'success': True, 'deleted_count': deleted_count})
-
 @api_bp.route('/check_favorite_comparison', methods=['POST'])
 def check_favorite_comparison():
     if not current_user.is_authenticated:
@@ -564,75 +450,6 @@ def check_favorite_comparison():
     # Check PROJECT-WIDE
     favorite = FavoriteComparison.query.filter_by(set_ids=set_ids_json, project_id=project_id).first()
     return jsonify({'is_favorite': bool(favorite)})
-
-@api_bp.route('/import_favorites', methods=['POST'])
-@login_required
-def import_favorites():
-    data = request.get_json()
-    items = data.get('items', [])
-    
-    if not items:
-         raw_ids = data.get('set_ids', [])
-         if raw_ids:
-             items = [{'set_id': sid} for sid in raw_ids]
-         else:
-             return jsonify({'error': 'No items provided.'}), 400
-
-    added_count = 0
-    errors = []
-    
-    import re
-    uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
-
-    for item in items:
-        set_id = item.get('set_id', '').strip()
-        if not set_id or not uuid_pattern.match(set_id):
-            continue
-
-        existing = Favorite.query.filter_by(user_id=current_user.id, set_id=set_id).first()
-        if existing:
-            continue
-
-        if item.get('brand_name'):
-            try:
-                new_fav = Favorite(
-                    user_id=current_user.id,
-                    set_id=set_id,
-                    brand_name=item.get('brand_name'),
-                    manufacturer_name=item.get('manufacturer_name'),
-                    effective_time=item.get('effective_time')
-                )
-                db.session.add(new_fav)
-                added_count += 1
-            except Exception as e:
-                errors.append(f"Error saving {set_id}: {str(e)}")
-        else:
-            try:
-                meta = get_label_metadata(set_id)
-                if meta:
-                    new_fav = Favorite(
-                        user_id=current_user.id,
-                        set_id=set_id,
-                        brand_name=meta.get('brand_name'),
-                        manufacturer_name=meta.get('manufacturer_name'),
-                        effective_time=meta.get('effective_time')
-                    )
-                    db.session.add(new_fav)
-                    added_count += 1
-                else:
-                    errors.append(f"Could not find metadata for {set_id}")
-            except Exception as e:
-                logger.error(f"Error fetching/saving {set_id}: {e}")
-                errors.append(f"Error processing {set_id}")
-
-    db.session.commit()
-
-    return jsonify({
-        'success': True, 
-        'added_count': added_count, 
-        'total_processed': len(items),
-        'errors': errors
-    })
 
 # --- Label Annotations ---
 from flask import request, jsonify
@@ -854,23 +671,6 @@ def api_projects():
         
     return jsonify({'projects': projects})
 
-@api_bp.route('/projects/reorder', methods=['POST'])
-@login_required
-def api_reorder_projects():
-    data = request.json
-    ordered_ids = data.get('ids', [])
-    
-    if not ordered_ids:
-        return jsonify({'success': True})
-        
-    for index, project_id in enumerate(ordered_ids):
-        project = Project.query.get(project_id)
-        if project and project.owner_id == current_user.id:
-            project.display_order = index + 1
-            
-    db.session.commit()
-    return jsonify({'success': True})
-
 @api_bp.route('/projects/<int:project_id>', methods=['PUT', 'DELETE'])
 @login_required
 def api_project_detail(project_id):
@@ -900,120 +700,6 @@ def api_project_detail(project_id):
             project.description = data['description']
         db.session.commit()
         return jsonify({'success': True})
-
-@api_bp.route('/projects/<int:project_id>/export', methods=['POST'])
-@login_required
-def export_project(project_id):
-    project = Project.query.get_or_404(project_id)
-    if project.owner_id != current_user.id and current_user not in project.members:
-        return jsonify({'error': 'Unauthorized'}), 403
-        
-    if not project.share_code:
-        if project.owner_id == current_user.id:
-            project.share_code = str(uuid.uuid4())
-            db.session.commit()
-        else:
-            return jsonify({'error': 'Share code not generated yet. Ask the owner to generate it.'}), 400
-        
-    return jsonify({'share_code': project.share_code})
-
-@api_bp.route('/projects/import', methods=['POST'])
-@login_required
-def import_project():
-    data = request.json
-    code = data.get('share_code')
-    sync = data.get('sync', False) 
-    
-    project = Project.query.filter_by(share_code=code).first()
-    if not project:
-        return jsonify({'error': 'Invalid share code'}), 404
-    
-    if project.owner_id == current_user.id:
-        return jsonify({'error': 'You already own this project.'}), 400
-
-    if sync:
-        if current_user not in project.members:
-            project.members.append(current_user)
-            db.session.commit()
-        return jsonify({'success': True, 'message': 'Project synced.', 'id': project.id})
-    else:
-        if Project.query.filter_by(owner_id=current_user.id).count() >= 5:
-             return jsonify({'error': 'Project limit reached.'}), 403
-             
-        new_proj = Project(
-            title=f"{project.title} - Forked", 
-            description=project.description, 
-            owner_id=current_user.id
-        )
-        db.session.add(new_proj)
-        db.session.commit()
-        
-        for fav in project.favorites:
-            new_fav = Favorite(
-                user_id=current_user.id,
-                project_id=new_proj.id,
-                set_id=fav.set_id,
-                brand_name=fav.brand_name,
-                manufacturer_name=fav.manufacturer_name,
-                effective_time=fav.effective_time
-            )
-            db.session.add(new_fav)
-            
-        for comp in project.comparisons:
-            new_comp = FavoriteComparison(
-                user_id=current_user.id,
-                project_id=new_proj.id,
-                set_ids=comp.set_ids,
-                title=comp.title
-            )
-            db.session.add(new_comp)
-            
-        db.session.commit()
-        return jsonify({'success': True, 'message': 'Project imported successfully.', 'id': new_proj.id})
-
-@api_bp.route('/projects/move_items', methods=['POST'])
-@login_required
-def api_move_items():
-    data = request.json
-    target_project_id = data.get('target_project_id')
-    item_type = data.get('type') # 'label' or 'comparison'
-    ids = data.get('ids', []) 
-    
-    if not target_project_id:
-        return jsonify({'error': 'Target project required'}), 400
-        
-    project = Project.query.get(target_project_id)
-    if not project:
-         return jsonify({'error': 'Project not found'}), 404
-         
-    if project.owner_id != current_user.id and current_user not in project.members:
-        return jsonify({'error': 'Unauthorized access to target project'}), 403
-
-    count = 0
-    if item_type == 'label':
-        for set_id in ids:
-            source_project_id = data.get('source_project_id')
-            if not source_project_id:
-                 continue
-            
-            fav = Favorite.query.filter_by(user_id=current_user.id, set_id=set_id, project_id=source_project_id).first()
-            if fav:
-                existing = Favorite.query.filter_by(user_id=current_user.id, set_id=set_id, project_id=target_project_id).first()
-                if existing:
-                    db.session.delete(fav)
-                else:
-                    fav.project_id = target_project_id
-                count += 1
-                
-    elif item_type == 'comparison':
-        for comp_id in ids:
-            comp = FavoriteComparison.query.filter_by(id=comp_id, user_id=current_user.id).first()
-            if comp:
-                comp.project_id = target_project_id
-                count += 1
-                
-    db.session.commit()
-    return jsonify({'success': True, 'moved_count': count})
 
 @api_bp.route('/favorites_data')
 @login_required

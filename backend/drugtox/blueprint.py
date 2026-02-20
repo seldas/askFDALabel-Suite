@@ -21,14 +21,6 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def get_db_session():
     return SessionLocal()
 
-@drugtox_bp.route("/")
-def read_root():
-    return jsonify({"message": "Welcome to askDrugTox API"})
-
-@drugtox_bp.route("/health")
-def health_check():
-    return jsonify({"status": "healthy"})
-
 @drugtox_bp.route("/drugs")
 def get_drugs():
     q = request.args.get('q')

@@ -36,10 +36,6 @@ def create_unified_app():
     app.register_blueprint(drugtox_bp, url_prefix='/api/drugtox')
     app.register_blueprint(labelcomp_bp, url_prefix='/api/labelcomp')
     
-    @app.route('/health')
-    def health():
-        return jsonify({"status": "healthy", "app": "askFDALabel-Suite"})
-
     @app.route('/api/check-fdalabel', methods=['POST'])
     def check_fdalabel():
         from dashboard.services.fdalabel_db import FDALabelDBService

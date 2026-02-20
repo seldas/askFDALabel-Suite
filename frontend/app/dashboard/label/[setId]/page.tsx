@@ -1150,8 +1150,9 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       <div id="chatbox" className="chatbox" style={{ display: 'none', zIndex: 2500, }}>
         <div className="chat-header" id="chat-header">
             <h3>AI Assistant</h3>
-            <div className="chat-header-buttons">
-                <button id="close-chat" className="close-chat">&times;</button>
+            <div className="chat-header-buttons" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button id="chat-reset" className="chat-reset" title="Reset Chat" style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.25rem', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&#8634;</button>
+                <button id="close-chat" className="close-chat" style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.25rem', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
             </div>
         </div>
         <div id="chat-messages" className="chat-messages"></div>
