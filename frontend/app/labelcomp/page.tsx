@@ -76,6 +76,9 @@ function LabelCompContent() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTab, setAddTab] = useState<'projects' | 'setid'>('projects');
   const [setIdInput, setSetIdInput] = useState('');
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   
   // Projects State
   const [projects, setProjects] = useState<Project[]>([]);
@@ -254,6 +257,69 @@ function LabelCompContent() {
     setSetIdInput('');
     setSelectedProject(null);
     setProjectLabels([]);
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
+    
+    if (!file.name.toLowerCase().endsWith('.xml')) {
+      setUploadError('Invalid file format. Please upload an SPL XML file.');
+      return;
+    }
+
+    if (setIds.length >= 5) {
+      alert('You can compare up to 5 labels at a time.');
+      return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    // Send current set IDs to validate format compatibility (if backend needs it)
+    setIds.forEach(id => formData.append('current_set_ids[]', id));
+
+    try {
+      const res = await fetch('/api/dashboard/upload_label', {
+        method: 'POST',
+        body: formData
+      });
+      const result = await res.json();
+
+      if (result.success && result.set_id) {
+        if (setIds.includes(result.set_id)) {
+          setUploadError('This label is already in the comparison.');
+        } else {
+          const params = new URLSearchParams(searchParams.toString());
+          params.append('set_ids', result.set_id);
+          router.push(`/labelcomp?${params.toString()}`);
+          setShowAddModal(false);
+        }
+      } else {
+        setUploadError(result.error || 'Failed to upload label.');
+      }
+    } catch (e) {
+      setUploadError('Network error. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(true);
+  };
+
+  const onDragLeave = () => {
+    setDragging(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileUpload(file);
   };
 
   const handleRemoveLabel = (setId: string) => {
@@ -874,9 +940,24 @@ function LabelCompContent() {
                     )}
                 </div>
             ) : (
-                <div>
-                    <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '1.25rem', lineHeight: 1.5 }}>Enter the unique SPL SET-ID (UUID) of the label you wish to add.</p>
-                    <div style={{ display: 'flex', gap: '12px' }}>
+                <div 
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onDrop={onDrop}
+                  style={{ 
+                    position: 'relative',
+                    borderRadius: '12px',
+                    border: dragging ? '2px dashed #3b82f6' : '2px dashed transparent',
+                    backgroundColor: dragging ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
+                    transition: 'all 0.2s ease',
+                    padding: '4px'
+                  }}
+                >
+                    <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+                      Enter the unique SPL SET-ID (UUID) or <strong>drag & drop an SPL XML file</strong> here to add a custom labeling.
+                    </p>
+                    
+                    <div style={{ display: 'flex', gap: '12px', marginBottom: '1.5rem' }}>
                         <input 
                             type="text" 
                             placeholder="e.g. 01e46f58-8bda-4ff3-ab21-..."
@@ -918,9 +999,45 @@ function LabelCompContent() {
                             onMouseOver={e => e.currentTarget.style.backgroundColor = '#003d7a'}
                             onMouseOut={e => e.currentTarget.style.backgroundColor = '#002e5d'}
                         >
-                            Add Label
+                            Add
                         </button>
                     </div>
+
+                    <div 
+                      onClick={() => document.getElementById('spl-file-upload')?.click()}
+                      style={{ 
+                        padding: '2rem', 
+                        border: '2px dashed #e2e8f0', 
+                        borderRadius: '12px', 
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        backgroundColor: '#f8fafc',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={e => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                      onMouseOut={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                    >
+                        <input 
+                          id="spl-file-upload"
+                          type="file" 
+                          accept=".xml" 
+                          onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
+                          style={{ display: 'none' }}
+                        />
+                        <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📄</div>
+                        <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.25rem' }}>
+                          {uploading ? 'Processing File...' : 'Click or Drag SPL XML'}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                          Supports standard SPL XML format
+                        </div>
+                    </div>
+
+                    {uploadError && (
+                      <div style={{ marginTop: '1rem', padding: '10px', borderRadius: '8px', backgroundColor: '#fef2f2', color: '#ef4444', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>⚠️</span> {uploadError}
+                      </div>
+                    )}
                 </div>
             )}
           </div>

@@ -38,6 +38,74 @@ def index():
     """ Redirects to the Next.js dashboard. """
     return redirect('/dashboard')
 
+@main_bp.route('/upload_label', methods=['POST'])
+def upload_label():
+    """
+    Handles uploading of an XML or ZIP file containing an SPL label.
+    Extracts, validates (PLR/Non-PLR), and stores the label for comparison.
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    filename = file.filename.lower()
+    if not (filename.endswith('.xml') or filename.endswith('.zip')):
+        return jsonify({'error': 'Invalid file format. Please upload .xml or .zip.'}), 400
+
+    # Read current set_ids to validate against
+    current_set_ids = request.form.getlist('current_set_ids[]') # AJAX sends array as []
+    
+    xml_content = None
+    
+    try:
+        if filename.endswith('.zip'):
+            with zipfile.ZipFile(file) as z:
+                # Find first XML file
+                xml_files = [f for f in z.namelist() if f.lower().endswith('.xml')]
+                if not xml_files:
+                    return jsonify({'error': 'No XML file found in the ZIP archive.'}), 400
+                
+                with z.open(xml_files[0]) as f:
+                    xml_content = f.read().decode('utf-8')
+        else:
+            xml_content = file.read().decode('utf-8')
+            
+        if not xml_content:
+             return jsonify({'error': 'Empty file content.'}), 400
+
+        # Extract metadata
+        meta = extract_metadata_from_xml(xml_content)
+        if not meta or not meta.get('set_id'):
+            return jsonify({'error': 'Could not parse SPL metadata or Set ID from the XML.'}), 400
+
+        new_label_format = meta.get('label_format')
+        new_set_id = meta.get('set_id')
+
+        # VALIDATION: Check against existing labels
+        if current_set_ids:
+            # We need to check the format of at least one existing label
+            existing_meta = get_label_metadata(current_set_ids[0])
+            if existing_meta:
+                existing_format = existing_meta.get('label_format')
+                if existing_format and new_label_format and existing_format != new_label_format:
+                     return jsonify({
+                         'error': f"Format mismatch: The uploaded label is '{new_label_format}', but you are comparing '{existing_format}' labels. Please upload a compatible label."
+                     }), 400
+
+        # Save to local storage
+        save_path = os.path.join(Config.UPLOAD_FOLDER, f"{new_set_id}.xml")
+        with open(save_path, 'w', encoding='utf-8') as f:
+            f.write(xml_content)
+            
+        return jsonify({'success': True, 'set_id': new_set_id})
+
+    except Exception as e:
+        current_app.logger.error(f"Error processing upload: {e}")
+        return jsonify({'error': f"Error processing file: {str(e)}"}), 500
+
 @main_bp.route('/import_fdalabel', methods=['POST'])
 def import_fdalabel():
     """
