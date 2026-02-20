@@ -330,11 +330,18 @@ def parse_spl_xml(xml_string, set_id=None):
             res = []
             for s in sl:
                 if s['title'] and s['id']:
-                    res.append({'title': s['title'], 'id': s['id']})
-                    res.extend(build_toc(s['children']))
+                    item = {
+                        'title': s['title'], 
+                        'id': s['id'],
+                        'numeric_id': s.get('numeric_id')
+                    }
+                    children = build_toc(s.get('children', []))
+                    if children:
+                        item['children'] = children
+                    res.append(item)
             return res
         toc = build_toc(sections)
-        if highlights: toc.insert(0, {'title': 'Highlights of Prescribing Information', 'id': 'highlights-section'})
+        if highlights: toc.insert(0, {'title': 'Highlights of Prescribing Information', 'id': 'highlights-section', 'numeric_id': None})
         return doc_title, sections, None, highlights, toc
     except Exception as e:
         logger.error(f"XML parse error: {e}")

@@ -23,6 +23,8 @@ interface Highlight {
 interface TOCItem {
   id: string;
   title: string;
+  numeric_id?: string;
+  children?: TOCItem[];
 }
 
 interface Annotation {
@@ -66,6 +68,68 @@ interface LabelData {
   user_id: number | null;
 }
 
+function TOCItemComponent({ 
+  item, 
+  level = 0, 
+  expandedSections, 
+  toggleSection 
+}: { 
+  item: TOCItem; 
+  level?: number; 
+  expandedSections: Set<string>; 
+  toggleSection: (id: string) => void;
+}) {
+  const isExpanded = expandedSections.has(item.id);
+  const hasChildren = item.children && item.children.length > 0;
+
+  return (
+    <li className={`toc-item-level-${level}`}>
+      <div className="toc-item-container">
+        {hasChildren ? (
+          <button 
+            className={`toc-expander ${isExpanded ? 'expanded' : ''}`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleSection(item.id);
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        ) : (
+          <div style={{ width: '20px' }}></div>
+        )}
+        <a 
+          href={`#${item.id}`}
+          className={`toc-link ${level === 0 ? 'root-link' : 'sub-link'}`}
+          onClick={() => {
+            if (hasChildren && !isExpanded) {
+              toggleSection(item.id);
+            }
+          }}
+        >
+          {item.title}
+        </a>
+      </div>
+      {hasChildren && isExpanded && item.children && (
+        <ol className="toc-sub-list">
+          {item.children.map((child) => (
+            <TOCItemComponent 
+              key={child.id} 
+              item={child} 
+              level={level + 1} 
+              expandedSections={expandedSections}
+              toggleSection={toggleSection}
+            />
+          ))}
+        </ol>
+      )}
+    </li>
+  );
+}
+
 function SectionComponent({ section }: { section: Section }) {
   return (
     <div 
@@ -91,7 +155,20 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('label-view');
   const [tocCollapsed, setTocCollapsed] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | null>(null);
+
+  const toggleSection = (id: string) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
   const [ndcModalOpen, setNdcModalOpen] = useState(false);
 
   const ndcRaw = (data?.ndc || '').trim();
@@ -458,7 +535,67 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           color: #002e5d;
         }
 
+        /* Hierarchical TOC Styles */
+        .toc-list, .toc-sub-list {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
 
+        .toc-sub-list {
+          margin-left: 12px;
+          border-left: 1px solid #f1f5f9;
+        }
+
+        .toc-item-container {
+          display: flex;
+          align-items: center;
+          padding: 2px 0;
+        }
+
+        .toc-expander {
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 4px;
+          color: #94a3b8;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform 0.2s ease;
+        }
+
+        .toc-expander.expanded {
+          transform: rotate(90deg);
+        }
+
+        .toc-link {
+          text-decoration: none;
+          color: #475569;
+          font-size: 0.85rem;
+          padding: 6px 8px;
+          border-radius: 6px;
+          display: block;
+          transition: all 0.15s ease;
+          line-height: 1.4;
+          flex: 1;
+        }
+
+        .toc-link:hover {
+          background-color: #f1f5f9;
+          color: #002e5d;
+          text-decoration: none;
+        }
+
+        .toc-link.root-link {
+          font-weight: 700;
+        }
+
+        .toc-link.sub-link {
+          font-weight: 500;
+          font-size: 0.8rem;
+          color: #64748b;
+        }
       `}</style>
       
       {/* Main Header */}
@@ -592,9 +729,14 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
               </button>
             </div>
             {data.table_of_contents && data.table_of_contents.length > 0 ? (
-              <ol>
+              <ol className="toc-list">
                 {data.table_of_contents.map((item) => (
-                  <li key={item.id}><a href={`#${item.id}`}>{item.title}</a></li>
+                  <TOCItemComponent 
+                    key={item.id} 
+                    item={item} 
+                    expandedSections={expandedSections}
+                    toggleSection={toggleSection}
+                  />
                 ))}
               </ol>
             ) : (
