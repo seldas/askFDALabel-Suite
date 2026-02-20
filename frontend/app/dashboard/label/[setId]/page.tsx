@@ -204,6 +204,14 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
     }
 
     // Auto-hide TOC sidebar for non-label views to give more space
+    if (activeTab === 'label-view') {
+      const win = window as any;
+      if (win.initTableExtractor) {
+        // Give it a tiny bit of time for the 'display: block' to take effect
+        setTimeout(() => win.initTableExtractor(), 100);
+      }
+    }
+
     if (activeTab !== 'label-view') {
       setTocCollapsed(true);
     } else {
@@ -829,6 +837,23 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                         <span style={{ fontFamily: 'monospace', color: '#333' }}>{data.application_number || 'N/A'}</span>
                     </div>
                 </div>
+
+                {data.original_title && (
+                    <div style={{ 
+                        marginTop: '20px', 
+                        padding: '15px 20px', 
+                        backgroundColor: '#f1f5f9', 
+                        borderRadius: '8px', 
+                        borderLeft: '4px solid #64748b',
+                        color: '#334155',
+                        fontSize: '0.9rem',
+                        lineHeight: '1.5',
+                        fontStyle: 'italic',
+                        fontWeight: 500
+                    }}>
+                        {data.original_title}
+                    </div>
+                )}
             </div>
 
             <div id="top-annotations-container" className="top-annotations-container"></div>

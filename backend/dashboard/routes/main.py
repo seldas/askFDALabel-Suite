@@ -317,7 +317,7 @@ def view_label(set_id):
     
     metadata = extract_metadata_from_xml(label_xml_raw)
     
-    # Re-use the clean_name logic for the document title
+    # Re-use the clean_name logic for the display drug name
     def clean_header_text(text):
         if not text: return text
         if "highlights do not include" in text.lower():
@@ -329,8 +329,8 @@ def view_label(set_id):
             text = re.sub(r'^These highlights do not include.*?safely and effectively\.\s*(See full prescribing information for.*?\.)?\s*', '', text, flags=re.IGNORECASE | re.DOTALL).strip()
         return text
 
-    original_title = clean_header_text(doc_title)
-    display_drug_name = drug_name_from_query if drug_name_from_query else original_title
+    original_title = doc_title # Keep the raw title
+    display_drug_name = drug_name_from_query if drug_name_from_query else clean_header_text(doc_title)
 
     # Load saved annotations
     saved_annotations = []

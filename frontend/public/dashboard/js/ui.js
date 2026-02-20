@@ -157,26 +157,53 @@ window.initUI = function() {
 
     // --- Table Extraction Logic ---
     function initTableExtractor() {
+        console.log("Initializing Table Extractor...");
         const labelView = document.getElementById('label-view');
-        if (!labelView) return;
+        if (!labelView) {
+            console.warn("Table Extractor: #label-view not found");
+            return;
+        }
 
         const tables = labelView.querySelectorAll('table');
+        console.log(`Table Extractor: Found ${tables.length} tables`);
+        
+        let addedCount = 0;
         tables.forEach((table, index) => {
-            if (table.closest('.table-wrapper') || table.parentElement.tagName === 'TD') return;
+            // Skip tables already wrapped
+            if (table.closest('.table-wrapper')) return;
+            
+            // Refined check: Only skip tables that are clearly nested inside another DATA table cell
+            // We want to allow tables that might be wrapped in layout-only tables or other containers.
+            const parentCell = table.parentElement.closest('td, th');
+            if (parentCell) {
+                // If it's in a cell, check if that parent table is a real data table or just layout
+                const parentTable = parentCell.closest('table');
+                if (parentTable && parentTable.querySelectorAll('tr').length > 2) {
+                    // It's likely nested inside a data table, skip it
+                    return;
+                }
+            }
 
-            const wrapper = document.createElement('div');
-            wrapper.className = 'table-wrapper';
-            table.parentNode.insertBefore(wrapper, table);
-            wrapper.appendChild(table);
+            try {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'table-wrapper';
+                table.parentNode.insertBefore(wrapper, table);
+                wrapper.appendChild(table);
 
-            const btn = document.createElement('button');
-            btn.className = 'btn-extract-table';
-            btn.innerHTML = '<span>&#128229;</span> Extract';
-            btn.title = 'Open in Excel-style viewer';
-            btn.onclick = () => openTableExtractor(table);
-            wrapper.appendChild(btn);
+                const btn = document.createElement('button');
+                btn.className = 'btn-extract-table';
+                btn.innerHTML = '<span>&#128229;</span> Extract';
+                btn.title = 'Open in Excel-style viewer';
+                btn.onclick = () => openTableExtractor(table);
+                wrapper.appendChild(btn);
+                addedCount++;
+            } catch (err) {
+                console.error("Error wrapping table:", err);
+            }
         });
+        console.log(`Table Extractor: Added ${addedCount} extract buttons`);
     }
+    window.initTableExtractor = initTableExtractor;
 
     function openTableExtractor(originalTable) {
         const modal = document.getElementById('table-extract-modal');
@@ -644,7 +671,9 @@ window.initUI = function() {
 
         });
 
+    setTimeout(initTableExtractor, 500);
     setTimeout(initTableExtractor, 1500);
+    setTimeout(initTableExtractor, 3000);
 }
 
 if (document.readyState === 'loading') {
