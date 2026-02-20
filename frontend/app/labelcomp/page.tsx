@@ -99,7 +99,135 @@ function LabelCompContent() {
   // Collapse State
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
+  // Design System Constants
+  const toolbarToggleStyle = {
+    padding: '8px 16px',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    fontSize: '0.85rem',
+    fontWeight: 700,
+    color: '#64748b',
+    borderRadius: '8px',
+    transition: 'all 0.2s'
+  };
+
+  const primaryButtonStyle = {
+    backgroundColor: '#10b981',
+    color: 'white',
+    border: 'none',
+    padding: '10px 24px',
+    borderRadius: '10px',
+    fontWeight: 800,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '0.9rem',
+    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)',
+    height: '46px'
+  };
+
+  const secondaryButtonStyle = {
+    backgroundColor: '#3b82f6',
+    color: 'white',
+    border: 'none',
+    padding: '10px 24px',
+    borderRadius: '10px',
+    fontWeight: 800,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '0.9rem',
+    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.15)',
+    height: '46px'
+  };
+
+  const metaCardStyle = {
+    backgroundColor: 'white',
+    padding: '1.25rem',
+    borderRadius: '16px',
+    border: '1px solid #e2e8f0',
+    position: 'relative' as const,
+    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01)',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    minHeight: '160px'
+  };
+
+  const removeButtonStyle = {
+    position: 'absolute' as const,
+    top: '12px',
+    right: '12px',
+    background: '#f1f5f9',
+    border: 'none',
+    color: '#94a3b8',
+    cursor: 'pointer',
+    width: '28px',
+    height: '28px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '1.2rem',
+    lineHeight: 1,
+    transition: 'all 0.2s ease',
+    zIndex: 10
+  };
+
+  const linkStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    marginTop: 'auto',
+    fontSize: '0.85rem',
+    color: '#3b82f6',
+    textDecoration: 'none',
+    fontWeight: 700,
+    paddingTop: '1rem'
+  };
+
+  const aiInsightContainerStyle = {
+    backgroundColor: '#f5f3ff', 
+    borderRadius: '16px',
+    border: '1px solid #e0e7ff',
+    marginBottom: '3rem',
+    overflow: 'hidden',
+    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.05)'
+  };
+
+  const aiInsightHeaderStyle = {
+    padding: '1.25rem 1.5rem',
+    cursor: 'pointer',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    userSelect: 'none' as const
+  };
+
+  const generateButtonStyle = {
+    background: '#6366f1',
+    color: 'white',
+    border: 'none',
+    padding: '12px 28px',
+    borderRadius: '10px',
+    fontWeight: 800,
+    cursor: 'pointer',
+    fontSize: '0.9rem',
+    boxShadow: '0 4px 14px rgba(99, 102, 241, 0.3)',
+    transition: 'all 0.2s ease'
+  };
+
   const setIds = useMemo(() => searchParams.getAll('set_ids'), [searchParams]);
+
+  // Dynamic grid template based on label count
+  const comparisonGridStyle = {
+    display: 'grid',
+    gridTemplateColumns: data?.selected_labels_metadata.length 
+      ? `repeat(${data.selected_labels_metadata.length}, minmax(0, 1fr))`
+      : '1fr',
+    gap: '1.5rem'
+  };
 
   useEffect(() => {
     if (setIds.length === 0) {
@@ -361,145 +489,242 @@ function LabelCompContent() {
     }
   };
 
+    const handleExportDiffs = () => {
+      if (!data || data.selected_labels_metadata.length < 2) return;
+  
+      const labelNames = data.selected_labels_metadata.map(m => m.brand_name).join(', ');
+      const numLabels = data.selected_labels_metadata.length;
+      
+          // Logic to determine export mode
+          let exportMode: 'SECTION_WISE' | 'ENTIRE_DOCUMENT' = 'ENTIRE_DOCUMENT';
+          
+          if (numLabels === 2) {
+            // 1. Check if both metadata formats are PLR
+            const isAllPLR = data.selected_labels_metadata.every(m => m.label_format === 'PLR');
+            
+            // 2. Or if we can find a Warnings & Precautions section shared by both
+            const hasWarningsSection = data.comparison_data.find(s => 
+              /WARNINGS\s+(AND|&)\s+PRECAUTIONS/i.test(s.title)
+            );
+      
+            if (isAllPLR || hasWarningsSection) {
+              exportMode = 'SECTION_WISE';
+            }
+          }  
+      let prompt = "";
+      let comparisonPayload: any = null;
+  
+      if (exportMode === 'SECTION_WISE') {
+        const diffSections = data.comparison_data.filter(s => !s.is_same && !s.is_empty);
+        
+        prompt = `You are a clinical regulatory specialist assisting a drug reviewer. 
+  Your task is to analyze the differences between these two PLR-formatted drug labels: ${labelNames}.
+  I am providing a section-by-section breakdown of detected differences. 
+  1. For each provided section, compare the content and identify specific clinical additions, deletions, or modifications.
+  2. Organize your response section-wise, following numerical order (e.g., Section 1, 2, 3...) to maintain logical clinical progression.
+  3. Conclude with a final paragraph titled "Summary of Significant Differences" that synthesizes the most impactful clinical or regulatory changes.`;
+  
+        comparisonPayload = diffSections.map(s => ({
+          section_title: s.title,
+          section_key: s.key,
+          label_versions: data.selected_labels_metadata.map((m, idx) => ({
+            label_name: m.brand_name,
+            content: s.contents[idx] || "Not specified."
+          }))
+        }));
+      } else {
+        // ENTIRE DOCUMENT MODE
+        prompt = `You are a clinical regulatory specialist assisting a drug reviewer. 
+  Your task is to perform a comprehensive comparison across the ENTIRE text of the following labels: ${labelNames}.
+  Note: These labels may have different structural formats or involve multiple versions. 
+  1. Analyze the full text provided for each label to identify clinical updates in safety, dosing, and indications, regardless of where they appear in the documents.
+  2. Organize your analysis by major clinical categories (e.g., Indications, Safety, Dosing).
+  3. Conclude with a final paragraph titled "Summary of Significant Differences" that synthesizes the high-level regulatory and clinical shifts across all versions.`;
+  
+        // Reconstruct "Entire Document" by concatenating all sections for each label index
+        comparisonPayload = data.selected_labels_metadata.map((m, idx) => {
+          const fullText = data.comparison_data
+            .map(s => s.contents[idx])
+            .filter(Boolean)
+            .join('\n\n');
+          
+          return {
+            label_name: m.brand_name,
+            metadata: {
+              manufacturer: m.manufacturer_name,
+              effective_time: m.effective_time,
+              set_id: m.set_id,
+              format: m.label_format
+            },
+            full_content: fullText
+          };
+        });
+      }
+  
+      const exportObject = {
+        export_metadata: {
+          export_mode: exportMode,
+          date: new Date().toISOString(),
+          labels_included: data.selected_labels_metadata.map(m => m.brand_name)
+        },
+        instructions: prompt,
+        data: comparisonPayload
+      };
+  
+      const blob = new Blob([JSON.stringify(exportObject, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `label_comp_${exportMode.toLowerCase()}_${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    };
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
       <Header />
 
-      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: 'clamp(2rem, 5vh, 4rem) clamp(1rem, 5vw, 2rem)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 'clamp(2rem, 5vh, 4rem)' }}>
-          <h1 className="hero-title-animated" style={{ fontSize: 'clamp(2rem, 8vw, 3.5rem)', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
+      <main style={{ maxWidth: '1600px', margin: '0 auto', padding: 'clamp(2rem, 5vh, 4rem) clamp(1rem, 5vw, 2rem)' }}>
+        {/* Hero Section */}
+        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+          <h1 className="hero-title-animated" style={{ fontSize: 'clamp(2.25rem, 6vw, 3rem)', fontWeight: 900, color: '#0f172a', marginBottom: '0.75rem', letterSpacing: '-0.025em' }}>
             Side-by-Side Analysis
           </h1>
-          <p className="hero-subtitle-animated" style={{ 
-            fontSize: 'clamp(1rem, 3vw, 1.25rem)', 
-            color: '#64748b', 
-            fontWeight: '500',
-            textAlign: 'center',
-            maxWidth: '800px',
-            margin: '0 auto'
-          }}>
-            Compare and analyze drug labeling differences with AI assistance
+          <p className="hero-subtitle-animated" style={{ fontSize: 'clamp(1rem, 2vw, 1.15rem)', color: '#64748b', fontWeight: '500', maxWidth: '700px', margin: '0 auto' }}>
+            Precision regulatory comparison and clinical data synchronization across FDA drug labels.
           </p>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '3rem', gap: '1.5rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <button onClick={expandAll} style={{ padding: '10px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, color: '#64748b', borderRight: '1px solid #e2e8f0', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Expand All</button>
-              <button onClick={collapseAll} style={{ padding: '10px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, color: '#64748b', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Collapse All</button>
+        {/* Unified Action Toolbar */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'flex-start', 
+          marginBottom: '2.5rem',
+          padding: '1rem 1.25rem',
+          backgroundColor: 'white',
+          borderRadius: '16px',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div style={{ display: 'flex', gap: '4px', backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '10px' }}>
+            <button onClick={expandAll} style={toolbarToggleStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = 'white'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Expand All</button>
+            <button onClick={collapseAll} style={toolbarToggleStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = 'white'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Collapse All</button>
           </div>
-          <button 
-              onClick={() => setShowAddModal(true)}
-              style={{ 
-              backgroundColor: '#10b981', 
-              color: 'white', 
-              border: 'none', 
-              padding: '12px 32px', 
-              borderRadius: '10px', 
-              fontWeight: 800, 
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)',
-              transition: 'all 0.2s ease',
-              fontSize: '0.95rem'
-              }}
-              onMouseOver={e => { e.currentTarget.style.backgroundColor = '#059669'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-              onMouseOut={e => { e.currentTarget.style.backgroundColor = '#10b981'; e.currentTarget.style.transform = 'translateY(0)'; }}
-          >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+            <button onClick={() => setShowAddModal(true)} style={primaryButtonStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = '#059669'} onMouseOut={e => e.currentTarget.style.backgroundColor = '#10b981'}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
               Add Label
-          </button>
+            </button>
+            
+            {data && data.selected_labels_metadata.length >= 2 && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <button onClick={handleExportDiffs} style={secondaryButtonStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = '#2563eb'} onMouseOut={e => e.currentTarget.style.backgroundColor = '#3b82f6'}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  Export
+                </button>
+                <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, maxWidth: '200px', textAlign: 'center', lineHeight: 1.3 }}>
+                  Generates regulatory JSON for ELSA clinical analysis.
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
-        {loading && <div style={{ textAlign: 'center', padding: '4rem' }}>Loading comparison data...</div>}
-        {error && <div style={{ textAlign: 'center', padding: '4rem', color: '#ef4444' }}>Error: {error}</div>}
+        {loading && <div style={{ textAlign: 'center', padding: '4rem', color: '#64748b', fontWeight: 600 }}>Synchronizing data...</div>}
+        {error && <div style={{ textAlign: 'center', padding: '4rem', color: '#ef4444', backgroundColor: '#fef2f2', borderRadius: '12px', border: '1px solid #fee2e2' }}>Error: {error}</div>}
         
+        {/* Metadata Grid */}
         {data && data.selected_labels_metadata.length > 0 && (
-          <section className="side-by-side-grid" style={{ marginBottom: '3rem' }}>
+          <div style={{ ...comparisonGridStyle, marginBottom: '2.5rem' }}>
             {data.selected_labels_metadata.map((meta) => (
-              <div key={meta.set_id} style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0', position: 'relative' }}>
+              <div key={meta.set_id} style={metaCardStyle}>
                 <button 
                   onClick={() => handleRemoveLabel(meta.set_id)}
-                  style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}
+                  style={removeButtonStyle}
+                  onMouseOver={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#ef4444'; }}
+                  onMouseOut={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#94a3b8'; }}
+                  title="Remove from comparison"
                 >
                   &times;
                 </button>
-                <h3 style={{ color: '#002e5d', margin: '0 0 0.5rem 0', fontSize: '1.1rem' }}>{meta.brand_name}</h3>
-                <div style={{ fontSize: '0.85rem', color: '#64748b', lineHeight: 1.6 }}>
-                  <p style={{ margin: '2px 0' }}><strong>Manufacturer:</strong> {meta.manufacturer_name}</p>
-                  <p style={{ margin: '2px 0' }}><strong>Published:</strong> {meta.effective_time}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
+                  <div style={{ padding: '4px 8px', backgroundColor: '#e0f2fe', color: '#0369a1', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 800 }}>{meta.label_format}</div>
+                  <h3 style={{ color: '#0f172a', margin: 0, fontSize: '1rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta.brand_name}</h3>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>
+                    <span style={{ fontWeight: 600 }}>Manufacturer</span>
+                    <span style={{ textAlign: 'right', color: '#334155', fontWeight: 500 }}>{meta.manufacturer_name}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '4px' }}>
+                    <span style={{ fontWeight: 600 }}>Published</span>
+                    <span style={{ color: '#334155', fontWeight: 500 }}>{meta.effective_time}</span>
+                  </div>
                 </div>
                 <Link 
                   href={`/dashboard/label/${meta.set_id}`}
                   target="_blank"
-                  style={{ 
-                    display: 'block', 
-                    marginTop: '1rem', 
-                    fontSize: '0.85rem', 
-                    color: '#3b82f6', 
-                    textDecoration: 'none',
-                    fontWeight: 600
-                  }}
+                  style={linkStyle}
+                  onMouseOver={e => e.currentTarget.style.textDecoration = 'underline'}
+                  onMouseOut={e => e.currentTarget.style.textDecoration = 'none'}
                 >
-                  View Full Label &rarr;
+                  Full Label Intelligence &rarr;
                 </Link>
               </div>
             ))}
-          </section>
+          </div>
         )}
 
-        {/* AI Summary Section */}
+        {/* AI Comparison Insight (Indigo Theme) */}
         {data && data.selected_labels_metadata.length >= 2 && (
-          <section style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '3rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: aiSummaryCollapsed ? '0' : '1.5rem' }}>
-              <h3 
-                onClick={() => setAiSummaryCollapsed(!aiSummaryCollapsed)}
-                style={{ color: '#002e5d', margin: 0, display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', userSelect: 'none' }}
-              >
-                <span style={{ fontSize: '0.8rem', transform: aiSummaryCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
-                <span>✨</span> AI Comparison Insight
-              </h3>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                {session?.is_authenticated && (
-                    <button 
-                    onClick={() => generateAiSummary()}
-                    disabled={summaryGenerating}
-                    style={{ 
-                        backgroundColor: '#002e5d', 
-                        color: 'white', 
-                        border: 'none', 
-                        padding: '8px 16px', 
-                        borderRadius: '6px', 
-                        fontSize: '0.85rem', 
-                        cursor: 'pointer',
-                        opacity: summaryGenerating ? 0.7 : 1
-                    }}
-                    >
-                    {summaryGenerating ? 'Analyzing...' : aiSummary ? 'Regenerate Summary' : 'Generate Summary'}
-                    </button>
-                )}
-              </div>
+          <section style={aiInsightContainerStyle}>
+            <div onClick={() => setAiSummaryCollapsed(!aiSummaryCollapsed)} style={aiInsightHeaderStyle}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '32px', height: '32px', backgroundColor: '#e0e7ff', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4338ca' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a4 4 0 0 0-4-4H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a4 4 0 0 1 4-4h6z"></path></svg>
+                  </div>
+                  <span style={{ fontWeight: 800, color: '#1e1b4b', fontSize: '1.05rem', letterSpacing: '-0.01em' }}>AI Comparison Insight</span>
+               </div>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#6366f1' }}>{aiSummaryCollapsed ? 'SHOW ANALYSIS' : 'HIDE ANALYSIS'}</span>
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', transform: aiSummaryCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
+               </div>
             </div>
-            
             {!aiSummaryCollapsed && (
-                <div className="ai-summary-content" style={{ color: '#475569', lineHeight: 1.7, animation: 'fadeIn 0.2s' }}>
-                {aiSummary ? (
-                    <div dangerouslySetInnerHTML={{ __html: aiSummary }} />
-                ) : (
-                    <p style={{ fontStyle: 'italic' }}>
-                    {session?.is_authenticated 
-                        ? 'Click "Generate Summary" to let AI analyze the key differences between these labels.' 
-                        : 'Sign in to generate an AI-powered comparison summary.'}
-                    </p>
-                )}
-                </div>
+              <div style={{ padding: '2rem', borderTop: '1px solid #e0e7ff', backgroundColor: 'white' }}>
+                 {aiSummary ? (
+                    <div className="ai-summary-content" style={{ animation: 'fadeIn 0.3s ease-out' }} dangerouslySetInnerHTML={{ __html: aiSummary }} />
+                 ) : (
+                    <div style={{ textAlign: 'center', padding: '1rem' }}>
+                      <p style={{ color: '#64748b', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
+                        {session?.is_authenticated 
+                          ? 'Perform a multi-label cognitive analysis to extract key regulatory and clinical differences.' 
+                          : 'Please sign in to generate high-fidelity AI comparison summaries.'}
+                      </p>
+                      {session?.is_authenticated && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); generateAiSummary(); }} 
+                          disabled={summaryGenerating} 
+                          style={generateButtonStyle}
+                          onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(99, 102, 241, 0.4)'; }}
+                          onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.3)'; }}
+                        >
+                          {summaryGenerating ? 'Synchronizing Intelligence...' : 'Generate Clinical Summary'}
+                        </button>
+                      )}
+                    </div>
+                 )}
+              </div>
             )}
           </section>
         )}
 
         {data && data.comparison_data.length > 0 ? (
-          <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
             {data.comparison_data.map((section, idx) => (
               <div key={idx} style={{ 
                 borderBottom: '1px solid #f1f5f9', 
@@ -511,24 +736,29 @@ function LabelCompContent() {
                         display: 'flex', 
                         justifyContent: 'space-between', 
                         alignItems: 'center', 
-                        padding: '1rem 1.5rem',
+                        padding: '1.25rem 1.5rem',
                         cursor: 'pointer',
                         userSelect: 'none',
-                        marginLeft: `${section.nesting_level * 20}px`,
+                        marginLeft: `${section.nesting_level * 24}px`,
+                        transition: 'background-color 0.2s'
                     }}
+                    onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                    onMouseOut={e => e.currentTarget.style.backgroundColor = section.is_same ? '#fcfcfd' : 'white'}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#94a3b8', transform: collapsedSections[section.key] ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
-                    <h4 style={{ margin: 0, color: section.is_same ? '#64748b' : '#002e5d', fontSize: '1rem', fontWeight: 700 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', transform: collapsedSections[section.key] ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
+                    <h4 style={{ margin: 0, color: section.is_same ? '#64748b' : '#002e5d', fontSize: '0.95rem', fontWeight: 800, letterSpacing: '-0.01em' }}>
                         {section.title}
                         {!section.is_empty && (
                         <span style={{ 
-                            marginLeft: '10px', 
-                            fontSize: '0.7rem', 
-                            padding: '2px 8px', 
-                            borderRadius: '4px',
+                            marginLeft: '12px', 
+                            fontSize: '0.65rem', 
+                            padding: '3px 10px', 
+                            borderRadius: '6px',
                             backgroundColor: section.is_same ? '#f1f5f9' : '#fef2f2',
-                            color: section.is_same ? '#94a3b8' : '#ef4444'
+                            color: section.is_same ? '#94a3b8' : '#ef4444',
+                            fontWeight: 800,
+                            letterSpacing: '0.02em'
                         }}>
                             {section.is_same ? 'IDENTICAL' : 'CHANGES DETECTED'}
                         </span>
@@ -540,91 +770,94 @@ function LabelCompContent() {
                 {!collapsedSections[section.key] && (
                     <div style={{ padding: '0 1.5rem 1.5rem 1.5rem', animation: 'fadeIn 0.2s' }}>
                         {(section as any).is_major_change ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                 <div style={{ 
                                     backgroundColor: '#fff7ed', 
                                     border: '1px solid #fed7aa', 
-                                    borderRadius: '8px', 
-                                    padding: '1rem', 
+                                    borderRadius: '12px', 
+                                    padding: '1.25rem', 
                                     color: '#9a3412',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '12px'
+                                    gap: '16px',
+                                    boxShadow: '0 2px 4px rgba(251, 146, 60, 0.05)'
                                 }}>
-                                    <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                                    <div style={{ color: '#f97316' }}>
+                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                    </div>
                                     <div>
-                                        <div style={{ fontWeight: 800 }}>Significant Section Overhaul</div>
-                                        <div style={{ fontSize: '0.8rem', opacity: 0.9 }}>Extensively rewritten. Granular highlighting disabled for readability.</div>
+                                        <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>Significant Section Overhaul</div>
+                                        <div style={{ fontSize: '0.85rem', opacity: 0.9, fontWeight: 500 }}>This section has been extensively rewritten. Visual diffing is disabled to prioritize readability.</div>
                                     </div>
                                 </div>
-                                <div className="side-by-side-grid" style={{ gap: '1rem' }}>
+                                <div style={comparisonGridStyle}>
                                     {section.contents.map((content, cIdx) => {
                                         const meta = data.selected_labels_metadata[cIdx];
                                         return (
                                             <div key={cIdx} style={{ 
                                                 fontSize: '0.9rem', 
                                                 color: '#334155', 
-                                                lineHeight: 1.6,
-                                                padding: '2.25rem 1rem 1rem 1rem',
+                                                lineHeight: 1.7,
+                                                padding: '2.5rem 1.25rem 1.25rem 1.25rem',
                                                 backgroundColor: cIdx % 2 === 0 ? '#f8fafc' : '#ffffff',
                                                 border: '1px solid #e2e8f0',
-                                                borderRadius: '8px',
+                                                borderRadius: '12px',
                                                 position: 'relative'
                                             }}>
-                                                <div style={{ position: 'absolute', top: '8px', left: '8px', backgroundColor: '#002e5d', color: 'white', fontSize: '0.65rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                                                <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: '#002e5d', color: 'white', fontSize: '0.65rem', padding: '3px 10px', borderRadius: '6px', fontWeight: 800, textTransform: 'uppercase' }}>
                                                     {meta.brand_name}
                                                 </div>
-                                                {content ? <div dangerouslySetInnerHTML={{ __html: content }} /> : <span style={{ color: '#cbd5e1', fontStyle: 'italic' }}>Not specified.</span>}
+                                                {content ? <div className="spl-content" dangerouslySetInnerHTML={{ __html: content }} /> : <span style={{ color: '#cbd5e1', fontStyle: 'italic', fontWeight: 500 }}>Not specified.</span>}
                                             </div>
                                         );
                                     })}
                                 </div>
                             </div>
                         ) : (
-                            <div className="side-by-side-grid" style={{ gap: '1rem' }}>
+                            <div style={comparisonGridStyle}>
                                 {section.contents.map((content, cIdx) => {
                                     const meta = data.selected_labels_metadata[cIdx];
-                                    const manufacturerSnippet = meta.manufacturer_name ? `${meta.manufacturer_name.substring(0, 5)}...` : 'N/A';
+                                    const manufacturerSnippet = meta.manufacturer_name ? (meta.manufacturer_name.length > 8 ? `${meta.manufacturer_name.substring(0, 8)}...` : meta.manufacturer_name) : 'N/A';
                                     const tagLabel = `${meta.brand_name} [${manufacturerSnippet}]`;
                                     
-                                    // Use nuanced content if available, otherwise original content
                                     const displayContent = (section as any).nuanced_contents?.[cIdx] || content;
 
                                     return (
                                         <div key={cIdx} style={{ 
                                             fontSize: '0.9rem', 
                                             color: '#334155', 
-                                            lineHeight: 1.6,
-                                            padding: '2.25rem 1rem 1rem 1rem',
+                                            lineHeight: 1.7,
+                                            padding: '2.5rem 1.25rem 1.25rem 1.25rem',
                                             backgroundColor: cIdx % 2 === 0 ? '#f8fafc' : '#ffffff',
                                             border: '1px solid #e2e8f0',
-                                            borderRadius: '8px',
+                                            borderRadius: '12px',
                                             position: 'relative',
-                                            minHeight: '100px'
+                                            minHeight: '120px'
                                         }}>
                                             <div style={{
                                                 position: 'absolute',
-                                                top: '8px',
-                                                left: '8px',
+                                                top: '10px',
+                                                left: '10px',
                                                 backgroundColor: section.is_same ? '#64748b' : '#002e5d',
                                                 color: 'white',
                                                 fontSize: '0.65rem',
-                                                padding: '2px 8px',
-                                                borderRadius: '4px',
-                                                fontWeight: 700,
+                                                padding: '3px 10px',
+                                                borderRadius: '6px',
+                                                fontWeight: 800,
                                                 textTransform: 'uppercase',
                                                 maxWidth: '90%',
                                                 whiteSpace: 'nowrap',
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis',
-                                                zIndex: 1
+                                                zIndex: 1,
+                                                letterSpacing: '0.02em'
                                             }} title={tagLabel}>
                                                 {tagLabel}
                                             </div>
                                             {displayContent ? (
-                                                <div dangerouslySetInnerHTML={{ __html: displayContent }} />
+                                                <div className="spl-content" dangerouslySetInnerHTML={{ __html: displayContent }} />
                                             ) : (
-                                                <span style={{ color: '#cbd5e1', fontStyle: 'italic' }}>Not specified in this label.</span>
+                                                <span style={{ color: '#cbd5e1', fontStyle: 'italic', fontWeight: 500 }}>Not specified in this labeling.</span>
                                             )}
                                         </div>
                                     );
@@ -637,10 +870,24 @@ function LabelCompContent() {
             ))}
           </div>
         ) : !loading && (
-          <div style={{ textAlign: 'center', padding: '5rem 2rem', color: '#94a3b8', maxWidth: '600px', margin: '0 auto' }}>
-            <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>⚖️</div>
-            <h3 style={{ color: '#0f172a', marginBottom: '1rem' }}>No labels selected for comparison</h3>
-            <p style={{ lineHeight: 1.6 }}>Use the "Add Label" button above to start your side-by-side research.</p>
+          <div style={{ textAlign: 'center', padding: '6rem 2rem', color: '#94a3b8', maxWidth: '600px', margin: '0 auto', animation: 'fadeIn 0.5s ease-out' }}>
+            <div style={{ marginBottom: '1.5rem', opacity: 0.2, color: '#0f172a' }}>
+              <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path>
+                <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path>
+                <path d="M7 21h10"></path>
+                <path d="M12 3v18"></path>
+                <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path>
+              </svg>
+            </div>
+            <h3 style={{ color: '#0f172a', marginBottom: '1rem', fontSize: '1.5rem', fontWeight: 800 }}>Comparative workspace empty</h3>
+            <p style={{ lineHeight: 1.7, fontSize: '1.05rem', fontWeight: 500 }}>Initiate a side-by-side analysis by selecting drug labels from your projects or entering specific identifiers.</p>
+            <button 
+              onClick={() => setShowAddModal(true)}
+              style={{ ...primaryButtonStyle, margin: '2rem auto 0' }}
+            >
+              Add Your First Label
+            </button>
           </div>
         )}
       </main>
@@ -1024,7 +1271,9 @@ function LabelCompContent() {
                           onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
                           style={{ display: 'none' }}
                         />
-                        <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📄</div>
+                        <div style={{ color: '#3b82f6', marginBottom: '0.75rem' }}>
+                          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        </div>
                         <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.25rem' }}>
                           {uploading ? 'Processing File...' : 'Click or Drag SPL XML'}
                         </div>
@@ -1035,7 +1284,9 @@ function LabelCompContent() {
 
                     {uploadError && (
                       <div style={{ marginTop: '1rem', padding: '10px', borderRadius: '8px', backgroundColor: '#fef2f2', color: '#ef4444', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>⚠️</span> {uploadError}
+                        <span style={{ display: 'flex', alignItems: 'center' }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        </span> {uploadError}
                       </div>
                     )}
                 </div>
@@ -1048,7 +1299,9 @@ function LabelCompContent() {
       {showConfirmDialog && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
             <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '2rem', maxWidth: '400px', textAlign: 'center', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔬</div>
+                <div style={{ color: '#6366f1', marginBottom: '1.5rem', opacity: 0.8 }}>
+                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>
+                </div>
                 <h3 style={{ margin: '0 0 1rem 0', color: '#002e5d' }}>Complex Comparison</h3>
                 <p style={{ color: '#64748b', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: '2rem' }}>
                     You have selected <strong>{selectedLabelsForAdd.length} labels</strong>. Comparing many documents simultaneously may take longer to process. Proceed with analysis?
