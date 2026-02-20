@@ -315,11 +315,21 @@ def view_label(set_id):
 
     doc_title, sections, fallback_html, highlights, table_of_contents = parse_spl_xml(label_xml_raw, set_id)
     
-    # Clean the original XML title
-    original_title = doc_title
-    if "These highlights do not include all the information" in doc_title:
-        original_title = re.sub(r'^These highlights do not include.*?safely and effectively\.\s*(See full prescribing information for.*?\.)?\s*', '', doc_title, flags=re.IGNORECASE | re.DOTALL).strip()
+    metadata = extract_metadata_from_xml(label_xml_raw)
+    
+    # Re-use the clean_name logic for the document title
+    def clean_header_text(text):
+        if not text: return text
+        if "highlights do not include" in text.lower():
+            # Try to extract name between parentheses
+            m = re.search(r'\(([^)]+)\)', text)
+            if m:
+                return m.group(1).strip()
+            # Otherwise aggressively strip disclaimer
+            text = re.sub(r'^These highlights do not include.*?safely and effectively\.\s*(See full prescribing information for.*?\.)?\s*', '', text, flags=re.IGNORECASE | re.DOTALL).strip()
+        return text
 
+    original_title = clean_header_text(doc_title)
     display_drug_name = drug_name_from_query if drug_name_from_query else original_title
 
     # Load saved annotations

@@ -725,7 +725,22 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             <div className="label-header" style={{ marginBottom: '25px', marginTop: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1 }}>
-                        <h1 className="DocumentTitle" style={{ marginBottom: '5px', lineHeight: '1.2' }}>{data.brand_name || data.drug_name}</h1>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '5px' }}>
+                            <h1 className="DocumentTitle" style={{ margin: 0, lineHeight: '1.2' }}>{data.brand_name || data.drug_name}</h1>
+                            <span style={{ 
+                                backgroundColor: data.label_format === 'PLR' ? '#e0f2fe' : '#f1f5f9',
+                                color: data.label_format === 'PLR' ? '#0369a1' : '#64748b',
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                fontSize: '0.75rem',
+                                fontWeight: 800,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                                flexShrink: 0
+                            }}>
+                                {data.label_format}
+                            </span>
+                        </div>
                         <h2 style={{ marginTop: 0, fontSize: '1.1em', color: '#666', fontWeight: 400, marginBottom: 0 }}>{data.original_title || data.generic_name}</h2>
                     </div>
                     {session?.is_authenticated && (

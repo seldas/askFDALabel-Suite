@@ -80,10 +80,27 @@ def extract_metadata_from_xml(xml_string):
         brand_name = "Unknown Drug"
         generic_name = "Unknown Generic"
         
-        # Primary Title Fallback (often the most reliable human-readable name)
-        doc_title_nodes = [n for n in root if get_tag_local(n.tag) == 'title']
-        if doc_title_nodes:
-            brand_name = "".join(doc_title_nodes[0].itertext()).strip()
+        # 6. Cleaning for UI and FAERS
+        def clean_name(name):
+            if not name or name in ["Unknown Generic", "Unknown Drug"]: return name
+            
+            # Remove "HIGHLIGHTS OF PRESCRIBING INFORMATION" disclaimer
+            if "highlights do not include" in name.lower():
+                # Try to extract name between parentheses if they exist (common in PLR)
+                m = re.search(r'\(([^)]+)\)', name)
+                if m:
+                    name = m.group(1).strip()
+                else:
+                    # Aggressively strip the highlights header
+                    name = re.sub(r'^These highlights do not include.*?safely and effectively\.\s*(See full prescribing information for.*?\.)?\s*', '', name, flags=re.IGNORECASE | re.DOTALL).strip()
+            
+            # Remove Strengths/Units (e.g., 50mg, 10%)
+            n = re.sub(r'\d+(\.\d+)?\s*(mg|mcg|g|ml|%|unit|iu)\b.*$', '', name, flags=re.IGNORECASE).strip()
+            # Remove Forms (e.g., tablets, capsules)
+            n = re.sub(r'\s+(tablet|capsule|injection|cream|ointment|gel|solution|suspension|spray|inhaler|powder|for oral use|for topical use|Initial U\.S\. Approval.*).*$', '', n, flags=re.IGNORECASE).strip()
+            # Remove any remaining parentheses and extra punctuation
+            n = re.sub(r'\(.*?\)', '', n).strip()
+            return n.rstrip(',.;').strip()
 
         # Find the primary manufacturedMaterial or manufacturedProduct for more specific names
         material_nodes = find_nodes_by_local_name(root, 'manufacturedMaterial')
@@ -95,7 +112,7 @@ def extract_metadata_from_xml(xml_string):
             n_nodes = [n for n in mat if get_tag_local(n.tag) == 'name']
             if n_nodes:
                 name_text = "".join(n_nodes[0].itertext()).strip()
-                if name_text and brand_name == "Unknown Drug":
+                if name_text:
                     brand_name = name_text
             
             # Try to find genericMedicine -> name
@@ -107,6 +124,12 @@ def extract_metadata_from_xml(xml_string):
             
             if brand_name != "Unknown Drug" and generic_name != "Unknown Generic":
                 break
+
+        # Primary Title Fallback (if no material names found)
+        if brand_name == "Unknown Drug":
+            doc_title_nodes = [n for n in root if get_tag_local(n.tag) == 'title']
+            if doc_title_nodes:
+                brand_name = "".join(doc_title_nodes[0].itertext()).strip()
 
         # Fallback for Generic Name from Active Ingredients
         if generic_name == "Unknown Generic":
@@ -122,18 +145,9 @@ def extract_metadata_from_xml(xml_string):
             if ingr_names:
                 generic_name = ", ".join(ingr_names)
 
-        # 6. Cleaning for UI and FAERS
-        def clean_name(name):
-            if not name or name in ["Unknown Generic", "Unknown Drug"]: return name
-            if "highlights do not include" in name.lower():
-                m = re.search(r'\(([^)]+)\)', name)
-                return m.group(1).strip() if m else "Unknown Generic"
-            # Remove Strengths/Units
-            n = re.sub(r'\d+(\.\d+)?\s*(mg|mcg|g|ml|%|unit|iu)\b.*$', '', name, flags=re.IGNORECASE).strip()
-            # Remove Forms
-            n = re.sub(r'\s+(tablet|capsule|injection|cream|ointment|gel|solution|suspension|spray|inhaler|powder).*$', '', n, flags=re.IGNORECASE).strip()
-            return re.sub(r'\(.*?\)', '', n).strip()
-
+        brand_name = clean_name(brand_name)
+        generic_name = clean_name(generic_name)
+        
         generic_clean = clean_name(generic_name)
         faers_search_name = generic_clean.split(',')[0].strip() if generic_clean else ""
 
