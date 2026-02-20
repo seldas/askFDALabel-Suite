@@ -50,4 +50,4 @@ app = create_unified_app()
 if __name__ == "__main__":
     port = int(os.environ.get("BACKEND_PORT"))
     host = os.environ.get("HOST", "0.0.0.0")
-    app.run(host=host, port=port, debug=True)
+    app.run(host=host, port=port, debug=False, use_reloader=False, threaded=True)

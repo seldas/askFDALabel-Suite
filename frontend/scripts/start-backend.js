@@ -20,21 +20,22 @@ const backendPath = path.resolve(__dirname, '../../backend/app.py');
 
 let cmd, args;
 
+const moduleSpec = "app:app"; // or "backend.app:app" depending on PYTHONPATH
+
 if (isProd) {
   // Use Waitress for production on Windows (or Gunicorn if user preferred Linux)
   console.log(`> Starting backend in PRODUCTION on http://${host}:${port} using waitress`);
   // Assuming the Flask app instance is named 'app' in 'app.py'
   cmd = 'waitress-serve';
-  args = [`--host=${host}`, `--port=${port}`, 'app:app'];
+  args = [`--host=${host}`, `--port=${port}`, moduleSpec];
 } else {
   console.log(`> Starting backend in DEVELOPMENT on http://${host}:${port}`);
-  cmd = 'python';
-  args = [backendPath];
+  cmd = "waitress-serve";
+  args = [`--host=${host}`, `--port=${port}`, moduleSpec];
 }
 
 const pythonProcess = spawn(cmd, args, {
   stdio: 'inherit',
-  shell: true,
   cwd: path.resolve(__dirname, '../../backend'), // Run from backend directory
   env: {
     ...process.env,

@@ -346,7 +346,7 @@ export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
                   )}
                   {session.is_internal && (
                     <>
-                      <button className={cx('dropdown-item', session.ai_provider === 'openai' && 'active')} onClick={() => { updateAiProvider('openai'); setActiveDropdown(null); }}>
+                      <button className={cx('dropdown-item', session.ai_provider === 'llama' && 'active')} onClick={() => { updateAiProvider('llama'); setActiveDropdown(null); }}>
                         LLAMA
                       </button>
                       <button className={cx('dropdown-item', session.ai_provider === 'elsa' && 'active')} onClick={() => { updateAiProvider('elsa'); setActiveDropdown(null); }}>

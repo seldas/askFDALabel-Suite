@@ -37,26 +37,28 @@ class AIClientFactory:
                 api_key=os.getenv("LLM_KEY", ""),
                 base_url=os.getenv("LLM_URL", "")
              )
-             return "openai", client, os.getenv("LLM_MODEL", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8")
+             return "llama", client, os.getenv("LLM_MODEL", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8")
 
         if not user or not user.is_authenticated:
             if is_internal:
                 # Internal default: OpenAI/Llama (vLLM)
                 client = OpenAI(
                     api_key=os.getenv("LLM_KEY", ""),
-                    base_url=os.getenv("LLM_URL", "")
+                    base_url=os.getenv("LLM_URL", ""),
+                    timeout=60.0
                 )
-                return "openai", client, os.getenv("LLM_MODEL", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8")
+                return "llama", client, os.getenv("LLM_MODEL", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8")
             else:
                 # External default: Gemini
                 return "gemini", genai.Client(api_key=default_gemini_key), os.getenv("PRIMARY_MODEL_ID", "gemini-2.5-flash")
         
-        if user.ai_provider == 'openai':
+        if user.ai_provider == 'llama':
             client = OpenAI(
                 api_key=os.getenv("LLM_KEY"),
-                base_url=os.getenv("LLM_URL") if os.getenv("LLM_URL") else None
+                base_url=os.getenv("LLM_URL") if os.getenv("LLM_URL") else None,
+                timeout=60.0
             )
-            return "openai", client, os.getenv("LLM_MODEL", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8")
+            return "llama", client, os.getenv("LLM_MODEL", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8")
         elif user.ai_provider == 'elsa':
             # Elsa configuration
             elsa_config = {
@@ -80,7 +82,7 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
     max_tokens = kwargs.get("max_tokens", 20000)
     top_p = kwargs.get("top_p", 0.95)
 
-    if provider == "openai":
+    if provider == "llama":
         messages = []
         supports_system = kwargs.get("supports_system", True)
         

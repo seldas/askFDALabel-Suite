@@ -591,7 +591,7 @@ window.initFaers = function() {
             const data = await response.json();
             let answerText = data.response || "{}";
             
-            console.log(answerText);
+            // console.log(answerText);
             // Robust JSON extraction helper
             const extractJson = (text) => {
                 // Try markdown block first
