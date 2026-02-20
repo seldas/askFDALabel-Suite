@@ -587,8 +587,8 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           <div className="toc-box">
             <div className="toc-header">
               <h2>Table of Contents</h2>
-              <button id="toc-close-internal" onClick={() => setTocCollapsed(true)} title="Collapse Panel" style={{ background: 'none', border: 'none', fontSize: '1.5em', cursor: 'pointer' }}>
-                  <span>{"\u00AB"}</span>
+              <button id="toc-close-internal" onClick={() => setTocCollapsed(true)} title="Collapse Panel" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 17 6 12 11 7"></polyline><polyline points="18 17 13 12 18 7"></polyline></svg>
               </button>
             </div>
             {data.table_of_contents && data.table_of_contents.length > 0 ? (
@@ -598,13 +598,14 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                 ))}
               </ol>
             ) : (
-              <p>No table of contents available.</p>
+              <p style={{ fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center', marginTop: '2rem' }}>No table of contents available.</p>
             )}
           </div>
           <div className="sidebar-footer">
-            <a href="/dashboard" className="button btn-sidebar-home">
-              <span>{"\u2302"}</span> Return Home
-            </a>
+            <Link href="/dashboard" className="btn-sidebar-home" style={{ textDecoration: 'none' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+              Return Home
+            </Link>
           </div>
         </div>
 
