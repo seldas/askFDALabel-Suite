@@ -25,6 +25,8 @@ interface TOCItem {
   title: string;
   numeric_id?: string;
   children?: TOCItem[];
+  is_boxed_warning?: boolean;
+  is_highlights?: boolean;
 }
 
 interface Annotation {
@@ -82,8 +84,12 @@ function TOCItemComponent({
   const isExpanded = expandedSections.has(item.id);
   const hasChildren = item.children && item.children.length > 0;
 
+  let specialClass = '';
+  if (item.is_boxed_warning) specialClass = 'toc-boxed-warning';
+  if (item.is_highlights) specialClass = 'toc-highlights';
+
   return (
-    <li className={`toc-item-level-${level}`}>
+    <li className={`toc-item-level-${level} ${specialClass}`}>
       <div className="toc-item-container">
         {hasChildren ? (
           <button 
@@ -569,32 +575,76 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           transform: rotate(90deg);
         }
 
+        /* General TOC Link Adjustments for better spacing */
         .toc-link {
           text-decoration: none;
           color: #475569;
-          font-size: 0.85rem;
-          padding: 6px 8px;
-          border-radius: 6px;
+          font-size: 0.875rem; /* Slightly larger for readability */
+          padding: 10px 12px;
+          border-radius: 8px;
           display: block;
-          transition: all 0.15s ease;
-          line-height: 1.4;
-          flex: 1;
+          transition: all 0.2s ease;
+          line-height: 1.2;
+          margin-bottom: 2px;
         }
 
         .toc-link:hover {
           background-color: #f1f5f9;
-          color: #002e5d;
-          text-decoration: none;
+          color: #0f172a;
         }
 
-        .toc-link.root-link {
+        /* --- Boxed Warnings Refinement --- */
+        .toc-boxed-warning {
+          margin: 8px 0 !important;
+          background-color: #fff1f2; /* Ultra-soft red */
+          border: 1px solid #fecaca; /* Soft red border */
+          border-left: 4px solid #e11d48; /* Strong clinical red accent */
+          border-radius: 6px;
+          overflow: hidden;
+          box-shadow: 0 1px 2px rgba(225, 29, 72, 0.05);
+        }
+
+        .toc-boxed-warning .toc-link {
+          color: #9f1239 !important; /* Deep red for text */
           font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
+          padding: 12px;
         }
 
-        .toc-link.sub-link {
-          font-weight: 500;
+        .toc-boxed-warning:hover {
+          background-color: #ffe4e6;
+          border-color: #fda4af;
+        }
+
+        /* --- Highlights Refinement --- */
+        .toc-highlights {
+          margin: 8px 0 !important;
+          background-color: #fffbeb; /* Creamy amber */
+          border: 1px solid #fde68a;
+          border-left: 4px solid #f59e0b; /* Amber accent */
+          border-radius: 6px;
+          overflow: hidden;
+        }
+
+        .toc-highlights .toc-link {
+          color: #92400e !important; /* Deep amber/brown for text */
+          font-weight: 700;
+          padding: 12px;
+        }
+
+        .toc-highlights:hover {
+          background-color: #fef3c7;
+          border-color: #fcd34d;
+        }
+
+        /* Adjust standard root links to match the new vertical rhythm */
+        .toc-link.root-link {
+          font-weight: 600;
+          color: #1e293b;
+          text-transform: uppercase;
           font-size: 0.8rem;
-          color: #64748b;
+          letter-spacing: 0.05em;
         }
       `}</style>
       
