@@ -298,6 +298,23 @@ def parse_spl_xml(xml_string, set_id=None):
             txt_nodes = [n for n in sec_el if local(n.tag) == 'text']
             title = "".join(t_nodes[0].itertext()).strip() if t_nodes else ""
             
+            code_node = None
+            for child in sec_el:
+                if local(child.tag) == 'code':
+                    code_node = child
+                    break
+            
+            code_val = code_node.get('code', '') if code_node is not None else ""
+            code_display = code_node.get('displayName', '') if code_node is not None else ""
+
+            # Fallback title for OTC sections or others without titles
+            if not title and code_display:
+                title = code_display
+                if title.upper().startswith('OTC - '):
+                    title = title[6:].capitalize()
+                elif title.upper().endswith(' SECTION'):
+                    title = title[:-8].capitalize()
+
             # Extract content and apply heuristic cleaning to heal line breaks
             content = to_html(txt_nodes[0], media_map, set_id) if txt_nodes else ""
             content = clean_spl_text(content)
@@ -313,38 +330,102 @@ def parse_spl_xml(xml_string, set_id=None):
             for comp in [c for c in sec_el if local(c.tag) == 'component']:
                 for sub in [c for c in comp if local(c.tag) == 'section']:
                     children.append(parse_sec(sub))
-            return {'id': sec_el.get('ID'), 'numeric_id': extract_numeric_section_id(title), 'title': title, 'content': content, 'children': children, 'is_boxed_warning': title.upper().startswith('WARNING:')}
+            
+            return {
+                'id': sec_el.get('ID'), 
+                'numeric_id': extract_numeric_section_id(title), 
+                'title': title, 
+                'content': content, 
+                'children': children, 
+                'is_boxed_warning': title.upper().startswith('WARNING:'),
+                'code': code_val
+            }
 
         for sb in [n for n in root.iter() if local(n.tag) == 'structuredBody']:
             for comp in [c for c in sb if local(c.tag) == 'component']:
                 for sec in [c for c in comp if local(c.tag) == 'section']:
                     sections.append(parse_sec(sec))
 
-        if not sections:
-            txt_nodes = [n for n in root if local(n.tag) == 'text']
-            if txt_nodes: 
-                fallback = to_html(txt_nodes[0], media_map, set_id)
-                return doc_title, [], clean_spl_text(fallback), None, []
+        # --- OTC Virtual Grouping Logic ---
+        is_otc = False
+        root_code = root.find("{urn:hl7-org:v3}code")
+        if root_code is None: # agnostic search
+            for child in root:
+                if local(child.tag) == 'code':
+                    root_code = child
+                    break
+        if root_code is not None and "OTC" in (root_code.get('displayName') or '').upper():
+            is_otc = True
 
-        def build_toc(sl):
+        def build_toc(sl, prefix=""):
             res = []
+            count = 1
+            
+            # OTC Standard Codes that belong to Drug Facts
+            otc_codes = {
+                '55106-9', '55105-1', '34067-9', '34071-1', '34068-7', 
+                '60561-8', '51727-6', '53413-1', '50570-1', '50567-7', 
+                '50566-9', '50565-1'
+            }
+            
+            drug_facts_item = None
+            
             for s in sl:
                 if s['title'] and s['id']:
-                    title = s['title']
+                    title = s['title'].strip()
                     is_boxed = s.get('is_boxed_warning', False)
                     if is_boxed:
                         title = "Boxed Warnings"
                     
+                    # Special handling for "Drug Facts" grouping in OTC
+                    if is_otc and (s.get('code') in otc_codes or title.upper() == "DRUG FACTS"):
+                        if not drug_facts_item:
+                            drug_facts_item = {
+                                'title': 'Drug Facts',
+                                'id': s['id'] if title.upper() == "DRUG FACTS" else 'drug-facts-group',
+                                'numeric_id': None,
+                                'children': [],
+                                'is_drug_facts': True
+                            }
+                            res.append(drug_facts_item)
+                        
+                        # Add as child if it's not the main Drug Facts section itself
+                        if title.upper() != "DRUG FACTS":
+                            item = {
+                                'title': title,
+                                'id': s['id'],
+                                'numeric_id': None,
+                                'is_drug_facts_item': True
+                            }
+                            child_list = build_toc(s.get('children', []))
+                            if child_list:
+                                item['children'] = child_list
+                            drug_facts_item['children'].append(item)
+                        continue
+
+                    # Auto-numbering for non-PLR if numeric_id is missing
+                    num_id = s.get('numeric_id')
+                    current_prefix = f"{prefix}{count}"
+                    
+                    if not num_id:
+                        if not any(title.upper().startswith(x) for x in ["HIGHLIGHTS", "BOXED WARNINGS"]):
+                            if not re.match(r'^\d', title):
+                                title = f"{current_prefix}. {title}"
+                                num_id = current_prefix
+                            else:
+                                num_id = extract_numeric_section_id(title) or current_prefix
+                    
                     item = {
                         'title': title, 
                         'id': s['id'],
-                        'numeric_id': s.get('numeric_id'),
+                        'numeric_id': num_id,
                         'is_boxed_warning': is_boxed
                     }
-                    children = build_toc(s.get('children', []))
+                    children = build_toc(s.get('children', []), prefix=f"{current_prefix}.")
                     if children:
                         item['children'] = children
                     res.append(item)
+                    count += 1
             return res
         toc = build_toc(sections)
         if highlights: toc.insert(0, {'title': 'Highlights', 'id': 'highlights-section', 'numeric_id': None, 'is_highlights': True})

@@ -27,6 +27,8 @@ interface TOCItem {
   children?: TOCItem[];
   is_boxed_warning?: boolean;
   is_highlights?: boolean;
+  is_drug_facts?: boolean;
+  is_drug_facts_item?: boolean;
 }
 
 interface Annotation {
@@ -86,7 +88,9 @@ function TOCItemComponent({
 
   let specialClass = '';
   if (item.is_boxed_warning) specialClass = 'toc-boxed-warning';
-  if (item.is_highlights) specialClass = 'toc-highlights';
+  else if (item.is_highlights) specialClass = 'toc-highlights';
+  else if (item.is_drug_facts) specialClass = 'toc-drug-facts';
+  else if (item.is_drug_facts_item) specialClass = 'toc-drug-facts-item';
 
   return (
     <li className={`toc-item-level-${level} ${specialClass}`}>
@@ -636,6 +640,27 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
         .toc-highlights:hover {
           background-color: #fef3c7;
           border-color: #fcd34d;
+        }
+
+        /* --- Drug Facts OTC --- */
+        .toc-drug-facts {
+          margin: 8px 0 !important;
+          background-color: #f0f9ff; /* Ultra-soft blue */
+          border: 1px solid #bae6fd;
+          border-left: 4px solid #0284c7; /* Strong clinical blue accent */
+          border-radius: 6px;
+          overflow: hidden;
+        }
+
+        .toc-drug-facts .toc-link {
+          color: #0369a1 !important;
+          font-weight: 700;
+          padding: 12px;
+        }
+
+        .toc-drug-facts:hover {
+          background-color: #e0f2fe;
+          border-color: #7dd3fc;
         }
 
         /* Adjust standard root links to match the new vertical rhythm */
