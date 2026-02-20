@@ -138,28 +138,35 @@ export default function LabelView({
 
   // Track active section on scroll
   useEffect(() => {
+    const intersectingIndices = new Set<number>();
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (disableScrollObserver.current) return;
         
-        const visible = entries.filter(e => e.isIntersecting);
-        if (visible.length > 0) {
-            // Pick the entry with the highest intersection ratio
-            const bestCandidate = visible.reduce((prev, curr) => 
-                curr.intersectionRatio > prev.intersectionRatio ? curr : prev
-            );
-
-            const index = Number(bestCandidate.target.getAttribute('data-section-index'));
+        entries.forEach(entry => {
+            const index = Number(entry.target.getAttribute('data-section-index'));
             if (!isNaN(index)) {
-                setCurrentIndex(index);
+                if (entry.isIntersecting) {
+                    intersectingIndices.add(index);
+                } else {
+                    intersectingIndices.delete(index);
+                }
             }
+        });
+
+        if (intersectingIndices.size > 0) {
+            // Pick the highest index among those currently intersecting the active zone.
+            // This ensures that as you scroll down, the most recently entered section becomes active.
+            const maxIndex = Math.max(...Array.from(intersectingIndices));
+            setCurrentIndex(maxIndex);
         }
       },
       {
         root: labelViewRef.current,
-        // Active zone: Trigger when sections enter the top half of the viewport
-        rootMargin: '-10% 0px -60% 0px', 
-        threshold: [0, 0.1, 0.5, 1.0]
+        // Active zone: Trigger when sections are in the top portion (10% to 25% from top)
+        rootMargin: '-10% 0px -75% 0px', 
+        threshold: 0
       }
     );
 
