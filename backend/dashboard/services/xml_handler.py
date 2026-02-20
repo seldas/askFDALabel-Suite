@@ -511,98 +511,135 @@ def parse_spl_xml(xml_string, set_id=None):
         if root_code is not None and "OTC" in (root_code.get('displayName') or '').upper():
             is_otc = True
 
-        def build_toc(sl, prefix=""):
+        def build_toc(sl, prefix="", is_otc=False, set_id=""):
+            """
+            Robustly builds Table of Contents with strict ID isolation to prevent 
+            navigation jumping between sections (e.g., Section 11 vs 12).
+            """
             res = []
-            count = 1
+            # Use a dictionary to track IDs used in this specific level to prevent collisions
+            used_numeric_ids = set()
             
-            # OTC Standard Codes that belong to Drug Facts
-            otc_codes = {
+            # Official FDA Mappings (Keep these outside the loop for performance)
+            PLR_MAP = {
+                '34067-9': '1', '34068-7': '2', '43678-2': '3', '34070-3': '4',
+                '43685-7': '5', '34084-4': '6', '34073-7': '7', '43684-0': '8',
+                '42227-9': '9', '34088-5': '10', '34089-3': '11', '34090-1': '12',
+                '34091-9': '13', '34092-7': '14', '34093-5': '15', '34069-5': '16',
+                '34076-0': '17'
+            }
+            PLR_TITLE_MAP = {
+                '1': 'Indications and Usage', '2': 'Dosage and Administration',
+                '3': 'Dosage Forms and Strengths', '4': 'Contraindications',
+                '5': 'Warnings and Precautions', '6': 'Adverse Reactions',
+                '7': 'Drug Interactions', '8': 'Use in Specific Populations',
+                '9': 'Drug Abuse and Dependence', '10': 'Overdosage',
+                '11': 'Description', '12': 'Clinical Pharmacology',
+                '13': 'Nonclinical Toxicology', '14': 'Clinical Studies',
+                '15': 'References', '16': 'How Supplied/Storage and Handling',
+                '17': 'Patient Counseling Information'
+            }
+            OTC_CODES = {
                 '55106-9', '55105-1', '34067-9', '34071-1', '34068-7', 
                 '60561-8', '51727-6', '53413-1', '50570-1', '50567-7', 
                 '50566-9', '50565-1'
             }
-            
-            drug_facts_item = None
-            
+
+            # Internal counter for non-PLR sections
+            count = 1
+            drug_facts_node = None
+
             for s in sl:
                 title = (s.get('title') or '').strip()
                 sid = s.get('id')
                 code = s.get('code')
                 
-                # We need a title to show in the TOC
-                if not title:
-                    # If it has children but no title, promote children
-                    if s.get('children'):
-                        res.extend(build_toc(s['children'], prefix))
+                # 1. Skip sections that have neither title nor children (empty noise)
+                if not title and not s.get('children'):
                     continue
 
-                if sid:
-                    is_boxed = s.get('is_boxed_warning', False)
-                    if is_boxed:
-                        title = "Boxed Warnings"
-                    
-                    # Special handling for "Drug Facts" grouping in OTC
-                    if is_otc and (code in otc_codes or title.upper() == "DRUG FACTS"):
-                        if not drug_facts_item:
-                            drug_facts_item = {
-                                'title': 'Drug Facts',
-                                'id': sid if title.upper() == "DRUG FACTS" else 'drug-facts-group',
-                                'numeric_id': None,
-                                'children': [],
-                                'is_drug_facts': True
-                            }
-                            res.append(drug_facts_item)
-                        
-                        # Add as child if it's not the main Drug Facts section itself
-                        if title.upper() != "DRUG FACTS":
-                            item = {
-                                'title': title,
-                                'id': sid,
-                                'numeric_id': None,
-                                'is_drug_facts_item': True
-                            }
-                            child_list = build_toc(s.get('children', []))
-                            if child_list:
-                                item['children'] = child_list
-                            drug_facts_item['children'].append(item)
-                        continue
+                # 2. Unique ID Enforcement
+                # If the XML ID is missing or weak, create a GUID-like ID that includes set_id
+                if not sid or sid.startswith('gen_'):
+                    import hashlib
+                    seed = f"{set_id}_{code}_{title}_{prefix}_{count}"
+                    sid = "sec_" + hashlib.md5(seed.encode()).hexdigest()[:12]
 
-                    # Determine numeric ID (Now reliable from parse_sec)
-                    num_id = s.get('numeric_id')
+                # 3. Handle OTC Virtual Grouping
+                if is_otc and (code in OTC_CODES or title.upper() == "DRUG FACTS"):
+                    if not drug_facts_node:
+                        drug_facts_node = {
+                            'title': 'Drug Facts',
+                            'id': 'drug-facts-grouping',
+                            'numeric_id': None,
+                            'children': [],
+                            'is_drug_facts': True
+                        }
+                        res.append(drug_facts_node)
                     
-                    # Auto-numbering for non-PLR or missing ID fallback
-                    current_prefix = f"{prefix}{count}"
+                    if title.upper() != "DRUG FACTS":
+                        child_item = {
+                            'title': title,
+                            'id': sid,
+                            'numeric_id': None,
+                            'is_drug_facts_item': True
+                        }
+                        child_sub = build_toc(s.get('children', []), prefix=prefix, is_otc=is_otc, set_id=set_id)
+                        if child_sub: child_item['children'] = child_sub
+                        drug_facts_node['children'].append(child_item)
+                    continue
+
+                # 4. Numeric ID Resolution
+                num_id = s.get('numeric_id')
+                
+                # Priority 1: PLR Map (The Gold Standard)
+                if code in PLR_MAP:
+                    num_id = PLR_MAP[code]
+                    # Sync the auto-counter to follow PLR if it's a top-level integer
+                    try: count = int(num_id) + 1
+                    except: pass
+                
+                # Priority 2: Inferred from Title (e.g. "12 CLINICAL PHARMACOLOGY")
+                if not num_id:
+                    extracted = extract_numeric_section_id(title)
+                    if extracted:
+                        num_id = extracted
+                
+                # Priority 3: Sequential fallback (only for non-PLR/non-Boxed)
+                is_boxed = s.get('is_boxed_warning', False)
+                should_increment = False
+                
+                if not num_id and not is_boxed and "HIGHLIGHTS" not in title.upper():
+                    num_id = f"{prefix}{count}" if prefix else str(count)
                     should_increment = True
 
-                    if not num_id:
-                        if any(title.upper().startswith(x) for x in ["HIGHLIGHTS", "BOXED WARNINGS"]):
-                            should_increment = False # Don't use a number for these
-                        else:
-                            # Only auto-number if it doesn't look like it already has one
-                            if not re.match(r'^\d', title):
-                                title = f"{current_prefix}. {title}"
-                                num_id = current_prefix
-                            else:
-                                num_id = extract_numeric_section_id(title) or current_prefix
-                    else:
-                        # If we have a num_id, sync the counter if it's a top-level integer
-                        try:
-                            if '.' not in str(num_id):
-                                count = int(num_id)
-                        except: pass
+                # 5. Semantic Title Reconstruction
+                # Fixes cases where Section 11 is labeled "Unclassified" or is missing a title
+                if num_id in PLR_TITLE_MAP:
+                    canonical_title = PLR_TITLE_MAP[num_id]
+                    if not title or 'unclassified' in title.lower() or len(title) < 3:
+                        title = f"{num_id} {canonical_title}"
+                    elif str(num_id) not in title:
+                        title = f"{num_id} {title}"
 
-                    item = {
-                        'title': title, 
-                        'id': sid,
-                        'numeric_id': num_id,
-                        'is_boxed_warning': is_boxed
-                    }
-                    children = build_toc(s.get('children', []), prefix=f"{num_id}." if num_id else prefix)
-                    if children:
-                        item['children'] = children
-                    res.append(item)
-                    if should_increment:
-                        count += 1
+                # 6. Final Item Assembly
+                item = {
+                    'title': title,
+                    'id': sid,
+                    'numeric_id': num_id,
+                    'is_boxed_warning': is_boxed
+                }
+
+                # Recursive call for children
+                new_prefix = f"{num_id}." if num_id else prefix
+                children = build_toc(s.get('children', []), prefix=new_prefix, is_otc=is_otc, set_id=set_id)
+                if children:
+                    item['children'] = children
+
+                res.append(item)
+                if should_increment:
+                    count += 1
+
             return res
         toc = build_toc(sections)
         if highlights: toc.insert(0, {'title': 'Highlights', 'id': 'highlights-section', 'numeric_id': None, 'is_highlights': True})

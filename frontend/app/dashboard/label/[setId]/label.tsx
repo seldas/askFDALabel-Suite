@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { Section, LabelData, TOCItem } from './types';
 import Link from 'next/link';
 
@@ -45,128 +45,128 @@ export default function LabelView({
   toggleSection: (id: string) => void;
   TOCItemComponent: any;
 }) {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [currentIndex, setCurrentIndex] = useState(0); // 0-based index of sections
   const labelViewRef = useRef<HTMLDivElement>(null);
   const disableScrollObserver = useRef(false);
 
-  // Rollback logic: Each top-level section is one page
-  const pages = [
-    ...(data.highlights && data.highlights.length > 0 ? [{ id: 'highlights-section', is_highlights: true }] : []),
+  // Flatten top-level sections into a single list for sequential navigation
+  const sections = useMemo(() => [
+    ...(data.highlights && data.highlights.length > 0 ? [{ id: 'highlights-section', is_highlights: true, title: 'Highlights' }] : []),
     ...(data.sections || [])
-  ];
+  ], [data.highlights, data.sections]);
 
-  // Helper to find which top-level page contains a specific section ID
-  const findPageIdxForId = (id: string) => {
-    // Pass 1: Exact Page ID Match (High Priority) - prevents jumping to children when parent is requested
-    const topLevelIdx = pages.findIndex(p => p.id === id);
-    if (topLevelIdx !== -1) return topLevelIdx;
+  // Helper to find which top-level section contains a specific ID (for TOC links)
+  const findSectionIdxForId = (id: string) => {
+    // 1. Exact match
+    const idx = sections.findIndex(s => s.id === id);
+    if (idx !== -1) return idx;
 
-    // Pass 2: Nested Child Search
+    // 2. Nested match
     const checkNested = (secs: any[], targetId: string): boolean => {
       return secs.some(s => s.id === targetId || (s.children && checkNested(s.children, targetId)));
     };
 
-    return pages.findIndex(p => {
-      if (p.children && checkNested(p.children, id)) return true;
+    return sections.findIndex(s => {
+      if (s.children && checkNested(s.children, id)) return true;
       return false;
     });
   };
 
-  useEffect(() => {
-    setTotalPages(pages.length);
-  }, [pages.length]);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!labelViewRef.current || activeTab !== 'label-view' || disableScrollObserver.current) return;
-      const { scrollLeft, clientWidth } = labelViewRef.current;
-      
-      if (clientWidth > 0) {
-        // Use a small epsilon to avoid floating point errors in page calculation
-        const newPage = Math.round(scrollLeft / clientWidth) + 1;
-        setCurrentPage(isNaN(newPage) ? 1 : (newPage > pages.length ? pages.length : newPage));
-      }
-    };
-
-    const el = labelViewRef.current;
-    if (el) {
-      el.addEventListener('scroll', handleScroll);
-      setTimeout(handleScroll, 500);
-    }
-    return () => el?.removeEventListener('scroll', handleScroll);
-  }, [activeTab, pages.length]);
-
-  const goToPage = (index: number, targetId?: string) => {
-    if (!labelViewRef.current) return;
-    const { clientWidth } = labelViewRef.current;
+  // Scroll to a specific section index
+  const scrollToSection = (index: number, targetId?: string) => {
+    if (!labelViewRef.current || index < 0 || index >= sections.length) return;
     
     disableScrollObserver.current = true;
-    setCurrentPage(index + 1);
+    setCurrentIndex(index);
 
-    // TEMPORARY: Disable scroll snap to prevent fighting with smooth scroll
-    labelViewRef.current.style.scrollSnapType = 'none';
-
-    // 1. Horizontal Scroll to Page
-    labelViewRef.current.scrollTo({ left: index * clientWidth, behavior: 'smooth' });
-
-    // 2. Update Hash if NOT triggered by hash change (optional, keeps UI in sync)
-    if (!targetId) {
-      const pageId = pages[index]?.id;
-      if (pageId && window.location.hash !== `#${pageId}`) {
-        window.history.pushState(null, '', `#${pageId}`);
-      }
+    const targetSection = sections[index];
+    // Find the element in the DOM
+    // We use the ID if available, otherwise rely on order (which should match)
+    const container = labelViewRef.current;
+    
+    // Prefer finding by ID if possible for robustness
+    let el = targetId ? container.querySelector(`[id="${targetId}"]`) : null;
+    
+    if (!el && targetSection.id) {
+        el = container.querySelector(`[id="${targetSection.id}"]`);
+    }
+    
+    // Fallback to data-index if ID lookup fails
+    if (!el) {
+        el = container.querySelector(`[data-section-index="${index}"]`);
     }
 
-    // 3. Vertical Scroll within Page to specific ID (if provided)
-    if (targetId) {
-      setTimeout(() => {
-        const targetEl = document.getElementById(targetId);
-        if (targetEl) {
-          targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (el) {
+        el.scrollIntoView({ behavior: 'auto', block: 'start' });
+        
+        // Update URL hash
+        const hashId = targetId || targetSection.id;
+        if (hashId && window.location.hash !== `#${hashId}`) {
+            window.history.pushState(null, '', `#${hashId}`);
         }
-        // Re-enable snap and observer
-        if (labelViewRef.current) labelViewRef.current.style.scrollSnapType = 'x mandatory';
+    }
+
+    // Re-enable observer after a delay
+    setTimeout(() => {
         disableScrollObserver.current = false;
-      }, 500); // Wait for horizontal scroll to be underway
-    } else {
-      setTimeout(() => {
-        // Re-enable snap and observer
-        if (labelViewRef.current) labelViewRef.current.style.scrollSnapType = 'x mandatory';
-        disableScrollObserver.current = false;
-      }, 600);
+    }, 100);
+  };
+
+  const jumpSection = (direction: 'next' | 'prev') => {
+    const newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+    if (newIndex >= 0 && newIndex < sections.length) {
+        scrollToSection(newIndex);
     }
   };
 
-  const flipPage = (direction: 'next' | 'prev') => {
-    if (direction === 'next' && currentPage < totalPages) {
-      goToPage(currentPage); // index is 0-based, so goToPage(currentPage) goes to idx = current (which is next page)
-    } else if (direction === 'prev' && currentPage > 1) {
-      goToPage(currentPage - 2); // idx = current - 2
-    }
-  };
-
-  // Sync TOC clicks with book pages
+  // Sync TOC clicks (hash changes)
   useEffect(() => {
     const handleHashChange = (e?: HashChangeEvent) => {
-      // Prevent browser jump if it's a real event
       if (e) e.preventDefault();
-      
       const hash = window.location.hash.replace('#', '');
       if (hash) {
-        const pageIdx = findPageIdxForId(hash);
-        if (pageIdx !== -1) {
-          goToPage(pageIdx, hash);
+        const idx = findSectionIdxForId(hash);
+        if (idx !== -1) {
+          scrollToSection(idx, hash);
         }
       }
     };
     window.addEventListener('hashchange', handleHashChange);
-    
-    // Initial check
-    setTimeout(() => handleHashChange(), 500);
-
+    setTimeout(() => handleHashChange(), 100); // Initial check
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [pages]);
+  }, [sections]);
+
+  // Track active section on scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (disableScrollObserver.current) return;
+        
+        // Find the element that intersects the "center line" of the viewport
+        const visibleEntry = entries.find(e => e.isIntersecting);
+        if (visibleEntry) {
+            const index = Number(visibleEntry.target.getAttribute('data-section-index'));
+            if (!isNaN(index)) {
+                setCurrentIndex(index);
+            }
+        }
+      },
+      {
+        root: labelViewRef.current,
+        // Trigger when an element crosses the middle 20% of the screen
+        rootMargin: '-40% 0px -40% 0px', 
+        threshold: 0
+      }
+    );
+
+    const container = labelViewRef.current;
+    if (container) {
+        const children = container.querySelectorAll('.label-section-item');
+        children.forEach(c => observer.observe(c));
+    }
+
+    return () => observer.disconnect();
+  }, [sections.length, activeTab]);
 
   if (activeTab !== 'label-view') return null;
 
@@ -176,14 +176,15 @@ export default function LabelView({
       flex: 1, 
       minHeight: 0,
       gap: '20px',
-      alignItems: 'flex-start',
+      alignItems: 'stretch',
       marginTop: '10px'
     }}>
         
-        {/* Layer 2: Menu (TOC) */}
+        {/* TOC Panel */}
         <div id="toc-panel" className={`toc-side-panel-inline ${tocCollapsed ? 'collapsed' : ''}`} style={{ 
           width: tocCollapsed ? '0' : '300px', 
-          height: '750px',
+          height: '100%',
+          maxHeight: '80vh',
           flexShrink: 0,
           background: 'white',
           borderRadius: '16px',
@@ -207,6 +208,7 @@ export default function LabelView({
                     item={item} 
                     expandedSections={expandedSections}
                     toggleSection={toggleSection}
+                    activeSectionId={sections[currentIndex]?.id}
                   />
                 ))}
               </ol>
@@ -221,94 +223,83 @@ export default function LabelView({
           </div>
         </div>
 
-        {/* Layer 2: Main Content (Book Placeholder) */}
-        <div className="label-main-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* Main Content */}
+        <div className="label-main-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflowY: 'auto', maxHeight: '80vh' }}>
             {tocCollapsed && (
               <button onClick={() => setTocCollapsed(false)} style={{ position: 'absolute', left: '20px', zIndex: 10, background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '4px 12px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
                 ☰ SHOW MENU
               </button>
             )}
 
-            {/* Layer 3: Book View */}
-            <div className="book-mode-container" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, justifyContent: 'flex-start', padding: '0' }}>
-                <div className="book-viewport" ref={labelViewRef} style={{ 
-                    height: '750px', 
-                    maxWidth: '900px',
-                    width: '100%',
-                    maxHeight: '75vh',
-                    overflowX: 'auto', 
-                    scrollSnapType: 'x mandatory', 
-                    display: 'flex',
-                    margin: '0',
-                    gap: '0'
-                }}>
-                    <div className="book-pages-flow" style={{ display: 'flex', padding: '0' }}>
-                        {pages.map((page: any, idx) => {
-                          const isSafetySection = page.is_highlights || page.is_boxed_warning;
+            {/* Continuous Vertical Scroll View */}
+            <div className="vertical-scroll-container" style={{ 
+                flex: 1, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                minHeight: 0, 
+                background: '#f1f5f9',
+                borderRadius: '12px',
+                padding: '0',
+                position: 'relative',
+                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)',
+                overflow: 'hidden'
+            }}>
+                <div 
+                    className="label-viewport" 
+                    ref={labelViewRef} 
+                    style={{ 
+                        flex: 1, 
+                        overflowY: 'auto', 
+                        padding: '40px',
+                        scrollBehavior: 'smooth'
+                    }}
+                >
+                    <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '60px' }}>
+                        {sections.map((section: any, idx) => {
+                          const isSafetySection = section.is_highlights || section.is_boxed_warning;
                           return (
-                            <div key={idx} className="book-page-item" style={{ 
-                              scrollSnapAlign: 'start', 
-                              flexShrink: 0, 
-                              width: '100%',
-                              padding: '0 10px',
-                              display: 'flex',
-                              flexDirection: 'column'
-                            }}>
-                               <div className="page-inner-content" style={{ 
-                                  background: 'white', 
-                                  borderRadius: '4px 12px 12px 4px', 
-                                  padding: '50px 60px 100px 60px', 
-                                  boxShadow: '5px 15px 35px rgba(0,0,0,0.1), 0 5px 15px rgba(0,0,0,0.05)', 
-                                  border: '1px solid #e2e8f0', 
-                                  borderLeft: isSafetySection ? '10px solid #e11d48' : '10px solid #cbd5e1',
-                                  height: '100%', 
-                                  overflowY: 'auto', 
-                                  position: 'relative'
-                               }}>
-                                  {/* Subtle Gutter Effect */}
-                                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '40px', background: 'linear-gradient(to right, rgba(0,0,0,0.08) 0%, transparent 100%)', pointerEvents: 'none' }}></div>
-                                  
-                                  {page.is_highlights ? (
-                                      <div id="highlights-section">
-                                          <h2 style={{ fontSize: '1.8rem', color: '#0f172a', marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div 
+                                key={idx} 
+                                className="label-section-item" 
+                                data-section-index={idx}
+                                id={section.id} // Ensure ID is on wrapper for scroll targets
+                                style={{ 
+                                    background: 'white',
+                                    borderRadius: '12px',
+                                    padding: '50px 60px',
+                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                                    border: '1px solid #e2e8f0',
+                                    borderLeft: isSafetySection ? '8px solid #e11d48' : '1px solid #e2e8f0',
+                                    position: 'relative'
+                                }}
+                            >
+                                {section.is_highlights ? (
+                                    <div id="highlights-content">
+                                        <h2 style={{ fontSize: '1.8rem', color: '#0f172a', marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                                             <span style={{ backgroundColor: '#fef3c7', padding: '8px', borderRadius: '10px' }}>✨</span>
                                             Highlights of Prescribing
-                                          </h2>
-                                          {data.highlights.map((h, i) => (
+                                        </h2>
+                                        {data.highlights.map((h, i) => (
                                             <div key={i} className="highlight-item" style={{ marginBottom: '20px', padding: '15px', borderLeft: '4px solid #f59e0b', background: '#fffbeb', borderRadius: '0 8px 8px 0' }}>
                                                 {h.source_section_title !== 'Untitled Section' && (
-                                                  <div className="highlight-source-header" style={{ marginBottom: '8px' }}>
-                                                      <span className="source-label" style={{ fontSize: '0.7rem', fontWeight: 800, color: '#b45309', textTransform: 'uppercase', marginRight: '8px' }}>Section</span>
-                                                      <span className="source-title" style={{ fontWeight: 700, color: '#92400e' }}>{h.source_section_title}</span>
-                                                  </div>
+                                                    <div className="highlight-source-header" style={{ marginBottom: '8px' }}>
+                                                        <span className="source-label" style={{ fontSize: '0.7rem', fontWeight: 800, color: '#b45309', textTransform: 'uppercase', marginRight: '8px' }}>Section</span>
+                                                        <span className="source-title" style={{ fontWeight: 700, color: '#92400e' }}>{h.source_section_title}</span>
+                                                    </div>
                                                 )}
                                                 <div className="highlight-body" style={{ color: '#78350f', lineHeight: '1.6' }} dangerouslySetInnerHTML={{ __html: h.content_html }} />
                                             </div>
-                                          ))}
-                                      </div>
-                                  ) : (
-                                      <SectionComponent section={page} />
-                                  )}
-                               </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <SectionComponent section={section} />
+                                )}
                             </div>
                           );
                         })}
                     </div>
-                </div>
-
-                {/* Book Navigation Controls */}
-                <div className="book-nav-overlay" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', padding: '20px 0' }}>
-                    <button className="book-flip-btn prev" onClick={() => flipPage('prev')} disabled={currentPage === 1} style={{ width: '40px', height: '40px', borderRadius: '50%', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                        ←
-                    </button>
-                    
-                    <div className="book-page-indicator" style={{ background: '#1e293b', color: 'white', padding: '6px 16px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 700 }}>
-                        PAGE {currentPage} / {totalPages}
-                    </div>
-
-                    <button className="book-flip-btn next" onClick={() => flipPage('next')} disabled={currentPage === totalPages} style={{ width: '40px', height: '40px', borderRadius: '50%', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                        →
-                    </button>
+                    {/* Spacer at bottom to allow scrolling last item to top */}
+                    <div style={{ height: '200px' }}></div>
                 </div>
             </div>
         </div>
@@ -316,8 +307,10 @@ export default function LabelView({
         <style jsx>{`
             .toc-side-panel-inline { transition: width 0.3s ease; }
             .toc-side-panel-inline.collapsed { width: 0 !important; margin-right: -20px; border: none; }
-            .book-viewport::-webkit-scrollbar { display: none; }
-            .book-viewport { -ms-overflow-style: none; scrollbar-width: none; }
+            .label-viewport::-webkit-scrollbar { width: 8px; }
+            .label-viewport::-webkit-scrollbar-track { background: transparent; }
+            .label-viewport::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+            .label-viewport::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
             .page-inner-content :global(table) { width: 100% !important; font-size: 0.8rem !important; }
             .page-inner-content :global(img) { max-height: 300px; width: auto; object-fit: contain; }
         `}</style>

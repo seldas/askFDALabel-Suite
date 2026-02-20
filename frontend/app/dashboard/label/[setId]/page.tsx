@@ -18,14 +18,17 @@ function TOCItemComponent({
   item, 
   level = 0, 
   expandedSections, 
-  toggleSection 
+  toggleSection,
+  activeSectionId
 }: { 
   item: TOCItem; 
   level?: number; 
   expandedSections: Set<string>; 
   toggleSection: (id: string) => void;
+  activeSectionId?: string;
 }) {
   const isExpanded = expandedSections.has(item.id);
+  const isActive = item.id === activeSectionId;
   const hasChildren = item.children && item.children.length > 0;
 
   let specialClass = '';
@@ -55,7 +58,8 @@ function TOCItemComponent({
         )}
         <a 
           href={`#${item.id}`}
-          className={`toc-link ${level === 0 ? 'root-link' : 'sub-link'}`}
+          className={`toc-link ${level === 0 ? 'root-link' : 'sub-link'} ${isActive ? 'active-section-link' : ''}`}
+          style={isActive ? { backgroundColor: '#e0f2fe', color: '#0284c7', borderLeft: '3px solid #0284c7', paddingLeft: '7px' } : {}}
           onClick={() => {
             if (hasChildren && !isExpanded) {
               toggleSection(item.id);
@@ -74,6 +78,7 @@ function TOCItemComponent({
               level={level + 1} 
               expandedSections={expandedSections}
               toggleSection={toggleSection}
+              activeSectionId={activeSectionId}
             />
           ))}
         </ol>
