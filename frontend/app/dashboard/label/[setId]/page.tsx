@@ -87,6 +87,52 @@ function TOCItemComponent({
   );
 }
 
+function ExportSectionItem({ 
+  item, 
+  level = 0, 
+  selectedSectionsForExport, 
+  toggleSectionSelection 
+}: { 
+  item: any; 
+  level?: number; 
+  selectedSectionsForExport: Set<string>; 
+  toggleSectionSelection: (id: string, includeChildren?: boolean) => void;
+}) {
+  const isSelected = selectedSectionsForExport.has(item.id);
+  const hasChildren = item.children && item.children.length > 0;
+
+  return (
+    <div style={{ marginLeft: level * 12, marginBottom: '6px', borderLeft: level > 0 ? '1px solid #f1f5f9' : 'none', paddingLeft: level > 0 ? '8px' : '0' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', transition: 'background 0.2s ease' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+        <input 
+          type="checkbox" 
+          checked={isSelected} 
+          onChange={(e) => toggleSectionSelection(item.id, true)} 
+          style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#3b82f6' }}
+        />
+        <span style={{ 
+          fontWeight: level === 0 ? 700 : 500, 
+          color: isSelected ? '#0f172a' : '#64748b',
+          fontSize: level === 0 ? '0.85rem' : '0.8rem',
+          textTransform: level === 0 ? 'uppercase' : 'none',
+          letterSpacing: level === 0 ? '0.02em' : 'normal'
+        }}>
+          {item.title}
+        </span>
+      </label>
+      {hasChildren && item.children.map((child: any) => (
+        <ExportSectionItem 
+          key={child.id} 
+          item={child} 
+          level={level + 1} 
+          selectedSectionsForExport={selectedSectionsForExport} 
+          toggleSectionSelection={toggleSectionSelection} 
+        />
+      ))}
+    </div>
+  );
+}
+
 function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   const { setId } = use(params);
   const router = useRouter();
@@ -98,6 +144,80 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   const [tocCollapsed, setTocCollapsed] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | null>(null);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [selectedSectionsForExport, setSelectedSectionsForExport] = useState<Set<string>>(new Set());
+  const [exportFormat, setExportFormat] = useState<'html' | 'xml' | 'text'>('html');
+
+  const toggleSectionSelection = (id: string, includeChildren: boolean = true) => {
+    setSelectedSectionsForExport((prev) => {
+      const next = new Set(prev);
+      const isCurrentlySelected = next.has(id);
+
+      const findAndToggleRecursive = (items: any[], targetId: string, forceState: boolean) => {
+        for (const item of items) {
+          if (item.id === targetId) {
+             if (forceState) next.add(item.id); else next.delete(item.id);
+             if (includeChildren && item.children) {
+                const toggleChildren = (childs: any[]) => {
+                  childs.forEach(c => {
+                    if (forceState) next.add(c.id); else next.delete(c.id);
+                    if (c.children) toggleChildren(c.children);
+                  });
+                };
+                toggleChildren(item.children);
+             }
+             return true;
+          }
+          if (item.children && findAndToggleRecursive(item.children, targetId, forceState)) return true;
+        }
+        return false;
+      };
+
+      const sectionsTree = [
+        ...(data?.table_of_contents || [])
+      ];
+
+      findAndToggleRecursive(sectionsTree, id, !isCurrentlySelected);
+      return next;
+    });
+  };
+
+  const handleExport = async () => {
+    if (selectedSectionsForExport.size === 0) {
+      alert("Please select at least one section for export.");
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/dashboard/export_sections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          set_id: data?.set_id,
+          section_ids: Array.from(selectedSectionsForExport),
+          format: exportFormat
+        })
+      });
+
+      if (!response.ok) {
+        const errJson = await response.json();
+        throw new Error(errJson.error || "Failed to generate export file.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const cleanTitle = (data?.brand_name || data?.drug_name || 'label').replace(/[^a-z0-9]/gi, '_');
+      a.download = `${cleanTitle}_sections.${exportFormat === 'text' ? 'txt' : exportFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      setExportModalOpen(false);
+    } catch (err: any) {
+      alert(`Export Error: ${err.message}`);
+    }
+  };
 
   const toggleSection = (id: string) => {
     setExpandedSections((prev) => {
@@ -110,6 +230,16 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       return next;
     });
   };
+
+  useEffect(() => {
+    if (!exportModalOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExportModalOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [exportModalOpen]);
+
   const [ndcModalOpen, setNdcModalOpen] = useState(false);
 
   const ndcRaw = (data?.ndc || '').trim();
@@ -917,13 +1047,20 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             
             {/* DRUG METADATA (Layer 1, Part 1) */}
             <div className="label-header" style={{ marginBottom: '20px', background: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '0' }}>
-                                <h1 className="DocumentTitle" style={{ margin: 0, fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#0f172a' }}>
-                                  {[data.brand_name || data.drug_name, data.generic_name, data.effective_time]
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '40px' }}>
+                        <div style={{ flex: '0 1 60%', minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '4px' }}>
+                                <h1 className="DocumentTitle" style={{ 
+                                  margin: 0, 
+                                  fontSize: '2rem', 
+                                  fontWeight: 800, 
+                                  letterSpacing: '-0.03em', 
+                                  color: '#0f172a',
+                                  lineHeight: 1.2,
+                                  wordBreak: 'break-word'
+                                }}>
+                                  {[data.brand_name || data.drug_name, data.effective_time]
                                     .filter(Boolean)
-                                    .filter((v, i, a) => a.indexOf(v) === i)
                                     .join(' - ')}
                                 </h1>
                                 <span style={{ 
@@ -935,14 +1072,66 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                     fontWeight: 800,
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em',
-                                    flexShrink: 0
+                                    flexShrink: 0,
+                                    marginTop: '8px'
                                 }}>
                                     {data.label_format}
                                 </span>
                             </div>
+                            {data.generic_name && (
+                                <div style={{ 
+                                    fontSize: '1rem', 
+                                    fontWeight: 600, 
+                                    color: '#64748b', 
+                                    marginTop: '2px',
+                                    fontStyle: 'italic',
+                                    maxWidth: '100%',
+                                    wordBreak: 'break-word'
+                                }}>
+                                    {data.generic_name}
+                                </div>
+                            )}
                         </div>
                     {session?.is_authenticated && (
-                      <div style={{ marginLeft: '20px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexShrink: 0 }}>
+                          <button 
+                            onClick={() => {
+                              // Initialize selections with ALL IDs (recursive)
+                              const allIds = new Set<string>();
+                              const addIdsRecursive = (items: any[]) => {
+                                items.forEach(i => {
+                                  allIds.add(i.id);
+                                  if (i.children && i.children.length > 0) {
+                                    addIdsRecursive(i.children);
+                                  }
+                                });
+                              };
+                              if (data.table_of_contents) {
+                                addIdsRecursive(data.table_of_contents);
+                              }
+                              setSelectedSectionsForExport(allIds);
+                              setExportModalOpen(true);
+                            }}
+                            title="Export Selected Sections"
+                            style={{ 
+                                background: '#f1f5f9', 
+                                border: '1px solid #e2e8f0', 
+                                color: '#475569', 
+                                padding: '8px 14px', 
+                                borderRadius: '10px', 
+                                fontSize: '0.8rem', 
+                                fontWeight: 800, 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '6px', 
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onMouseOver={e => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+                            onMouseOut={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                          >
+                             <span style={{ fontSize: '1rem' }}>{"\u2913"}</span> EXPORT
+                          </button>
                           <button id="favorite-btn" className="favorite-btn" title="Toggle Project" style={{ background:'none', border:'none', cursor:'pointer', fontSize: '2rem', color: '#cbd5e1', padding: 0 }}>
                               {"\u2606"}
                           </button>
@@ -1303,6 +1492,144 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           </div>
         </div>
       )}
+
+      {/* SECTION EXPORT MODAL */}
+      {exportModalOpen && (
+        <div
+          onClick={() => setExportModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            zIndex: 5000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            backdropFilter: 'blur(4px)'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 'min(600px, 95vw)',
+              maxHeight: 'min(700px, 90vh)',
+              background: 'white',
+              borderRadius: '20px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #e2e8f0',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Export Sections</h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Select label sections and preferred format</p>
+              </div>
+              <button onClick={() => setExportModalOpen(false)} style={{ background: 'white', border: '1px solid #e2e8f0', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Available Sections ({selectedSectionsForExport.size} Selected)</span>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button 
+                    onClick={() => {
+                      const allIds = new Set<string>();
+                      const addIdsRecursive = (items: any[]) => {
+                        items.forEach(i => {
+                          allIds.add(i.id);
+                          if (i.children && i.children.length > 0) {
+                            addIdsRecursive(i.children);
+                          }
+                        });
+                      };
+                      if (data.table_of_contents) {
+                        addIdsRecursive(data.table_of_contents);
+                      }
+                      setSelectedSectionsForExport(allIds);
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    SELECT ALL
+                  </button>
+                  <button 
+                    onClick={() => setSelectedSectionsForExport(new Set())}
+                    style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    CLEAR
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ background: '#f9fafb', border: '1px solid #f1f5f9', borderRadius: '12px', padding: '16px' }}>
+                {data?.table_of_contents?.map(item => (
+                  <ExportSectionItem 
+                    key={item.id}
+                    item={item}
+                    selectedSectionsForExport={selectedSectionsForExport}
+                    toggleSectionSelection={toggleSectionSelection}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div style={{ padding: '20px 24px', borderTop: '1px solid #f1f5f9', background: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b' }}>FORMAT:</span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {(['html', 'xml', 'text'] as const).map(fmt => (
+                    <button
+                      key={fmt}
+                      onClick={() => setExportFormat(fmt)}
+                      style={{
+                        padding: '6px 16px',
+                        borderRadius: '8px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        textTransform: 'uppercase',
+                        backgroundColor: exportFormat === fmt ? '#3b82f6' : 'white',
+                        color: exportFormat === fmt ? 'white' : '#64748b',
+                        border: '1px solid',
+                        borderColor: exportFormat === fmt ? '#3b82f6' : '#e2e8f0',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {fmt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button 
+                onClick={handleExport}
+                style={{
+                  width: '100%',
+                  backgroundColor: '#0f172a',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  fontSize: '0.9rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                }}
+              >
+                <span>{"\u2913"}</span> GENERATE EXPORT FILE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
     </div>
   );

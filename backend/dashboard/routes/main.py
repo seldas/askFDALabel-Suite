@@ -451,6 +451,147 @@ def view_label(set_id):
         'user_id': current_user.id if current_user.is_authenticated else None
     })
 
+@main_bp.route('/export_sections', methods=['POST'])
+def export_sections():
+    data = request.get_json()
+    set_id = data.get('set_id')
+    section_ids = data.get('section_ids', [])
+    export_format = data.get('format', 'html') # html, xml, text
+
+    if not set_id or not section_ids:
+        return jsonify({'error': 'Missing set_id or section_ids'}), 400
+
+    xml_content = get_label_xml(set_id)
+    if not xml_content:
+        return jsonify({'error': 'Label not found'}), 404
+
+    # We need to find the sections in the parsed structure
+    doc_title, sections, label_format, highlights, toc, product_data = parse_spl_xml(xml_content, set_id)
+
+    def render_recursive_html(s, ids):
+        html = ""
+        is_selected = s['id'] in ids
+        if is_selected:
+            html += f"<div class='Section' id='{s['id']}' style='margin-bottom: 30px;'>"
+            if s.get('title'): 
+                html += f"<h2 style='border-bottom: 1px solid #eee; padding-bottom: 10px;'>{s['title']}</h2>"
+            html += s.get('content', '')
+            
+        for child in s.get('children', []):
+            html += render_recursive_html(child, ids)
+            
+        if is_selected:
+            html += "</div>"
+        return html
+
+    def render_recursive_text(s, ids, level=0):
+        text = ""
+        is_selected = s['id'] in ids
+        next_level = level
+        if is_selected:
+            indent = "  " * level
+            text += f"\n{indent}{s.get('title', '').upper()}\n"
+            text += f"{indent}{'-' * len(s.get('title', ''))}\n"
+            # Strip HTML tags
+            clean_text = re.sub('<[^<]+?>', '', s.get('content', ''))
+            # Unescape some entities
+            clean_text = clean_text.replace('&nbsp;', ' ').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+            text += f"{indent}{clean_text}\n"
+            next_level = level + 1
+            
+        for child in s.get('children', []):
+            text += render_recursive_text(child, ids, next_level)
+        return text
+
+    def render_recursive_xml(s, ids, level=1):
+        xml = ""
+        is_selected = s['id'] in ids
+        next_level = level
+        if is_selected:
+            indent = "  " * level
+            xml += f"{indent}<section id='{s['id']}'>\n"
+            xml += f"{indent}  <title>{s.get('title', '')}</title>\n"
+            xml += f"{indent}  <content><![CDATA[{s.get('content', '')}]]></content>\n"
+            next_level = level + 2
+            
+        child_xml = ""
+        for child in s.get('children', []):
+            child_xml += render_recursive_xml(child, ids, next_level)
+            
+        if is_selected:
+            indent = "  " * level
+            if child_xml:
+                xml += f"{indent}  <children>\n{child_xml}{indent}  </children>\n"
+            xml += f"{indent}</section>\n"
+        else:
+            xml += child_xml
+            
+        return xml
+
+    # Generate content based on format
+    if export_format == 'html':
+        html_body = f"<h1>{doc_title}</h1><hr/>"
+        if 'highlights-section' in section_ids and highlights:
+            html_body += "<div class='Section' id='highlights-section' style='margin-bottom: 30px;'>"
+            html_body += "<h2 style='border-bottom: 1px solid #eee; padding-bottom: 10px;'>Highlights of Prescribing Information</h2>"
+            for hl in highlights:
+                if hl['source_section_title'] != 'Untitled Section':
+                    html_body += f"<h3>{hl['source_section_title']}</h3>"
+                html_body += hl['content_html']
+            html_body += "</div>"
+            
+        for s in sections:
+            html_body += render_recursive_html(s, section_ids)
+            
+        content = f"<!DOCTYPE html><html><head><meta charset='UTF-8'><title>{doc_title}</title><style>body{{font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding:40px; max-width: 900px; margin: 0 auto; line-height:1.6; color: #333;}} .Section{{margin-bottom:40px;}} img{{max-width: 100%; height: auto;}} table{{border-collapse: collapse; width: 100%; margin: 15px 0;}} th, td{{border: 1px solid #ddd; padding: 8px; text-align: left;}} th{{background-color: #f8f9fa;}} h1{{color: #0f172a;}} h2{{color: #1e293b;}} h3{{color: #334155;}}</style></head><body>{html_body}</body></html>"
+        mimetype = "text/html"
+        extension = "html"
+    elif export_format == 'xml':
+        xml_body = ""
+        if 'highlights-section' in section_ids and highlights:
+            xml_body += "    <section id='highlights-section'>\n      <title>Highlights of Prescribing Information</title>\n      <highlights>\n"
+            for hl in highlights:
+                xml_body += f"        <highlight>\n          <source>{hl['source_section_title']}</source>\n          <content><![CDATA[{hl['content_html']}]]></content>\n        </highlight>\n"
+            xml_body += "      </highlights>\n    </section>\n"
+            
+        for s in sections:
+            xml_body += render_recursive_xml(s, section_ids)
+            
+        content = f"<?xml version='1.0' encoding='UTF-8'?>\n<label>\n  <metadata>\n    <title>{doc_title}</title>\n    <set_id>{set_id}</set_id>\n  </metadata>\n  <sections>\n{xml_body}  </sections>\n</label>"
+        mimetype = "application/xml"
+        extension = "xml"
+    else: # plain text
+        text_body = f"{doc_title}\n" + "="*len(doc_title) + "\n"
+        text_body += f"SetID: {set_id}\n\n"
+        
+        if 'highlights-section' in section_ids and highlights:
+            text_body += "\nHIGHLIGHTS OF PRESCRIBING INFORMATION\n"
+            text_body += "--------------------------------------\n"
+            for hl in highlights:
+                if hl['source_section_title'] != 'Untitled Section':
+                    text_body += f"\n{hl['source_section_title'].upper()}\n"
+                clean_hl = re.sub('<[^<]+?>', '', hl['content_html'])
+                clean_hl = clean_hl.replace('&nbsp;', ' ').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+                text_body += clean_hl + "\n"
+            text_body += "\n" + "="*40 + "\n"
+
+        for s in sections:
+            text_body += render_recursive_text(s, section_ids)
+            
+        content = text_body
+        mimetype = "text/plain"
+        extension = "txt"
+
+    buffer = BytesIO()
+    buffer.write(content.encode('utf-8'))
+    buffer.seek(0)
+
+    # Clean filename
+    clean_title = re.sub(r'[^a-zA-Z0-9]', '_', doc_title)[:50]
+    filename = f"{clean_title}_sections.{extension}"
+    
+    return send_file(buffer, as_attachment=True, download_name=filename, mimetype=mimetype)
+
 @main_bp.route('/preferences', methods=['POST'])
 @login_required
 def preferences():
