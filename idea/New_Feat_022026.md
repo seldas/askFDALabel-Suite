@@ -28,22 +28,14 @@ To assess what adverse events are labeled across drugs particularly across drugs
 My collaborators use this important tools for seeking information on various drugs and their adverse effects. (NCTR)
 We have used FDALabel in the past to investigate different opioid-based drugs as well as antibiotics. (NCTR)
 
-## Section Export Function Roadmap
+## Section Export Function Roadmap (COMPLETED)
 
-1. Identify specific sections for export:
-   - Warnings and Precautions
-   - Other relevant sections as identified by users
+## Enhancing Search Functionality
 
-2. Modify or create a new export function:
-   - Extend the existing export functionality to handle specific sections
-   - Develop a new API endpoint to support section-specific export
+To enhance search functionality for identifying labels with specific characteristics, we propose the following:
 
-3. Update the UI:
-   - Add a new button or option for exporting specific sections
-   - Implement a dropdown or modal dialog for section selection
+1. Implement advanced filtering options for search results.
+2. Develop AI-driven search capabilities to identify relevant labeling documents based on similarity and synonyms.
+3. Introduce a query system that allows users to ask complex questions about labeling documents.
 
-4. Integrate with existing features:
-   - Ensure compatibility with project management and label display features
-   - Maintain consistency with the existing user interface and user experience
-
-By following this roadmap, we can effectively implement the section export function, enhancing the utility and flexibility of FDALabel for users.
+This enhancement will improve the efficiency and effectiveness of searches within FDALabel, making it easier for users to find relevant information.
