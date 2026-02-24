@@ -1052,16 +1052,20 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '4px' }}>
                                 <h1 className="DocumentTitle" style={{ 
                                   margin: 0, 
-                                  fontSize: '2rem', 
+                                  fontSize: '2.25rem', 
                                   fontWeight: 800, 
-                                  letterSpacing: '-0.03em', 
+                                  letterSpacing: '-0.04em', 
                                   color: '#0f172a',
-                                  lineHeight: 1.2,
-                                  wordBreak: 'break-word'
+                                  lineHeight: 1.1,
+                                  wordBreak: 'break-word',
+                                  fontFamily: 'var(--font-inter), sans-serif',
+                                  textShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                  textTransform: 'capitalize'
                                 }}>
                                   {[data.brand_name || data.drug_name, data.effective_time]
                                     .filter(Boolean)
-                                    .join(' - ')}
+                                    .join(' - ')
+                                    .toLowerCase()}
                                 </h1>
                                 <span style={{ 
                                     backgroundColor: data.label_format === 'PLR' ? '#dcfce7' : '#f1f5f9',
@@ -1073,7 +1077,8 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em',
                                     flexShrink: 0,
-                                    marginTop: '8px'
+                                    marginTop: '8px',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                                 }}>
                                     {data.label_format}
                                 </span>

@@ -215,10 +215,48 @@ export default function LabelView({
           flexDirection: 'column',
           transition: 'all 0.3s ease'
         }}>
-          <div className="toc-box" style={{ padding: '15px', flex: 1, overflowY: 'auto' }}>
-            <div className="toc-header" style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', margin: 0 }}>Table of Contents</h2>
-              <button onClick={() => setTocCollapsed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '0.8rem' }}>✕</button>
+          <div className="toc-box" style={{ padding: '20px 15px', flex: 1, overflowY: 'auto' }}>
+            <div className="toc-header" style={{ 
+              marginBottom: '16px', 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              paddingBottom: '12px',
+              borderBottom: '1px solid #f1f5f9',
+              position: 'relative'
+            }}>
+              <h2 style={{ 
+                fontSize: '0.75rem', 
+                fontWeight: 700, 
+                textTransform: 'uppercase', 
+                letterSpacing: '0.05em', 
+                color: '#64748b', 
+                margin: 0 
+              }}>
+                Table of Contents
+              </h2>
+              <button 
+                onClick={() => setTocCollapsed(true)} 
+                style={{ 
+                  background: '#f8fafc', 
+                  border: '1px solid #e2e8f0', 
+                  borderRadius: '6px',
+                  cursor: 'pointer', 
+                  color: '#94a3b8', 
+                  fontSize: '0.75rem',
+                  width: '24px',
+                  height: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s ease',
+                  position: 'absolute',
+                  right: '0'
+                }}
+                className="toc-close-btn"
+              >
+                ✕
+              </button>
             </div>
             {data.table_of_contents && data.table_of_contents.length > 0 ? (
               <ol className="toc-list">
@@ -333,6 +371,7 @@ export default function LabelView({
         <style jsx>{`
             .toc-side-panel-inline { transition: width 0.3s ease; }
             .toc-side-panel-inline.collapsed { width: 0 !important; margin-right: -20px; border: none; }
+            .toc-close-btn:hover { background-color: #f1f5f9 !important; color: #475569 !important; border-color: #cbd5e1 !important; }
             .label-viewport::-webkit-scrollbar { width: 8px; }
             .label-viewport::-webkit-scrollbar-track { background: transparent; }
             .label-viewport::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
