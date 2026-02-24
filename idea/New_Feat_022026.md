@@ -27,3 +27,23 @@ I value FDALabel CDER-CBER version to give me the landscape of how clinical outc
 To assess what adverse events are labeled across drugs particularly across drugs used in specific specialties (e.g., oncology, hematology), consistency in labeling. (OSE)
 My collaborators use this important tools for seeking information on various drugs and their adverse effects. (NCTR)
 We have used FDALabel in the past to investigate different opioid-based drugs as well as antibiotics. (NCTR)
+
+## Section Export Function Roadmap
+
+1. Identify specific sections for export:
+   - Warnings and Precautions
+   - Other relevant sections as identified by users
+
+2. Modify or create a new export function:
+   - Extend the existing export functionality to handle specific sections
+   - Develop a new API endpoint to support section-specific export
+
+3. Update the UI:
+   - Add a new button or option for exporting specific sections
+   - Implement a dropdown or modal dialog for section selection
+
+4. Integrate with existing features:
+   - Ensure compatibility with project management and label display features
+   - Maintain consistency with the existing user interface and user experience
+
+By following this roadmap, we can effectively implement the section export function, enhancing the utility and flexibility of FDALabel for users.
