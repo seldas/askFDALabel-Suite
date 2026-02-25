@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Modal from '../../components/Modal';
 import { debounce } from 'lodash';
+import { useUser } from '../../context/UserContext';
 
 interface AEProfileModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ interface AEReport {
 }
 
 export default function AEProfileModal({ isOpen, onClose, projectId, projectName }: AEProfileModalProps) {
+  const { activeTasks, refreshTasks } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,24 +42,47 @@ export default function AEProfileModal({ isOpen, onClose, projectId, projectName
       if (res.ok) {
         const data = await res.json();
         setExistingReports(data);
+        
+        // Check if any report in THIS project is already generating
+        const activeInThisProject = data.find((r: any) => r.status === 'processing' || r.status === 'pending');
+        if (activeInThisProject && !isGenerating) {
+          setIsGenerating(true);
+          setCurrentReportId(activeInThisProject.id);
+          setSearchTerm(activeInThisProject.target_pt);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch existing AE reports:', error);
     }
-  }, [projectId]);
+  }, [projectId, isGenerating]);
+
+  // Sync progress from global activeTasks if available
+  useEffect(() => {
+    if (isGenerating && currentReportId) {
+      const globalTask = activeTasks.find(t => t.id === currentReportId);
+      if (globalTask) {
+        setProgress(globalTask.progress);
+        setReportStatus(globalTask.status);
+      } else if (reportStatus === 'processing' || reportStatus === 'pending') {
+        // If it's not in activeTasks anymore but was processing, it might have finished or failed
+        fetchExistingReports();
+      }
+    }
+  }, [activeTasks, isGenerating, currentReportId, reportStatus, fetchExistingReports]);
 
   useEffect(() => {
     if (isOpen) {
       fetchExistingReports();
-      setSearchTerm('');
-      setIsGenerating(false);
-      setCurrentReportId(null);
-      setProgress(0);
-      setReportStatus(null);
+      if (!isGenerating) {
+        setSearchTerm('');
+        setCurrentReportId(null);
+        setProgress(0);
+        setReportStatus(null);
+      }
     }
-  }, [isOpen, fetchExistingReports]);
+  }, [isOpen, fetchExistingReports, isGenerating]);
 
-  // Polling for status
+  // Polling for status - fallback if UserContext polling is slow or if we want faster updates here
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isGenerating && currentReportId) {
@@ -71,16 +96,16 @@ export default function AEProfileModal({ isOpen, onClose, projectId, projectName
             if (data.status === 'completed' || data.status === 'failed') {
               setIsGenerating(false);
               fetchExistingReports();
+              refreshTasks(); // Update global state too
             }
           }
         } catch (error) {
           console.error('Error polling report status:', error);
-          setIsGenerating(false);
         }
       }, 2000);
     }
     return () => clearInterval(interval);
-  }, [isGenerating, currentReportId, fetchExistingReports]);
+  }, [isGenerating, currentReportId, fetchExistingReports, refreshTasks]);
 
   const fetchSuggestions = useCallback(
     debounce(async (query: string) => {
@@ -264,6 +289,47 @@ export default function AEProfileModal({ isOpen, onClose, projectId, projectName
                 ? 'Processing drug labels for text matches in specific sections.' 
                 : 'Collecting unique drug counts from openFDA FAERS API.'}
             </p>
+
+            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center', gap: '12px' }}>
+              <button
+                onClick={onClose}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  border: 'none',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontSize: '0.8rem'
+                }}
+              >
+                Minimize & Continue
+              </button>
+              <button
+                onClick={async () => {
+                  if (confirm('Stop this analysis? Progress will be lost.')) {
+                    await fetch(`/api/dashboard/ae_report/delete/${currentReportId}`, { method: 'DELETE' });
+                    setIsGenerating(false);
+                    setCurrentReportId(null);
+                    fetchExistingReports();
+                    refreshTasks();
+                  }
+                }}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  background: '#fef2f2',
+                  color: '#ef4444',
+                  border: '1px solid #fee2e2',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontSize: '0.8rem'
+                }}
+              >
+                Stop Analysis
+              </button>
+            </div>
           </div>
         ) : (
           <div style={{ position: 'relative' }}>

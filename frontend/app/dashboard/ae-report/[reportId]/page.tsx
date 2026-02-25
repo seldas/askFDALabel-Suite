@@ -304,9 +304,12 @@ export default function AEReportPage() {
             marginBottom: '2rem',
             border: '1px solid #e2e8f0'
           }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span>📈</span> Most Frequent Labeling Contexts
             </h2>
+            <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1.5rem', fontStyle: 'italic' }}>
+              Phrases are grouped by semantic similarity (80% threshold). Document counts reflect unique labels containing at least one mention in the group.
+            </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {data.frequent_contexts.map((ctx, idx) => (
                 <div key={idx} style={{ 

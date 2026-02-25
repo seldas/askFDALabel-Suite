@@ -31,7 +31,7 @@ function inferActiveApp(pathname: string): ActiveApp {
 }
 
 export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
-  const { session, loading, updateAiProvider, refreshSession, openAuthModal } = useUser();
+  const { session, loading, updateAiProvider, refreshSession, openAuthModal, activeTasks } = useUser();
 
   const pathname = usePathname();
   const resolvedActiveApp = useMemo(
@@ -40,10 +40,15 @@ export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
   );
 
   const [isInternal, setIsInternal] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState<DropdownKey>(null);
+  const [activeDropdown, setActiveDropdown] = useState<DropdownKey | 'tasks'>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isMoreActive = ['labelcomp', 'drugtox', 'snippet'].includes(resolvedActiveApp);
+
+  const totalActiveTasks = activeTasks.length;
+  const avgProgress = totalActiveTasks > 0 
+    ? Math.round(activeTasks.reduce((sum, t) => sum + t.progress, 0) / totalActiveTasks)
+    : 0;
 
   useEffect(() => {
     const handleClickOutside = () => setActiveDropdown(null);
@@ -330,6 +335,46 @@ export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
           <span className="header-muted">Loading...</span>
         ) : session?.is_authenticated ? (
           <>
+            {/* Active Tasks Indicator */}
+            {totalActiveTasks > 0 && (
+              <div className="custom-dropdown" onClick={(e) => e.stopPropagation()}>
+                <button 
+                  className={cx('dropdown-trigger header-chip', activeDropdown === 'tasks' && 'active')} 
+                  onClick={() => setActiveDropdown(activeDropdown === 'tasks' ? null : 'tasks')}
+                  style={{ background: '#eef2ff', color: '#6366f1', border: '1px solid #e0e7ff' }}
+                >
+                  <span className="pulse-dot"></span>
+                  <span style={{ fontWeight: 800 }}>{totalActiveTasks} Active Task{totalActiveTasks > 1 ? 's' : ''}</span>
+                  <span style={{ fontSize: '0.75rem', marginLeft: '4px', opacity: 0.8 }}>{avgProgress}%</span>
+                  <span className="caret">▼</span>
+                </button>
+
+                {activeDropdown === 'tasks' && (
+                  <div className="dropdown-menu" style={{ width: '280px', padding: '12px' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px', padding: '0 4px' }}>
+                      Background Operations
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {activeTasks.map(task => (
+                        <div key={task.id} style={{ padding: '8px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              AE: {task.target_pt}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#6366f1' }}>{task.progress}%</div>
+                          </div>
+                          <div style={{ fontSize: '0.65rem', color: '#64748b', marginBottom: '6px' }}>Project: {task.project_title}</div>
+                          <div style={{ width: '100%', height: '4px', background: '#eef2ff', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div style={{ width: `${task.progress}%`, height: '100%', background: '#6366f1', transition: 'width 0.3s ease' }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* AI Provider Dropdown */}
             <div className="custom-dropdown" onClick={(e) => e.stopPropagation()}>
               <button className="dropdown-trigger header-chip" onClick={() => setActiveDropdown(activeDropdown === 'ai' ? null : 'ai')}>
@@ -395,6 +440,35 @@ export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
           </div>
         )}
       </div>
+      <style jsx>{`
+        .pulse-dot {
+          width: 8px;
+          height: 8px;
+          background-color: #6366f1;
+          border-radius: 50%;
+          display: inline-block;
+          margin-right: 8px;
+          box-shadow: 0 0 0 rgba(99, 102, 241, 0.4);
+          animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+          0% {
+            box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+          }
+          70% {
+            box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+          }
+        }
+
+        .header-chip.active {
+          background-color: #e0e7ff !important;
+          border-color: #6366f1 !important;
+        }
+      `}</style>
     </header>
   );
 }

@@ -13,13 +13,24 @@ export interface UserSession {
   is_internal?: boolean;
 }
 
+export interface ActiveTask {
+  id: number;
+  project_id: number;
+  project_title: string;
+  target_pt: string;
+  progress: number;
+  status: string;
+}
+
 interface UserContextType {
   session: UserSession | null;
   loading: boolean;
+  activeTasks: ActiveTask[];
   updateAiProvider: (provider: string) => Promise<void>;
   refreshSession: () => Promise<void>;
   authModal: 'login' | 'register' | 'change_password' | null;
   openAuthModal: (type: 'login' | 'register' | 'change_password' | null) => void;
+  refreshTasks: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -27,6 +38,7 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTasks, setActiveTasks] = useState<ActiveTask[]>([]);
   const [authModal, setAuthModal] = useState<'login' | 'register' | 'change_password' | null>(null);
 
   const openAuthModal = (type: 'login' | 'register' | 'change_password' | null) => {
@@ -48,9 +60,33 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const refreshTasks = useCallback(async () => {
+    if (!session?.is_authenticated) return;
+    try {
+      const res = await fetch('/api/dashboard/ae_report/active_tasks');
+      if (res.ok) {
+        const data = await res.json();
+        setActiveTasks(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch active tasks", e);
+    }
+  }, [session?.is_authenticated]);
+
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);
+
+  // Task polling effect
+  useEffect(() => {
+    if (session?.is_authenticated) {
+      refreshTasks();
+      const interval = setInterval(refreshTasks, 5000); // Poll every 5 seconds
+      return () => clearInterval(interval);
+    } else {
+      setActiveTasks([]);
+    }
+  }, [session?.is_authenticated, refreshTasks]);
 
   const updateAiProvider = async (provider: string) => {
     try {
@@ -69,7 +105,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <UserContext.Provider value={{ session, loading, updateAiProvider, refreshSession: fetchSession, authModal, openAuthModal }}>
+    <UserContext.Provider value={{ session, loading, activeTasks, updateAiProvider, refreshSession: fetchSession, authModal, openAuthModal, refreshTasks }}>
       {children}
     </UserContext.Provider>
   );

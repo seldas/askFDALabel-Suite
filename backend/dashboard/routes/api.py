@@ -1214,6 +1214,30 @@ def get_ae_report_status(report_id):
         'target_pt': report.target_pt
     })
 
+@api_bp.route('/ae_report/active_tasks')
+@login_required
+def get_active_ae_tasks():
+    # Get all projects where user is owner or member
+    user_projects = Project.query.filter(
+        (Project.owner_id == current_user.id) | 
+        (Project.members.contains(current_user))
+    ).all()
+    project_ids = [p.id for p in user_projects]
+    
+    active_reports = ProjectAeReport.query.filter(
+        ProjectAeReport.project_id.in_(project_ids),
+        ProjectAeReport.status.in_(['processing', 'pending'])
+    ).all()
+    
+    return jsonify([{
+        'id': r.id,
+        'project_id': r.project_id,
+        'project_title': r.project.title,
+        'target_pt': r.target_pt,
+        'progress': r.progress,
+        'status': r.status
+    } for r in active_reports])
+
 @api_bp.route('/ae_report/list/<int:project_id>')
 @login_required
 def list_ae_reports(project_id):
@@ -1284,7 +1308,7 @@ def get_ae_report_detail(report_id):
     def get_similarity(a, b):
         return SequenceMatcher(None, normalize_for_comparison(a), normalize_for_comparison(b)).ratio()
 
-    # Clusters: { "representative_ngram": {"count": X, "set_ids": [id1, id2...]} }
+    # Clusters: { "representative_ngram": set([set_id1, set_id2...]) }
     clusters = {}
     SIMILARITY_THRESHOLD = 0.80 # Slightly lower threshold for better grouping
 
@@ -1303,23 +1327,21 @@ def get_ae_report_detail(report_id):
                         break
                 
                 if matched_rep:
-                    clusters[matched_rep]["count"] += 1
-                    if d.set_id not in clusters[matched_rep]["set_ids"]:
-                        clusters[matched_rep]["set_ids"].append(d.set_id)
+                    clusters[matched_rep].add(d.set_id)
                 else:
                     # New cluster
-                    clusters[norm] = {"count": 1, "set_ids": [d.set_id]}
+                    clusters[norm] = {d.set_id}
     
     # Get top 20 contexts from clusters
     frequent_contexts = []
-    # Sort the clusters by their aggregated counts
-    sorted_clusters = sorted(clusters.items(), key=lambda x: x[1]["count"], reverse=True)
+    # Sort the clusters by their unique document counts
+    sorted_clusters = sorted(clusters.items(), key=lambda x: len(x[1]), reverse=True)
     
-    for snippet, data in sorted_clusters[:20]:
+    for snippet, set_ids in sorted_clusters[:20]:
         frequent_contexts.append({
             'snippet': snippet,
-            'count': data["count"],
-            'set_ids': data["set_ids"]
+            'count': len(set_ids),
+            'set_ids': list(set_ids)
         })
 
     return jsonify({
@@ -1365,7 +1387,7 @@ def export_ae_report_json(report_id):
     def get_similarity(a, b):
         return SequenceMatcher(None, normalize_for_comparison(a), normalize_for_comparison(b)).ratio()
         
-    clusters = {}
+    clusters = {} # snippet -> set of set_ids
     label_data = []
     SIMILARITY_THRESHOLD = 0.80
     
@@ -1383,9 +1405,9 @@ def export_ae_report_json(report_id):
                     break
             
             if matched_rep:
-                clusters[matched_rep] += 1
+                clusters[matched_rep].add(d.set_id)
             else:
-                clusters[norm] = 1
+                clusters[norm] = {d.set_id}
                 
         label_data.append({
             'brand_name': d.brand_name,
@@ -1414,7 +1436,7 @@ def export_ae_report_json(report_id):
     )
 
     # Sort clusters by document frequency
-    sorted_contexts = sorted(clusters.items(), key=lambda x: x[1], reverse=True)
+    sorted_contexts = sorted(clusters.items(), key=lambda x: len(x[1]), reverse=True)
 
     # Calculate Unique Drug Stats for Summary
     unique_drugs = {}
@@ -1443,8 +1465,8 @@ def export_ae_report_json(report_id):
             'last_5yr_total': sum(v['5yr'] for v in unique_drugs.values())
         },
         'frequent_contexts': [
-            {'snippet': s, 'document_frequency': c} 
-            for s, c in sorted_contexts[:50]
+            {'snippet': s, 'document_frequency': len(set_ids)} 
+            for s, set_ids in sorted_contexts[:50]
         ],
         'label_details': label_data
     }
