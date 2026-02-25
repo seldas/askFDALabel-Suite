@@ -457,45 +457,45 @@ class FDALabelDBService:
 
         return {"raw": raw, "buckets": buckets}
 
-@classmethod
-def effective_time_map_for_set_ids(cls, set_ids):
-    """
-    Returns {set_id: eff_time} from internal DB.
-    """
-    if not cls.check_connectivity():
-        return {}
+    @classmethod
+    def effective_time_map_for_set_ids(cls, set_ids):
+        """
+        Returns {set_id: eff_time} from internal DB.
+        """
+        if not cls.check_connectivity():
+            return {}
 
-    if not set_ids:
-        return {}
+        if not set_ids:
+            return {}
 
-    conn = cls.get_connection()
-    if not conn:
-        return {}
+        conn = cls.get_connection()
+        if not conn:
+            return {}
 
-    cursor = conn.cursor()
-    out = {}
-    try:
-        # Oracle has bind limits; chunk defensively
-        CHUNK = 900
-        for i in range(0, len(set_ids), CHUNK):
-            chunk = set_ids[i:i+CHUNK]
-            binds = ",".join([f":id{i+j}" for j in range(len(chunk))])
-            sql = f"""
-                SELECT SET_ID, EFF_TIME
-                FROM druglabel.DGV_SUM_SPL
-                WHERE SET_ID IN ({binds})
-            """
-            params = {f"id{i+j}": sid for j, sid in enumerate(chunk)}
-            cursor.execute(sql, params)
-            for sid, eff in cursor.fetchall():
-                if sid and eff is not None:
-                    out[str(sid)] = eff
-    except Exception as e:
-        print(f"Error in effective_time_map_for_set_ids: {e}")
-    finally:
-        try: cursor.close()
-        except: pass
-        try: conn.close()
-        except: pass
+        cursor = conn.cursor()
+        out = {}
+        try:
+            # Oracle has bind limits; chunk defensively
+            CHUNK = 900
+            for i in range(0, len(set_ids), CHUNK):
+                chunk = set_ids[i:i+CHUNK]
+                binds = ",".join([f":id{i+j}" for j in range(len(chunk))])
+                sql = f"""
+                    SELECT SET_ID, EFF_TIME
+                    FROM druglabel.DGV_SUM_SPL
+                    WHERE SET_ID IN ({binds})
+                """
+                params = {f"id{i+j}": sid for j, sid in enumerate(chunk)}
+                cursor.execute(sql, params)
+                for sid, eff in cursor.fetchall():
+                    if sid and eff is not None:
+                        out[str(sid)] = eff
+        except Exception as e:
+            print(f"Error in effective_time_map_for_set_ids: {e}")
+        finally:
+            try: cursor.close()
+            except: pass
+            try: conn.close()
+            except: pass
 
-    return out
+        return out

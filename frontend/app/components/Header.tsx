@@ -10,6 +10,7 @@ type DropdownKey = 'user' | 'nav' | 'more' | 'ai' | null;
 export type ActiveApp =
   | 'home'
   | 'fdalabel'
+  | 'device'
   | 'afl'
   | 'dashboard'
   | 'labelcomp'
@@ -23,6 +24,7 @@ function cx(...classes: Array<string | false | null | undefined>) {
 function inferActiveApp(pathname: string): ActiveApp {
   if (pathname === '/' || pathname === '') return 'home';
   if (pathname.startsWith('/search')) return 'afl';
+  if (pathname.startsWith('/device')) return 'device';
   if (pathname.startsWith('/dashboard')) return 'dashboard';
   if (pathname.startsWith('/labelcomp')) return 'labelcomp';
   if (pathname.startsWith('/drugtox')) return 'drugtox';
@@ -139,31 +141,75 @@ export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
 
       {/* Center: Main Navigation */}
       <nav className={cx('header-nav', mobileMenuOpen && 'open')}>
-        {/* FDALabel */}
-        {isInternal ? (
-          <div
-            className="hp-nav-dropdown"
-            onMouseEnter={() => setActiveDropdown('nav')}
-            onMouseLeave={() => setActiveDropdown(null)}
+        {/* Search Dropdown (Drug & Device) */}
+        <div
+          className="hp-nav-dropdown"
+          onMouseEnter={() => setActiveDropdown('nav')}
+          onMouseLeave={() => setActiveDropdown(null)}
+        >
+          <button
+            className={cx('hp-nav-item', (resolvedActiveApp === 'fdalabel' || resolvedActiveApp === 'device') && 'is-active')}
+            aria-current={(resolvedActiveApp === 'fdalabel' || resolvedActiveApp === 'device') ? 'page' : undefined}
+            onClick={(e) => e.preventDefault()}
           >
-            <button
-              className={cx('hp-nav-item', resolvedActiveApp === 'fdalabel' && 'is-active')}
-              aria-current={resolvedActiveApp === 'fdalabel' ? 'page' : undefined}
-              onClick={(e) => e.preventDefault()}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 21h18"></path>
-                <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path>
-                <path d="M5 21V10.85"></path>
-                <path d="M19 21V10.85"></path>
-                <path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path>
-              </svg>
-              FDALabel <span className="dropdown-caret">▼</span>
-            </button>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            Search <span className="dropdown-caret">▼</span>
+          </button>
 
-            <div className={cx('hp-dropdown-content', activeDropdown === 'nav' && 'visible')}>
+          <div className={cx('hp-dropdown-content', activeDropdown === 'nav' && 'visible')} style={{ minWidth: '240px' }}>
+            {/* Drug Search Section */}
+            <div className="dropdown-section-label" style={{ padding: '8px 12px 4px', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+              Drug (FDALabel)
+            </div>
+            
+            {isInternal ? (
+              <>
+                <a
+                  href="https://fdalabel.fda.gov/fdalabel/ui/search"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hp-dropdown-item"
+                  onClick={closeMobile}
+                >
+                  <span className="hp-dropdown-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 21h18"></path>
+                      <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path>
+                      <path d="M5 21V10.85"></path>
+                      <path d="M19 21V10.85"></path>
+                      <path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path>
+                    </svg>
+                  </span>
+                  <div>
+                    <div className="dropdown-title">FDA Official</div>
+                    <div className="dropdown-subtitle">FDA-wide Interface</div>
+                  </div>
+                </a>
+
+                <a
+                  href="https://fdalabel.fda.gov/fdalabel-r/ui/search"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hp-dropdown-item"
+                  onClick={closeMobile}
+                >
+                  <span className="hp-dropdown-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                  </span>
+                  <div>
+                    <div className="dropdown-title">CDER-CBER</div>
+                    <div className="dropdown-subtitle">Specific for PLR Labeling</div>
+                  </div>
+                </a>
+              </>
+            ) : (
               <a
-                href="https://fdalabel.fda.gov/fdalabel/ui/search"
+                href="https://nctr-crs.fda.gov/fdalabel/ui/search"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hp-dropdown-item"
@@ -179,49 +225,36 @@ export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
                   </svg>
                 </span>
                 <div>
-                  <div className="dropdown-title">FDA Official</div>
-                  <div className="dropdown-subtitle">FDA-wide Interface</div>
+                  <div className="dropdown-title">Public FDALabel</div>
+                  <div className="dropdown-subtitle">NCTR-CRS Public Access</div>
                 </div>
               </a>
+            )}
 
-              <a
-                href="https://fdalabel.fda.gov/fdalabel-r/ui/search"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hp-dropdown-item"
-                onClick={closeMobile}
-              >
-                <span className="hp-dropdown-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                  </svg>
-                </span>
-                <div>
-                  <div className="dropdown-title">CDER-CBER</div>
-                  <div className="dropdown-subtitle">Specific for PLR Labeling</div>
-                </div>
-              </a>
+            <div className="dropdown-divider" style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }} />
+            
+            {/* Device Search Section */}
+            <div className="dropdown-section-label" style={{ padding: '8px 12px 4px', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+              Device (MAUDE/GUDID)
             </div>
+
+            <Link
+              href="/device"
+              className={cx('hp-dropdown-item', resolvedActiveApp === 'device' && 'is-active')}
+              onClick={closeMobile}
+            >
+              <span className="hp-dropdown-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.77 3.77Z"></path>
+                </svg>
+              </span>
+              <div>
+                <div className="dropdown-title">Device Search</div>
+                <div className="dropdown-subtitle">Safety & Labeling Data</div>
+              </div>
+            </Link>
           </div>
-        ) : (
-          <a
-            href="https://nctr-crs.fda.gov/fdalabel/ui/search"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cx('hp-nav-item', resolvedActiveApp === 'fdalabel' && 'is-active')}
-            aria-current={resolvedActiveApp === 'fdalabel' ? 'page' : undefined}
-            onClick={closeMobile}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 21h18"></path>
-              <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path>
-              <path d="M5 21V10.85"></path>
-              <path d="M19 21V10.85"></path>
-              <path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path>
-            </svg>
-            FDALabel
-          </a>
-        )}
+        </div>
 
         {/* AFL */}
         <Link

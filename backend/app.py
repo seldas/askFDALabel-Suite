@@ -12,10 +12,11 @@ load_dotenv(dotenv_path=env_path)
 
 # Import Dashboard app factory
 from dashboard import create_app as create_dashboard_app
-# Import Blueprints for Search and DrugTox
+# Import Blueprints for Search, DrugTox, and Device
 from search.blueprint import search_bp
 from drugtox.blueprint import drugtox_bp
 from labelcomp.blueprint import labelcomp_bp
+from device.blueprint import device_bp
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -31,10 +32,11 @@ def create_unified_app():
     # 2. Configure CORS for the whole app
     CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-    # 3. Register Search and DrugTox blueprints with prefixes
+    # 3. Register Blueprints with prefixes
     app.register_blueprint(search_bp, url_prefix='/api/search')
     app.register_blueprint(drugtox_bp, url_prefix='/api/drugtox')
     app.register_blueprint(labelcomp_bp, url_prefix='/api/labelcomp')
+    app.register_blueprint(device_bp, url_prefix='/api/device')
     
     @app.route('/api/check-fdalabel', methods=['POST'])
     def check_fdalabel():
