@@ -12,6 +12,7 @@ interface MaudeReportProps {
 
 export default function MaudeReport({ productCode, kNumber, onClose }: MaudeReportProps) {
   const [data, setData] = useState<any>(null);
+  const [recallData, setRecallData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,9 +20,18 @@ export default function MaudeReport({ productCode, kNumber, onClose }: MaudeRepo
       setLoading(true);
       try {
         const url = `/api/device/safety/${productCode}${kNumber ? `?id=${kNumber}` : ''}`;
-        const resp = await fetch(url);
+        const recallUrl = `/api/device/recalls/${productCode}${kNumber ? `?id=${kNumber}` : ''}`;
+        
+        const [resp, recallResp] = await Promise.all([
+          fetch(url),
+          fetch(recallUrl)
+        ]);
+        
         const result = await resp.json();
+        const recallResult = await recallResp.json();
+        
         setData(result);
+        setRecallData(recallResult);
       } catch (err) {
         console.error("Failed to fetch safety data", err);
       } finally {
@@ -56,7 +66,7 @@ export default function MaudeReport({ productCode, kNumber, onClose }: MaudeRepo
 
   if (loading) return (
     <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: 'white', borderRadius: '20px', fontWeight: 800, color: '#6366f1', fontSize: '0.9rem' }}>
-      Synchronizing MAUDE Intelligence...
+      Synchronizing MAUDE & Recall Intelligence...
     </div>
   );
 
@@ -103,7 +113,7 @@ export default function MaudeReport({ productCode, kNumber, onClose }: MaudeRepo
             </h2>
         </div>
         <p style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600, margin: 0 }}>
-          MAUDE Adverse Event Intelligence Profile for {kNumber} (Last 3 Years)
+          Safety Intelligence Profile for {kNumber} (MAUDE & Recalls)
         </p>
       </div>
 
@@ -152,6 +162,49 @@ export default function MaudeReport({ productCode, kNumber, onClose }: MaudeRepo
           </div>
         </div>
       </div>
+
+      {/* Recall Intelligence Section */}
+      {recallData && (
+        <div style={{ ...sectionStyle, marginBottom: '1.5rem', backgroundColor: '#fff1f2', borderColor: '#ffe4e6' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '0.6rem', fontWeight: 900, color: '#be123c', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Recall & Enforcement Actions</h3>
+            {kNumber && (
+               <span style={{ fontSize: '0.65rem', fontWeight: 900, backgroundColor: '#f43f5e', color: 'white', padding: '4px 10px', borderRadius: '6px' }}>
+                 This Manufacturer: {recallData.manufacturer_specific_recalls || 0} Recalls
+               </span>
+            )}
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+             <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '10px', textAlign: 'center', border: '1px solid #fecdd3' }}>
+                <p style={{ fontSize: '0.6rem', fontWeight: 900, color: '#fb7185', textTransform: 'uppercase' }}>Class I</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 900, color: '#e11d48' }}>{recallData.class_i}</p>
+             </div>
+             <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '10px', textAlign: 'center', border: '1px solid #fecdd3' }}>
+                <p style={{ fontSize: '0.6rem', fontWeight: 900, color: '#fb7185', textTransform: 'uppercase' }}>Class II</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 900, color: '#e11d48' }}>{recallData.class_ii}</p>
+             </div>
+             <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '10px', textAlign: 'center', border: '1px solid #fecdd3' }}>
+                <p style={{ fontSize: '0.6rem', fontWeight: 900, color: '#fb7185', textTransform: 'uppercase' }}>Class III</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 900, color: '#e11d48' }}>{recallData.class_iii}</p>
+             </div>
+          </div>
+          
+          {recallData.recent_recalls?.length > 0 && (
+             <div>
+                <p style={{ fontSize: '0.6rem', fontWeight: 900, color: '#9f1239', textTransform: 'uppercase', marginBottom: '8px' }}>Recent Class Events (Product Code: {productCode})</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                   {recallData.recent_recalls.slice(0, 3).map((r: any, idx: number) => (
+                      <div key={idx} style={{ backgroundColor: 'white', padding: '8px 12px', borderRadius: '8px', fontSize: '0.75rem', color: '#4c0519', border: '1px solid #fecdd3', display: 'flex', justifyContent: 'space-between' }}>
+                         <span style={{ fontWeight: 700, maxWidth: '70%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.recalling_firm}</span>
+                         <span style={{ fontWeight: 900, color: '#e11d48' }}>{r.recall_initiation_date}</span>
+                      </div>
+                   ))}
+                </div>
+             </div>
+          )}
+        </div>
+      )}
 
       <div style={{ textAlign: 'center', padding: '10px', backgroundColor: '#fffbeb', borderRadius: '10px', color: '#92400e', fontSize: '0.65rem', fontWeight: 700, border: '1px solid #fef3c7' }}>
         NOTICE: MAUDE data represents clinical report counts and does not establish a definitive causal relationship.

@@ -39,10 +39,10 @@ The **Device Labeling Support** module (AFL-Device) is a dedicated application w
 - [x] Create `MaudeReport` visualization component (Recharts) for distribution and trend analysis.
 - [x] Integrate "Device Search" into the global "Search" navigation menu.
 
-### Phase 3: Comparison & Recalls (IN PROGRESS)
-- [ ] Implement `recall_analyzer.py` to check for active recalls/enforcement actions via `device/recall.json`.
-- [ ] Build IFU/Summary comparison engine (handling text-based summaries).
-- [ ] Add "Export Device Summary" function (PDF/Excel).
+### Phase 3: Comparison & Recalls (COMPLETED)
+- [x] Implement `recall_analyzer.py` to check for active recalls/enforcement actions via `device/recall.json`.
+- [x] Build IFU/Summary comparison engine (handling text-based summaries).
+- [x] Add "Export Device Summary" function (PDF/Excel/HTML).
 
 ### Phase 4: Integration & UX
 - [ ] Ensure cross-linking between drugs and devices (e.g., drug-device combination products).

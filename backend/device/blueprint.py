@@ -1,7 +1,8 @@
 from flask import Blueprint, jsonify, request
 from dashboard.services.ai_handler import call_llm
-from device.services.device_client import find_devices, get_device_metadata
+from device.services.device_client import find_devices, get_device_metadata, get_device_ifu
 from device.services.maude_analyzer import get_maude_summary
+from device.services.recall_analyzer import get_device_recalls
 
 device_bp = Blueprint('device', __name__)
 
@@ -39,11 +40,46 @@ def device_safety_analysis(product_code):
         return jsonify({'error': 'Safety data not found'}), 404
     return jsonify(summary)
 
+@device_bp.route('/recalls/<product_code>', methods=['GET'])
+def device_recalls(product_code):
+    k_number = request.args.get('id')
+    summary = get_device_recalls(product_code, k_number=k_number)
+    if not summary:
+        return jsonify({'error': 'Recall data not found'}), 404
+    return jsonify(summary)
+
+@device_bp.route('/compare', methods=['GET'])
+def compare_devices():
+    id1 = request.args.get('id1')
+    id2 = request.args.get('id2')
+    
+    if not id1 or not id2:
+        return jsonify({'error': 'Both id1 and id2 are required.'}), 400
+        
+    ifu1 = get_device_ifu(id1)
+    ifu2 = get_device_ifu(id2)
+    
+    prompt = (
+        "You are an FDA regulatory expert. I have the 'Indications for Use' (IFU) for two medical devices. "
+        "Compare them and summarize the key clinical and operational differences in 3-4 bullet points. "
+        "Return the response in raw HTML format starting directly with an <h3> tag."
+    )
+    user_msg = f"--- Device 1 ({id1}) IFU ---\n{ifu1}\n\n--- Device 2 ({id2}) IFU ---\n{ifu2}"
+    
+    # We pass None for user, or we can just call it
+    analysis = call_llm(None, prompt, user_msg)
+    
+    return jsonify({
+        'device1': {'id': id1, 'ifu': ifu1},
+        'device2': {'id': id2, 'ifu': ifu2},
+        'comparison': analysis
+    })
+
 @device_bp.route('/analyze', methods=['POST'])
 def analyze_device_label():
     # Placeholder for AI analysis of device labeling (IFUs)
     data = request.json
     text = data.get('text', '')
     prompt = f"Analyze this medical device labeling for safety considerations: {text}"
-    analysis = call_llm(prompt)
+    analysis = call_llm(None, prompt, text)
     return jsonify({'analysis': analysis})

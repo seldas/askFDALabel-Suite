@@ -73,7 +73,6 @@ def get_device_metadata(k_number):
     """
     Fetch detailed device info including registration/listing metadata if available.
     """
-    # ... logic for fetching detailed metadata from registrationlisting.json ...
     return None
 
 def get_manufacturer_by_id(identifier):
@@ -101,6 +100,34 @@ def get_manufacturer_by_id(identifier):
     except Exception as e:
         logger.error(f"Error fetching manufacturer for {identifier}: {e}")
     return None
+
+def get_device_ifu(identifier):
+    """
+    Retrieves the Indications for Use or Statement of Indications for a given K-number or PMA-number.
+    """
+    if not identifier:
+        return None
+        
+    is_pma = identifier.upper().startswith('P')
+    endpoint = "pma.json" if is_pma else "510k.json"
+    id_field = "pma_number" if is_pma else "k_number"
+    
+    url = f"https://api.fda.gov/device/{endpoint}"
+    params = {'search': f'{id_field}:"{identifier}"', 'limit': 1}
+    if Config.OPENFDA_API_KEY:
+        params['api_key'] = Config.OPENFDA_API_KEY
+        
+    try:
+        resp = requests.get(url, params=params)
+        if resp.status_code == 200:
+            results = resp.json().get('results', [])
+            if results:
+                return results[0].get('indications_for_use') or results[0].get('statement_of_indications') or "No Indications for Use found."
+    except Exception as e:
+        logger.error(f"Error fetching IFU for {identifier}: {e}")
+    return "Error retrieving data."
+
+def get_maude_data(product_code, limit=20):
     """
     Fetch MAUDE reports (device/event.json) by FDA Product Code.
     """
@@ -109,14 +136,13 @@ def get_manufacturer_by_id(identifier):
     
     params = {
         'search': search_query,
-        'count': 'device.device_event_key', # Example count field
+        'count': 'device.device_event_key',
         'limit': limit
     }
     if Config.OPENFDA_API_KEY:
         params['api_key'] = Config.OPENFDA_API_KEY
 
     try:
-        # First, get top event types
         count_params = {
             'search': search_query,
             'count': 'event_type.exact',

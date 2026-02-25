@@ -54,6 +54,7 @@ interface ResultItem {
   section_code: string;
   section_content: string;
   RLD?: string;   // 'Yes' means RLD (may be missing)
+  is_combination?: boolean;
 }
 
 const SQLHighlighter = ({ sql }: { sql: string }) => {
@@ -1506,7 +1507,28 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                       <div className="meta-row"><span>FDALabel SET-ID:</span> {result.set_id}</div>
                     </div>
                   </div>
-                  <div style={{ marginTop: '15px', textAlign: 'right' }}>
+                  <div style={{ marginTop: '15px', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                    {result.is_combination && (
+                      <a
+                        href={`/device?q=${encodeURIComponent(result.PRODUCT_NAMES.split(' ')[0])}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: '0.85rem',
+                          color: '#dc2626',
+                          textDecoration: 'none',
+                          fontWeight: 600,
+                          padding: '4px 12px',
+                          borderRadius: '4px',
+                          border: '1px solid #dc2626',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        🩺 Device Safety
+                      </a>
+                    )}
                     <a
                       href={`/dashboard/label/${result.set_id}`}
                       target="_blank"
@@ -1648,13 +1670,25 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                           )}
                         </td>
                         <td>
-                          <a
-                            href={`/dashboard/label/${result.set_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            View Analysis
-                          </a>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <a
+                              href={`/dashboard/label/${result.set_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              View Analysis
+                            </a>
+                            {result.is_combination && (
+                              <a
+                                href={`/device?q=${encodeURIComponent(result.PRODUCT_NAMES.split(' ')[0])}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.75rem' }}
+                              >
+                                🩺 Device Safety
+                              </a>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

@@ -85,6 +85,8 @@ def find_labels(query_term, skip=0, limit=10):
                 
                 prod_types = openfda.get('product_type', [])
                 prod_type_str = prod_types[0] if prod_types else 'N/A'
+                is_combination = "COMBINATION PRODUCT" in prod_type_str.upper()
+                
                 if "PRESCRIPTION" in prod_type_str.upper():
                     prod_type_str = "Rx"
                 elif "OTC" in prod_type_str.upper():
@@ -103,7 +105,8 @@ def find_labels(query_term, skip=0, limit=10):
                     'label_format': label_format,
                     'application_number': app_num_str,
                     'market_category': prod_type_str,
-                    'ndc': ndc_str
+                    'ndc': ndc_str,
+                    'is_combination': is_combination
                 })
         return labels, total
     except requests.exceptions.RequestException as e:
@@ -311,6 +314,8 @@ def get_label_metadata(set_id, import_id=None):
             
             prod_types = openfda.get('product_type', [])
             prod_type_str = prod_types[0] if prod_types else 'N/A'
+            is_combination = "COMBINATION PRODUCT" in prod_type_str.upper()
+
             if "PRESCRIPTION" in prod_type_str.upper():
                 prod_type_str = "Rx"
             elif "OTC" in prod_type_str.upper():
@@ -329,7 +334,8 @@ def get_label_metadata(set_id, import_id=None):
                 'label_format': label_format,
                 'application_number': app_num_str,
                 'market_category': prod_type_str,
-                'ndc': ndc_str
+                'ndc': ndc_str,
+                'is_combination': is_combination
             }
     except requests.exceptions.RequestException as e:
         logger.error(f"Error fetching data from openFDA for set_id {set_id}: {e}")
