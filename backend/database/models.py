@@ -183,6 +183,8 @@ class ProjectAeReportDetail(db.Model):
     is_labeled = db.Column(db.Boolean, default=False)
     found_sections = db.Column(db.Text) # JSON string: [{"section": "Warnings", "snippet": "..."}]
     faers_count = db.Column(db.Integer, default=0)
+    faers_1yr_count = db.Column(db.Integer, default=0)
+    faers_5yr_count = db.Column(db.Integer, default=0)
     faers_serious_count = db.Column(db.Integer, default=0)
 
 # --- MedDRA Models ---

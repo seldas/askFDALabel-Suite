@@ -4,7 +4,7 @@ import json, re, os
 import uuid
 import requests
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import hashlib
 
@@ -959,11 +959,11 @@ def run_ae_report_generation(app, report_id, project_id, target_pt):
 
             # 1. Get all labels in project
             favorites = Favorite.query.filter_by(project_id=project_id).all()
-            total = len(favorites)
-            report.total_labels = total
+            total_favs = len(favorites)
+            report.total_labels = total_favs
             db.session.commit()
 
-            if total == 0:
+            if total_favs == 0:
                 report.status = 'completed'
                 report.progress = 100
                 report.completed_at = datetime.utcnow()
@@ -979,24 +979,15 @@ def run_ae_report_generation(app, report_id, project_id, target_pt):
                 '34084-4': 'Adverse Reactions'
             }
 
+            details_map = [] # List of dicts to store detail data before saving
+            unique_drugs = {} # name -> list of indices in details_map
+
+            # --- PHASE 1: Labeling Scan (0-50%) ---
             for i, fav in enumerate(favorites):
-                # Check if report was cancelled or restarted by checking status
-                # We need to refresh from DB to see external changes
                 db.session.refresh(report)
                 if report.status != 'processing':
-                    logger.info(f"Report {report_id} status changed to {report.status}. Terminating old generation thread.")
                     return
 
-                # Update status for each label
-                processed = i + 1
-                
-                detail = ProjectAeReportDetail(
-                    report_id=report_id,
-                    set_id=fav.set_id,
-                    brand_name=fav.brand_name,
-                    generic_name=fav.generic_name
-                )
-                
                 # A. Text Matching
                 xml_content = get_label_xml(fav.set_id)
                 found_sections = []
@@ -1015,68 +1006,126 @@ def run_ae_report_generation(app, report_id, project_id, target_pt):
                                     section_name = target_sections[code_val]
                                     text_content = "".join(section.itertext()).strip()
                                     
-                                    # Find all occurrences
                                     matches = re.finditer(re.escape(target_pt), text_content, re.IGNORECASE)
                                     for m in matches:
-                                        # Use a character window around the match to ensure we have enough words for the n-gram
                                         idx = m.start()
                                         start = max(0, idx - 400)
                                         end = min(len(text_content), idx + len(target_pt) + 400)
                                         window_text = text_content[start:end]
-                                        
-                                        # Extract 11-gram (5 words before, term, 5 words after)
                                         ngram = extract_ngram(window_text, target_pt, n_prev=5, n_after=5)
                                         
                                         if ngram:
-                                            # Check for duplicates within this label's results
                                             is_dup = any(s['snippet'] == ngram for s in found_sections)
                                             if not is_dup:
                                                 is_labeled = True
-                                                found_sections.append({
-                                                    'section': section_name,
-                                                    'snippet': ngram
-                                                })
+                                                found_sections.append({'section': section_name, 'snippet': ngram})
                     except Exception as e:
                         logger.error(f"Error parsing XML for report {report_id}, label {fav.set_id}: {e}")
 
-                detail.is_labeled = is_labeled
-                detail.found_sections = json.dumps(found_sections)
-
-                # B. FAERS Data
-                # Get specific count for this drug + this PT
                 drug_name = (fav.generic_name or fav.brand_name or "").split(',')[0].strip()
-                if drug_name and drug_name != 'N/A':
-                    try:
-                        base_url = "https://api.fda.gov/drug/event.json"
-                        search_q = f'(patient.drug.openfda.brand_name:"{drug_name}" OR patient.drug.openfda.generic_name:"{drug_name}") AND patient.reaction.reactionmeddrapt.exact:"{target_pt}"'
-                        
-                        # Count total
-                        params = {'search': search_q}
-                        if Config.OPENFDA_API_KEY: params['api_key'] = Config.OPENFDA_API_KEY
-                        
-                        resp = requests.get(base_url, params=params)
-                        if resp.status_code == 200:
-                            detail.faers_count = resp.json().get('meta', {}).get('results', {}).get('total', 0)
-                        
-                        # Count serious
-                        params_serious = {'search': f"{search_q} AND serious:1"}
-                        if Config.OPENFDA_API_KEY: params_serious['api_key'] = Config.OPENFDA_API_KEY
-                        resp_s = requests.get(base_url, params=params_serious)
-                        if resp_s.status_code == 200:
-                            detail.faers_serious_count = resp_s.json().get('meta', {}).get('results', {}).get('total', 0)
-                            
-                    except Exception as e:
-                        logger.error(f"FAERS error for report {report_id}, drug {drug_name}: {e}")
+                if not drug_name or drug_name == 'N/A':
+                    drug_name = "Unknown"
 
-                db.session.add(detail)
+                detail_data = {
+                    'set_id': fav.set_id,
+                    'brand_name': fav.brand_name,
+                    'generic_name': fav.generic_name,
+                    'is_labeled': is_labeled,
+                    'found_sections': json.dumps(found_sections),
+                    'drug_name_for_api': drug_name
+                }
+                details_map.append(detail_data)
                 
-                # Update progress
-                report.processed_labels = processed
-                report.progress = int((processed / total) * 100)
+                if drug_name != "Unknown":
+                    if drug_name not in unique_drugs:
+                        unique_drugs[drug_name] = []
+                    unique_drugs[drug_name].append(len(details_map) - 1)
+
+                # Update progress (0-50%)
+                report.progress = int(((i + 1) / total_favs) * 50)
                 db.session.commit()
+
+            # --- PHASE 2: openFDA Scan (51-100%) ---
+            unique_drug_names = [d for d in unique_drugs.keys() if d != "Unknown"]
+            total_unique = len(unique_drug_names)
+            
+            # Prepare date ranges
+            now = datetime.now()
+            date_today = now.strftime('%Y%m%d')
+            date_1yr_ago = (now - timedelta(days=365)).strftime('%Y%m%d')
+            date_5yr_ago = (now - timedelta(days=365*5)).strftime('%Y%m%d')
+
+            for i, drug_name in enumerate(unique_drug_names):
+                db.session.refresh(report)
+                if report.status != 'processing':
+                    return
+
+                counts = {'all': 0, '1yr': 0, '5yr': 0}
+                try:
+                    base_url = "https://api.fda.gov/drug/event.json"
+                    search_base = f'(patient.drug.openfda.brand_name:"{drug_name}" OR patient.drug.openfda.generic_name:"{drug_name}") AND patient.reaction.reactionmeddrapt.exact:"{target_pt}"'
+                    
+                    # 1. All counts
+                    params = {'search': search_base}
+                    if Config.OPENFDA_API_KEY: params['api_key'] = Config.OPENFDA_API_KEY
+                    resp = requests.get(base_url, params=params)
+                    if resp.status_code == 200:
+                        counts['all'] = resp.json().get('meta', {}).get('results', {}).get('total', 0)
+                    
+                    if counts['all'] > 0:
+                        # 2. Last 1 year
+                        params_1y = {'search': f"{search_base} AND receivedate:[{date_1yr_ago} TO {date_today}]"}
+                        if Config.OPENFDA_API_KEY: params_1y['api_key'] = Config.OPENFDA_API_KEY
+                        resp_1y = requests.get(base_url, params=params_1y)
+                        if resp_1y.status_code == 200:
+                            counts['1yr'] = resp_1y.json().get('meta', {}).get('results', {}).get('total', 0)
+                            
+                        # 3. Last 5 years
+                        params_5y = {'search': f"{search_base} AND receivedate:[{date_5yr_ago} TO {date_today}]"}
+                        if Config.OPENFDA_API_KEY: params_5y['api_key'] = Config.OPENFDA_API_KEY
+                        resp_5y = requests.get(base_url, params=params_5y)
+                        if resp_5y.status_code == 200:
+                            counts['5yr'] = resp_5y.json().get('meta', {}).get('results', {}).get('total', 0)
+
+                except Exception as e:
+                    logger.error(f"FAERS error for report {report_id}, drug {drug_name}: {e}")
+
+                # Map back to all details sharing this drug name
+                for idx in unique_drugs[drug_name]:
+                    details_map[idx]['faers_count'] = counts['all']
+                    details_map[idx]['faers_1yr_count'] = counts['1yr']
+                    details_map[idx]['faers_5yr_count'] = counts['5yr']
+
+                # Update progress (51-100%)
+                if total_unique > 0:
+                    report.progress = 50 + int(((i + 1) / total_unique) * 50)
+                else:
+                    report.progress = 100
+                db.session.commit()
+
+            # Final Save to DB
+            for d_data in details_map:
+                detail = ProjectAeReportDetail(
+                    report_id=report_id,
+                    set_id=d_data['set_id'],
+                    brand_name=d_data['brand_name'],
+                    generic_name=d_data['generic_name'],
+                    is_labeled=d_data['is_labeled'],
+                    found_sections=d_data['found_sections'],
+                    faers_count=d_data.get('faers_count', 0),
+                    faers_1yr_count=d_data.get('faers_1yr_count', 0),
+                    faers_5yr_count=d_data.get('faers_5yr_count', 0)
+                )
+                db.session.add(detail)
 
             report.status = 'completed'
             report.completed_at = datetime.utcnow()
+            report.progress = 100
+            db.session.commit()
+
+        except Exception as e:
+            logger.error(f"AE Report Generation Failed: {e}")
+            report.status = 'failed'
             db.session.commit()
 
         except Exception as e:
@@ -1288,8 +1337,9 @@ def get_ae_report_detail(report_id):
             'generic_name': d.generic_name,
             'is_labeled': d.is_labeled,
             'found_sections': json.loads(d.found_sections) if d.found_sections else [],
-            'faers_count': d.faers_count,
-            'faers_serious_count': d.faers_serious_count
+            'faers_count': d.faers_count or 0,
+            'faers_1yr_count': d.faers_1yr_count or 0,
+            'faers_5yr_count': d.faers_5yr_count or 0
         } for d in details]
     })
 
@@ -1345,7 +1395,8 @@ def export_ae_report_json(report_id):
             'mentions': found_secs,
             'faers_metrics': {
                 'total_count': d.faers_count,
-                'serious_count': d.faers_serious_count
+                'last_1yr_count': d.faers_1yr_count,
+                'last_5yr_count': d.faers_5yr_count
             }
         })
 
@@ -1365,6 +1416,17 @@ def export_ae_report_json(report_id):
     # Sort clusters by document frequency
     sorted_contexts = sorted(clusters.items(), key=lambda x: x[1], reverse=True)
 
+    # Calculate Unique Drug Stats for Summary
+    unique_drugs = {}
+    for d in details:
+        name = (d.generic_name or d.brand_name or "Unknown").split(',')[0].strip()
+        if name not in unique_drugs:
+            unique_drugs[name] = {
+                'all': d.faers_count or 0,
+                '1yr': d.faers_1yr_count or 0,
+                '5yr': d.faers_5yr_count or 0
+            }
+
     export_obj = {
         'metadata': {
             'report_id': report.id,
@@ -1376,8 +1438,9 @@ def export_ae_report_json(report_id):
         'ai_instructions': ai_prompt,
         'summary_statistics': {
             'labeled_presence_count': len([d for d in details if d.is_labeled]),
-            'total_faers_reports': sum(d.faers_count for d in details),
-            'total_serious_events': sum(d.faers_serious_count for d in details)
+            'total_faers_reports': sum(v['all'] for v in unique_drugs.values()),
+            'last_1yr_total': sum(v['1yr'] for v in unique_drugs.values()),
+            'last_5yr_total': sum(v['5yr'] for v in unique_drugs.values())
         },
         'frequent_contexts': [
             {'snippet': s, 'document_frequency': c} 
@@ -1411,14 +1474,26 @@ def export_ae_report(report_id):
     ws1['A1'] = "AE Profile Report Summary"
     ws1['A1'].font = Font(size=14, bold=True)
     
+    # Calculate Unique Drug Stats for Summary
+    unique_drugs = {}
+    for d in details:
+        name = (d.generic_name or d.brand_name or "Unknown").split(',')[0].strip()
+        if name not in unique_drugs:
+            unique_drugs[name] = {
+                'all': d.faers_count or 0,
+                '1yr': d.faers_1yr_count or 0,
+                '5yr': d.faers_5yr_count or 0
+            }
+
     summary_data = [
         ["Target PT", report.target_pt],
         ["Project", report.project.title],
         ["Report Created", report.created_at.strftime('%Y-%m-%d %H:%M')],
         ["Total Labels", len(details)],
         ["Labeled Labels", len([d for d in details if d.is_labeled])],
-        ["Total FAERS Reports", sum(d.faers_count for d in details)],
-        ["Total Serious Events", sum(d.faers_serious_count for d in details)]
+        ["Total FAERS Reports (All)", sum(v['all'] for v in unique_drugs.values())],
+        ["FAERS Reports (Last 5 Years)", sum(v['5yr'] for v in unique_drugs.values())],
+        ["FAERS Reports (Last 1 Year)", sum(v['1yr'] for v in unique_drugs.values())]
     ]
     
     for r_idx, row in enumerate(summary_data, 3):
@@ -1430,7 +1505,7 @@ def export_ae_report(report_id):
 
     # Sheet 2: Data
     ws2 = wb.create_sheet("Labeling Analysis")
-    headers = ["Drug Name", "Generic Name", "Labeled?", "Sections Mentioned", "FAERS Count", "Serious Events", "Set ID"]
+    headers = ["Drug Name", "Generic Name", "Labeled?", "Sections Mentioned", "All Counts", "Last 5y", "Last 1y", "Set ID"]
     ws2.append(headers)
     
     # Style header
@@ -1448,7 +1523,8 @@ def export_ae_report(report_id):
             "Yes" if d.is_labeled else "No",
             sec_str,
             d.faers_count,
-            d.faers_serious_count,
+            d.faers_5yr_count,
+            d.faers_1yr_count,
             d.set_id
         ])
 

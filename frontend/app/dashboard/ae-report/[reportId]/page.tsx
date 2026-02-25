@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '../../../components/Header';
 import { useUser } from '../../../context/UserContext';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import Modal from '../../../components/Modal';
 
 interface ReportDetail {
   report: {
@@ -25,9 +27,12 @@ interface ReportDetail {
     is_labeled: boolean;
     found_sections: Array<{ section: string; snippet: string }>;
     faers_count: number;
-    faers_serious_count: number;
+    faers_1yr_count: number;
+    faers_5yr_count: number;
   }>;
 }
+
+const COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316'];
 
 export default function AEReportPage() {
   const { reportId } = useParams();
@@ -37,10 +42,12 @@ export default function AEReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedContexts, setExpandedContexts] = useState<Record<number, boolean>>({});
+  const [showChartModal, setShowChartModal] = useState(false);
+  const [chartType, setChartType] = useState<'total' | '1yr'>('total');
 
   // Sorting
-  const [sortField, setSortField] = useState<'brand_name' | 'faers_count' | 'faers_serious_count' | 'is_labeled'>('faers_count');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortField, setSortField] = useState<'brand_name' | 'faers_count' | 'faers_1yr_count' | 'faers_5yr_count' | 'is_labeled'>('faers_count');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   useEffect(() => {
     async function fetchDetail() {
@@ -78,14 +85,62 @@ export default function AEReportPage() {
     });
   }, [data, sortField, sortOrder]);
 
-  const stats = useMemo(() => {
-    if (!data) return null;
-    const total = data.results.length;
+  const { stats, chartData } = useMemo(() => {
+    if (!data) return { stats: null, chartData: [] };
+
+    // Group by unique drug name (Generic if available, otherwise Brand)
+    const drugMap: Record<string, { total: number; yr1: number; brand: string }> = {};
+    
+    data.results.forEach(res => {
+      const name = (res.generic_name || res.brand_name || 'Unknown').split(',')[0].trim();
+      if (!drugMap[name]) {
+        drugMap[name] = { total: res.faers_count || 0, yr1: res.faers_1yr_count || 0, brand: res.brand_name };
+      }
+    });
+
+    const uniqueDrugs = Object.entries(drugMap);
+    const totalFaers = uniqueDrugs.reduce((sum, [_, val]) => sum + val.total, 0);
+    const total1yr = uniqueDrugs.reduce((sum, [_, val]) => sum + val.yr1, 0);
+    
     const labeled = data.results.filter(r => r.is_labeled).length;
-    const totalFaers = data.results.reduce((sum, r) => sum + r.faers_count, 0);
-    const totalSerious = data.results.reduce((sum, r) => sum + r.faers_serious_count, 0);
-    return { total, labeled, totalFaers, totalSerious, percentLabeled: ((labeled / total) * 100).toFixed(1) };
-  }, [data]);
+    const total = data.results.length;
+
+    // Prepare chart data (Top 10 drugs + Others)
+    const sortedForChart = uniqueDrugs
+      .map(([name, val]) => ({ 
+        name, 
+        total: val.total, 
+        yr1: val.yr1,
+        brand: val.brand
+      }))
+      .sort((a, b) => b[chartType === 'total' ? 'total' : 'yr1'] - a[chartType === 'total' ? 'total' : 'yr1']);
+
+    const top10 = sortedForChart.slice(0, 10);
+    const others = sortedForChart.slice(10);
+    
+    const finalChartData = top10.map(d => ({ 
+      name: d.name, 
+      value: chartType === 'total' ? d.total : d.yr1 
+    }));
+
+    if (others.length > 0) {
+      const othersValue = others.reduce((sum, d) => sum + (chartType === 'total' ? d.total : d.yr1), 0);
+      if (othersValue > 0) {
+        finalChartData.push({ name: 'Others', value: othersValue });
+      }
+    }
+
+    return { 
+      stats: { 
+        total, 
+        labeled, 
+        totalFaers, 
+        total1yr, 
+        percentLabeled: ((labeled / total) * 100).toFixed(1) 
+      },
+      chartData: finalChartData.filter(d => d.value > 0)
+    };
+  }, [data, chartType]);
 
   if (loading) return <div style={{ padding: '100px', textAlign: 'center' }}><div className="loader" style={{ margin: '0 auto' }} /></div>;
   if (error || !data) return <div style={{ padding: '100px', textAlign: 'center', color: '#ef4444' }}>{error || 'Report not found.'}</div>;
@@ -200,10 +255,44 @@ export default function AEReportPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginTop: '2rem' }}>
             <StatCard label="Total Labels" value={stats?.total || 0} icon="📄" color="#6366f1" />
             <StatCard label="Labeled Presence" value={`${stats?.labeled} (${stats?.percentLabeled}%)`} icon="✅" color="#10b981" />
-            <StatCard label="Total FAERS Reports" value={stats?.totalFaers.toLocaleString() || 0} icon="📊" color="#f59e0b" />
-            <StatCard label="Serious Events" value={stats?.totalSerious.toLocaleString() || 0} icon="⚠️" color="#ef4444" />
+            <div onClick={() => { setChartType('total'); setShowChartModal(true); }} style={{ cursor: 'pointer' }}>
+              <StatCard label="Total FAERS Cases" value={stats?.totalFaers?.toLocaleString() || 0} icon="📊" color="#f59e0b" badge="Click for Chart" />
+            </div>
+            <div onClick={() => { setChartType('1yr'); setShowChartModal(true); }} style={{ cursor: 'pointer' }}>
+              <StatCard label="Last Year Cases" value={stats?.total1yr?.toLocaleString() || 0} icon="📅" color="#0ea5e9" badge="Click for Chart" />
+            </div>
           </div>
         </div>
+
+        {/* Chart Modal */}
+        <Modal 
+          isOpen={showChartModal} 
+          onClose={() => setShowChartModal(false)} 
+          title={`${chartType === 'total' ? 'Total' : 'Last Year'} AE Case Distribution`}
+        >
+          <div style={{ height: '400px', width: '100%', marginTop: '1rem' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  outerRadius={130}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </Modal>
 
         {/* Context Ranking Table */}
         {data.frequent_contexts && data.frequent_contexts.length > 0 && (
@@ -246,7 +335,7 @@ export default function AEReportPage() {
                   <div style={{ flex: 1, fontSize: '0.9rem', color: '#334155', lineHeight: '1.5', fontStyle: 'italic' }}>
                     "...<HighlightedText text={ctx.snippet} highlight={data.report.target_pt} />..."
                   </div>
-                  <div style={{ textAlign: 'right', minWidth: '120px' }}>
+                  <div style={{ textAlign: 'right', minWidth: '120px', position: 'relative' }}>
                     <div 
                       onClick={() => {
                         if (ctx.count < 5) {
@@ -259,7 +348,8 @@ export default function AEReportPage() {
                         color: '#6366f1',
                         cursor: ctx.count < 5 ? 'pointer' : 'default',
                         textDecoration: ctx.count < 5 ? 'underline' : 'none',
-                        textDecorationStyle: 'dotted'
+                        textDecorationStyle: 'dashed',
+                        display: 'inline-block'
                       }}
                       title={ctx.count < 5 ? "Click to see documents" : ""}
                     >
@@ -269,28 +359,54 @@ export default function AEReportPage() {
                     
                     {expandedContexts[idx] && ctx.set_ids && (
                       <div style={{ 
-                        marginTop: '8px', 
+                        position: 'absolute',
+                        top: '100%',
+                        right: 0,
+                        marginTop: '10px', 
+                        width: '180px',
                         display: 'flex', 
                         flexDirection: 'column', 
-                        gap: '4px',
-                        fontSize: '0.7rem',
+                        gap: '6px',
+                        fontSize: '0.75rem',
                         textAlign: 'left',
-                        maxHeight: '100px',
+                        maxHeight: '200px',
                         overflowY: 'auto',
-                        padding: '4px',
+                        padding: '12px',
                         background: 'white',
-                        borderRadius: '4px',
-                        border: '1px solid #e2e8f0'
+                        borderRadius: '12px',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                        zIndex: 100
                       }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>
+                          <span style={{ fontWeight: 800, color: '#475569', fontSize: '0.65rem', textTransform: 'uppercase' }}>Label IDs</span>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setExpandedContexts(prev => ({ ...prev, [idx]: false })); }}
+                            style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1rem', color: '#94a3b8', padding: 0 }}
+                          >
+                            ×
+                          </button>
+                        </div>
                         {ctx.set_ids.map(sid => (
                           <a 
                             key={sid} 
                             href={`/dashboard/label/${sid}`} 
                             target="_blank" 
                             rel="noreferrer"
-                            style={{ color: '#6366f1', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                            style={{ 
+                              color: '#6366f1', 
+                              textDecoration: 'none', 
+                              fontWeight: 600,
+                              padding: '4px 6px',
+                              borderRadius: '4px',
+                              background: '#f8fafc',
+                              overflow: 'hidden', 
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}
+                            className="sid-link"
                           >
-                            {sid.slice(0, 8)}...
+                            📄 {sid.slice(0, 12)}...
                           </a>
                         ))}
                       </div>
@@ -322,8 +438,9 @@ export default function AEReportPage() {
                   <Th label="Drug Product" field="brand_name" current={sortField} order={sortOrder} onClick={setSortField} setOrder={setSortOrder} />
                   <Th label="Labeled?" field="is_labeled" current={sortField} order={sortOrder} onClick={setSortField} setOrder={setSortOrder} />
                   <Th label="Sections Mentioned" field={null} />
-                  <Th label="FAERS Count" field="faers_count" current={sortField} order={sortOrder} onClick={setSortField} setOrder={setSortOrder} />
-                  <Th label="Serious Events" field="faers_serious_count" current={sortField} order={sortOrder} onClick={setSortField} setOrder={setSortOrder} />
+                  <Th label="All Cases" field="faers_count" current={sortField} order={sortOrder} onClick={setSortField} setOrder={setSortOrder} />
+                  <Th label="Last 5y" field="faers_5yr_count" current={sortField} order={sortOrder} onClick={setSortField} setOrder={setSortOrder} />
+                  <Th label="Last 1y" field="faers_1yr_count" current={sortField} order={sortOrder} onClick={setSortField} setOrder={setSortOrder} />
                 </tr>
               </thead>
               <tbody>
@@ -356,8 +473,9 @@ export default function AEReportPage() {
                         </div>
                       ) : '—'}
                     </td>
-                    <td style={{ padding: '1rem 1.5rem', fontWeight: 700, color: '#1e293b' }}>{res.faers_count.toLocaleString()}</td>
-                    <td style={{ padding: '1rem 1.5rem', fontWeight: 700, color: '#ef4444' }}>{res.faers_serious_count.toLocaleString()}</td>
+                    <td style={{ padding: '1rem 1.5rem', fontWeight: 700, color: '#1e293b' }}>{res.faers_count?.toLocaleString() || 0}</td>
+                    <td style={{ padding: '1rem 1.5rem', fontWeight: 700, color: '#64748b' }}>{res.faers_5yr_count?.toLocaleString() || 0}</td>
+                    <td style={{ padding: '1rem 1.5rem', fontWeight: 700, color: '#0ea5e9' }}>{res.faers_1yr_count?.toLocaleString() || 0}</td>
                   </tr>
                 ))}
               </tbody>
@@ -369,6 +487,10 @@ export default function AEReportPage() {
       <style jsx>{`
         .table-row:hover {
           background-color: #f1f5f9;
+        }
+        .sid-link:hover {
+          background-color: #eef2ff !important;
+          color: #4338ca !important;
         }
         .loader {
           border: 4px solid #f3f3f3;
@@ -387,14 +509,30 @@ export default function AEReportPage() {
   );
 }
 
-function StatCard({ label, value, icon, color }: { label: string, value: string | number, icon: string, color: string }) {
+function StatCard({ label, value, icon, color, badge }: { label: string, value: string | number, icon: string, color: string, badge?: string }) {
   return (
-    <div style={{ padding: '1.25rem', borderRadius: '16px', border: '1px solid #f1f5f9', backgroundColor: '#fafafa' }}>
+    <div style={{ padding: '1.25rem', borderRadius: '16px', border: '1px solid #f1f5f9', backgroundColor: '#fafafa', position: 'relative' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
         <span style={{ fontSize: '1.25rem' }}>{icon}</span>
         <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>{label}</span>
       </div>
       <div style={{ fontSize: '1.5rem', fontWeight: 900, color }}>{value}</div>
+      {badge && (
+        <div style={{ 
+          position: 'absolute', 
+          top: '10px', 
+          right: '10px', 
+          fontSize: '0.6rem', 
+          fontWeight: 900, 
+          padding: '2px 6px', 
+          background: '#f1f5f9', 
+          color: '#64748b', 
+          borderRadius: '4px',
+          textTransform: 'uppercase'
+        }}>
+          {badge}
+        </div>
+      )}
     </div>
   );
 }

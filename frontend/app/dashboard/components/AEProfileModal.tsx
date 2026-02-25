@@ -240,7 +240,9 @@ export default function AEProfileModal({ isOpen, onClose, projectId, projectName
               fontWeight: 700,
               color: '#4338ca'
             }}>
-              <span>Generating profile for: {searchTerm}</span>
+              <span>
+                {progress < 50 ? 'Phase 1: Scanning labels...' : 'Phase 2: Fetching FAERS data...'}
+              </span>
               <span>{progress}%</span>
             </div>
             <div style={{ 
@@ -253,12 +255,14 @@ export default function AEProfileModal({ isOpen, onClose, projectId, projectName
               <div style={{ 
                 width: `${progress}%`, 
                 height: '100%', 
-                backgroundColor: '#6366f1',
+                backgroundColor: progress < 50 ? '#6366f1' : '#0ea5e9',
                 transition: 'width 0.4s ease'
               }} />
             </div>
             <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.5rem', textAlign: 'center' }}>
-              Scanning labels and fetching FAERS data. This can take several minutes for large projects.
+              {progress < 50 
+                ? 'Processing drug labels for text matches in specific sections.' 
+                : 'Collecting unique drug counts from openFDA FAERS API.'}
             </p>
           </div>
         ) : (
