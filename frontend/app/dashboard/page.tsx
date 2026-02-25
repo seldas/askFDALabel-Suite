@@ -43,9 +43,11 @@ export default function DashboardPage() {
 
   const router = useRouter();
   const { session, loading, refreshSession, openAuthModal } = useUser();
-  const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | 'analyze' | null>(null);
   const [isInternal, setIsInternal] = useState(false);
   
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   // Project Management State
   const [showProjects, setShowProjects] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -172,9 +174,13 @@ export default function DashboardPage() {
   }, [showProjectStats, closeProjectStatsModal]);
 
   useEffect(() => {
-    const handleClickOutside = () => setActiveDropdown(null);
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -810,73 +816,42 @@ export default function DashboardPage() {
                       flexWrap: 'wrap'
                     }}
                   >
-                    {/* Left: Project Banner + Tabs */}
+                    {/* Left: Project Actions + Tabs */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                      {/* ✅ Project Banner (clickable) */}
+                      {/* ✅ Simple Project Overview Button */}
                       <button
                         type="button"
                         onClick={openProjectStatsModal}
-                        title="Open project summary"
+                        title="Overview"
                         style={{
                           border: '1px solid #e2e8f0',
-                          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                          borderRadius: '16px',
-                          padding: '10px 12px',
+                          background: '#ffffff',
+                          borderRadius: '10px',
+                          width: '42px',
+                          height: '42px',
+                          padding: 0,
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '10px',
-                          boxShadow: '0 6px 18px rgba(15, 23, 42, 0.06)',
-                          transition: 'transform 0.12s ease, box-shadow 0.12s ease',
+                          justifyContent: 'center',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                          transition: 'all 0.2s ease',
+                          color: '#475569'
                         }}
-                        onMouseDown={(e) => (e.currentTarget.style.transform = 'translateY(1px)')}
-                        onMouseUp={(e) => (e.currentTarget.style.transform = 'translateY(0px)')}
+                        onMouseOver={e => {
+                          e.currentTarget.style.backgroundColor = '#f1f5f9';
+                          e.currentTarget.style.color = '#1e293b';
+                        }}
+                        onMouseOut={e => {
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.color = '#475569';
+                        }}
                       >
-                        <div
-                          style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '12px',
-                            background: 'rgba(99,102,241,0.12)',
-                            border: '1px solid rgba(99,102,241,0.25)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '1.05rem',
-                          }}
-                          aria-hidden
-                        >
-                          📁
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontWeight: 900,
-                              fontSize: '1.05rem',
-                              color: '#0f172a',
-                              lineHeight: 1.1,
-                              maxWidth: '320px',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {activeProject.title}
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '3px', flexWrap: 'wrap' }}>
-                            <span
-                              style={{
-                                fontSize: '0.78rem',
-                                fontWeight: 800,
-                                color: '#64748b',
-                              }}
-                            >
-                              Workspace • {activeProject.role}
-                            </span>
-                          </div>
-                        </div>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="20" x2="18" y2="10"></line>
+                          <line x1="12" y1="20" x2="12" y2="4"></line>
+                          <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
                       </button>
 
                       {/* Tabs */}
@@ -942,13 +917,18 @@ export default function DashboardPage() {
                           value={projectSearch}
                           onChange={(e) => setProjectSearch(e.target.value)}
                           style={{
-                            padding: '9px 12px 9px 34px',
+                            padding: '10px 12px 10px 38px',
                             borderRadius: '10px',
                             border: '1px solid #e2e8f0',
                             fontSize: '0.9rem',
                             outline: 'none',
-                            width: '240px'
+                            width: '240px',
+                            transition: 'all 0.2s ease',
+                            background: '#ffffff',
+                            color: '#1e293b'
                           }}
+                          onFocus={e => e.currentTarget.style.borderColor = '#6366f1'}
+                          onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
                         />
                         <span
                           style={{
@@ -957,68 +937,137 @@ export default function DashboardPage() {
                             top: '50%',
                             transform: 'translateY(-50%)',
                             color: '#94a3b8',
-                            fontSize: '0.95rem'
+                            display: 'flex',
+                            alignItems: 'center'
                           }}
                         >
-                          🔍
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                         </span>
                       </div>
 
                       {/* Buttons */}
-                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                        <button
-                          onClick={() => setShowAEProfileModal(true)}
-                          style={{
-                            padding: '9px 12px',
-                            borderRadius: '10px',
-                            background: '#f5f3ff',
-                            color: '#5b21b6',
-                            border: '1px solid #ddd6fe',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem',
-                            fontWeight: 800,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px'
-                          }}
-                          title="Analyze Adverse Event Profile for this project"
-                        >
-                          <span style={{ fontSize: '1.1rem' }}>🔬</span>
-                          AE Profiles
-                        </button>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {/* Analyze Dropdown */}
+                        <div ref={dropdownRef} className="custom-dropdown" style={{ position: 'relative' }}>
+                          <button
+                            onClick={() => setActiveDropdown(activeDropdown === 'analyze' ? null : 'analyze')}
+                            style={{
+                              padding: '10px 14px',
+                              borderRadius: '10px',
+                              background: '#ffffff',
+                              color: '#4338ca',
+                              border: '1px solid #e0e7ff',
+                              cursor: 'pointer',
+                              fontSize: '0.85rem',
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              transition: 'all 0.2s ease',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                            }}
+                            onMouseOver={e => { e.currentTarget.style.background = '#f5f3ff'; e.currentTarget.style.borderColor = '#c7d2fe'; }}
+                            onMouseOut={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#e0e7ff'; }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 18h8"></path><path d="M3 22h18"></path><path d="M14 22a7 7 0 1 0 0-14h-1"></path><path d="M9 14h2"></path><path d="M9 12a2 2 0 1 1-4 0V7a2 2 0 1 1 4 0v5Z"></path><path d="M12 7V3a2 2 0 1 0-4 0v4"></path></svg>
+                            Analyze
+                            <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>▼</span>
+                          </button>
+
+                          {activeDropdown === 'analyze' && (
+                            <div 
+                              className="dropdown-menu" 
+                              style={{ 
+                                right: 0, 
+                                top: '100%', 
+                                marginTop: '8px', 
+                                width: '200px',
+                                zIndex: 2000,
+                                display: 'block',
+                                borderRadius: '12px',
+                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                                border: '1px solid #e2e8f0'
+                              }}
+                            >
+                              <div className="dropdown-header" style={{ padding: '10px 14px', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', borderBottom: '1px solid #f1f5f9' }}>
+                                Project Tools
+                              </div>
+                              <button
+                                className="dropdown-item"
+                                onClick={() => {
+                                  setShowAEProfileModal(true);
+                                  setActiveDropdown(null);
+                                }}
+                                style={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  gap: '10px',
+                                  width: '100%',
+                                  padding: '12px 14px',
+                                  background: 'none',
+                                  border: 'none',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  fontWeight: 600,
+                                  fontSize: '0.85rem',
+                                  color: '#334155'
+                                }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 18h8"></path><path d="M3 22h18"></path><path d="M14 22a7 7 0 1 0 0-14h-1"></path><path d="M9 14h2"></path><path d="M9 12a2 2 0 1 1-4 0V7a2 2 0 1 1 4 0v5Z"></path><path d="M12 7V3a2 2 0 1 0-4 0v4"></path></svg>
+                                AE Profiles
+                              </button>
+                            </div>
+                          )}
+                        </div>
 
                         <button
                           onClick={() => handleExportProject(activeProject.id, activeProject.title)}
                           style={{
-                            padding: '9px 12px',
+                            padding: '10px 14px',
                             borderRadius: '10px',
-                            background: '#ecfeff',
-                            color: '#155e75',
+                            background: '#ffffff',
+                            color: '#0891b2',
                             border: '1px solid #cffafe',
                             cursor: 'pointer',
-                            fontSize: '0.9rem',
-                            fontWeight: 800
+                            fontSize: '0.85rem',
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            transition: 'all 0.2s ease',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                           }}
+                          onMouseOver={e => { e.currentTarget.style.background = '#ecfeff'; e.currentTarget.style.borderColor = '#a5f3fc'; }}
+                          onMouseOut={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cffafe'; }}
                           title="Export this project to Excel"
                         >
-                          ⬇️ Export
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                          Export
                         </button>
 
                         {activeProject.is_mutable && (
                           <button
                             onClick={() => handleDeleteProject(activeProject.id)}
                             style={{
-                              padding: '9px 12px',
+                              padding: '10px 14px',
                               borderRadius: '10px',
-                              background: '#fff1f2',
+                              background: '#ffffff',
                               color: '#be123c',
                               border: '1px solid #fecdd3',
                               cursor: 'pointer',
-                              fontSize: '0.9rem',
-                              fontWeight: 800
+                              fontSize: '0.85rem',
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              transition: 'all 0.2s ease',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                             }}
+                            onMouseOver={e => { e.currentTarget.style.background = '#fff1f2'; e.currentTarget.style.borderColor = '#fecaca'; }}
+                            onMouseOut={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#fecdd3'; }}
                           >
-                            🗑️ Delete
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            Delete
                           </button>
                         )}
                       </div>
