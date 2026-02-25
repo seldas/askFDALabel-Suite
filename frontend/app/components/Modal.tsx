@@ -7,9 +7,10 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  compact?: boolean;
 }
 
-export default function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, compact = false }: ModalProps) {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -35,12 +36,13 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
       <div 
         className="modal-content animate-modal-enter"
         onClick={(e) => e.stopPropagation()}
+        style={compact ? { maxWidth: '500px' } : {}}
       >
-        <div className="modal-header">
+        <div className="modal-header" style={compact ? { padding: '1rem 1.25rem', borderBottom: 'none' } : {}}>
           <h3 style={{ 
             margin: 0, 
-            fontSize: '1.25rem', 
-            fontWeight: 800, 
+            fontSize: compact ? '1.1rem' : '1.25rem', 
+            fontWeight: compact ? 600 : 800, 
             color: '#0f172a',
             letterSpacing: '-0.025em'
           }}>{title}</h3>
@@ -50,8 +52,8 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
               background: '#f1f5f9',
               border: 'none',
               borderRadius: '50%',
-              width: '32px',
-              height: '32px',
+              width: compact ? '28px' : '32px',
+              height: compact ? '28px' : '32px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -60,10 +62,10 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
               transition: 'all 0.2s'
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            <svg width={compact ? "16" : "20"} height={compact ? "16" : "20"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
-        <div className="modal-body">
+        <div className="modal-body" style={compact ? { padding: '0 1.25rem 1.25rem 1.25rem' } : {}}>
           {children}
         </div>
       </div>

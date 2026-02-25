@@ -17,6 +17,16 @@ const port = process.env.BACKEND_PORT || config.backend.port || 8842;
 const isProd = process.env.NODE_ENV === 'production';
 
 const backendPath = path.resolve(__dirname, '../../backend/app.py');
+const rootPath = path.resolve(__dirname, '../../');
+const venvPath = path.join(rootPath, 'venv');
+const isWindows = process.platform === 'win32';
+
+let pythonExe = 'python';
+if (fs.existsSync(venvPath)) {
+  pythonExe = isWindows 
+    ? path.join(venvPath, 'Scripts', 'python.exe')
+    : path.join(venvPath, 'bin', 'python');
+}
 
 let cmd, args;
 
@@ -26,12 +36,12 @@ if (isProd) {
   // Use Waitress for production on Windows (or Gunicorn if user preferred Linux)
   console.log(`> Starting backend in PRODUCTION on http://${host}:${port} using waitress`);
   // Assuming the Flask app instance is named 'app' in 'app.py'
-  cmd = 'waitress-serve';
-  args = [`--host=${host}`, `--port=${port}`, moduleSpec];
+  cmd = pythonExe;
+  args = ['-m', 'waitress', `--host=${host}`, `--port=${port}`, moduleSpec];
 } else {
   console.log(`> Starting backend in DEVELOPMENT on http://${host}:${port}`);
-  cmd = "waitress-serve";
-  args = [`--host=${host}`, `--port=${port}`, moduleSpec];
+  cmd = pythonExe;
+  args = ['-m', 'waitress', `--host=${host}`, `--port=${port}`, moduleSpec];
 }
 
 const pythonProcess = spawn(cmd, args, {

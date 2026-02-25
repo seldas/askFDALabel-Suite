@@ -35,6 +35,11 @@ class Config:
     
     SQLALCHEMY_DATABASE_URI = uri or f"sqlite:///{DATA_DIR / 'afd.db'}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'connect_args': {
+            'timeout': 30
+        }
+    }
     
     UPLOAD_FOLDER = os.path.join(DATA_DIR, 'uploads')
     ANNOTATIONS_FILE = os.path.join(DATA_DIR, 'annotations.json')

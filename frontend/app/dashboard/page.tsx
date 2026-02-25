@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '../context/UserContext';
 import Header from "../components/Header";
 import ProjectSummary, { type ProjectStats } from './components/ProjectSummary';
+import AEProfileModal from './components/AEProfileModal';
 import Link from 'next/link';
 
 interface Project {
@@ -54,6 +55,7 @@ export default function DashboardPage() {
   const [projectTab, setProjectTab] = useState<'labels' | 'comparisons'>('labels');
   const [loadingContent, setLoadingContent] = useState(false);
   const [duplicatesRemoved, setDuplicatesRemoved] = useState(false);
+  const [showAEProfileModal, setShowAEProfileModal] = useState(false);
 
   // Filtering & Pagination State
   
@@ -965,6 +967,27 @@ export default function DashboardPage() {
                       {/* Buttons */}
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                         <button
+                          onClick={() => setShowAEProfileModal(true)}
+                          style={{
+                            padding: '9px 12px',
+                            borderRadius: '10px',
+                            background: '#f5f3ff',
+                            color: '#5b21b6',
+                            border: '1px solid #ddd6fe',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                          title="Analyze Adverse Event Profile for this project"
+                        >
+                          <span style={{ fontSize: '1.1rem' }}>🔬</span>
+                          AE Profiles
+                        </button>
+
+                        <button
                           onClick={() => handleExportProject(activeProject.id, activeProject.title)}
                           style={{
                             padding: '9px 12px',
@@ -1304,6 +1327,12 @@ export default function DashboardPage() {
                 error={projectStatsError}
                 stats={projectStats}
                 formatEffectiveTime={formatEffectiveTime}
+              />
+              <AEProfileModal
+                isOpen={showAEProfileModal}
+                onClose={() => setShowAEProfileModal(false)}
+                projectId={activeProject?.id || 0}
+                projectName={activeProject?.title || ''}
               />
             </div>
           )}

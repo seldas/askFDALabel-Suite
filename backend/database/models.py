@@ -158,6 +158,33 @@ class ToxAgent(db.Model):
     status = db.Column(db.String(20), default='completed')
     current = db.Column(db.String(3), default='Yes') # 'Yes' or 'No'
 
+class ProjectAeReport(db.Model):
+    __tablename__ = 'project_ae_report'
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    target_pt = db.Column(db.String(255), nullable=False)
+    status = db.Column(db.String(20), default='pending') # pending, processing, completed, failed
+    progress = db.Column(db.Integer, default=0) # 0 to 100
+    total_labels = db.Column(db.Integer, default=0)
+    processed_labels = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime)
+
+    project = db.relationship('Project', backref=db.backref('ae_reports', lazy=True))
+    details = db.relationship('ProjectAeReportDetail', backref='report', cascade="all, delete-orphan")
+
+class ProjectAeReportDetail(db.Model):
+    __tablename__ = 'project_ae_report_detail'
+    id = db.Column(db.Integer, primary_key=True)
+    report_id = db.Column(db.Integer, db.ForeignKey('project_ae_report.id'), nullable=False)
+    set_id = db.Column(db.String(100), nullable=False)
+    brand_name = db.Column(db.String(255))
+    generic_name = db.Column(db.String(255))
+    is_labeled = db.Column(db.Boolean, default=False)
+    found_sections = db.Column(db.Text) # JSON string: [{"section": "Warnings", "snippet": "..."}]
+    faers_count = db.Column(db.Integer, default=0)
+    faers_serious_count = db.Column(db.Integer, default=0)
+
 # --- MedDRA Models ---
 
 class MeddraSOC(db.Model):

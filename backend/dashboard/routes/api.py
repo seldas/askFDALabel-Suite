@@ -11,8 +11,10 @@ import hashlib
 from database import (
     db, User, Project, Favorite, FavoriteComparison, Annotation, 
     LabelAnnotation, DiliAssessment, DictAssessment, DiriAssessment, ToxAgent, ComparisonSummary,
-    MeddraPT, MeddraMDHIER, MeddraSOC, MeddraHLT, MeddraLLT
+    MeddraPT, MeddraMDHIER, MeddraSOC, MeddraHLT, MeddraLLT,
+    ProjectAeReport, ProjectAeReportDetail
 )
+import threading
 from dashboard.services.fda_client import get_label_metadata, get_label_xml, get_faers_data, find_labels, find_labels_by_set_ids
 from dashboard.services.ai_handler import chat_with_document, summarize_comparison, generate_assessment, get_search_helper_response
 from dashboard.services.xml_handler import extract_metadata_from_xml
@@ -896,6 +898,576 @@ def get_my_labelings():
     except Exception as e:
         logger.error(f"Error in get_my_labelings: {e}")
         return jsonify({'error': 'Failed to fetch my labelings'}), 500
+
+# --- MedDRA Search ---
+@api_bp.route('/meddra/search', methods=['GET'])
+def meddra_search():
+    query = request.args.get('q', '')
+    if len(query) < 2:
+        return jsonify([])
+    
+    try:
+        # Search for PTs starting with or containing the query
+        results = MeddraPT.query.filter(
+            MeddraPT.pt_name.ilike(f'%{query}%')
+        ).order_by(MeddraPT.pt_name).limit(10).all()
+        
+        return jsonify([pt.pt_name for pt in results])
+    except Exception as e:
+        logger.error(f"Error in meddra_search: {e}")
+        return jsonify({'error': 'Search failed'}), 500
+
+# --- AE Profile Reports ---
+
+def extract_ngram(text, target, n_prev=5, n_after=5):
+    """Extracts a word-based n-gram around the target term."""
+    # Find the target term ignoring case
+    match = re.search(re.escape(target), text, re.IGNORECASE)
+    if not match:
+        return None
+    
+    start_idx, end_idx = match.span()
+    
+    # Get text before and after
+    pre_text = text[:start_idx]
+    post_text = text[end_idx:]
+    
+    # Split into words (handling multiple spaces/newlines)
+    pre_words = pre_text.split()
+    post_words = post_text.split()
+    
+    # Take the last N from pre and first N from post
+    context_pre = " ".join(pre_words[-n_prev:]) if pre_words else ""
+    context_post = " ".join(post_words[:n_after]) if post_words else ""
+    
+    # Reconstruct the exact matched term to preserve its casing/punctuation if needed,
+    # or just use the target. Let's use the actual text from the document.
+    actual_match = text[start_idx:end_idx]
+    
+    ngram = f"{context_pre} {actual_match} {context_post}".strip()
+    return ngram
+
+def run_ae_report_generation(app, report_id, project_id, target_pt):
+    with app.app_context():
+        report = ProjectAeReport.query.get(report_id)
+        if not report:
+            return
+
+        try:
+            report.status = 'processing'
+            db.session.commit()
+
+            # 1. Get all labels in project
+            favorites = Favorite.query.filter_by(project_id=project_id).all()
+            total = len(favorites)
+            report.total_labels = total
+            db.session.commit()
+
+            if total == 0:
+                report.status = 'completed'
+                report.progress = 100
+                report.completed_at = datetime.utcnow()
+                db.session.commit()
+                return
+
+            # Target sections for scan
+            target_sections = {
+                '34066-1': 'Boxed Warning',
+                '34070-3': 'Contraindications',
+                '34071-1': 'Warnings and Precautions',
+                '43685-7': 'Warnings and Precautions',
+                '34084-4': 'Adverse Reactions'
+            }
+
+            for i, fav in enumerate(favorites):
+                # Check if report was cancelled or restarted by checking status
+                # We need to refresh from DB to see external changes
+                db.session.refresh(report)
+                if report.status != 'processing':
+                    logger.info(f"Report {report_id} status changed to {report.status}. Terminating old generation thread.")
+                    return
+
+                # Update status for each label
+                processed = i + 1
+                
+                detail = ProjectAeReportDetail(
+                    report_id=report_id,
+                    set_id=fav.set_id,
+                    brand_name=fav.brand_name,
+                    generic_name=fav.generic_name
+                )
+                
+                # A. Text Matching
+                xml_content = get_label_xml(fav.set_id)
+                found_sections = []
+                is_labeled = False
+                
+                if xml_content:
+                    try:
+                        ns = {'v3': 'urn:hl7-org:v3'}
+                        root = ET.fromstring(xml_content.encode('ascii', 'ignore').decode('ascii'))
+                        
+                        for section in root.findall(".//v3:section", ns):
+                            code_el = section.find("v3:code", ns)
+                            if code_el is not None:
+                                code_val = code_el.get('code')
+                                if code_val in target_sections:
+                                    section_name = target_sections[code_val]
+                                    text_content = "".join(section.itertext()).strip()
+                                    
+                                    # Find all occurrences
+                                    matches = re.finditer(re.escape(target_pt), text_content, re.IGNORECASE)
+                                    for m in matches:
+                                        # Use a character window around the match to ensure we have enough words for the n-gram
+                                        idx = m.start()
+                                        start = max(0, idx - 400)
+                                        end = min(len(text_content), idx + len(target_pt) + 400)
+                                        window_text = text_content[start:end]
+                                        
+                                        # Extract 11-gram (5 words before, term, 5 words after)
+                                        ngram = extract_ngram(window_text, target_pt, n_prev=5, n_after=5)
+                                        
+                                        if ngram:
+                                            # Check for duplicates within this label's results
+                                            is_dup = any(s['snippet'] == ngram for s in found_sections)
+                                            if not is_dup:
+                                                is_labeled = True
+                                                found_sections.append({
+                                                    'section': section_name,
+                                                    'snippet': ngram
+                                                })
+                    except Exception as e:
+                        logger.error(f"Error parsing XML for report {report_id}, label {fav.set_id}: {e}")
+
+                detail.is_labeled = is_labeled
+                detail.found_sections = json.dumps(found_sections)
+
+                # B. FAERS Data
+                # Get specific count for this drug + this PT
+                drug_name = (fav.generic_name or fav.brand_name or "").split(',')[0].strip()
+                if drug_name and drug_name != 'N/A':
+                    try:
+                        base_url = "https://api.fda.gov/drug/event.json"
+                        search_q = f'(patient.drug.openfda.brand_name:"{drug_name}" OR patient.drug.openfda.generic_name:"{drug_name}") AND patient.reaction.reactionmeddrapt.exact:"{target_pt}"'
+                        
+                        # Count total
+                        params = {'search': search_q}
+                        if Config.OPENFDA_API_KEY: params['api_key'] = Config.OPENFDA_API_KEY
+                        
+                        resp = requests.get(base_url, params=params)
+                        if resp.status_code == 200:
+                            detail.faers_count = resp.json().get('meta', {}).get('results', {}).get('total', 0)
+                        
+                        # Count serious
+                        params_serious = {'search': f"{search_q} AND serious:1"}
+                        if Config.OPENFDA_API_KEY: params_serious['api_key'] = Config.OPENFDA_API_KEY
+                        resp_s = requests.get(base_url, params=params_serious)
+                        if resp_s.status_code == 200:
+                            detail.faers_serious_count = resp_s.json().get('meta', {}).get('results', {}).get('total', 0)
+                            
+                    except Exception as e:
+                        logger.error(f"FAERS error for report {report_id}, drug {drug_name}: {e}")
+
+                db.session.add(detail)
+                
+                # Update progress
+                report.processed_labels = processed
+                report.progress = int((processed / total) * 100)
+                db.session.commit()
+
+            report.status = 'completed'
+            report.completed_at = datetime.utcnow()
+            db.session.commit()
+
+        except Exception as e:
+            logger.error(f"AE Report Generation Failed: {e}")
+            report.status = 'failed'
+            db.session.commit()
+
+@api_bp.route('/ae_report/generate', methods=['POST'])
+@login_required
+def generate_ae_report():
+    data = request.get_json()
+    project_id = data.get('project_id')
+    target_pt = data.get('target_pt')
+
+    if not project_id or not target_pt:
+        return jsonify({'error': 'Missing project_id or target_pt'}), 400
+
+    project = Project.query.get(project_id)
+    if not project or (project.owner_id != current_user.id and current_user not in project.members):
+        return jsonify({'error': 'Unauthorized or project not found'}), 403
+
+    # Create report entry
+    new_report = ProjectAeReport(
+        project_id=project_id,
+        target_pt=target_pt,
+        status='pending'
+    )
+    db.session.add(new_report)
+    db.session.commit()
+
+    # Start background task
+    from flask import current_app
+    app = current_app._get_current_object()
+    thread = threading.Thread(target=run_ae_report_generation, args=(app, new_report.id, project_id, target_pt))
+    thread.start()
+
+    return jsonify({'success': True, 'report_id': new_report.id})
+
+@api_bp.route('/ae_report/reanalyze/<int:report_id>', methods=['POST'])
+@login_required
+def reanalyze_ae_report(report_id):
+    try:
+        report = ProjectAeReport.query.get_or_404(report_id)
+        # Check permissions
+        if report.project.owner_id != current_user.id and current_user not in report.project.members:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        # Reset report status and progress
+        report.status = 'pending'
+        report.progress = 0
+        report.processed_labels = 0
+        report.completed_at = None
+        
+        # Delete previous details efficiently
+        ProjectAeReportDetail.query.filter_by(report_id=report.id).delete(synchronize_session=False)
+            
+        db.session.commit()
+        logger.info(f"Re-analyzing report {report_id} for project {report.project_id}")
+
+        # Restart background task
+        from flask import current_app
+        app = current_app._get_current_object()
+        thread = threading.Thread(target=run_ae_report_generation, args=(app, report.id, report.project_id, report.target_pt))
+        thread.start()
+
+        return jsonify({'success': True, 'report_id': report.id})
+    except Exception as e:
+        logger.error(f"Error in reanalyze_ae_report: {e}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/ae_report/status/<int:report_id>')
+@login_required
+def get_ae_report_status(report_id):
+    report = ProjectAeReport.query.get_or_404(report_id)
+    # Check permissions (through project)
+    if report.project.owner_id != current_user.id and current_user not in report.project.members:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    return jsonify({
+        'id': report.id,
+        'status': report.status,
+        'progress': report.progress,
+        'processed': report.processed_labels,
+        'total': report.total_labels,
+        'target_pt': report.target_pt
+    })
+
+@api_bp.route('/ae_report/list/<int:project_id>')
+@login_required
+def list_ae_reports(project_id):
+    project = Project.query.get_or_404(project_id)
+    if project.owner_id != current_user.id and current_user not in project.members:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    reports = ProjectAeReport.query.filter_by(project_id=project_id).order_by(ProjectAeReport.created_at.desc()).all()
+    return jsonify([{
+        'id': r.id,
+        'target_pt': r.target_pt,
+        'status': r.status,
+        'progress': r.progress,
+        'created_at': r.created_at.isoformat()
+    } for r in reports])
+
+@api_bp.route('/ae_report/delete/<int:report_id>', methods=['DELETE'])
+@login_required
+def delete_ae_report(report_id):
+    logger.info(f"Attempting to delete report {report_id}...")
+    try:
+        report = ProjectAeReport.query.get(report_id)
+        if not report:
+            logger.warning(f"Report {report_id} not found for deletion.")
+            return jsonify({'error': 'Report not found'}), 404
+
+        # Check permissions (must be project owner or member)
+        logger.info(f"Checking permissions for report {report_id}...")
+        if report.project.owner_id != current_user.id and current_user not in report.project.members:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        # Mark as deleted first so any background thread stops
+        logger.info(f"Setting status to deleted for report {report_id}...")
+        report.status = 'deleted'
+        db.session.commit()
+        
+        # Now delete the actual record (cascades to details)
+        logger.info(f"Performing actual deletion of report {report_id}...")
+        db.session.delete(report)
+        db.session.commit()
+        
+        logger.info(f"Successfully deleted AE report {report_id}")
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error deleting AE report {report_id}: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': f"Server error: {str(e)}"}), 500
+
+@api_bp.route('/ae_report/detail/<int:report_id>')
+@login_required
+def get_ae_report_detail(report_id):
+    report = ProjectAeReport.query.get_or_404(report_id)
+    if report.project.owner_id != current_user.id and current_user not in report.project.members:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    details = ProjectAeReportDetail.query.filter_by(report_id=report_id).all()
+    
+    # Calculate Frequent Contexts Ranking with Similarity Grouping
+    from difflib import SequenceMatcher
+    import string
+    
+    def normalize_for_comparison(text):
+        # Remove punctuation and normalize spaces for comparison purposes
+        text = text.lower()
+        text = text.translate(str.maketrans('', '', string.punctuation))
+        return " ".join(text.split())
+
+    def get_similarity(a, b):
+        return SequenceMatcher(None, normalize_for_comparison(a), normalize_for_comparison(b)).ratio()
+
+    # Clusters: { "representative_ngram": {"count": X, "set_ids": [id1, id2...]} }
+    clusters = {}
+    SIMILARITY_THRESHOLD = 0.80 # Slightly lower threshold for better grouping
+
+    for d in details:
+        if d.found_sections:
+            secs = json.loads(d.found_sections)
+            for s in secs:
+                norm = s['snippet'].strip('. ').strip()
+                if not norm: continue
+                
+                # Check if this matches any existing cluster representative
+                matched_rep = None
+                for rep in clusters:
+                    if get_similarity(norm, rep) >= SIMILARITY_THRESHOLD:
+                        matched_rep = rep
+                        break
+                
+                if matched_rep:
+                    clusters[matched_rep]["count"] += 1
+                    if d.set_id not in clusters[matched_rep]["set_ids"]:
+                        clusters[matched_rep]["set_ids"].append(d.set_id)
+                else:
+                    # New cluster
+                    clusters[norm] = {"count": 1, "set_ids": [d.set_id]}
+    
+    # Get top 20 contexts from clusters
+    frequent_contexts = []
+    # Sort the clusters by their aggregated counts
+    sorted_clusters = sorted(clusters.items(), key=lambda x: x[1]["count"], reverse=True)
+    
+    for snippet, data in sorted_clusters[:20]:
+        frequent_contexts.append({
+            'snippet': snippet,
+            'count': data["count"],
+            'set_ids': data["set_ids"]
+        })
+
+    return jsonify({
+        'report': {
+            'id': report.id,
+            'target_pt': report.target_pt,
+            'project_title': report.project.title,
+            'created_at': report.created_at.isoformat(),
+            'status': report.status
+        },
+        'frequent_contexts': frequent_contexts,
+        'results': [{
+            'set_id': d.set_id,
+            'brand_name': d.brand_name,
+            'generic_name': d.generic_name,
+            'is_labeled': d.is_labeled,
+            'found_sections': json.loads(d.found_sections) if d.found_sections else [],
+            'faers_count': d.faers_count,
+            'faers_serious_count': d.faers_serious_count
+        } for d in details]
+    })
+
+@api_bp.route('/ae_report/export_json/<int:report_id>')
+@login_required
+def export_ae_report_json(report_id):
+    report = ProjectAeReport.query.get_or_404(report_id)
+    if report.project.owner_id != current_user.id and current_user not in report.project.members:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    details = ProjectAeReportDetail.query.filter_by(report_id=report_id).all()
+    
+    # Aggregate contexts for the export with similarity clustering
+    from difflib import SequenceMatcher
+    import string
+    
+    def normalize_for_comparison(text):
+        # Remove punctuation and normalize spaces for comparison purposes
+        text = text.lower()
+        text = text.translate(str.maketrans('', '', string.punctuation))
+        return " ".join(text.split())
+
+    def get_similarity(a, b):
+        return SequenceMatcher(None, normalize_for_comparison(a), normalize_for_comparison(b)).ratio()
+        
+    clusters = {}
+    label_data = []
+    SIMILARITY_THRESHOLD = 0.80
+    
+    for d in details:
+        found_secs = json.loads(d.found_sections) if d.found_sections else []
+        for s in found_secs:
+            norm = s['snippet'].strip('. ').strip()
+            if not norm: continue
+            
+            # Grouping logic
+            matched_rep = None
+            for rep in clusters:
+                if get_similarity(norm, rep) >= SIMILARITY_THRESHOLD:
+                    matched_rep = rep
+                    break
+            
+            if matched_rep:
+                clusters[matched_rep] += 1
+            else:
+                clusters[norm] = 1
+                
+        label_data.append({
+            'brand_name': d.brand_name,
+            'generic_name': d.generic_name,
+            'set_id': d.set_id,
+            'is_labeled': d.is_labeled,
+            'mentions': found_secs,
+            'faers_metrics': {
+                'total_count': d.faers_count,
+                'serious_count': d.faers_serious_count
+            }
+        })
+
+    # Prepare AI prompt
+    ai_prompt = (
+        f"The following data represents a safety analysis for the MedDRA Preferred Term: '{report.target_pt}'. "
+        f"It was generated from project '{report.project.title}'. "
+        "The 'frequent_contexts' section ranks the most common phrasing found in FDA labeling for this term, "
+        "using a similarity clustering algorithm (threshold 0.80) to group near-identical phrasing together, "
+        "ignoring punctuation and whitespace during comparison. "
+        "The 'label_details' section provides document-level findings, including specific snippets and FAERS (FDA Adverse Event Reporting System) counts. "
+        "Analyze this data to identify patterns in how this adverse event is described across different drugs, "
+        "correlate labeling mentions with FAERS counts, and summarize the typical clinical context (e.g., severity, population, or co-medications) "
+        "associated with this event."
+    )
+
+    # Sort clusters by document frequency
+    sorted_contexts = sorted(clusters.items(), key=lambda x: x[1], reverse=True)
+
+    export_obj = {
+        'metadata': {
+            'report_id': report.id,
+            'target_pt': report.target_pt,
+            'project_title': report.project.title,
+            'generated_at': datetime.utcnow().isoformat(),
+            'total_labels_analyzed': len(details)
+        },
+        'ai_instructions': ai_prompt,
+        'summary_statistics': {
+            'labeled_presence_count': len([d for d in details if d.is_labeled]),
+            'total_faers_reports': sum(d.faers_count for d in details),
+            'total_serious_events': sum(d.faers_serious_count for d in details)
+        },
+        'frequent_contexts': [
+            {'snippet': s, 'document_frequency': c} 
+            for s, c in sorted_contexts[:50]
+        ],
+        'label_details': label_data
+    }
+
+    return jsonify(export_obj)
+
+@api_bp.route('/ae_report/export/<int:report_id>')
+@login_required
+def export_ae_report(report_id):
+    report = ProjectAeReport.query.get_or_404(report_id)
+    if report.project.owner_id != current_user.id and current_user not in report.project.members:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill
+    from io import BytesIO
+    from flask import send_file
+
+    details = ProjectAeReportDetail.query.filter_by(report_id=report_id).all()
+    
+    wb = Workbook()
+    
+    # Sheet 1: Summary
+    ws1 = wb.active
+    ws1.title = "Summary"
+    
+    ws1['A1'] = "AE Profile Report Summary"
+    ws1['A1'].font = Font(size=14, bold=True)
+    
+    summary_data = [
+        ["Target PT", report.target_pt],
+        ["Project", report.project.title],
+        ["Report Created", report.created_at.strftime('%Y-%m-%d %H:%M')],
+        ["Total Labels", len(details)],
+        ["Labeled Labels", len([d for d in details if d.is_labeled])],
+        ["Total FAERS Reports", sum(d.faers_count for d in details)],
+        ["Total Serious Events", sum(d.faers_serious_count for d in details)]
+    ]
+    
+    for r_idx, row in enumerate(summary_data, 3):
+        ws1.cell(row=r_idx, column=1, value=row[0]).font = Font(bold=True)
+        ws1.cell(row=r_idx, column=2, value=row[1])
+
+    ws1.column_dimensions['A'].width = 25
+    ws1.column_dimensions['B'].width = 35
+
+    # Sheet 2: Data
+    ws2 = wb.create_sheet("Labeling Analysis")
+    headers = ["Drug Name", "Generic Name", "Labeled?", "Sections Mentioned", "FAERS Count", "Serious Events", "Set ID"]
+    ws2.append(headers)
+    
+    # Style header
+    for cell in ws2[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center")
+
+    for d in details:
+        found_secs = json.loads(d.found_sections) if d.found_sections else []
+        sec_str = ", ".join([s['section'] for s in found_secs])
+        ws2.append([
+            d.brand_name,
+            d.generic_name,
+            "Yes" if d.is_labeled else "No",
+            sec_str,
+            d.faers_count,
+            d.faers_serious_count,
+            d.set_id
+        ])
+
+    for col in ws2.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except: pass
+        ws2.column_dimensions[column].width = min(40, max_length + 2)
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"AE_Report_{report.target_pt.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=filename)
 
 # --- FAERS & Assessment ---
 @api_bp.route('/faers/<path:drug_name>')

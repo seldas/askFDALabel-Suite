@@ -3,5 +3,6 @@ from .models import (
     User, Project, Favorite, Annotation, FavoriteComparison, LabelAnnotation, ComparisonSummary,
     DrugToxicity, DiliAssessment, DictAssessment, DiriAssessment, ToxAgent,
     MeddraSOC, MeddraHLGT, MeddraHLT, MeddraPT, MeddraLLT, MeddraMDHIER, MeddraSMQList, MeddraSMQContent,
-    PgxBiomarker, PgxSynonym, PgxAssessment
+    PgxBiomarker, PgxSynonym, PgxAssessment,
+    ProjectAeReport, ProjectAeReportDetail
 )
