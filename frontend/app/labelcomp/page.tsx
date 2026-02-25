@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useUser } from '../context/UserContext';
 import Header from "../components/Header";
 import Link from 'next/link';
+import Modal from '../components/Modal';
 
 interface LabelMetadata {
   set_id: string;
@@ -79,6 +80,12 @@ function LabelCompContent() {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  
+  // Favorite State
+  const [showFavoriteModal, setShowFavoriteModal] = useState(false);
+  const [targetProjectId, setTargetProjectId] = useState<number | null>(null);
+  const [comparisonTitle, setComparisonTitle] = useState('');
+  const [savingFavorite, setSavingFavorite] = useState(false);
   
   // Projects State
   const [projects, setProjects] = useState<Project[]>([]);
@@ -289,19 +296,25 @@ function LabelCompContent() {
 
   // Load projects when modal opens
   useEffect(() => {
-    if (showAddModal && session?.is_authenticated) {
+    if ((showAddModal || showFavoriteModal) && session?.is_authenticated) {
       fetchProjects();
     } else if (showAddModal && !session?.is_authenticated) {
         setAddTab('setid');
     }
-  }, [showAddModal, session]);
+  }, [showAddModal, showFavoriteModal, session]);
 
   const fetchProjects = async () => {
     setLoadingProjects(true);
     try {
       const res = await fetch('/api/dashboard/projects');
       const data = await res.json();
-      setProjects(data.projects || []);
+      const fetchedProjects = data.projects || [];
+      setProjects(fetchedProjects);
+      
+      // Auto-select first project for Favorite modal
+      if (showFavoriteModal && fetchedProjects.length > 0 && !targetProjectId) {
+        setTargetProjectId(fetchedProjects[0].id);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -580,6 +593,34 @@ function LabelCompContent() {
       URL.revokeObjectURL(url);
     };
 
+  const handleSaveFavorite = async () => {
+    if (!data || !targetProjectId || !comparisonTitle.trim()) return;
+    setSavingFavorite(true);
+    try {
+      const res = await fetch('/api/dashboard/toggle_favorite_comparison', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          set_ids: data.current_set_ids,
+          title: comparisonTitle.trim(),
+          project_id: targetProjectId
+        })
+      });
+      const result = await res.json();
+      if (result.success) {
+        setShowFavoriteModal(false);
+        setComparisonTitle('');
+        alert('Comparison saved to project successfully.');
+      } else {
+        alert(result.error || 'Failed to save comparison.');
+      }
+    } catch (e) {
+      alert('Network error. Please try again.');
+    } finally {
+      setSavingFavorite(false);
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
       <Header />
@@ -621,14 +662,39 @@ function LabelCompContent() {
             </button>
             
             {data && data.selected_labels_metadata.length >= 2 && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                <button onClick={handleExportDiffs} style={secondaryButtonStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = '#2563eb'} onMouseOut={e => e.currentTarget.style.backgroundColor = '#3b82f6'}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                  Export
-                </button>
-                <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, maxWidth: '200px', textAlign: 'center', lineHeight: 1.3 }}>
-                  Generates regulatory JSON for ELSA clinical analysis.
-                </span>
+              <div style={{ display: 'flex', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <button onClick={handleExportDiffs} style={secondaryButtonStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = '#2563eb'} onMouseOut={e => e.currentTarget.style.backgroundColor = '#3b82f6'}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    Export
+                  </button>
+                  <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, maxWidth: '150px', textAlign: 'center', lineHeight: 1.3 }}>
+                    Generates regulatory JSON for analysis.
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <button 
+                    onClick={() => {
+                      if (!session?.is_authenticated) {
+                        openAuthModal('login');
+                        return;
+                      }
+                      setComparisonTitle(data.selected_labels_metadata.map(m => m.brand_name).join(' vs '));
+                      setShowFavoriteModal(true);
+                      if (projects.length > 0) setTargetProjectId(projects[0].id);
+                    }} 
+                    style={{ ...secondaryButtonStyle, backgroundColor: '#6366f1' }} 
+                    onMouseOver={e => e.currentTarget.style.backgroundColor = '#4f46e5'} 
+                    onMouseOut={e => e.currentTarget.style.backgroundColor = '#6366f1'}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    Favorite
+                  </button>
+                  <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, maxWidth: '150px', textAlign: 'center', lineHeight: 1.3 }}>
+                    Save this comparison to your workspace.
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -1294,6 +1360,80 @@ function LabelCompContent() {
           </div>
         </div>
       )}
+
+      {/* Favorite Comparison Modal */}
+      <Modal
+        isOpen={showFavoriteModal}
+        onClose={() => setShowFavoriteModal(false)}
+        title="Favorite Comparison"
+        compact
+      >
+        <div style={{ marginTop: '1rem' }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#475569', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Comparison Title</label>
+          <input 
+            type="text" 
+            value={comparisonTitle}
+            onChange={(e) => setComparisonTitle(e.target.value)}
+            placeholder="Enter a title for this comparison"
+            style={{ 
+              width: '100%', 
+              padding: '12px', 
+              borderRadius: '10px', 
+              border: '1px solid #e2e8f0', 
+              marginBottom: '1.5rem',
+              fontSize: '0.9rem',
+              outline: 'none'
+            }}
+          />
+
+          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#475569', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Designated Project</label>
+          <select 
+            value={targetProjectId || ''}
+            onChange={(e) => setTargetProjectId(Number(e.target.value))}
+            style={{ 
+              width: '100%', 
+              padding: '12px', 
+              borderRadius: '10px', 
+              border: '1px solid #e2e8f0', 
+              marginBottom: '2rem',
+              fontSize: '0.9rem',
+              outline: 'none',
+              backgroundColor: '#f8fafc'
+            }}
+          >
+            <option value="" disabled>Select a project</option>
+            {projects.map(p => (
+              <option key={p.id} value={p.id}>{p.title}</option>
+            ))}
+          </select>
+
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button 
+              onClick={() => setShowFavoriteModal(false)} 
+              style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 600, cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleSaveFavorite} 
+              disabled={savingFavorite || !targetProjectId || !comparisonTitle.trim()}
+              style={{ 
+                flex: 1, 
+                padding: '12px', 
+                borderRadius: '8px', 
+                border: 'none', 
+                background: '#6366f1', 
+                color: 'white', 
+                fontWeight: 700, 
+                cursor: (savingFavorite || !targetProjectId || !comparisonTitle.trim()) ? 'not-allowed' : 'pointer',
+                opacity: (savingFavorite || !targetProjectId || !comparisonTitle.trim()) ? 0.7 : 1
+              }}
+            >
+              {savingFavorite ? 'Saving...' : 'Save to Project'}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Confirmation Dialog */}
       {showConfirmDialog && (
