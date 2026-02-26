@@ -6,9 +6,8 @@ from dashboard.config import Config
 logger = logging.getLogger(__name__)
 
 from device.services.device_client import get_manufacturer_by_id
-
-from device.services.device_client import get_manufacturer_by_id
 from dashboard.services.ai_handler import call_llm
+from flask_login import current_user
 import json
 
 def get_maude_summary(product_code, k_number=None):
@@ -65,7 +64,7 @@ def get_maude_summary(product_code, k_number=None):
                 f"Official manufacturer name: '{official_mfr}'.\n"
                 f"MAUDE List: {mfr_names_in_maude}."
             )
-            maude_name = call_llm(None, system_prompt, user_message).strip().replace('"', '').replace("'", "")
+            maude_name = call_llm(current_user, system_prompt, user_message).strip().replace('"', '').replace("'", "")
             if maude_name != "NONE":
                 summary['maude_name_match'] = maude_name
 
