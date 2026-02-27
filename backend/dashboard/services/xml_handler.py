@@ -446,17 +446,176 @@ def extract_metadata_from_xml(xml_string):
                 effective_time = datetime.strptime(val[:8], '%Y%m%d').strftime('%B %d, %Y')
             except: pass
 
-        # 3. Manufacturer (Broad search)
+        # 3. Organizations & Manufacturers (Deep Extraction)
+        companies = []
+        seen_keys = set()
         manufacturer = "Unknown Manufacturer"
+
+        def extract_orgs_recursive(element, default_role="Distributed by"):
+            def local(t): return t.split('}')[-1]
+            
+            # Find all organizations in this branch
+            org_nodes = [n for n in element if local(n.tag) in ['representedOrganization', 'assignedOrganization']]
+            
+            for org in org_nodes:
+                name_node = org.find('{*}name')
+                if name_node is None: name_node = org.find('name')
+                
+                if name_node is not None:
+                    name = "".join(name_node.itertext()).strip()
+                    if name:
+                        # Find DUNS
+                        id_nodes = [n for n in org if local(n.tag) == 'id']
+                        duns = None
+                        for idn in id_nodes:
+                            if idn.get('root') == '1.3.6.1.4.1.519.1':
+                                duns = idn.get('extension')
+                                break
+                        
+                        # Find Operations/Performance to decide role
+                        operations = [perf.get('displayName', '').lower() for perf in org.findall('.//{*}performance/{*}actDefinition/{*}code')]
+                        
+                        role = default_role
+                        if any(op in ["manufacture", "analysis", "api manufacture"] for op in operations):
+                            role = "Manufactured by"
+                        elif any(op in ["repack", "relabel", "label", "pack"] for op in operations):
+                            role = "Distributed by"
+                        
+                        key = f"{name}_{role}_{duns}"
+                        if key not in seen_keys:
+                            companies.append({
+                                "name": name,
+                                "duns": duns,
+                                "role": role,
+                                "source": "header"
+                            })
+                            seen_keys.add(key)
+                
+                # Recursive call for nested entities
+                for sub_entity in org.findall('.//{*}assignedEntity'):
+                    extract_orgs_recursive(sub_entity, "Manufactured by")
+                for sub_entity in org.findall('.//{*}assignedOrganization'):
+                    extract_orgs_recursive(sub_entity, "Distributed by")
+
+        # Initial trigger for author/registrant
+        author_node = root.find('.//{*}author')
+        if author_node is not None:
+            extract_orgs_recursive(author_node, "Distributed by")
+        
+        # Fallback to simple scan if recursive missed something
         possible_orgs = find_nodes_by_local_name(root, 'representedOrganization') + \
-                        find_nodes_by_local_name(root, 'assignedOrganization') + \
-                        find_nodes_by_local_name(root, 'author') 
+                        find_nodes_by_local_name(root, 'assignedOrganization')
         
         for org in possible_orgs:
             name_nodes = find_nodes_by_local_name(org, 'name')
             if name_nodes:
-                manufacturer = "".join(name_nodes[0].itertext()).strip()
-                if manufacturer: break
+                name = "".join(name_nodes[0].itertext()).strip()
+                if name:
+                    if not any(c['name'] == name for c in companies):
+                        id_nodes = find_nodes_by_local_name(org, 'id')
+                        duns = None
+                        for idn in id_nodes:
+                            if idn.get('root') == '1.3.6.1.4.1.519.1':
+                                duns = idn.get('extension')
+                                break
+                        
+                        companies.append({
+                            "name": name,
+                            "duns": duns,
+                            "role": "Distributed by",
+                            "source": "header"
+                        })
+
+        if companies:
+            manufacturer = companies[0]['name']
+
+        # Heuristic search in text for "Manufactured", "Distributed", etc.
+        all_paragraphs = []
+        for p in root.iter():
+            if local(p.tag) == 'paragraph':
+                all_paragraphs.append(p)
+        
+        role_patterns = [
+            r"Manufactured\s+for:?", r"Distributed\s+by:?", r"Repackaged\s+by:?",
+            r"Manufactured\s+by:?", r"Marketed\s+by:?", r"^by:?$"
+        ]
+
+        safety_contacts = []
+        safety_pattern = r"To\s+report\s+SUSPECTED\s+ADVERSE\s+REACTIONS,?\s+contact\s+([^at]+)\s+at\s+([0-9\-\(\)\s]{7,25})"
+
+        for i, p in enumerate(all_paragraphs):
+            text = "".join(p.itertext()).strip()
+            
+            # Safety Contact Check
+            sm = re.search(safety_pattern, text, re.IGNORECASE)
+            if sm:
+                sc_name = sm.group(1).strip()
+                sc_phone = sm.group(2).strip()
+                if sc_name and sc_phone:
+                    safety_contacts.append({"name": sc_name, "phone": sc_phone})
+
+            if any(re.search(pat, text, re.IGNORECASE) for pat in role_patterns):
+                current_role = text
+                # Try to find name in next paragraph(s)
+                potential_name = ""
+                name_idx = i + 1
+                
+                if name_idx < len(all_paragraphs):
+                    potential_name = "".join(all_paragraphs[name_idx].itertext()).strip()
+                
+                # If current text has content after colon, use that
+                if ":" in text and len(text.split(":", 1)[1].strip()) > 3:
+                    potential_name = text.split(":", 1)[1].strip()
+                    name_idx = i # address starts after this
+
+                if potential_name and len(potential_name) < 100 and not potential_name.endswith('.'):
+                    comp_name = potential_name
+                    # Collect subsequent lines as address until we hit a blank or another role
+                    address_lines = []
+                    for j in range(name_idx + 1, min(name_idx + 4, len(all_paragraphs))):
+                        addr_p = all_paragraphs[j]
+                        addr_text = "".join(addr_p.itertext()).strip()
+                        if not addr_text or any(re.search(pat, addr_text, re.IGNORECASE) for pat in role_patterns):
+                            break
+                        # Address heuristic: not too long, not a sentence
+                        if len(addr_text) < 150 and not addr_text.endswith('.'):
+                            address_lines.append(addr_text)
+                    
+                    if not any(c['name'].lower() == comp_name.lower() for c in companies):
+                        role = current_role.lower()
+                        if "manufactured by" in role or "manufacture by" in role:
+                            final_role = "Manufactured by"
+                        elif "manufactured for" in role or "distributed" in role or "repackaged" in role or "marketed" in role:
+                            final_role = "Distributed by"
+                        elif "by:" in role:
+                            # Contextual fallback
+                            final_role = "Manufactured by"
+                        else:
+                            final_role = "Distributed by"
+
+                        companies.append({
+                            "name": comp_name,
+                            "role": final_role,
+                            "address": ", ".join(address_lines),
+                            "source": "text"
+                        })
+
+
+        # Merge Safety Contacts
+        for sc in safety_contacts:
+            found = False
+            for c in companies:
+                if sc['name'].lower() in c['name'].lower() or c['name'].lower() in sc['name'].lower():
+                    c['safety_phone'] = sc['phone']
+                    found = True
+                    break
+            if not found:
+                companies.append({
+                    "name": sc['name'],
+                    "role": "Distributed by",
+                    "safety_phone": sc['phone'],
+                    "source": "text"
+                })
 
         # 4. Brand & Generic Name (Refined)
         brand_name = "Unknown Drug"
@@ -534,6 +693,7 @@ def extract_metadata_from_xml(xml_string):
             'brand_name': brand_name,
             'generic_name': generic_name,
             'manufacturer_name': manufacturer,
+            'companies': companies,
             'effective_time': effective_time,
             'label_format': identify_label_format(root),
             'ndc': ", ".join(sorted(list(ndcs))) if ndcs else "N/A",

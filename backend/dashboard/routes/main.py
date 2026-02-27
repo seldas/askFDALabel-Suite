@@ -367,6 +367,7 @@ def view_label(set_id):
     brand_name = metadata.get('brand_name') if metadata and metadata.get('brand_name') != 'N/A' else None
     generic_name = metadata.get('generic_name') if metadata and metadata.get('generic_name') != 'N/A' else None
     manufacturer_name = metadata.get('manufacturer_name') if metadata and metadata.get('manufacturer_name') != 'N/A' else None
+    companies = metadata.get('companies', []) if metadata else []
     effective_time = metadata.get('effective_time') if metadata else ''
     label_format = metadata.get('label_format') if metadata else None
     ndc = metadata.get('ndc', 'N/A') if metadata else 'N/A'
@@ -437,6 +438,7 @@ def view_label(set_id):
         'document_type': document_type,
         'has_boxed_warning': has_boxed_warning,
         'clean_app_num': clean_app_num,
+        'companies': companies,
         'original_search': drug_name_from_query,
         'sections': sections, 
         'fallback_html': fallback_html, 

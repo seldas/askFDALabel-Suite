@@ -51,6 +51,15 @@ export interface ProductData {
   packaging: ProductPackaging[];
 }
 
+export interface CompanyInfo {
+  name: string;
+  role: string;
+  address?: string;
+  duns?: string;
+  safety_phone?: string;
+  source: string;
+}
+
 export interface LabelData {
   drug_name: string;
   brand_name: string | null;
@@ -58,6 +67,7 @@ export interface LabelData {
   original_title: string;
   faers_drug_name: string;
   manufacturer_name: string;
+  companies: CompanyInfo[];
   effective_time: string;
   label_format: string | null;
   ndc: string | null;

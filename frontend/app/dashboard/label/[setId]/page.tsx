@@ -241,6 +241,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   }, [exportModalOpen]);
 
   const [ndcModalOpen, setNdcModalOpen] = useState(false);
+  const [companyModalOpen, setCompanyModalOpen] = useState(false);
 
   const ndcRaw = (data?.ndc || '').trim();
   const ndcTooLong = ndcRaw.length > 40;
@@ -1156,7 +1157,17 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                     )}
                     <div className="meta-item">
                         <span style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em', marginBottom: '4px' }}>Manufacturer</span>
-                        <span style={{ fontWeight: 700, color: '#334155', fontSize: '0.9rem' }}>{data.manufacturer_name || 'N/A'}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 700, color: '#334155', fontSize: '0.9rem' }}>{data.manufacturer_name || 'N/A'}</span>
+                          {data.companies && data.companies.length > 0 && (
+                            <button 
+                              onClick={() => setCompanyModalOpen(true)} 
+                              style={{ background: '#f1f5f9', border: 'none', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}
+                            >
+                              DETAILS
+                            </button>
+                          )}
+                        </div>
                     </div>
                     <div className="meta-item">
                         <span style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em', marginBottom: '4px' }}>Product Type</span>
@@ -1629,6 +1640,120 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                 }}
               >
                 <span>{"\u2913"}</span> GENERATE EXPORT FILE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* COMPANY DETAILS MODAL */}
+      {companyModalOpen && (
+        <div
+          onClick={() => setCompanyModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            zIndex: 5000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            backdropFilter: 'blur(4px)'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 'min(800px, 95vw)',
+              maxHeight: 'min(600px, 90vh)',
+              background: 'white',
+              borderRadius: '20px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #e2e8f0',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Organization Details</h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Companies involved in the manufacture and distribution of this product</p>
+              </div>
+              <button onClick={() => setCompanyModalOpen(false)} style={{ background: 'white', border: '1px solid #e2e8f0', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left' }}>
+                    <th style={{ padding: '0 12px', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em' }}>Role</th>
+                    <th style={{ padding: '0 12px', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em' }}>Name & Address</th>
+                    <th style={{ padding: '0 12px', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em' }}>DUNS</th>
+                    <th style={{ padding: '0 12px', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em' }}>Safety Contact</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data?.companies?.map((comp, idx) => (
+                    <tr key={idx} style={{ background: '#f8fafc', borderRadius: '12px' }}>
+                      <td style={{ padding: '16px 12px', borderRadius: '12px 0 0 12px', verticalAlign: 'top', width: '20%' }}>
+                        <span style={{ 
+                          fontSize: '0.7rem', 
+                          fontWeight: 800, 
+                          color: '#475569', 
+                          background: '#e2e8f0', 
+                          padding: '4px 10px', 
+                          borderRadius: '20px',
+                          display: 'inline-block'
+                        }}>
+                          {comp.role.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ padding: '16px 12px', verticalAlign: 'top' }}>
+                        <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem', marginBottom: '4px' }}>{comp.name}</div>
+                        {comp.address && (
+                          <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.4, fontWeight: 500 }}>{comp.address}</div>
+                        )}
+                      </td>
+                      <td style={{ padding: '16px 12px', verticalAlign: 'top', width: '12%' }}>
+                        {comp.duns ? (
+                          <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>{comp.duns}</span>
+                        ) : (
+                          <span style={{ color: '#cbd5e1', fontSize: '0.75rem', fontWeight: 600 }}>N/A</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '16px 12px', borderRadius: '0 12px 12px 0', verticalAlign: 'top', width: '18%' }}>
+                        {comp.safety_phone ? (
+                          <div>
+                            <div style={{ fontSize: '0.65rem', color: '#0284c7', fontWeight: 800, marginBottom: '2px', textTransform: 'uppercase' }}>Report Adverse Effects:</div>
+                            <span style={{ fontWeight: 700, color: '#0284c7', fontSize: '0.85rem' }}>{comp.safety_phone}</span>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#cbd5e1', fontSize: '0.75rem', fontWeight: 600 }}>N/A</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ padding: '20px 24px', borderTop: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => setCompanyModalOpen(false)}
+                style={{
+                  padding: '10px 24px',
+                  background: '#0f172a',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '0.9rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                CLOSE
               </button>
             </div>
           </div>
