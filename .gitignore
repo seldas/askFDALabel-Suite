@@ -36,3 +36,5 @@ afd.db
 afd.db*
 logs/
 GEMINI.md
+database/data/
+database/splmonger-loaders-dist.tgz
