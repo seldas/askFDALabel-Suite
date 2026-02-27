@@ -1,6 +1,7 @@
 'use client';
 
-import { LabelData } from './types';
+import styles from './FaersView.module.css';
+import './agents_style.module.css'
 
 export default function FaersView({ 
   activeTab, 
@@ -12,12 +13,12 @@ export default function FaersView({
   setFaersCoverageFilter: (filter: 'all' | 'not_presented') => void;
 }) {
   return (
-    <div id="faers-view" className={`tab-content ${activeTab === 'faers-view' ? 'active' : ''}`} style={{ display: activeTab === 'faers-view' ? 'block' : 'none' }}>
-        <div id="faers-loading" className="loader"></div>
-        <div id="dashboard-content" className="dashboard-grid" style={{ display: 'none' }}>
-            <div className="chart-card full-width">
+    <div id="faers-view" className={`${styles.faersView} ${activeTab === 'faers-view' ? 'active' : ''}`} style={{ display: activeTab === 'faers-view' ? 'flex' : 'none' }}>
+        <div id="faers-loading" className="loader" style={{ margin: '40px auto' }}></div>
+        <div id="dashboard-content" className={styles.dashboardGrid} style={{ display: 'none' }}>
+            <div className={`${styles.chartCard} ${styles.fullWidth}`}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-              <h3 style={{ margin: 0 }}>Label Coverage Analysis</h3>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Label Coverage Analysis</h3>
 
               {/* Toggle */}
               <div
@@ -83,8 +84,8 @@ export default function FaersView({
             <div id="soc-summary-bar" style={{ marginTop: '12px' }} />
 
 
-            <div className="table-container">
-                <table id="coverageTable" className="coverage-table">
+            <div className={styles.tableContainer}>
+                <table id="coverageTable">
                     <thead>
                         <tr>
                         <th style={{ width: '50px' }}></th>
@@ -98,18 +99,18 @@ export default function FaersView({
                     <tbody id="coverageTable-body"></tbody>
                 </table>
             </div>
-            <div className="pagination-controls" style={{ marginTop: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-                    <button id="firstPage" className="button pagination-btn">&laquo;</button>
-                    <button id="prevPage" className="button pagination-btn">&lsaquo;</button>
-                    <input type="number" id="pageInput" defaultValue="1" style={{ width: '50px', textAlign: 'center' }} />
-                    <span className="page-info">of <span id="totalPages">1</span></span>
-                    <button id="nextPage" className="button pagination-btn">&rsaquo;</button>
-                    <button id="lastPage" className="button pagination-btn">&raquo;</button>
+            <div className={styles.paginationControls}>
+                    <button id="firstPage" className="pagination-btn">&laquo;</button>
+                    <button id="prevPage" className="pagination-btn">&lsaquo;</button>
+                    <input type="number" id="pageInput" defaultValue="1" />
+                    <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 600 }}>of <span id="totalPages">1</span></span>
+                    <button id="nextPage" className="pagination-btn">&rsaquo;</button>
+                    <button id="lastPage" className="pagination-btn">&raquo;</button>
             </div>
             </div>
-            <div className="chart-card full-width">
-                <h3>Adverse Events Trends (Time Series)</h3>
-                <div className="canvas-container" style={{ height: '400px' }}>
+            <div className={`${styles.chartCard} ${styles.fullWidth}`}>
+                <h3 style={{ margin: '0 0 20px 0', fontSize: '1.25rem', fontWeight: 800 }}>Adverse Events Trends (Time Series)</h3>
+                <div style={{ height: '400px', width: '100%' }}>
                     <canvas id="trendComparisonChart"></canvas>
                 </div>
             </div>

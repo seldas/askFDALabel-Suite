@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 
 export interface UserSession {
   is_authenticated: boolean;
@@ -40,6 +41,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [activeTasks, setActiveTasks] = useState<ActiveTask[]>([]);
   const [authModal, setAuthModal] = useState<'login' | 'register' | 'change_password' | null>(null);
+  const pathname = usePathname();
 
   const openAuthModal = (type: 'login' | 'register' | 'change_password' | null) => {
     setAuthModal(type);
@@ -79,14 +81,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Task polling effect
   useEffect(() => {
-    if (session?.is_authenticated) {
+    if (session?.is_authenticated && pathname === '/dashboard') {
       refreshTasks();
-      const interval = setInterval(refreshTasks, 5000); // Poll every 5 seconds
+      const interval = setInterval(refreshTasks, 60000); // Poll every 60 seconds
       return () => clearInterval(interval);
     } else {
       setActiveTasks([]);
     }
-  }, [session?.is_authenticated, refreshTasks]);
+  }, [session?.is_authenticated, refreshTasks, pathname]);
 
   const updateAiProvider = async (provider: string) => {
     try {

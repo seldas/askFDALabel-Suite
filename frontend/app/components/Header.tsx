@@ -32,7 +32,15 @@ function inferActiveApp(pathname: string): ActiveApp {
   return 'home';
 }
 
-export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
+export default function Header({ 
+  activeApp, 
+  simpleView, 
+  onSimpleViewChange 
+}: { 
+  activeApp?: ActiveApp, 
+  simpleView?: boolean, 
+  onSimpleViewChange?: (simple: boolean) => void 
+}) {
   const { session, loading, updateAiProvider, refreshSession, openAuthModal, activeTasks } = useUser();
 
   const pathname = usePathname();
@@ -114,6 +122,68 @@ export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
         <h1 className="header-title">
           AskFDALabel <span className="header-title-suffix">Suite</span>
         </h1>
+        {onSimpleViewChange && (
+        <button
+          type="button"
+          className="simple-view-toggle"
+          onClick={() => onSimpleViewChange(!simpleView)}
+          aria-label={simpleView ? "Switch to default view" : "Switch to simple view"}
+          title={simpleView ? "Default view" : "Simple view"}
+          style={{
+            marginLeft: 8,
+            padding: 8,
+            background: "transparent",
+            border: "none",
+            color: "inherit",              // inherit from theme
+            opacity: 0.85,                 // quieter by default
+            borderRadius: 8,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            lineHeight: 0,
+            transition: "background 120ms ease, opacity 120ms ease",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.06)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          onFocus={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.06)")}
+          onBlur={(e) => (e.currentTarget.style.background = "transparent")}
+        >
+          {simpleView ? (
+            // Simple view icon: single square
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+            </svg>
+          ) : (
+            // Default view icon: "layout" (split panel)
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+              <path d="M9 4v16" />
+              <path d="M4 9h5" />
+            </svg>
+          )}
+        </button>
+      )}
       </div>
 
       {/* Mobile Toggle Button */}
@@ -184,7 +254,7 @@ export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
                     </svg>
                   </span>
                   <div>
-                    <div className="dropdown-title">FDA Official</div>
+                    <div className="dropdown-title">FDA version</div>
                     <div className="dropdown-subtitle">FDA-wide Interface</div>
                   </div>
                 </a>
@@ -202,7 +272,7 @@ export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
                     </svg>
                   </span>
                   <div>
-                    <div className="dropdown-title">CDER-CBER</div>
+                    <div className="dropdown-title">CDER-CBER version</div>
                     <div className="dropdown-subtitle">Specific for PLR Labeling</div>
                   </div>
                 </a>
@@ -268,7 +338,7 @@ export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             <path d="M11 8a2 2 0 0 0-2 2"></path>
           </svg>
-          AFL Agent
+          AI Assistant
         </Link>
 
         {/* Dashboard */}
@@ -334,7 +404,7 @@ export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
                 </svg>
               </span>
               <div>
-                <div className="dropdown-title">DrugTox Intelligence</div>
+                <div className="dropdown-title">askDrugTox</div>
                 <div className="dropdown-subtitle">Toxicity profile tracking</div>
               </div>
             </Link>
@@ -354,8 +424,8 @@ export default function Header({ activeApp }: { activeApp?: ActiveApp }) {
                 </svg>
               </span>
               <div>
-                <div className="dropdown-title">Snippet Store</div>
-                <div className="dropdown-subtitle">Browser research tools</div>
+                <div className="dropdown-title">Elsa addons</div>
+                <div className="dropdown-subtitle">Browser snippets</div>
               </div>
             </Link>
           </div>
