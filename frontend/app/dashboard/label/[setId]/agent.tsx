@@ -48,6 +48,7 @@ export default function AgentView({
                                 <span>FAERS Monitoring:</span>
                                 <span style={{ fontWeight: 700, color: '#0891b2' }}>Active</span>
                             </div>
+
                         </div>
                     </button>
 
@@ -64,7 +65,7 @@ export default function AgentView({
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span>FAERS Monitoring:</span>
-                                <span style={{ fontWeight: 700, color: '#e11d48' }}>Active</span>
+                                <span style={{ fontWeight: 700, color: '#0891b2' }}>Active</span>
                             </div>
                         </div>
                     </button>
@@ -82,7 +83,7 @@ export default function AgentView({
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span>FAERS Monitoring:</span>
-                                <span style={{ fontWeight: 700, color: '#d97706' }}>Active</span>
+                                <span style={{ fontWeight: 700, color: '#0891b2' }}>Active</span>
                             </div>
                         </div>
                     </button>
@@ -95,12 +96,8 @@ export default function AgentView({
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem', color: '#334155' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span>Biomarker Search:</span>
-                                <span style={{ fontWeight: 700, color: '#7c3aed' }}>Active</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span>FDA Table Sync:</span>
-                                <span style={{ fontWeight: 700, color: '#64748b' }}>Standby</span>
+                                <span>FAERS Monitoring:</span>
+                                <span style={{ fontWeight: 700, color: '#0891b2' }}>Active</span>
                             </div>
                         </div>
                     </button>

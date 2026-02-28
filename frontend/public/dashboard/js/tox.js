@@ -460,7 +460,15 @@ window.initToxAgents = function() {
         
         if (!faersData || faersData.length === 0) {
              const container = canvas.parentElement;
-             if(container) container.innerHTML = '<p style="text-align:center; padding-top: 50px;">No liver-related adverse events found in the top reports.</p>';
+             if(container) {
+                 container.innerHTML = `
+                 <div style="padding: 20px; text-align: center;">
+                    <p style="color:#c2410c; padding: 15px; background:#fff7ed; border-radius:8px; border:1px solid #fdba74; font-size: 0.9rem; margin: 0;">
+                        <strong>FAERS Data Unavailable:</strong> The openFDA API is currently not available under the current internet environment.<br>
+                        <small style="opacity:0.7">This is a connectivity issue, not a "no results" state.</small>
+                    </p>
+                 </div>`;
+             }
              return;
         }
 
@@ -776,7 +784,15 @@ window.initToxAgents = function() {
         
         if (!faersData || faersData.length === 0) {
              const container = canvas.parentElement;
-             if(container) container.innerHTML = '<p style="text-align:center; padding-top: 50px;">No cardiac-related adverse events found in the top reports.</p>';
+             if(container) {
+                 container.innerHTML = `
+                 <div style="padding: 20px; text-align: center;">
+                    <p style="color:#c2410c; padding: 15px; background:#fff7ed; border-radius:8px; border:1px solid #fdba74; font-size: 0.9rem; margin: 0;">
+                        <strong>FAERS Data Unavailable:</strong> The openFDA API is currently not available under the current internet environment.<br>
+                        <small style="opacity:0.7">This is a connectivity issue, not a "no results" state.</small>
+                    </p>
+                 </div>`;
+             }
              return;
         }
 
@@ -1087,7 +1103,15 @@ window.initToxAgents = function() {
         
         if (!faersData || faersData.length === 0) {
              const container = canvas.parentElement;
-             if(container) container.innerHTML = '<p style="text-align:center; padding-top: 50px;">No renal-related adverse events found in the top reports.</p>';
+             if(container) {
+                 container.innerHTML = `
+                 <div style="padding: 20px; text-align: center;">
+                    <p style="color:#c2410c; padding: 15px; background:#fff7ed; border-radius:8px; border:1px solid #fdba74; font-size: 0.9rem; margin: 0;">
+                        <strong>FAERS Data Unavailable:</strong> The openFDA API is currently not available under the current internet environment.<br>
+                        <small style="opacity:0.7">This is a connectivity issue, not a "no results" state.</small>
+                    </p>
+                 </div>`;
+             }
              return;
         }
 

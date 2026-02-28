@@ -44,7 +44,7 @@ def get_maude_summary(product_code, k_number=None):
         if Config.OPENFDA_API_KEY:
             params_mfr_list['api_key'] = Config.OPENFDA_API_KEY
             
-        resp_list = requests.get(base_url, params=params_mfr_list)
+        resp_list = requests.get(base_url, params=params_mfr_list, timeout=10)
         raw_mfrs = resp_list.json().get('results', []) if resp_list.status_code == 200 else []
         summary['manufacturers'] = raw_mfrs[:5] # Show top 5 in UI
 
@@ -85,7 +85,7 @@ def get_maude_summary(product_code, k_number=None):
             if Config.OPENFDA_API_KEY:
                 params_mfr_trend['api_key'] = Config.OPENFDA_API_KEY
                 
-            resp_mfr = requests.get(base_url, params=params_mfr_trend)
+            resp_mfr = requests.get(base_url, params=params_mfr_trend, timeout=10)
             if resp_mfr.status_code == 200:
                 mfr_raw_dates = resp_mfr.json().get('results', [])
                 mfr_monthly_counts = {}
@@ -103,11 +103,11 @@ def get_maude_summary(product_code, k_number=None):
             params_type['api_key'] = Config.OPENFDA_API_KEY
             params_trend['api_key'] = Config.OPENFDA_API_KEY
 
-        resp_type = requests.get(base_url, params=params_type)
+        resp_type = requests.get(base_url, params=params_type, timeout=10)
         if resp_type.status_code == 200:
             summary['event_types'] = resp_type.json().get('results', [])
 
-        resp_trend = requests.get(base_url, params=params_trend)
+        resp_trend = requests.get(base_url, params=params_trend, timeout=10)
         if resp_trend.status_code == 200:
             raw_dates = resp_trend.json().get('results', [])
             monthly_counts = {}

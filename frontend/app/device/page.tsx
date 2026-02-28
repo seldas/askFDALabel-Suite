@@ -11,6 +11,7 @@ function DeviceSearchContent() {
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [analyzeTarget, setAnalyzeTarget] = useState<{ code: string, id: string } | null>(null);
   const [selectedDevices, setSelectedDevices] = useState<any[]>([]);
   const [showCompare, setShowCompare] = useState(false);
@@ -26,12 +27,19 @@ function DeviceSearchContent() {
     const searchTerm = overrideQuery || query;
     if (!searchTerm) return;
     setLoading(true);
+    setError(null);
     try {
       const resp = await fetch(`/api/device/search?q=${encodeURIComponent(searchTerm)}`);
       const data = await resp.json();
-      setResults(data.results || []);
+      if (data.error) {
+        setError(data.error);
+        setResults([]);
+      } else {
+        setResults(data.results || []);
+      }
     } catch (err) {
       console.error("Search failed", err);
+      setError("An unexpected error occurred during search.");
     } finally {
       setLoading(false);
     }
@@ -156,6 +164,27 @@ function DeviceSearchContent() {
             ))}
           </div>
         </div>
+
+        {error && (
+          <div style={{ 
+            backgroundColor: '#fff7ed', 
+            color: '#c2410c', 
+            border: '1px solid #fdba74', 
+            padding: '1.5rem', 
+            borderRadius: '16px', 
+            marginBottom: '2rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            fontSize: '0.95rem'
+          }}>
+            <span style={{ fontSize: '1.5rem' }}>⚠️</span>
+            <div>
+              <strong style={{ display: 'block', marginBottom: '2px' }}>Search Restricted</strong>
+              {error}
+            </div>
+          </div>
+        )}
 
         {analyzeTarget && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', overflowY: 'auto' }}>

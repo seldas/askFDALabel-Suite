@@ -1684,7 +1684,7 @@ def generic_assessment_route(set_id, assessment_model, pt_terms, prompt, keyword
             params['api_key'] = Config.OPENFDA_API_KEY
             
         try:
-            resp = requests.get(base_url, params=params)
+            resp = requests.get(base_url, params=params, timeout=10)
             if resp.status_code == 200:
                 raw_results = resp.json().get('results', [])
                 faers_data = [item for item in raw_results if item['term'].upper() in pt_terms]
