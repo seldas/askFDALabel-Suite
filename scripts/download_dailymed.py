@@ -5,18 +5,12 @@ import argparse
 from urllib.parse import urljoin
 
 class DailyMedDownloader:
-    BASE_URL = "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/download/"
+    BASE_URL = "https://dailymed-data.nlm.nih.gov/public-release-files/"
     
     # Pre-defined file structures based on DailyMed patterns
     FILES = {
         'prescription': [f"dm_spl_release_human_rx_part{i}.zip" for i in range(1, 7)],
-        'otc': [f"dm_spl_release_human_otc_part{i}.zip" for i in range(1, 12)],
-        # Weekly updates usually follow a date pattern, we'll allow passing a specific one or common recent ones
-        'weekly': [
-            "dm_spl_weekly_update_021626_022026.zip",
-            "dm_spl_weekly_update_020926_021326.zip",
-            "dm_spl_weekly_update_020226_020626.zip"
-        ]
+        'otc': [f"dm_spl_release_human_otc_part{i}.zip" for i in range(1, 12)]
     }
 
     def __init__(self, output_dir="data/downloads/dailymed"):
@@ -44,25 +38,23 @@ class DailyMedDownloader:
                             f.write(chunk)
                             downloaded += len(chunk)
                             self.show_progress(downloaded, total_size, filename)
-            print(f"
-Successfully downloaded {filename}")
+            print(f"Successfully downloaded {filename}")
             return True
         except Exception as e:
-            print(f"
-Error downloading {filename}: {e}")
+            print(f"Error downloading {filename}: {e}")
             if os.path.exists(target_path):
                 os.remove(target_path)
             return False
 
     def show_progress(self, current, total, filename):
         if total <= 0:
-            sys.stdout.write(f"Downloading... {current} bytes")
+            sys.stdout.write(f"Downloading... {current} bytes")
         else:
             percent = (current / total) * 100
             bar_length = 40
             filled_length = int(bar_length * current // total)
             bar = '█' * filled_length + '-' * (bar_length - filled_length)
-            sys.stdout.write(f"|{bar}| {percent:.1f}% ({current // 1024 // 1024} MB / {total // 1024 // 1024} MB)")
+            sys.stdout.write(f"|{bar}| {percent:.1f}% ({current // 1024 // 1024} MB / {total // 1024 // 1024} MB)")
         sys.stdout.flush()
 
     def run(self, category):
@@ -82,8 +74,8 @@ Error downloading {filename}: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download bulk SPL ZIPs from DailyMed.")
-    parser.add_argument("--category", choices=['prescription', 'otc', 'weekly', 'all'], default='weekly', 
-                        help="Which set of files to download (default: weekly)")
+    parser.add_argument("--category", choices=['prescription', 'otc', 'all'], default='all', 
+                        help="Which set of files to download (default: all)")
     parser.add_argument("--out", default="data/downloads/dailymed", help="Output directory")
     
     args = parser.parse_args()
