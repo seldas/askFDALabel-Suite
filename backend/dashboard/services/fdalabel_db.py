@@ -142,14 +142,14 @@ class FDALabelDBService:
                 for row in rows:
                     results.append({
                         'set_id': row['set_id'],
-                        'brand_name': row['product_names'].replace(';', ', ') if row['product_names'] else "",
-                        'generic_name': row['generic_names'].replace(';', ', ') if row['generic_names'] else "",
-                        'manufacturer_name': row['manufacturer'],
-                        'effective_time': row['revised_date'].replace('-', '') if row['revised_date'] else "",
+                        'brand_name': (row['product_names'] or "").replace(';', ', '),
+                        'generic_name': (row['generic_names'] or "").replace(';', ', '),
+                        'manufacturer_name': row['manufacturer'] or "",
+                        'effective_time': (row['revised_date'] or "").replace('-', ''),
                         'label_format': 'FDALabel (Local)',
-                        'application_number': row['appr_num'],
-                        'market_category': row['market_categories'],
-                        'ndc': row['ndc_codes']
+                        'application_number': row['appr_num'] or "",
+                        'market_category': row['market_categories'] or "",
+                        'ndc': row['ndc_codes'] or ""
                     })
                 cursor.close()
         except Exception as e:
