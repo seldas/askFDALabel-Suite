@@ -31,6 +31,17 @@ def identify_query_type(term):
     else:
         return f'(openfda.brand_name:"{term}" OR openfda.generic_name:"{term}")'
 
+def handle_openfda_error(e):
+    """
+    Centralized handler for openFDA connection errors.
+    Returns a user-friendly message indicating API unavailability.
+    """
+    error_msg = str(e)
+    # Check for common connection errors
+    if "ConnectionError" in error_msg or "Max retries exceeded" in error_msg or "Timeout" in error_msg or "getaddrinfo failed" in error_msg:
+        return "The openFDA API is currently not available under the current internet environment. This is a connectivity issue, not a system error."
+    return f"Error connecting to openFDA: {error_msg}"
+
 def find_labels(query_term, skip=0, limit=10):
     """
     Smart search for labels by Set ID (UUID), UNII, NDC Code, or Brand Name.
@@ -55,7 +66,7 @@ def find_labels(query_term, skip=0, limit=10):
         params['api_key'] = Config.OPENFDA_API_KEY
 
     try:
-        response = requests.get(fda_url, params=params)
+        response = requests.get(fda_url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
 
@@ -110,9 +121,11 @@ def find_labels(query_term, skip=0, limit=10):
                 })
         return labels, total
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error fetching data from openFDA: {e}")
-    except (KeyError, IndexError):
-        logger.error("Could not parse data from openFDA response.")
+        msg = handle_openfda_error(e)
+        logger.error(msg)
+        return {"error": msg}, 0
+    except (KeyError, IndexError) as e:
+        logger.error(f"Could not parse data from openFDA response: {e}")
     return [], 0
 
 
@@ -123,6 +136,18 @@ def find_labels_by_set_ids(terms_list, skip=0, limit=10):
     """
     if not terms_list:
         return [], 0
+
+    # INTERNAL DB CHECK
+    if FDALabelDBService.check_connectivity():
+        # Handle batch lookup via local DB if connected
+        core_data = FDALabelDBService.get_label_core_by_set_ids(terms_list)
+        # We need to enrich this to match the return format if possible,
+        # but for simplicity we return what search_labels does or similar.
+        all_results = []
+        for tid in terms_list:
+             res = FDALabelDBService.search_labels(tid, limit=1)
+             if res: all_results.extend(res)
+        return all_results[skip:skip+limit], len(all_results)
 
     # Deduplicate the terms list before processing
     unique_terms = []
@@ -151,7 +176,7 @@ def find_labels_by_set_ids(terms_list, skip=0, limit=10):
             params['api_key'] = Config.OPENFDA_API_KEY
 
         try:
-            response = requests.get(fda_url, params=params)
+            response = requests.get(fda_url, params=params, timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 if 'results' in data:
@@ -200,8 +225,10 @@ def find_labels_by_set_ids(terms_list, skip=0, limit=10):
                                 'ndc': ndc_str
                             })
                             seen_set_ids.add(sid)
-        except Exception as e:
-            logger.error(f"Error fetching data for batch term {term}: {e}")
+        except requests.exceptions.RequestException as e:
+            msg = handle_openfda_error(e)
+            logger.error(msg)
+            return {"error": msg}, 0
 
     total = len(all_labels)
     # Apply pagination to the combined list
@@ -212,7 +239,7 @@ def find_labels_by_set_ids(terms_list, skip=0, limit=10):
 def get_label_metadata(set_id, import_id=None):
     """
     Fetches detailed metadata for a single drug label.
-    Checks import_id first, then local uploads, then openFDA.
+    Checks import_id first, then Internal DB (Oracle/SQLite), then local uploads, then openFDA.
     """
     # 0. Check import_id if provided
     if import_id:
@@ -278,7 +305,7 @@ def get_label_metadata(set_id, import_id=None):
         params['api_key'] = Config.OPENFDA_API_KEY
 
     try:
-        response = requests.get(fda_url, params=params)
+        response = requests.get(fda_url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
 
@@ -338,9 +365,11 @@ def get_label_metadata(set_id, import_id=None):
                 'is_combination': is_combination
             }
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error fetching data from openFDA for set_id {set_id}: {e}")
-    except (KeyError, IndexError):
-        logger.error(f"Could not parse data from openFDA response for set_id {set_id}.")
+        msg = handle_openfda_error(e)
+        logger.error(msg)
+        return {"error": msg}
+    except (KeyError, IndexError) as e:
+        logger.error(f"Could not parse data from openFDA response: {e}")
     return None
 
 def get_label_xml(set_id):
@@ -362,7 +391,7 @@ def get_label_xml(set_id):
     # 2. Fallback to DailyMed
     dailymed_url = f"https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/{set_id}.xml"
     try:
-        response = requests.get(dailymed_url)
+        response = requests.get(dailymed_url, timeout=10)
         response.raise_for_status()
         return response.text
     except requests.exceptions.RequestException as e:
@@ -408,14 +437,14 @@ def get_faers_data(drug_name, limit=20):
         }
         if Config.OPENFDA_API_KEY:
             params_reactions['api_key'] = Config.OPENFDA_API_KEY
-        resp = requests.get(base_url, params=params_reactions)
+        resp = requests.get(base_url, params=params_reactions, timeout=10)
         
         # FALLBACK: If literal generic search returned NOTHING, try broader brand/medicinal search
         if resp.status_code != 200 or not resp.json().get('results'):
             logger.info(f"Literal generic search for '{clean_name}' failed or empty. Trying medicinal product fallback...")
             fallback_search = f'(patient.drug.openfda.brand_name:"{clean_name}" OR patient.drug.medicinalproduct:"{clean_name}")'
             params_reactions['search'] = f"{fallback_search} AND {date_filter}"
-            resp = requests.get(base_url, params=params_reactions)
+            resp = requests.get(base_url, params=params_reactions, timeout=10)
             if resp.status_code == 200:
                 search_term = fallback_search # Update for subsequent queries
 
@@ -431,7 +460,7 @@ def get_faers_data(drug_name, limit=20):
         }
         if Config.OPENFDA_API_KEY:
             params_serious['api_key'] = Config.OPENFDA_API_KEY
-        resp = requests.get(base_url, params=params_serious)
+        resp = requests.get(base_url, params=params_serious, timeout=10)
         if resp.status_code == 200:
             data['reactions_serious'] = resp.json().get('results', [])
 
@@ -443,7 +472,7 @@ def get_faers_data(drug_name, limit=20):
         }
         if Config.OPENFDA_API_KEY:
             params_non_serious['api_key'] = Config.OPENFDA_API_KEY
-        resp = requests.get(base_url, params=params_non_serious)
+        resp = requests.get(base_url, params=params_non_serious, timeout=10)
         if resp.status_code == 200:
             data['reactions_non_serious'] = resp.json().get('results', [])
 
@@ -454,12 +483,16 @@ def get_faers_data(drug_name, limit=20):
         }
         if Config.OPENFDA_API_KEY:
             params_dates['api_key'] = Config.OPENFDA_API_KEY
-        resp = requests.get(base_url, params=params_dates)
+        resp = requests.get(base_url, params=params_dates, timeout=10)
         if resp.status_code == 200:
             raw_dates = resp.json().get('results', [])
             raw_dates.sort(key=lambda x: x.get('time', '')) 
             data['dates'] = raw_dates
 
+    except requests.exceptions.RequestException as e:
+        msg = handle_openfda_error(e)
+        logger.error(msg)
+        return {"error": msg}
     except Exception as e:
         logger.error(f"Error fetching FAERS data: {e}")
         return None
