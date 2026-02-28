@@ -92,6 +92,15 @@ const LocalQueryPage = () => {
         }
     };
 
+    const handleExport = () => {
+        if (results.length === 0) {
+            alert("No results to export.");
+            return;
+        }
+        const setIds = results.map(r => r.set_id).join(',');
+        window.location.href = `/api/localquery/export?set_ids=${encodeURIComponent(setIds)}`;
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
             <Header />
@@ -99,11 +108,26 @@ const LocalQueryPage = () => {
             <main style={{ flex: 1, padding: '40px 20px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
                 <div style={{ marginBottom: '40px', textAlign: 'center' }}>
                     <h1 style={{ fontSize: '2.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '10px' }}>
-                        Label-DB (Local)
+                        Label Archive
                     </h1>
-                    <p style={{ color: '#64748b', fontSize: '1.1rem' }}>
-                        Quickly search the internal drug label repository by Name, Set ID, or Application Number.
-                    </p>
+                    <div style={{ 
+                        maxWidth: '800px', 
+                        margin: '0 auto', 
+                        padding: '15px 25px', 
+                        backgroundColor: '#fffbeb', 
+                        border: '1px solid #fef3c7', 
+                        borderRadius: '12px',
+                        color: '#92400e',
+                        fontSize: '0.95rem',
+                        lineHeight: '1.5'
+                    }}>
+                        <p style={{ fontWeight: 700, marginBottom: '5px' }}>⚠️ Development Use Only</p>
+                        <p>
+                            This is a <strong>static clinical repository</strong> intended for rapid local testing and development. 
+                            It contains a snapshot of FDA labeling data last updated on <strong>February 27, 2026</strong>. 
+                            Newer updates published after this date are not reflected in this local index.
+                        </p>
+                    </div>
                 </div>
 
                 <div style={{ 
@@ -219,9 +243,39 @@ const LocalQueryPage = () => {
                 {hasSearched && (
                     <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
                         <div style={{ padding: '20px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b' }}>
-                                Results ({results.length})
-                            </h2>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b' }}>
+                                    Results ({results.length})
+                                </h2>
+                                {results.length > 0 && (
+                                    <button 
+                                        onClick={handleExport}
+                                        style={{
+                                            padding: '8px 16px',
+                                            backgroundColor: '#10b981',
+                                            color: '#fff',
+                                            borderRadius: '8px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            border: 'none',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            transition: 'background-color 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
+                                    >
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                            <polyline points="7 10 12 15 17 10"></polyline>
+                                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                                        </svg>
+                                        Export to Dashboard
+                                    </button>
+                                )}
+                            </div>
                             <span style={{ fontSize: '0.875rem', color: '#64748b' }}>
                                 Source: Local Label Database
                             </span>

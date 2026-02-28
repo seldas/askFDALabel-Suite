@@ -254,9 +254,10 @@ export default function Header({
                   </svg>
                 </span>
                 <div>
-                  <div className="dropdown-title">Label-DB (Local)</div>
+                  <div className="dropdown-title">Label Archive</div>
                   <div className="dropdown-subtitle">Local Metadata Search</div>
                 </div>
+
               </Link>
             )}
 

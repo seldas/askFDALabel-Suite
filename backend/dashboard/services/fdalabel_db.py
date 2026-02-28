@@ -449,6 +449,207 @@ class FDALabelDBService:
             conn.close()
 
     @classmethod
+    def get_labels_by_set_ids_for_export(cls, set_ids):
+        """
+        Fetches all fields from sum_spl for a list of set_ids, formatted for Excel export.
+        """
+        if not set_ids or not cls.check_connectivity():
+            return []
+
+        conn = cls.get_connection()
+        if not conn:
+            return []
+
+        try:
+            cursor = conn.cursor()
+            results = []
+            
+            # Handle Oracle and SQLite separately
+            if cls._db_type == 'oracle':
+                # Use chunking for large lists of IDs
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    binds = {f"sid{i}": v for i, v in enumerate(chunk)}
+                    in_clause = ", ".join([f":sid{i}" for i in range(len(chunk))])
+                    sql = f"""
+                        SELECT 
+                            SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES,
+                            AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME,
+                            MARKET_CATEGORIES, DOCUMENT_TYPE, ROUTES, DOSAGE_FORMS,
+                            EPC, ACT_INGR_NAMES
+                        FROM druglabel.DGV_SUM_SPL
+                        WHERE SET_ID IN ({in_clause})
+                    """
+                    cursor.execute(sql, binds)
+                    rows = cursor.fetchall()
+                    for row in rows:
+                        results.append({
+                            'SET ID': row[0],
+                            'Trade Name': (row[1] or "").replace(';', ', '),
+                            'Generic/Proper Name(s)': (row[2] or "").replace(';', ', '),
+                            'Company': row[3],
+                            'Application Number(s)': row[4],
+                            'NDC(s)': row[5],
+                            'SPL Effective Date (YYYY/MM/DD)': row[6],
+                            'Marketing Category': row[7],
+                            'Labeling Type': row[8],
+                            'Route(s) of Administration': row[9],
+                            'Dosage Form(s)': row[10],
+                            'Established Pharmacologic Class(es)': row[11],
+                            'Active Ingredient(s)': (row[12] or "").replace(';', ', '),
+                            'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row[0]}",
+                            'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row[0]}",
+                            'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row[0]}"
+                        })
+            else:
+                # SQLite
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    placeholders = ", ".join(["?"] * len(chunk))
+                    sql = f"""
+                        SELECT 
+                            set_id, product_names, generic_names, manufacturer, 
+                            appr_num, ndc_codes, revised_date, market_categories,
+                            doc_type, routes, dosage_forms, epc, active_ingredients
+                        FROM sum_spl
+                        WHERE set_id IN ({placeholders})
+                    """
+                    cursor.execute(sql, chunk)
+                    rows = cursor.fetchall()
+                    for row in rows:
+                        rev_date = row['revised_date'] or ""
+                        if len(rev_date) == 8 and rev_date.isdigit():
+                            rev_date = f"{rev_date[0:4]}/{rev_date[4:6]}/{rev_date[6:8]}"
+
+                        results.append({
+                            'SET ID': row['set_id'],
+                            'Trade Name': (row['product_names'] or "").replace(';', ', '),
+                            'Generic/Proper Name(s)': (row['generic_names'] or "").replace(';', ', '),
+                            'Company': row['manufacturer'],
+                            'Application Number(s)': row['appr_num'],
+                            'NDC(s)': row['ndc_codes'],
+                            'SPL Effective Date (YYYY/MM/DD)': rev_date,
+                            'Marketing Category': row['market_categories'],
+                            'Labeling Type': row['doc_type'],
+                            'Route(s) of Administration': row['routes'],
+                            'Dosage Form(s)': row['dosage_forms'],
+                            'Established Pharmacologic Class(es)': row['epc'],
+                            'Active Ingredient(s)': (row['active_ingredients'] or "").replace(';', ', '),
+                            'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row['set_id']}",
+                            'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row['set_id']}",
+                            'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row['set_id']}"
+                        })
+            return results
+        except Exception as e:
+            print(f"Error in FDALabelDBService.get_labels_by_set_ids_for_export: {e}")
+            return []
+        finally:
+            conn.close()
+
+    @classmethod
+    def get_labels_for_export(cls, query_term):
+        """
+        Fetches all fields from sum_spl for a given query, formatted for Excel export.
+        """
+        if not cls.check_connectivity():
+            return []
+
+        conn = cls.get_connection()
+        if not conn:
+            return []
+
+        try:
+            cursor = conn.cursor()
+            q = f"%{query_term}%"
+            
+            if cls._db_type == 'oracle':
+                # Similar to local_search but for Oracle if needed
+                sql = """
+                    SELECT 
+                        SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES,
+                        AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME,
+                        MARKET_CATEGORIES, DOCUMENT_TYPE, ROUTES, DOSAGE_FORMS,
+                        EPC, ACT_INGR_NAMES
+                    FROM druglabel.DGV_SUM_SPL
+                    WHERE 
+                        UPPER(PRODUCT_NAMES) LIKE UPPER(:q) OR
+                        UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q) OR
+                        UPPER(SET_ID) = UPPER(:sid) OR
+                        UPPER(APPR_NUM) LIKE UPPER(:q)
+                    ORDER BY EFF_TIME DESC
+                """
+                cursor.execute(sql, {"q": q, "sid": query_term})
+                rows = cursor.fetchall()
+                results = []
+                for row in rows:
+                    results.append({
+                        'SET ID': row[0],
+                        'Trade Name': (row[1] or "").replace(';', ', '),
+                        'Generic/Proper Name(s)': (row[2] or "").replace(';', ', '),
+                        'Company': row[3],
+                        'Application Number(s)': row[4],
+                        'NDC(s)': row[5],
+                        'SPL Effective Date (YYYY/MM/DD)': row[6],
+                        'Marketing Category': row[7],
+                        'Labeling Type': row[8],
+                        'Route(s) of Administration': row[9],
+                        'Dosage Form(s)': row[10],
+                        'Established Pharmacologic Class(es)': row[11],
+                        'Active Ingredient(s)': (row[12] or "").replace(';', ', '),
+                        'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row[0]}",
+                        'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row[0]}",
+                        'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row[0]}"
+                    })
+                return results
+            else:
+                # SQLite Search
+                sql = """
+                    SELECT 
+                        set_id, product_names, generic_names, manufacturer, 
+                        appr_num, ndc_codes, revised_date, market_categories,
+                        doc_type, routes, dosage_forms, epc, active_ingredients
+                    FROM sum_spl
+                    WHERE 
+                        product_names LIKE ? OR
+                        generic_names LIKE ? OR
+                        set_id = ? OR
+                        appr_num LIKE ?
+                    ORDER BY revised_date DESC
+                """
+                cursor.execute(sql, (q, q, query_term, q))
+                rows = cursor.fetchall()
+                results = []
+                for row in rows:
+                    # Format revised_date if it's YYYYMMDD to YYYY/MM/DD
+                    rev_date = row['revised_date'] or ""
+                    if len(rev_date) == 8 and rev_date.isdigit():
+                        rev_date = f"{rev_date[0:4]}/{rev_date[4:6]}/{rev_date[6:8]}"
+
+                    results.append({
+                        'SET ID': row['set_id'],
+                        'Trade Name': (row['product_names'] or "").replace(';', ', '),
+                        'Generic/Proper Name(s)': (row['generic_names'] or "").replace(';', ', '),
+                        'Company': row['manufacturer'],
+                        'Application Number(s)': row['appr_num'],
+                        'NDC(s)': row['ndc_codes'],
+                        'SPL Effective Date (YYYY/MM/DD)': rev_date,
+                        'Marketing Category': row['market_categories'],
+                        'Labeling Type': row['doc_type'],
+                        'Route(s) of Administration': row['routes'],
+                        'Dosage Form(s)': row['dosage_forms'],
+                        'Established Pharmacologic Class(es)': row['epc'],
+                        'Active Ingredient(s)': (row['active_ingredients'] or "").replace(';', ', '),
+                        'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row['set_id']}",
+                        'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row['set_id']}",
+                        'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row['set_id']}"
+                    })
+                return results
+            
+        except Exception as e:
+            print(f"Error in FDALabelDBService.get_labels_for_export: {e}")
+            return []
+        finally:
+            conn.close()
+
+    @classmethod
     def get_autocomplete_suggestions(cls, query, limit=10):
         """
         Fetches autocomplete suggestions for brand and generic names.
