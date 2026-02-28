@@ -158,6 +158,7 @@ class LabelDBUpdater:
                 'active_ingredients': "; ".join(set(active_ingredients)), 'doc_type': doc_type,
                 'routes': "; ".join(set(routes)), 'dosage_forms': "; ".join(set(dosage_forms)),
                 'initial_approval_year': initial_approval_year, 'local_rel_path': os.path.basename(file_path),
+                'ndc_codes': "; ".join(set(ndc_codes)),
                 'ingr_map': ingr_map, 'sections_db': sections_db, 'sections_fts': sections_fts
             }
         except Exception: return None
@@ -169,7 +170,6 @@ class LabelDBUpdater:
             print("No individual SPL ZIPs found in storage.")
             return
 
-        # Initial fast check for existing records
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -177,7 +177,7 @@ class LabelDBUpdater:
         existing_records = { (row['set_id'], row['revised_date']) for row in cursor.fetchall() }
         
         if turbo:
-            print("Turbo Mode Enabled: Disabling safety features for speed.")
+            print("Turbo Mode Enabled: High-speed ingestion.")
             conn.execute("PRAGMA synchronous = OFF")
             conn.execute("PRAGMA journal_mode = MEMORY")
             conn.execute("PRAGMA temp_store = MEMORY")
@@ -192,12 +192,7 @@ class LabelDBUpdater:
         processed_count = 0
         skipped_count = 0
         
-        # Buffer for bulk operations
-        buffer_sum_spl = []
-        buffer_ingr = []
-        buffer_sec_db = []
-        buffer_sec_fts = []
-        buffer_spl_ids = []
+        buffer_sum_spl, buffer_ingr, buffer_sec_db, buffer_sec_fts, buffer_spl_ids = [], [], [], [], []
 
         num_workers = multiprocessing.cpu_count()
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
@@ -212,11 +207,16 @@ class LabelDBUpdater:
                 else:
                     spl_id = data['spl_id']
                     buffer_spl_ids.append(spl_id)
+                    # sum_spl has 17 columns: 
+                    # 1.spl_id, 2.set_id, 3.product_names, 4.generic_names, 5.manufacturer, 
+                    # 6.appr_num, 7.active_ingredients, 8.market_categories, 9.doc_type, 10.routes, 
+                    # 11.dosage_forms, 12.epc, 13.ndc_codes, 14.revised_date, 15.initial_approval_year, 
+                    # 16.is_rld, 17.local_path
                     buffer_sum_spl.append((
                         spl_id, data['set_id'], data['product_names'], data['generic_names'], data['manufacturer'],
-                        data['appr_nums'], data['active_ingredients'], "", data['doc_type'],
-                        data['routes'], data['dosage_forms'], data['revised_date'], data['initial_approval_year'],
-                        data['local_rel_path']
+                        data['appr_nums'], data['active_ingredients'], "", data['doc_type'], data['routes'],
+                        data['dosage_forms'], "", data['ndc_codes'], data['revised_date'], data['initial_approval_year'],
+                        0, data['local_rel_path']
                     ))
                     if data['ingr_map']: buffer_ingr.extend(data['ingr_map'])
                     if data['sections_db']: buffer_sec_db.extend(data['sections_db'])
@@ -228,21 +228,18 @@ class LabelDBUpdater:
                 # Flush Buffers
                 if len(buffer_sum_spl) >= batch_size or (i + 1) == total_files:
                     if buffer_spl_ids:
-                        # Batch Delete
+                        # Use IN clauses for batch deletes
                         placeholders = ','.join(['?'] * len(buffer_spl_ids))
                         cursor.execute(f"DELETE FROM spl_sections WHERE spl_id IN ({placeholders})", buffer_spl_ids)
                         cursor.execute(f"DELETE FROM spl_sections_search WHERE spl_id IN ({placeholders})", buffer_spl_ids)
                         cursor.execute(f"DELETE FROM active_ingredients_map WHERE spl_id IN ({placeholders})", buffer_spl_ids)
                         
-                        # Batch Insert
-                        cursor.executemany("INSERT OR REPLACE INTO sum_spl VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", buffer_sum_spl)
+                        cursor.executemany("INSERT OR REPLACE INTO sum_spl VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", buffer_sum_spl)
                         if buffer_ingr: cursor.executemany("INSERT INTO active_ingredients_map VALUES (?,?,?)", buffer_ingr)
-                        if buffer_sec_db: cursor.executemany("INSERT INTO spl_sections VALUES (?,?,?,?)", buffer_sec_db)
-                        if buffer_sec_fts: cursor.executemany("INSERT INTO spl_sections_search VALUES (?,?,?,?)", buffer_sec_fts)
+                        if buffer_sec_db: cursor.executemany("INSERT INTO spl_sections (spl_id, loinc_code, title, content_xml) VALUES (?,?,?,?)", buffer_sec_db)
+                        if buffer_sec_fts: cursor.executemany("INSERT INTO spl_sections_search (spl_id, loinc_code, title, content_text) VALUES (?,?,?,?)", buffer_sec_fts)
                         
                         conn.commit()
-                        
-                        # Clear buffers
                         buffer_sum_spl, buffer_ingr, buffer_sec_db, buffer_sec_fts, buffer_spl_ids = [], [], [], [], []
 
                 if (i + 1) % 20 == 0 or (i + 1) == total_files:
@@ -254,7 +251,7 @@ class LabelDBUpdater:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Turbo-charged DailyMed Ingestion.")
     parser.add_argument("--filter", choices=['prescription', 'human', 'all'], default='human')
-    parser.add_argument("--turbo", action="store_true", help="Enable high-speed mode (synchronous=OFF, batching)")
+    parser.add_argument("--turbo", action="store_true", help="Enable high-speed mode")
     args = parser.parse_args()
 
     updater = LabelDBUpdater()
