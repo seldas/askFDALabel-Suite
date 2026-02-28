@@ -117,8 +117,7 @@ export default function AgentView({
                 </div>
                 <div className="chart-card full-width">
                     <h3 style={{ borderBottom: '2px solid #ecfeff', paddingBottom: '10px' }}>FAERS Liver-Related Events</h3>
-                    <div className="canvas-container" style={{ height: '400px' }}>
-                        <canvas id="diliFaersChart"></canvas>
+                    <div id="diliFaersCloud" style={{ minHeight: '300px', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', padding: '20px', gap: '10px' }}>
                     </div>
                 </div>
             </div>
@@ -136,8 +135,7 @@ export default function AgentView({
                 </div>
                 <div className="chart-card full-width">
                     <h3 style={{ borderBottom: '2px solid #fff1f2', paddingBottom: '10px' }}>FAERS Cardiac-Related Events</h3>
-                    <div className="canvas-container" style={{ height: '400px' }}>
-                        <canvas id="dictFaersChart"></canvas>
+                    <div id="dictFaersCloud" style={{ minHeight: '300px', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', padding: '20px', gap: '10px' }}>
                     </div>
                 </div>
             </div>
@@ -155,8 +153,7 @@ export default function AgentView({
                 </div>
                 <div className="chart-card full-width">
                     <h3 style={{ borderBottom: '2px solid #fffbeb', paddingBottom: '10px' }}>FAERS Renal-Related Events</h3>
-                    <div className="canvas-container" style={{ height: '400px' }}>
-                        <canvas id="diriFaersChart"></canvas>
+                    <div id="diriFaersCloud" style={{ minHeight: '300px', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', padding: '20px', gap: '10px' }}>
                     </div>
                 </div>
             </div>
