@@ -34,6 +34,9 @@ dashboard_old/
 # Database
 afd.db
 afd.db*
+data/*.db
+data/*.db*
+label.db
 logs/
 GEMINI.md
 database/data/
