@@ -240,10 +240,14 @@ window.initFaers = function() {
             const loadingEl = document.getElementById('faers-loading');
             if (loadingEl) {
                 loadingEl.style.display = 'block';
-                loadingEl.innerHTML = `<p style="color:#dc3545; padding: 20px; text-align:center; background:#fff5f5; border-radius:8px; border:1px solid #feb2b2;">
-                    <strong>FAERS Data Unavailable:</strong> ${error.message || 'Could not connect to openFDA'}<br>
-                    <small style="opacity:0.7">Attempted search for: "${drugSearchTerm}"</small>
-                </p>`;
+                loadingEl.className = ''; // Remove loader class
+                loadingEl.innerHTML = `
+                <div style="padding: 20px; max-width: 800px; margin: 0 auto;">
+                    <p style="color:#dc3545; padding: 20px; text-align:center; background:#fff5f5; border-radius:8px; border:1px solid #feb2b2; margin: 0;">
+                        <strong>FAERS Data Unavailable:</strong> The openFDA API is currently not available under the current internet environment. This is a connectivity issue, not a system error.<br>
+                        <small style="opacity:0.7">Attempted search for: "${drugSearchTerm}"</small>
+                    </p>
+                </div>`;
             }
         }
     }

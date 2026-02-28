@@ -37,7 +37,7 @@ def get_device_recalls(product_code, k_number=None):
         if Config.OPENFDA_API_KEY:
             params_count['api_key'] = Config.OPENFDA_API_KEY
             
-        resp_count = requests.get(base_url, params=params_count)
+        resp_count = requests.get(base_url, params=params_count, timeout=10)
         if resp_count.status_code == 200:
             results = resp_count.json().get('results', [])
             for res in results:
@@ -60,7 +60,7 @@ def get_device_recalls(product_code, k_number=None):
         if Config.OPENFDA_API_KEY:
             params_recent['api_key'] = Config.OPENFDA_API_KEY
 
-        resp_recent = requests.get(base_url, params=params_recent)
+        resp_recent = requests.get(base_url, params=params_recent, timeout=10)
         if resp_recent.status_code == 200:
             summary['recent_recalls'] = resp_recent.json().get('results', [])
 
@@ -82,7 +82,7 @@ def get_device_recalls(product_code, k_number=None):
                 if Config.OPENFDA_API_KEY:
                     params_mfr_count['api_key'] = Config.OPENFDA_API_KEY
                 
-                resp_mfr = requests.get(base_url, params=params_mfr_count)
+                resp_mfr = requests.get(base_url, params=params_mfr_count, timeout=10)
                 if resp_mfr.status_code == 200:
                     summary['manufacturer_specific_recalls'] = resp_mfr.json().get('meta', {}).get('results', {}).get('total', 0)
 

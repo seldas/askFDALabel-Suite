@@ -1669,6 +1669,7 @@ def generic_assessment_route(set_id, assessment_model, pt_terms, prompt, keyword
     
     # FAERS data check
     faers_data = []
+    faers_error = None
     meta = get_label_metadata(set_id)
     if meta and meta.get('brand_name') and meta.get('brand_name') != 'N/A':
         brand_name = meta['brand_name'].split(',')[0].strip()
@@ -1684,17 +1685,25 @@ def generic_assessment_route(set_id, assessment_model, pt_terms, prompt, keyword
             params['api_key'] = Config.OPENFDA_API_KEY
             
         try:
-            resp = requests.get(base_url, params=params)
+            resp = requests.get(base_url, params=params, timeout=10)
             if resp.status_code == 200:
                 raw_results = resp.json().get('results', [])
                 faers_data = [item for item in raw_results if item['term'].upper() in pt_terms]
+            elif resp.status_code == 404:
+                # openFDA returns 404 for "No results found"
+                faers_data = []
             else:
                 logger.warning(f"FAERS query failed: {resp.status_code}")
+                faers_error = f"API returned status {resp.status_code}"
         except Exception as e:
+
             logger.error(f"FAERS error: {e}")
+            from dashboard.services.fda_client import handle_openfda_error
+            faers_error = handle_openfda_error(e)
 
     return jsonify({
         'faers_data': faers_data, 
+        'faers_error': faers_error,
         'existing_assessment': existing_report,
         'assessment_timestamp': timestamp
     })
