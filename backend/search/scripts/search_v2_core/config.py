@@ -34,8 +34,10 @@ DEFAULT_SQLITE_PATH = os.path.join(PROJECT_ROOT, "data", "label.db")
 LOCAL_LABEL_DB_PATH = os.getenv("LOCAL_LABEL_DB_PATH", DEFAULT_SQLITE_PATH)
 print(f"[DEBUG] Search Agent looking for SQLite at: {LOCAL_LABEL_DB_PATH}")
 
+LABEL_DB_CHOICE = os.getenv("LABEL_DB", "LOCAL").upper()
+
 def get_db_type():
-    if all([FDALabel_SERV, FDALabel_PORT, FDALabel_APP, FDALabel_PSW]):
+    if LABEL_DB_CHOICE == "ORACLE" and all([FDALabel_SERV, FDALabel_PORT, FDALabel_APP, FDALabel_PSW]):
         return "oracle"
     if os.path.exists(LOCAL_LABEL_DB_PATH):
         return "sqlite"
@@ -46,18 +48,23 @@ DB_TYPE = get_db_type()
 def get_db_connection():
     global DB_TYPE
     
-    if all([FDALabel_SERV, FDALabel_PORT, FDALabel_APP, FDALabel_PSW]):
+    # 1. Oracle Path
+    if LABEL_DB_CHOICE == "ORACLE" and all([FDALabel_SERV, FDALabel_PORT, FDALabel_APP, FDALabel_PSW]):
         try:
             dsnStr = oracledb.makedsn(FDALabel_SERV, FDALabel_PORT, FDALabel_APP)
             conn = oracledb.connect(user=FDALabel_USER, password=FDALabel_PSW, dsn=dsnStr)
             DB_TYPE = "oracle"
             return conn
         except Exception as e:
-            print(f"!!! [FALLBACK] Oracle connection failed: {e}. Switching to SQLite.")
+            print(f"!!! [ERROR] Oracle connection failed: {e}. Falling back to SQLite if available.")
             
+    # 2. Local SQLite Path (Default/Fallback)
     if os.path.exists(LOCAL_LABEL_DB_PATH):
         DB_TYPE = "sqlite"
-        return sqlite3.connect(LOCAL_LABEL_DB_PATH)
+        conn = sqlite3.connect(LOCAL_LABEL_DB_PATH)
+        # Ensure row factory for dictionary access
+        conn.row_factory = sqlite3.Row
+        return conn
     
     raise ConnectionError(f"No database available. Checked Oracle and SQLite at: {LOCAL_LABEL_DB_PATH}")
 

@@ -280,6 +280,78 @@ class FDALabelDBService:
         return None
 
     @classmethod
+    def get_label_metadata(cls, set_id):
+        """Fetches detailed metadata for a single drug label from the internal DB."""
+        if not cls.check_connectivity():
+            return None
+
+        conn = cls.get_connection()
+        if not conn:
+            return None
+
+        try:
+            if cls._db_type == 'oracle':
+                cursor = conn.cursor()
+                sql = """
+                    SELECT 
+                        SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES,
+                        AUTHOR_ORG_NORMD_NAME, MARKET_CATEGORIES, APPR_NUM,
+                        NDC_CODES, EFF_TIME
+                    FROM druglabel.DGV_SUM_SPL
+                    WHERE SET_ID = :sid
+                """
+                cursor.execute(sql, {"sid": set_id})
+                row = cursor.fetchone()
+                if row:
+                    from datetime import datetime
+                    try:
+                        eff_time = datetime.strptime(row[7], '%Y%m%d').strftime('%B %d, %Y')
+                    except:
+                        eff_time = row[7]
+                    return {
+                        'set_id': row[0],
+                        'brand_name': (row[1] or "").replace(';', ', '),
+                        'generic_name': (row[2] or "").replace(';', ', '),
+                        'manufacturer_name': row[3],
+                        'effective_time': eff_time,
+                        'label_format': 'FDALabel',
+                        'application_number': row[5],
+                        'market_category': row[4],
+                        'ndc': row[6]
+                    }
+                cursor.close()
+            else:
+                cursor = conn.cursor()
+                sql = """
+                    SELECT 
+                        set_id, product_names, generic_names,
+                        manufacturer, market_categories, appr_num,
+                        ndc_codes, revised_date, doc_type
+                    FROM sum_spl
+                    WHERE set_id = ?
+                """
+                cursor.execute(sql, (set_id,))
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        'set_id': row['set_id'],
+                        'brand_name': (row['product_names'] or "").replace(';', ', '),
+                        'generic_name': (row['generic_names'] or "").replace(';', ', '),
+                        'manufacturer_name': row['manufacturer'] or "",
+                        'effective_time': row['revised_date'],
+                        'label_format': 'FDALabel (Local)',
+                        'application_number': row['appr_num'] or "",
+                        'market_category': row['market_categories'] or "",
+                        'ndc': row['ndc_codes'] or ""
+                    }
+                cursor.close()
+        except Exception as e:
+            print(f"Error fetching metadata from FDALabel DB ({cls._db_type}): {e}")
+        finally:
+            conn.close()
+        return None
+
+    @classmethod
     def _chunk(cls, items, n=900):
         for i in range(0, len(items), n):
             yield items[i:i+n]
