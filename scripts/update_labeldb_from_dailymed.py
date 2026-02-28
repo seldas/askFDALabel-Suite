@@ -193,10 +193,12 @@ class LabelDBUpdater:
         print("Done.")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Update label.db from DailyMed weekly update ZIP.")
-    parser.add_argument("--zip", default="data/downloads/dailymed/dm_spl_weekly_update_021626_022026.zip", help="Path to main ZIP")
-    parser.add_argument("--filter", choices=['prescription', 'human', 'all'], default='human', help="Filter records to import")
-    args = parser.parse_args()
+    for i in range(1,6):
+        filename = f'data/downloads/dailymed/dm_spl_release_human_rx_part{i}.zip' # all rx drugs.
+        parser = argparse.ArgumentParser(description="Update label.db from DailyMed weekly update ZIP.")
+        parser.add_argument("--zip", default=filename, help="Path to main ZIP")
+        parser.add_argument("--filter", choices=['prescription', 'human', 'all'], default='human', help="Filter records to import")
+        args = parser.parse_args()
 
-    updater = LabelDBUpdater()
-    updater.process_nested_zip(args.zip, args.filter)
+        updater = LabelDBUpdater()
+        updater.process_nested_zip(args.zip, args.filter)
