@@ -32,13 +32,6 @@ uploads/
 dashboard_old/
 
 # Database
-afd.db
-afd.db*
-data/*.db
-data/*.db*
-label.db
 logs/
 GEMINI.md
-database/data/
-database/splmonger-loaders-dist.tgz
-data/spl_storage/
+data/
