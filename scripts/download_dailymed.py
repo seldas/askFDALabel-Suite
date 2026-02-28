@@ -25,7 +25,7 @@ class DailyMedDownloader:
             print(f"Skipping {filename}: Already exists.")
             return True
 
-        print(f"Downloading {filename}...")
+        print(f"Connecting to {url}...")
         try:
             with requests.get(url, stream=True, timeout=30) as r:
                 r.raise_for_status()
@@ -33,28 +33,36 @@ class DailyMedDownloader:
                 
                 with open(target_path, 'wb') as f:
                     downloaded = 0
-                    for chunk in r.iter_content(chunk_size=8192):
+                    for chunk in r.iter_content(chunk_size=1024 * 1024): # 1MB chunks
                         if chunk:
                             f.write(chunk)
                             downloaded += len(chunk)
                             self.show_progress(downloaded, total_size, filename)
-            print(f"Successfully downloaded {filename}")
+            print(f"\nSuccessfully downloaded {filename}")
             return True
         except Exception as e:
-            print(f"Error downloading {filename}: {e}")
+            print(f"\nError downloading {filename}: {e}")
             if os.path.exists(target_path):
                 os.remove(target_path)
             return False
 
     def show_progress(self, current, total, filename):
+        bar_length = 40
         if total <= 0:
-            sys.stdout.write(f"Downloading... {current} bytes")
+            # Fallback if content-length is missing
+            sys.stdout.write(f"\rDownloading {filename}: {current / (1024*1024):.1f} MB received...")
         else:
-            percent = (current / total) * 100
-            bar_length = 40
-            filled_length = int(bar_length * current // total)
+            fraction = current / total
+            filled_length = int(bar_length * fraction)
             bar = '█' * filled_length + '-' * (bar_length - filled_length)
-            sys.stdout.write(f"|{bar}| {percent:.1f}% ({current // 1024 // 1024} MB / {total // 1024 // 1024} MB)")
+            percent = fraction * 100
+            
+            curr_mb = current / (1024 * 1024)
+            total_mb = total / (1024 * 1024)
+            
+            # Clear line and print
+            sys.stdout.write(f"\r{filename} |{bar}| {percent:.1f}% ({curr_mb:.1f}/{total_mb:.1f} MB)")
+        
         sys.stdout.flush()
 
     def run(self, category):
@@ -65,10 +73,10 @@ class DailyMedDownloader:
         elif category in self.FILES:
             files_to_download = self.FILES[category]
         else:
-            print(f"Unknown category: {category}")
-            return
+            # Treat as custom filename if not a category
+            files_to_download = [category]
 
-        print(f"Starting download for category: {category} ({len(files_to_download)} files)")
+        print(f"Queueing {len(files_to_download)} downloads...")
         for fname in files_to_download:
             self.download_file(fname)
 
