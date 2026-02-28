@@ -35,9 +35,14 @@ class FDALabelDBService:
 
     @classmethod
     def get_connection(cls):
-        """Establishes a connection to the best available DB."""
-        # Try Oracle first
-        if ORACLE_AVAILABLE:
+        """Establishes a connection based on Config.LABEL_DB."""
+        db_choice = current_app.config.get('LABEL_DB', 'LOCAL')
+        
+        # 1. Oracle Path
+        if db_choice == 'ORACLE':
+            if not ORACLE_AVAILABLE:
+                print("[ERROR] LABEL_DB=ORACLE requested but oracledb is not installed.")
+                return None
             try:
                 FDALabel_USER = current_app.config.get('FDALABEL_DB_USER')
                 FDALabel_PSW = current_app.config.get('FDALABEL_DB_PASSWORD')
@@ -50,10 +55,11 @@ class FDALabelDBService:
                     connection = oracledb.connect(user=FDALabel_USER, password=FDALabel_PSW, dsn=dsnStr)
                     cls._db_type = 'oracle'
                     return connection
-            except Exception:
-                pass # Fall through to SQLite
+            except Exception as e:
+                print(f"Oracle Connection Failed: {e}")
+                return None
 
-        # Fallback to SQLite
+        # 2. Local SQLite Path (Default)
         conn = cls.get_sqlite_connection()
         if conn:
             cls._db_type = 'sqlite'
@@ -61,18 +67,19 @@ class FDALabelDBService:
 
     @classmethod
     def check_connectivity(cls):
-        """Checks if any internal DB is accessible. Caches the result."""
+        """Checks if the configured LABEL_DB is accessible. Caches the result."""
         if cls._is_connected is not None:
             return cls._is_connected
 
+        db_choice = current_app.config.get('LABEL_DB', 'LOCAL')
         conn = cls.get_connection()
         if conn:
             cls._is_connected = True
-            print(f"[SUCCESS] FDALabel DB connected successfully ({cls._db_type}).")
+            print(f"[SUCCESS] FDALabel DB connected ({db_choice} mode).")
             conn.close()
         else:
             cls._is_connected = False
-            print(f"[ERROR] No internal database found (Oracle or local SQLite). Falling back to OpenFDA search.")
+            print(f"[ERROR] Failed to connect to {db_choice} database.")
         
         return cls._is_connected
 

@@ -44,7 +44,9 @@ class Config:
     UPLOAD_FOLDER = os.path.join(DATA_DIR, 'uploads')
     ANNOTATIONS_FILE = os.path.join(DATA_DIR, 'annotations.json')
 
-    # Internal FDALabel DB Configuration (Oracle)
+    # Internal FDALabel DB Configuration
+    LABEL_DB = os.getenv('LABEL_DB', 'LOCAL').upper() # 'LOCAL' or 'ORACLE'
+    
     FDALABEL_DB_HOST = os.getenv('FDALabel_SERV', 'ncsvmscidevl03.fda.gov')
     FDALABEL_DB_PORT = os.getenv('FDALabel_PORT', '1521')
     FDALABEL_DB_SERVICE = os.getenv('FDALabel_APP', 'scidevl3')
