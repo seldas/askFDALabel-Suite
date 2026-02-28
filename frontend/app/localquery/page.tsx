@@ -21,6 +21,7 @@ const LocalQueryPage = () => {
     const [query, setQuery] = useState('');
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [userWantsSuggestions, setUserWantsSuggestions] = useState(true);
     const [results, setResults] = useState<LocalQueryResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
@@ -28,7 +29,7 @@ const LocalQueryPage = () => {
     // Debounced Autocomplete
     useEffect(() => {
         const fetchSuggestions = async () => {
-            if (query.trim().length < 2) {
+            if (query.trim().length < 2 || !userWantsSuggestions) {
                 setSuggestions([]);
                 setShowSuggestions(false);
                 return;
@@ -48,7 +49,7 @@ const LocalQueryPage = () => {
 
         const timeoutId = setTimeout(fetchSuggestions, 300);
         return () => clearTimeout(timeoutId);
-    }, [query]);
+    }, [query, userWantsSuggestions]);
 
     const handleSearch = async (e?: React.FormEvent, selectedQuery?: string) => {
         if (e) e.preventDefault();
@@ -57,6 +58,7 @@ const LocalQueryPage = () => {
 
         setQuery(finalQuery);
         setShowSuggestions(false);
+        setUserWantsSuggestions(false); // Disable suggestions after a search is triggered
         setIsLoading(true);
         setHasSearched(true);
         try {
@@ -75,10 +77,16 @@ const LocalQueryPage = () => {
         }
     };
 
+    const handleInputChange = (val: string) => {
+        setQuery(val);
+        setUserWantsSuggestions(true); // Re-enable suggestions when user types
+    };
+
     const handleRandom = async () => {
         setIsLoading(true);
         setHasSearched(true);
         setQuery('');
+        setUserWantsSuggestions(false);
         try {
             const response = await fetch('/api/localquery/random');
             const data = await response.json();
@@ -143,8 +151,8 @@ const LocalQueryPage = () => {
                             <input 
                                 type="text" 
                                 value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                                onChange={(e) => handleInputChange(e.target.value)}
+                                onFocus={() => suggestions.length > 0 && userWantsSuggestions && setShowSuggestions(true)}
                                 placeholder="Enter Generic name, Brand name, Set ID, or App #..."
                                 style={{
                                     width: '100%',
@@ -171,6 +179,37 @@ const LocalQueryPage = () => {
                                     maxHeight: '300px',
                                     overflowY: 'auto'
                                 }}>
+                                    <div style={{ 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between', 
+                                        alignItems: 'center',
+                                        padding: '8px 20px',
+                                        borderBottom: '1px solid #f1f5f9',
+                                        backgroundColor: '#f8fafc'
+                                    }}>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Suggestions</span>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setShowSuggestions(false);
+                                                setUserWantsSuggestions(false);
+                                            }}
+                                            style={{
+                                                fontSize: '0.75rem',
+                                                fontWeight: 700,
+                                                color: '#ef4444',
+                                                backgroundColor: 'transparent',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                padding: '4px 8px',
+                                                borderRadius: '4px'
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                        >
+                                            Close ✕
+                                        </button>
+                                    </div>
                                     {suggestions.map((s, i) => (
                                         <div 
                                             key={i}
