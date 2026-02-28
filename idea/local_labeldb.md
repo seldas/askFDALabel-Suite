@@ -51,6 +51,37 @@ The `sql.py` implementation uses a `SQLManager` to dynamically switch dialects:
 4. [x] **Search Core Update:** `search_v2_core/sql.py` and `config.py` refactored for dialect-agnostic querying.
 5. [x] **Validation:** Verified retrieval of full XML from local ZIPs for "Label View" and "Comparison" features.
 
+## 🏁 Getting Started: Step-by-Step Setup
+
+Follow these steps to build or rebuild your local high-performance label repository.
+
+### 1. Prepare the Data
+Ensure your DailyMed bulk ZIP file (downloaded from DailyMed's Full Release or Weekly Update service) is placed in:
+`data/downloads/dailymed/`
+
+### 2. Initialize the Database Schema
+This command creates the `data/label.db` file and sets up the metadata tables and FTS5 search indexes.
+```powershell
+python scripts/init_local_labeldb.py
+```
+
+### 3. Run the Ingestion & Extraction
+This script performs a "one-pass" build: it populates the database metadata, builds the search index, and extracts individual SPL ZIPs (containing XML + images) to `data/spl_storage/`.
+
+**Recommended Command (Human Rx & OTC):**
+```powershell
+python scripts/update_labeldb_from_dailymed.py --zip data/downloads/dailymed/dm_spl_weekly_update_XXXX.zip --filter human
+```
+
+*Note: Use `--filter all` if you require veterinary or homeopathic data, but be aware this significantly increases disk usage.*
+
+### 4. Automatic Usage
+No further configuration is required. The `FDALabelDBService` is designed to:
+1. Check if an internal Oracle DB is available.
+2. If not, look up the `set_id` in your local `label.db`.
+3. If found, it retrieves the XML directly from the ZIP in `data/spl_storage/`.
+4. Fallback to the DailyMed web API only if the record is missing locally.
+
 ## 📋 Observations & Performance
 - **Data Volume:** Imported **1,195 human labeling records** from the DailyMed weekly update.
 - **Search Speed:** FTS5 `MATCH` queries provide sub-millisecond response times for content-heavy searches.
