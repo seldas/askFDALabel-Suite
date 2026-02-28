@@ -31,33 +31,18 @@ class LabelDBUpdater:
                 processed_at TEXT
             )
         """)
-        # We'll use sum_spl directly for duplicate checks (set_id + revised_date)
         conn.commit()
         conn.close()
-
-    def strip_tags(self, text):
-        if not text: return ""
-        return re.sub(r'<[^>]*>', ' ', text).strip()
-
-    def get_text(self, element):
-        if element is None: return ""
-        return ET.tostring(element, encoding='unicode', method='text').strip()
-
-    def get_xml(self, element):
-        if element is None: return ""
-        return ET.tostring(element, encoding='unicode').strip()
 
     def print_progress(self, current, total, processed, skipped, prefix='Progress', length=40):
         """Visual text-based progress bar."""
         percent = ("{0:.1f}").format(100 * (current / float(total)))
         filled_length = int(length * current // total)
         bar = '█' * filled_length + '-' * (length - filled_length)
-        # Add counters to the status line
         status = f"| Processed: {processed} | Skipped: {skipped}"
         sys.stdout.write(f'\r{prefix} |{bar}| {percent}% {status}')
         sys.stdout.flush()
-        if current == total: 
-            print()
+        if current == total: print()
 
     def unpack_all_bulk_zips(self, filter_type='human'):
         """Phase 1: Extract nested ZIPs from all bulk files in downloads folder."""
@@ -79,8 +64,7 @@ class LabelDBUpdater:
         for zip_path in bulk_zips:
             zip_name = os.path.basename(zip_path)
             cursor.execute("SELECT 1 FROM processed_zips WHERE zip_name = ?", (zip_name,))
-            if cursor.fetchone():
-                continue
+            if cursor.fetchone(): continue
 
             print(f"Unpacking bulk ZIP: {zip_name}...")
             try:
@@ -100,18 +84,15 @@ class LabelDBUpdater:
                 conn.commit()
             except Exception as e:
                 print(f"Error unpacking {zip_name}: {e}")
-        
         conn.close()
 
     @staticmethod
     def parse_spl_worker(file_path):
-        """Static worker function for multiprocessing."""
+        """Worker function for multiprocessing."""
         try:
-            # We need to re-import these inside the worker for multiprocessing on Windows
             import xml.etree.ElementTree as ET
             import zipfile
             import re
-            
             NS = {'ns': 'urn:hl7-org:v3'}
             
             with zipfile.ZipFile(file_path, 'r') as z:
@@ -121,29 +102,21 @@ class LabelDBUpdater:
                     xml_content = f.read()
                     
             root = ET.fromstring(xml_content)
-            spl_id_el = root.find('ns:id', NS)
-            set_id_el = root.find('ns:setId', NS)
-            spl_id = spl_id_el.get('root') if spl_id_el is not None else None
-            set_id = set_id_el.get('root') if set_id_el is not None else None
-            
+            spl_id = (root.find('ns:id', NS).get('root')) if root.find('ns:id', NS) is not None else None
+            set_id = (root.find('ns:setId', NS).get('root')) if root.find('ns:setId', NS) is not None else None
             if not spl_id or not set_id: return None
 
-            eff_time_el = root.find('ns:effectiveTime', NS)
-            eff_val = eff_time_el.get('value') if eff_time_el is not None else ""
+            eff_val = root.find('ns:effectiveTime', NS).get('value') if root.find('ns:effectiveTime', NS) is not None else ""
             revised_date = f"{eff_val[:4]}-{eff_val[4:6]}-{eff_val[6:8]}" if len(eff_val) >= 8 else eff_val
 
-            # Detailed parse
-            doc_type_el = root.find('ns:code', NS)
-            doc_type = doc_type_el.get('displayName') if doc_type_el is not None else ""
-
-            # Minimal helper inside worker
+            doc_type = root.find('ns:code', NS).get('displayName') if root.find('ns:code', NS) is not None else ""
+            
             def get_el_text(el):
-                if el is None: return ""
-                return "".join(el.itertext()).strip()
+                return "".join(el.itertext()).strip() if el is not None else ""
 
             title_text = get_el_text(root.find('ns:title', NS))
-            appr_year_match = re.search(r'Initial U.S. Approval:\s*(\d{4})', title_text)
-            initial_approval_year = int(appr_year_match.group(1)) if appr_year_match else None
+            appr_match = re.search(r'Initial U.S. Approval:\s*(\d{4})', title_text)
+            initial_approval_year = int(appr_match.group(1)) if appr_match else None
 
             manufacturer = ""
             author_org = root.find('.//ns:author/ns:assignedEntity/ns:representedOrganization/ns:name', NS)
@@ -154,41 +127,29 @@ class LabelDBUpdater:
             
             products = root.findall('.//ns:manufacturedProduct/ns:manufacturedProduct', NS)
             for prod in products:
-                name_el = prod.find('ns:name', NS)
-                if name_el is not None: product_names.append(get_el_text(name_el))
-                gen_name_el = prod.find('.//ns:genericMedicine/ns:name', NS)
-                if gen_name_el is not None: generic_names.append(gen_name_el.text)
-                form_el = prod.find('ns:formCode', NS)
-                if form_el is not None: dosage_forms.append(form_el.get('displayName'))
-                ndc_el = prod.find('ns:code', NS)
-                if ndc_el is not None: ndc_codes.append(ndc_el.get('code'))
-                ingrs = prod.findall('ns:ingredient', NS)
-                for ingr in ingrs:
+                if (name_el := prod.find('ns:name', NS)) is not None: product_names.append(get_el_text(name_el))
+                if (gen_name_el := prod.find('.//ns:genericMedicine/ns:name', NS)) is not None: generic_names.append(gen_name_el.text)
+                if (form_el := prod.find('ns:formCode', NS)) is not None: dosage_forms.append(form_el.get('displayName'))
+                if (ndc_el := prod.find('ns:code', NS)) is not None: ndc_codes.append(ndc_el.get('code'))
+                for ingr in prod.findall('ns:ingredient', NS):
                     class_code = ingr.get('classCode')
-                    subst = ingr.find('ns:ingredientSubstance/ns:name', NS)
-                    if subst is not None:
+                    if (subst := ingr.find('ns:ingredientSubstance/ns:name', NS)) is not None:
                         is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
-                        sub_name = subst.text
-                        if is_active: active_ingredients.append(sub_name)
-                        ingr_map.append((spl_id, sub_name, is_active))
-                route_els = prod.findall('.//ns:routeCode', NS)
-                for rel in route_els: routes.append(rel.get('displayName'))
+                        if is_active: active_ingredients.append(subst.text)
+                        ingr_map.append((spl_id, subst.text, is_active))
+                for rel in prod.findall('.//ns:routeCode', NS): routes.append(rel.get('displayName'))
 
-            appr_el = root.find('.//ns:approval/ns:id', NS)
-            if appr_el is not None: appr_nums.append(appr_el.get('extension'))
+            if (appr_el := root.find('.//ns:approval/ns:id', NS)) is not None: appr_nums.append(appr_el.get('extension'))
 
-            sections_to_db, sections_to_fts = [], []
-            sections = root.findall('.//ns:section', NS)
-            for sec in sections:
-                code_el = sec.find('ns:code', NS)
-                loinc = code_el.get('code') if code_el is not None else ""
+            sections_db, sections_fts = [], []
+            for sec in root.findall('.//ns:section', NS):
+                loinc = (sec.find('ns:code', NS).get('code')) if sec.find('ns:code', NS) is not None else ""
                 title = get_el_text(sec.find('ns:title', NS))
-                text_el = sec.find('ns:text', NS)
-                if text_el is not None:
+                if (text_el := sec.find('ns:text', NS)) is not None:
                     raw_xml = ET.tostring(text_el, encoding='unicode').strip()
                     plain_text = re.sub(r'<[^>]*>', ' ', raw_xml).strip()
-                    sections_to_db.append((spl_id, loinc, title, raw_xml))
-                    sections_to_fts.append((spl_id, loinc, title, plain_text))
+                    sections_db.append((spl_id, loinc, title, raw_xml))
+                    sections_fts.append((spl_id, loinc, title, plain_text))
 
             return {
                 'spl_id': spl_id, 'set_id': set_id, 'revised_date': revised_date,
@@ -197,36 +158,46 @@ class LabelDBUpdater:
                 'active_ingredients': "; ".join(set(active_ingredients)), 'doc_type': doc_type,
                 'routes': "; ".join(set(routes)), 'dosage_forms': "; ".join(set(dosage_forms)),
                 'initial_approval_year': initial_approval_year, 'local_rel_path': os.path.basename(file_path),
-                'ingr_map': ingr_map, 'sections_to_db': sections_to_db, 'sections_to_fts': sections_to_fts
+                'ingr_map': ingr_map, 'sections_db': sections_db, 'sections_fts': sections_fts
             }
-        except Exception:
-            return None
+        except Exception: return None
 
-    def update_db_from_storage(self):
+    def update_db_from_storage(self, turbo=False):
         """Phase 2: Process individual ZIPs in storage folder and sync to DB."""
         all_zips = [os.path.join(self.storage_dir, f) for f in os.listdir(self.storage_dir) if f.endswith('.zip')]
         if not all_zips:
             print("No individual SPL ZIPs found in storage.")
             return
 
+        # Initial fast check for existing records
         conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        
-        # Get existing (set_id, revised_date) pairs for skipping
         cursor.execute("SELECT set_id, revised_date FROM sum_spl")
-        existing_records = { (row[0], row[1]) for row in cursor.fetchall() }
-        conn.close()
+        existing_records = { (row['set_id'], row['revised_date']) for row in cursor.fetchall() }
+        
+        if turbo:
+            print("Turbo Mode Enabled: Disabling safety features for speed.")
+            conn.execute("PRAGMA synchronous = OFF")
+            conn.execute("PRAGMA journal_mode = MEMORY")
+            conn.execute("PRAGMA temp_store = MEMORY")
+            conn.execute("PRAGMA cache_size = 50000")
+            batch_size = 1000
+        else:
+            batch_size = 100
 
         total_files = len(all_zips)
-        print(f"Scanning {total_files} ZIPs in storage...")
+        print(f"Processing {total_files} ZIPs with batch size {batch_size}...")
         
         processed_count = 0
         skipped_count = 0
-        batch_size = 100
         
-        # Re-open connection for writing
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        # Buffer for bulk operations
+        buffer_sum_spl = []
+        buffer_ingr = []
+        buffer_sec_db = []
+        buffer_sec_fts = []
+        buffer_spl_ids = []
 
         num_workers = multiprocessing.cpu_count()
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
@@ -234,65 +205,60 @@ class LabelDBUpdater:
             
             for i, future in enumerate(as_completed(futures)):
                 data = future.result()
-                if not data: 
-                    # Consider failed parse as skipped or error
-                    continue
+                if not data: continue
                 
-                # Uniqueness Check: same set_id AND same revised_date
                 if (data['set_id'], data['revised_date']) in existing_records:
                     skipped_count += 1
                 else:
                     spl_id = data['spl_id']
-                    # Sync to DB
-                    cursor.execute("DELETE FROM spl_sections WHERE spl_id = ?", (spl_id,))
-                    cursor.execute("DELETE FROM spl_sections_search WHERE spl_id = ?", (spl_id,))
-                    cursor.execute("DELETE FROM active_ingredients_map WHERE spl_id = ?", (spl_id,))
-
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO sum_spl (
-                            spl_id, set_id, product_names, generic_names, manufacturer, 
-                            appr_num, active_ingredients, market_categories, doc_type, 
-                            routes, dosage_forms, revised_date, initial_approval_year,
-                            local_path
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
+                    buffer_spl_ids.append(spl_id)
+                    buffer_sum_spl.append((
                         spl_id, data['set_id'], data['product_names'], data['generic_names'], data['manufacturer'],
                         data['appr_nums'], data['active_ingredients'], "", data['doc_type'],
                         data['routes'], data['dosage_forms'], data['revised_date'], data['initial_approval_year'],
                         data['local_rel_path']
                     ))
-
-                    if data['ingr_map']:
-                        cursor.executemany("INSERT INTO active_ingredients_map (spl_id, substance_name, is_active) VALUES (?, ?, ?)", data['ingr_map'])
-                    if data['sections_to_db']:
-                        cursor.executemany("INSERT INTO spl_sections (spl_id, loinc_code, title, content_xml) VALUES (?, ?, ?, ?)", data['sections_to_db'])
-                    if data['sections_to_fts']:
-                        cursor.executemany("INSERT INTO spl_sections_search (spl_id, loinc_code, title, content_text) VALUES (?, ?, ?, ?)", data['sections_to_fts'])
+                    if data['ingr_map']: buffer_ingr.extend(data['ingr_map'])
+                    if data['sections_db']: buffer_sec_db.extend(data['sections_db'])
+                    if data['sections_fts']: buffer_sec_fts.extend(data['sections_fts'])
                     
                     existing_records.add((data['set_id'], data['revised_date']))
                     processed_count += 1
 
-                # Update visual progress bar every 10 files or on complete
-                if (i + 1) % 10 == 0 or (i + 1) == total_files:
-                    self.print_progress(i + 1, total_files, processed_count, skipped_count)
-                
-                # Batch commit
-                if processed_count > 0 and processed_count % batch_size == 0:
-                    conn.commit()
+                # Flush Buffers
+                if len(buffer_sum_spl) >= batch_size or (i + 1) == total_files:
+                    if buffer_spl_ids:
+                        # Batch Delete
+                        placeholders = ','.join(['?'] * len(buffer_spl_ids))
+                        cursor.execute(f"DELETE FROM spl_sections WHERE spl_id IN ({placeholders})", buffer_spl_ids)
+                        cursor.execute(f"DELETE FROM spl_sections_search WHERE spl_id IN ({placeholders})", buffer_spl_ids)
+                        cursor.execute(f"DELETE FROM active_ingredients_map WHERE spl_id IN ({placeholders})", buffer_spl_ids)
+                        
+                        # Batch Insert
+                        cursor.executemany("INSERT OR REPLACE INTO sum_spl VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", buffer_sum_spl)
+                        if buffer_ingr: cursor.executemany("INSERT INTO active_ingredients_map VALUES (?,?,?)", buffer_ingr)
+                        if buffer_sec_db: cursor.executemany("INSERT INTO spl_sections VALUES (?,?,?,?)", buffer_sec_db)
+                        if buffer_sec_fts: cursor.executemany("INSERT INTO spl_sections_search VALUES (?,?,?,?)", buffer_sec_fts)
+                        
+                        conn.commit()
+                        
+                        # Clear buffers
+                        buffer_sum_spl, buffer_ingr, buffer_sec_db, buffer_sec_fts, buffer_spl_ids = [], [], [], [], []
 
-        conn.commit()
+                if (i + 1) % 20 == 0 or (i + 1) == total_files:
+                    self.print_progress(i + 1, total_files, processed_count, skipped_count)
+
         conn.close()
-        print(f"\nFinished. Added {processed_count} new records, skipped {skipped_count} existing.")
+        print(f"\nFinished. Processed: {processed_count}, Skipped: {skipped_count}.")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Industrial update of label.db with progress monitoring.")
-    parser.add_argument("--filter", choices=['prescription', 'human', 'all'], default='human', help="Filter records to import")
+    parser = argparse.ArgumentParser(description="Turbo-charged DailyMed Ingestion.")
+    parser.add_argument("--filter", choices=['prescription', 'human', 'all'], default='human')
+    parser.add_argument("--turbo", action="store_true", help="Enable high-speed mode (synchronous=OFF, batching)")
     args = parser.parse_args()
 
     updater = LabelDBUpdater()
-    
-    print("--- Phase 1: Unpacking Bulk ZIPs ---")
+    print("--- Phase 1: Unpacking ---")
     updater.unpack_all_bulk_zips(filter_type=args.filter)
-    
-    print("\n--- Phase 2: Syncing Metadata to Database ---")
-    updater.update_db_from_storage()
+    print("\n--- Phase 2: Database Update ---")
+    updater.update_db_from_storage(turbo=args.turbo)
