@@ -41,3 +41,4 @@ logs/
 GEMINI.md
 database/data/
 database/splmonger-loaders-dist.tgz
+data/spl_storage/

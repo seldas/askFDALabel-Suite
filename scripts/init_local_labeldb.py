@@ -10,7 +10,7 @@ def init_db(db_path="data/label.db"):
 
     print(f"Initializing {db_path}...")
 
-    # 1. Main Metadata Table
+    # 1. Main Metadata Table (Slim for fast searching)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS sum_spl (
         spl_id TEXT PRIMARY KEY,
@@ -28,9 +28,11 @@ def init_db(db_path="data/label.db"):
         ndc_codes TEXT,
         revised_date TEXT,
         initial_approval_year INTEGER,
-        is_rld INTEGER DEFAULT 0
+        is_rld INTEGER DEFAULT 0,
+        local_path TEXT
     )
     """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sum_spl_set_id ON sum_spl(set_id);")
 
     # 2. Section Content Table
     cursor.execute("""

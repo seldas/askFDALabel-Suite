@@ -12,8 +12,10 @@ from datetime import datetime
 NS = {'ns': 'urn:hl7-org:v3'}
 
 class LabelDBUpdater:
-    def __init__(self, db_path="data/label.db"):
+    def __init__(self, db_path="data/label.db", storage_dir="data/spl_storage"):
         self.db_path = db_path
+        self.storage_dir = storage_dir
+        os.makedirs(self.storage_dir, exist_ok=True)
         self._init_tracking_table()
 
     def _init_tracking_table(self):
@@ -40,7 +42,7 @@ class LabelDBUpdater:
         if element is None: return ""
         return ET.tostring(element, encoding='unicode').strip()
 
-    def parse_and_sync_xml(self, xml_content, source_name, conn):
+    def parse_and_sync_xml(self, xml_content, zip_data, source_name, conn):
         try:
             root = ET.fromstring(xml_content)
         except Exception as e:
@@ -52,13 +54,19 @@ class LabelDBUpdater:
         spl_id = spl_id_el.get('root') if spl_id_el is not None else None
         set_id = set_id_el.get('root') if set_id_el is not None else None
         
-        if not spl_id: return
+        if not spl_id or not set_id: return
 
         # Check if already processed (efficiency)
         cursor = conn.cursor()
         cursor.execute("SELECT 1 FROM processed_files WHERE file_id = ?", (spl_id,))
         if cursor.fetchone():
             return # Skip if already exists
+
+        # SAVE ZIP TO FILESYSTEM
+        local_rel_path = f"{set_id}.zip"
+        local_full_path = os.path.join(self.storage_dir, local_rel_path)
+        with open(local_full_path, 'wb') as f:
+            f.write(zip_data)
 
         effective_time = root.find('ns:effectiveTime', NS).get('value') if root.find('ns:effectiveTime', NS) is not None else ""
         revised_date = f"{effective_time[:4]}-{effective_time[4:6]}-{effective_time[6:8]}" if len(effective_time) >= 8 else effective_time
@@ -125,12 +133,14 @@ class LabelDBUpdater:
             INSERT OR REPLACE INTO sum_spl (
                 spl_id, set_id, product_names, generic_names, manufacturer, 
                 appr_num, active_ingredients, market_categories, doc_type, 
-                routes, dosage_forms, revised_date, initial_approval_year
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                routes, dosage_forms, revised_date, initial_approval_year,
+                local_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             spl_id, set_id, "; ".join(set(product_names)), "; ".join(set(generic_names)), manufacturer,
             "; ".join(set(appr_nums)), "; ".join(set(active_ingredients)), "", doc_type,
-            "; ".join(set(routes)), "; ".join(set(dosage_forms)), revised_date, initial_approval_year
+            "; ".join(set(routes)), "; ".join(set(dosage_forms)), revised_date, initial_approval_year,
+            local_rel_path
         ))
 
         cursor.executemany("INSERT INTO active_ingredients_map (spl_id, substance_name, is_active) VALUES (?, ?, ?)", ingr_map)
@@ -163,13 +173,16 @@ class LabelDBUpdater:
                 if i % 50 == 0: print(f"Processing {i}/{total}...")
                 
                 try:
-                    with main_z.open(nz_name) as nz_data:
+                    with main_z.open(nz_name) as nz_handle:
+                        # Read the raw bytes so we can save it later
+                        zip_data = nz_handle.read()
+                        
                         # Use io.BytesIO to treat the nested data as a file for zipfile
-                        with zipfile.ZipFile(io.BytesIO(nz_data.read())) as nz:
+                        with zipfile.ZipFile(io.BytesIO(zip_data)) as nz:
                             xml_files = [f for f in nz.namelist() if f.endswith('.xml')]
                             for xml_file in xml_files:
                                 with nz.open(xml_file) as xf:
-                                    self.parse_and_sync_xml(xf.read(), f"{nz_name}/{xml_file}", conn)
+                                    self.parse_and_sync_xml(xf.read(), zip_data, f"{nz_name}/{xml_file}", conn)
                     
                     if i % 10 == 0: conn.commit() # Periodic commit
                 except Exception as e:

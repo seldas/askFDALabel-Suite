@@ -231,6 +231,48 @@ class FDALabelDBService:
         return None
 
     @classmethod
+    def get_full_xml(cls, set_id):
+        """Fetches the full SPL XML from the local ZIP file or Oracle."""
+        if not cls.check_connectivity():
+            return None
+
+        conn = cls.get_connection()
+        if not conn:
+            return None
+
+        try:
+            if cls._db_type == 'oracle':
+                # Existing Oracle logic if applicable
+                return None 
+            else:
+                cursor = conn.cursor()
+                # Get the local_path from sum_spl
+                sql = "SELECT local_path FROM sum_spl WHERE set_id = ? LIMIT 1"
+                cursor.execute(sql, (set_id,))
+                row = cursor.fetchone()
+                
+                if row and row['local_path']:
+                    local_rel_path = row['local_path']
+                    # Construct full path to the storage directory
+                    storage_dir = current_app.config.get('SPL_STORAGE_DIR', os.path.join(current_app.root_path, '..', 'data', 'spl_storage'))
+                    zip_path = os.path.abspath(os.path.join(storage_dir, local_rel_path))
+                    
+                    if os.path.exists(zip_path):
+                        import zipfile
+                        with zipfile.ZipFile(zip_path, 'r') as z:
+                            # Find the first .xml file in the zip
+                            xml_files = [f for f in z.namelist() if f.endswith('.xml')]
+                            if xml_files:
+                                with z.open(xml_files[0]) as f:
+                                    return f.read().decode('utf-8', errors='replace')
+                cursor.close()
+        except Exception as e:
+            print(f"Error fetching full XML from local ZIP for {set_id}: {e}")
+        finally:
+            conn.close()
+        return None
+
+    @classmethod
     def _chunk(cls, items, n=900):
         for i in range(0, len(items), n):
             yield items[i:i+n]

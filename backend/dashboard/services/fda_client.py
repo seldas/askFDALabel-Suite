@@ -346,19 +346,18 @@ def get_label_metadata(set_id, import_id=None):
 def get_label_xml(set_id):
     """
     Fetches the full drug label XML.
-    Checks local uploads first, then DailyMed.
+    Checks Local Label DB first, then DailyMed.
     """
     if not set_id:
         return None
 
-    # 1. Check local uploads
-    local_path = os.path.join(Config.UPLOAD_FOLDER, f"{set_id}.xml")
-    if os.path.exists(local_path):
-        try:
-            with open(local_path, 'r', encoding='utf-8') as f:
-                return f.read()
-        except Exception as e:
-            logger.error(f"Error reading local XML for {set_id}: {e}")
+    # 1. Check Local Label DB (Internal SQLite/Oracle)
+    try:
+        db_xml = FDALabelDBService.get_full_xml(set_id)
+        if db_xml:
+            return db_xml
+    except Exception as e:
+        logger.error(f"Error reading XML from Label DB for {set_id}: {e}")
 
     # 2. Fallback to DailyMed
     dailymed_url = f"https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/{set_id}.xml"
@@ -367,7 +366,7 @@ def get_label_xml(set_id):
         response.raise_for_status()
         return response.text
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error fetching data from DailyMed: {e}")
+        logger.error(f"Error fetching data from DailyMed for {set_id}: {e}")
     return None
 
 def get_faers_data(drug_name, limit=20):
