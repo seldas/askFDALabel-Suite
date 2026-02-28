@@ -18,12 +18,15 @@ class FDALabelDBService:
     def get_sqlite_connection(cls):
         """Establishes a connection to the local SQLite label.db."""
         try:
-            # Assuming the app root is two levels up from this service file
-            # or we can use an absolute path from config
-            db_path = current_app.config.get('LOCAL_LABEL_DB_PATH', os.path.join(current_app.root_path, '..', 'data', 'label.db'))
+            db_path = current_app.config.get('LOCAL_LABEL_DB_PATH')
+            if not db_path:
+                # Fallback if not in config
+                db_path = os.path.join(current_app.root_path, '..', '..', 'data', 'label.db')
+            
             db_path = os.path.abspath(db_path)
             
             if not os.path.exists(db_path):
+                print(f"[ERROR] Local Label DB not found at: {db_path}")
                 return None
                 
             connection = sqlite3.connect(db_path)
@@ -350,6 +353,237 @@ class FDALabelDBService:
         finally:
             conn.close()
         return None
+
+    @classmethod
+    def local_search(cls, query_term, skip=0, limit=50):
+        """
+        Performs a multi-field search specifically for the local 'localquery' app.
+        Supports Brand Name, Generic Name, Set ID, and Application Number.
+        """
+        if not cls.check_connectivity():
+            return [], 0
+
+        conn = cls.get_connection()
+        if not conn:
+            return [], 0
+
+        try:
+            cursor = conn.cursor()
+            q = f"%{query_term}%"
+            
+            if cls._db_type == 'oracle':
+                # Simplified Oracle search for localquery
+                sql = """
+                    SELECT 
+                        SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES,
+                        AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME,
+                        MARKET_CATEGORIES, DOCUMENT_TYPE
+                    FROM druglabel.DGV_SUM_SPL
+                    WHERE 
+                        UPPER(PRODUCT_NAMES) LIKE UPPER(:q) OR
+                        UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q) OR
+                        UPPER(SET_ID) = UPPER(:sid) OR
+                        UPPER(APPR_NUM) LIKE UPPER(:q)
+                    ORDER BY EFF_TIME DESC
+                """
+                # For Oracle, we might need a separate param for exact set_id if we want that
+                cursor.execute(sql, {"q": q, "sid": query_term})
+            else:
+                # SQLite Search
+                sql = """
+                    SELECT 
+                        set_id, product_names, generic_names, manufacturer, 
+                        appr_num, ndc_codes, revised_date, market_categories,
+                        doc_type, local_path
+                    FROM sum_spl
+                    WHERE 
+                        product_names LIKE ? OR
+                        generic_names LIKE ? OR
+                        set_id = ? OR
+                        appr_num LIKE ?
+                    ORDER BY revised_date DESC
+                    LIMIT ? OFFSET ?
+                """
+                cursor.execute(sql, (q, q, query_term, q, limit, skip))
+
+            rows = cursor.fetchall()
+            results = []
+            for row in rows:
+                if cls._db_type == 'oracle':
+                    results.append({
+                        'set_id': row[0],
+                        'brand_name': (row[1] or "").replace(';', ', '),
+                        'generic_name': (row[2] or "").replace(';', ', '),
+                        'manufacturer': row[3],
+                        'appr_num': row[4],
+                        'ndc': row[5],
+                        'revised_date': row[6],
+                        'market_category': row[7],
+                        'doc_type': row[8],
+                        'source': 'Oracle'
+                    })
+                else:
+                    # SQLite dictionary-like access
+                    results.append({
+                        'set_id': row['set_id'],
+                        'brand_name': (row['product_names'] or "").replace(';', ', '),
+                        'generic_name': (row['generic_names'] or "").replace(';', ', '),
+                        'manufacturer': row['manufacturer'],
+                        'appr_num': row['appr_num'],
+                        'ndc': row['ndc_codes'],
+                        'revised_date': row['revised_date'],
+                        'market_category': row['market_categories'],
+                        'doc_type': row['doc_type'],
+                        'local_path': row['local_path'],
+                        'source': 'Local SQLite'
+                    })
+            
+            # For simplicity, returning just the results. 
+            # If we need total count for pagination, we'd do a second query.
+            return results
+            
+        except Exception as e:
+            print(f"Error in FDALabelDBService.local_search: {e}")
+            return []
+        finally:
+            conn.close()
+
+    @classmethod
+    def get_autocomplete_suggestions(cls, query, limit=10):
+        """
+        Fetches autocomplete suggestions for brand and generic names.
+        """
+        if not cls.check_connectivity():
+            return []
+
+        conn = cls.get_connection()
+        if not conn:
+            return []
+
+        try:
+            cursor = conn.cursor()
+            q = f"%{query}%"
+            
+            if cls._db_type == 'oracle':
+                sql = """
+                    SELECT DISTINCT PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES 
+                    FROM druglabel.DGV_SUM_SPL 
+                    WHERE UPPER(PRODUCT_NAMES) LIKE UPPER(:q) 
+                       OR UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q)
+                    FETCH NEXT 50 ROWS ONLY
+                """
+                cursor.execute(sql, {"q": q})
+            else:
+                sql = """
+                    SELECT DISTINCT product_names, generic_names 
+                    FROM sum_spl 
+                    WHERE product_names LIKE ? 
+                       OR generic_names LIKE ? 
+                    LIMIT 50
+                """
+                cursor.execute(sql, (q, q))
+
+            rows = cursor.fetchall()
+            suggestions = set()
+            query_upper = query.upper()
+            
+            for row in rows:
+                p_names = (row[0] if cls._db_type == 'oracle' else row['product_names']) or ""
+                g_names = (row[1] if cls._db_type == 'oracle' else row['generic_names']) or ""
+                
+                # Split strings like "DrugA; DrugB" and find exact matches for the fragment
+                all_names = (p_names.split(';') if p_names else []) + (g_names.split(';') if g_names else [])
+                for name in all_names:
+                    name = name.strip()
+                    if name and query_upper in name.upper():
+                        suggestions.add(name)
+                        if len(suggestions) >= limit: break
+                if len(suggestions) >= limit: break
+                
+            return sorted(list(suggestions))
+        except Exception as e:
+            print(f"Autocomplete error: {e}")
+            return []
+        finally:
+            conn.close()
+
+    @classmethod
+    def get_random_labels(cls, limit=5):
+        """
+        Fetches a few random labels for quick access.
+        """
+        if not cls.check_connectivity():
+            return []
+
+        conn = cls.get_connection()
+        if not conn:
+            return []
+
+        try:
+            cursor = conn.cursor()
+            if cls._db_type == 'oracle':
+                # Oracle random sampling
+                sql = """
+                    SELECT * FROM (
+                        SELECT 
+                            SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES,
+                            AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME,
+                            MARKET_CATEGORIES, DOCUMENT_TYPE
+                        FROM druglabel.DGV_SUM_SPL
+                        ORDER BY DBMS_RANDOM.VALUE
+                    ) WHERE ROWNUM <= :limit
+                """
+                cursor.execute(sql, {"limit": limit})
+            else:
+                # SQLite random
+                sql = """
+                    SELECT 
+                        set_id, product_names, generic_names, manufacturer, 
+                        appr_num, ndc_codes, revised_date, market_categories,
+                        doc_type, local_path
+                    FROM sum_spl
+                    ORDER BY RANDOM()
+                    LIMIT ?
+                """
+                cursor.execute(sql, (limit,))
+
+            rows = cursor.fetchall()
+            results = []
+            for row in rows:
+                if cls._db_type == 'oracle':
+                    results.append({
+                        'set_id': row[0],
+                        'brand_name': (row[1] or "").replace(';', ', '),
+                        'generic_name': (row[2] or "").replace(';', ', '),
+                        'manufacturer': row[3],
+                        'appr_num': row[4],
+                        'ndc': row[5],
+                        'revised_date': row[6],
+                        'market_category': row[7],
+                        'doc_type': row[8],
+                        'source': 'Oracle'
+                    })
+                else:
+                    # SQLite dictionary-like access
+                    results.append({
+                        'set_id': row['set_id'],
+                        'brand_name': (row['product_names'] or "").replace(';', ', '),
+                        'generic_name': (row['generic_names'] or "").replace(';', ', '),
+                        'manufacturer': row['manufacturer'],
+                        'appr_num': row['appr_num'],
+                        'ndc': row['ndc_codes'],
+                        'revised_date': row['revised_date'],
+                        'market_category': row['market_categories'],
+                        'doc_type': row['doc_type'],
+                        'local_path': row['local_path'],
+                        'source': 'Local SQLite'
+                    })
+            return results
+        except Exception as e:
+            print(f"Error fetching random labels: {e}")
+            return []
+        finally:
+            conn.close()
 
     @classmethod
     def _chunk(cls, items, n=900):

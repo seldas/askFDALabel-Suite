@@ -46,6 +46,11 @@ class Config:
 
     # Internal FDALabel DB Configuration
     LABEL_DB = os.getenv('LABEL_DB', 'LOCAL').upper() # 'LOCAL' or 'ORACLE'
+    LOCAL_QUERY = os.getenv('LOCAL_QUERY', 'True').lower() == 'true'
+    
+    # Explicitly point to the project root data folder
+    LOCAL_LABEL_DB_PATH = os.path.join(DATA_DIR, 'label.db')
+    SPL_STORAGE_DIR = os.path.join(DATA_DIR, 'spl_storage')
     
     FDALABEL_DB_HOST = os.getenv('FDALabel_SERV', 'ncsvmscidevl03.fda.gov')
     FDALABEL_DB_PORT = os.getenv('FDALabel_PORT', '1521')

@@ -86,3 +86,7 @@ No further configuration is required. The `FDALabelDBService` is designed to:
 - **Data Volume:** Imported **1,195 human labeling records** from the DailyMed weekly update.
 - **Search Speed:** FTS5 `MATCH` queries provide sub-millisecond response times for content-heavy searches.
 - **Storage Strategy:** Storing the "Inner ZIP" provides a 100% self-contained local repository of the drug's labels and images.
+
+to use the local db correctly, we need to set:
+LABEL_DB=LOCAL
+LOCAL-QUERY=True
