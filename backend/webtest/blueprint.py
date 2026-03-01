@@ -8,13 +8,8 @@ import uuid
 from datetime import datetime
 from io import BytesIO
 import queue
-
-# Try importing playwright
-try:
-    from playwright.sync_api import sync_playwright
-    PLAYWRIGHT_AVAILABLE = True
-except ImportError:
-    PLAYWRIGHT_AVAILABLE = False
+import requests
+from bs4 import BeautifulSoup
 
 webtest_bp = Blueprint('webtest', __name__)
 
@@ -45,71 +40,77 @@ class WebTestManager:
 
     def run(self):
         self.status = "running"
-        self.add_log(f"Starting test task {self.task_id}")
+        self.add_log(f"Starting test task {self.task_id} using Lightweight HTTP Probe")
         
-        if not PLAYWRIGHT_AVAILABLE:
-            self.add_log("Error: Playwright not installed on server.")
-            self.status = "failed"
-            self.event_queue.put({"type": "status", "data": "failed"})
-            return
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+        })
 
         try:
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                context = browser.new_context(ignore_https_errors=True)
+            total_rows = len(self.df)
+            for index, row in self.df.iterrows():
+                if self.stop_requested:
+                    self.add_log("Task stopped by user.")
+                    break
+
+                url = row.get('Result Link', '')
+                if not isinstance(url, str) or 'http' not in url:
+                    continue
+
+                query_details = row.get('Query Details', 'N/A')
+                version = row.get('Version', 'N/A')
                 
-                total_rows = len(self.df)
-                for index, row in self.df.iterrows():
-                    if self.stop_requested:
-                        self.add_log("Task stopped by user.")
-                        break
+                self.add_log(f"Probing {version}: {query_details}")
+                
+                start_time = time.time()
+                result_entry = {
+                    "task_num": index + 1,
+                    "version": version,
+                    "url": url,
+                    "query_details": query_details,
+                    "status": "pending",
+                    "time": 0,
+                    "content": ""
+                }
 
-                    url = row.get('Result Link', '')
-                    if not isinstance(url, str) or 'http' not in url:
-                        continue
+                try:
+                    # Perform the HTTP GET request
+                    response = session.get(url, timeout=30, verify=False)
+                    elapsed = round(time.time() - start_time, 2)
+                    result_entry["time"] = elapsed
 
-                    query_details = row.get('Query Details', 'N/A')
-                    version = row.get('Version', 'N/A')
-                    
-                    self.add_log(f"Testing {version}: {query_details}")
-                    
-                    start_time = time.time()
-                    result_entry = {
-                        "task_num": index + 1,
-                        "version": version,
-                        "url": url,
-                        "query_details": query_details,
-                        "status": "pending",
-                        "time": 0,
-                        "content": ""
-                    }
-
-                    try:
-                        page = context.new_page()
-                        page.goto(url, wait_until="load", timeout=60000)
+                    if response.status_code == 200:
+                        soup = BeautifulSoup(response.text, 'html.parser')
                         
-                        try:
-                            # Wait up to 30s for the content to appear
-                            page.wait_for_selector(".span4", timeout=30000)
-                            content = page.locator(".span4").inner_text()
-                        except:
-                            content = "Timeout/Element Not Found"
+                        # Extract content using the same selectors as original script
+                        # Note: If the site is a pure SPA, BS4 will only see the "Loading..." placeholder.
+                        span4 = soup.find(class_='span4')
+                        content = span4.get_text(strip=True) if span4 else ""
+                        
+                        if not content:
+                            # Fallback: look for any text if span4 is missing
+                            body_text = soup.get_text(separator=' ', strip=True)
+                            content = body_text[:100] + "..." if len(body_text) > 100 else body_text
 
-                        result_entry["status"] = "Success" if "Error" not in content else "Error"
+                        result_entry["status"] = "Success" if response.status_code == 200 else f"HTTP {response.status_code}"
                         result_entry["content"] = content
-                        result_entry["time"] = round(time.time() - start_time, 2)
-                        page.close()
-                    except Exception as e:
-                        result_entry["status"] = f"Failed: {str(e)}"
-                        result_entry["time"] = round(time.time() - start_time, 2)
-                        self.add_log(f"Error testing {url}: {str(e)}")
+                    else:
+                        result_entry["status"] = f"HTTP Error {response.status_code}"
+                        result_entry["content"] = f"Server returned {response.status_code}"
 
-                    self.results.append(result_entry)
-                    self.event_queue.put({"type": "result", "data": result_entry})
-                    self.update_progress(int(((index + 1) / total_rows) * 100))
+                except Exception as e:
+                    result_entry["status"] = "Connection Error"
+                    result_entry["content"] = str(e)
+                    result_entry["time"] = round(time.time() - start_time, 2)
+                    self.add_log(f"Error probing {url}: {str(e)}")
 
-                browser.close()
-                
+                self.results.append(result_entry)
+                self.event_queue.put({"type": "result", "data": result_entry})
+                self.update_progress(int(((index + 1) / total_rows) * 100))
+
             self.status = "completed"
             self.completed_at = datetime.now().isoformat()
             self.event_queue.put({"type": "status", "data": "completed"})
@@ -124,7 +125,6 @@ class WebTestManager:
 def list_templates():
     """List all Excel templates in the public webtest folder."""
     template_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest')
-    # Alternative check relative to project root if above fails
     if not os.path.exists(template_dir):
          template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest'))
     
@@ -190,7 +190,6 @@ def events(task_id):
         return Response("Task not found", status=404)
 
     def event_stream():
-        # Send initial state
         init_data = json.dumps({'type': 'init', 'logs': manager.logs, 'results': manager.results})
         yield f"data: {init_data}\n\n"
         
