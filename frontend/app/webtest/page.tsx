@@ -27,8 +27,11 @@ export default function WebTestingPage() {
     const [results, setResults] = useState<TestResult[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    
-    // UI Features State
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    const [savedFilename, setSavedFilename] = useState<string | null>(null);
+
+    // Stop signal
+
     const [currentPage, setCurrentPage] = useState(1);
     const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: null });
     const [versionFilters, setVersionFilters] = useState<string[]>([]);
@@ -119,8 +122,33 @@ export default function WebTestingPage() {
                 });
             }
         }
+
         setStatus('completed');
+        setSaveStatus('saving');
+
+        // AUTO-SAVE logic: Trigger after full completion
+        try {
+            const saveResp = await fetch('/api/webtest/save_results', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    template_name: selectedTemplate,
+                    results: results 
+                }),
+            });
+            const saveData = await saveResp.json();
+            if (saveData.success) {
+                setSaveStatus('success');
+                setSavedFilename(saveData.filename);
+            } else {
+                setSaveStatus('error');
+            }
+        } catch (saveErr) {
+            console.error("Auto-save failed", saveErr);
+            setSaveStatus('error');
+        }
     };
+
 
     const downloadReport = async () => {
         const res = await fetch('/api/webtest/report_from_data', {
@@ -260,6 +288,23 @@ export default function WebTestingPage() {
                         <div style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>Extraction Results</h3>
+                                
+                                {saveStatus === 'success' && (
+                                    <span style={{ backgroundColor: '#ecfdf5', color: '#059669', fontSize: '0.65rem', fontWeight: 800, padding: '2px 8px', borderRadius: '4px', border: '1px solid #d1fae5', textTransform: 'uppercase' }}>
+                                        Auto-saved!
+                                    </span>
+                                )}
+                                {saveStatus === 'error' && (
+                                    <span style={{ backgroundColor: '#fef2f2', color: '#991b1b', fontSize: '0.65rem', fontWeight: 800, padding: '2px 8px', borderRadius: '4px', border: '1px solid #fee2e2', textTransform: 'uppercase' }}>
+                                        Not Saved
+                                    </span>
+                                )}
+                                {saveStatus === 'saving' && (
+                                    <span style={{ color: '#64748b', fontSize: '0.65rem', fontWeight: 700, fontStyle: 'italic' }}>
+                                        Saving...
+                                    </span>
+                                )}
+
                                 {processedResults.length !== results.length && (
                                     <span style={{ fontSize: '0.75rem', color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px' }}>
                                         Filtered: {processedResults.length} / {results.length}

@@ -4,6 +4,7 @@ import pandas as pd
 import time
 import re
 import requests
+import json
 from io import BytesIO
 from datetime import datetime
 import urllib3
@@ -38,114 +39,101 @@ def list_templates():
 
 @webtest_bp.route('/template_info', methods=['GET'])
 def get_template_info():
-    """Returns all tasks from a specific template."""
     template_name = request.args.get('template_name')
-    if not template_name:
-        return jsonify({"error": "No template name provided"}), 400
-        
+    if not template_name: return jsonify({"error": "No name"}), 400
     template_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest')
     if not os.path.exists(template_dir):
          template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest'))
-    
     path = os.path.join(template_dir, template_name)
-    if not os.path.exists(path):
-        return jsonify({"error": "Template not found"}), 404
-
+    if not os.path.exists(path): return jsonify({"error": "Not found"}), 404
     try:
         df = pd.read_excel(path).fillna('N/A')
         tasks = []
         for index, row in df.iterrows():
-            # Clean and normalize version naming
-            version = str(row.get('Version', 'N/A')).strip()
-            
             tasks.append({
                 "task_num": index + 1,
-                "version": version,
+                "version": str(row.get('Version', 'N/A')).strip(),
                 "url": str(row.get('Result Link', '')),
                 "query_details": str(row.get('Query Details', 'N/A')),
                 "status": "pending",
                 "count": "N/A",
                 "time_to_ready": 0
             })
-        return jsonify({
-            "template_name": template_name,
-            "total_tasks": len(tasks),
-            "tasks": tasks
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"template_name": template_name, "total_tasks": len(tasks), "tasks": tasks})
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
 @webtest_bp.route('/probe_single', methods=['POST'])
 def probe_single():
-    """Probes a single URL and returns results."""
     data = request.get_json()
     ui_url = data.get('url')
-    if not ui_url:
-        return jsonify({"error": "No URL provided"}), 400
-
+    if not ui_url: return jsonify({"error": "No URL"}), 400
     session = requests.Session()
     session.headers.update({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*'
     })
-
     start_time = time.time()
     api_url = get_api_url(ui_url)
-    timeout = (5, 45) # 5s connect, 45s read
-
     try:
-        # 1. Try API Probe
-        resp = session.get(api_url, timeout=timeout, verify=False)
+        resp = session.get(api_url, timeout=(5, 45), verify=False)
         elapsed = round(time.time() - start_time, 2)
-        
         if resp.status_code == 200:
             try:
                 data = resp.json()
                 total = None
                 if isinstance(data, dict):
                     total = data.get('totalResultsCount')
-                    if total is None:
-                        total = data.get('total') or data.get('count') or data.get('totalResults') or data.get('recordCount')
-                elif isinstance(data, list):
-                    total = len(data)
-                
-                if total is not None:
-                    return jsonify({"status": "Success", "count": str(total), "time": elapsed})
+                    if total is None: total = data.get('total') or data.get('count') or data.get('totalResults') or data.get('recordCount')
+                elif isinstance(data, list): total = len(data)
+                if total is not None: return jsonify({"status": "Success", "count": str(total), "time": elapsed})
             except:
-                # Fallback to Text in HTML if JSON fails
                 if "labeling results" in resp.text.lower():
                     match = re.search(r'(\d+)\s+Labeling Results', resp.text, re.IGNORECASE)
                     return jsonify({"status": "Success", "count": match.group(1) if match else "Found", "time": elapsed})
-                
             return jsonify({"status": "Format Error", "count": "N/A", "time": elapsed})
-        
-        elif resp.status_code == 404:
-            return jsonify({"status": "Not Found (404)", "count": "N/A", "time": elapsed})
-        else:
-            return jsonify({"status": f"HTTP {resp.status_code}", "count": "N/A", "time": elapsed})
-
-    except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout):
-        return jsonify({"status": "Inaccessible", "count": "N/A", "time": round(time.time() - start_time, 2)})
-    except Exception as e:
-        return jsonify({"status": "Error", "count": "N/A", "time": round(time.time() - start_time, 2), "error": str(e)})
+        elif resp.status_code == 404: return jsonify({"status": "Not Found (404)", "count": "N/A", "time": elapsed})
+        else: return jsonify({"status": f"HTTP {resp.status_code}", "count": "N/A", "time": elapsed})
+    except: return jsonify({"status": "Inaccessible", "count": "N/A", "time": round(time.time() - start_time, 2)})
 
 @webtest_bp.route('/report_from_data', methods=['POST'])
 def report_from_data():
-    """Generates an Excel report from JSON data sent by the frontend."""
     data = request.get_json()
     results = data.get('results', [])
-    if not results:
-        return jsonify({"error": "No results provided"}), 400
-        
+    if not results: return jsonify({"error": "No data"}), 400
     df = pd.DataFrame(results)
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Testing Results')
-    
     output.seek(0)
-    return send_file(
-        output, 
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
-        as_attachment=True, 
-        download_name=f"webtest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    )
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f"webtest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+
+@webtest_bp.route('/save_results', methods=['POST'])
+def save_results():
+    """Automatically saves the completed run as a JSON file."""
+    data = request.get_json()
+    results = data.get('results', [])
+    template_name = data.get('template_name', 'unknown')
+    if not results: return jsonify({"error": "No results"}), 400
+    
+    results_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest', 'results')
+    if not os.path.exists(results_dir):
+        # Alternative path check
+        results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest', 'results'))
+        os.makedirs(results_dir, exist_ok=True)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_name = "".join([c for c in template_name if c.isalnum() or c in (' ', '.', '_')]).rstrip()
+    filename = f"result_{safe_name}_{timestamp}.json"
+    filepath = os.path.join(results_dir, filename)
+    
+    try:
+        with open(filepath, 'w') as f:
+            json.dump({
+                "template": template_name,
+                "timestamp": datetime.now().isoformat(),
+                "total_tasks": len(results),
+                "results": results
+            }, f, indent=4)
+        return jsonify({"success": True, "filename": filename})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
