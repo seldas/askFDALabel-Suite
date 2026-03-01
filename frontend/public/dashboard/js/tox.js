@@ -312,12 +312,16 @@ window.initToxAgents = function() {
         if (!panel) return;
         panel.style.display = 'block';
         panel.className = '';
-        if (!reportMarkdown) { panel.classList.add('dict-risk-pending'); panel.innerHTML = `<h4>Under Assessment</h4><p>No DICT assessment yet.</p>`; return; }
+        if (!reportMarkdown) {
+            panel.classList.add('dict-risk-pending');
+            panel.innerHTML = `<h4>Under Assessment</h4><p>No DICT assessment yet.</p>`;
+            return;
+        }
         const lowerReport = reportMarkdown.toLowerCase();
-        let riskLevel = 'No Cardiotoxicity Concern', riskClass = 'dict-risk-no', riskDesc = 'No significant cardiac signals.';
-        if (lowerReport.includes('level: severe')) { riskLevel = 'High Concern (Severe)'; riskClass = 'dict-risk-most'; riskDesc = 'Severe events identified.'; }
-        else if (lowerReport.includes('level: moderate')) { riskLevel = 'Moderate Concern'; riskClass = 'dict-risk-less'; riskDesc = 'Moderate cardiac risks.'; }
-        if (currentDictFaersCount > 0) riskLevel += ' +';
+        let riskLevel = 'No Cardiotoxicity Concern', riskClass = 'dict-risk-no', riskDesc = 'No significant cardiac signals identified.';
+        if (lowerReport.includes('most dict concern')) { riskLevel = 'Most DICT Concern'; riskClass = 'dict-risk-most'; riskDesc = 'Significant evidence found in label.'; }
+        else if (lowerReport.includes('less dict concern')) { riskLevel = 'Less DICT Concern'; riskClass = 'dict-risk-less'; riskDesc = 'Some evidence found in label.'; }
+        if (currentDictFaersCount > 100) riskLevel += ' ++'; else if (currentDictFaersCount > 0) riskLevel += ' +';
         panel.classList.add(riskClass);
         panel.innerHTML = `<h4>${riskLevel}</h4><p>${riskDesc}</p>`;
     }
@@ -398,12 +402,16 @@ window.initToxAgents = function() {
         if (!panel) return;
         panel.style.display = 'block';
         panel.className = ''; 
-        if (!reportMarkdown) { panel.classList.add('diri-risk-pending'); panel.innerHTML = `<h4>Under Assessment</h4><p>No DIRI assessment yet.</p>`; return; }
+        if (!reportMarkdown) {
+            panel.classList.add('diri-risk-pending');
+            panel.innerHTML = `<h4>Under Assessment</h4><p>No DIRI assessment yet.</p>`;
+            return;
+        }
         const lowerReport = reportMarkdown.toLowerCase();
-        let riskLevel = 'No Renal Injury Concern', riskClass = 'diri-risk-no', riskDesc = 'No significant renal signals.';
-        if (lowerReport.includes('level: certain')) { riskLevel = 'High Concern (Certain)'; riskClass = 'diri-risk-most'; riskDesc = 'Renal injury risks identified.'; }
-        else if (lowerReport.includes('level: possible')) { riskLevel = 'Possible Concern'; riskClass = 'diri-risk-less'; riskDesc = 'Possible risks identified.'; }
-        if (currentDiriFaersCount > 0) riskLevel += ' +';
+        let riskLevel = 'No Renal Injury Concern', riskClass = 'diri-risk-no', riskDesc = 'No significant renal signals identified.';
+        if (lowerReport.includes('most diri concern')) { riskLevel = 'Most DIRI Concern'; riskClass = 'diri-risk-most'; riskDesc = 'Significant evidence found in label.'; }
+        else if (lowerReport.includes('less diri concern')) { riskLevel = 'Less DIRI Concern'; riskClass = 'diri-risk-less'; riskDesc = 'Some evidence found in label.'; }
+        if (currentDiriFaersCount > 100) riskLevel += ' ++'; else if (currentDiriFaersCount > 0) riskLevel += ' +';
         panel.classList.add(riskClass);
         panel.innerHTML = `<h4>${riskLevel}</h4><p>${riskDesc}</p>`;
     }

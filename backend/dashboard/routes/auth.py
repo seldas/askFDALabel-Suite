@@ -87,9 +87,9 @@ def session():
     """ Returns current user info as JSON. """
     from dashboard.services.fdalabel_db import FDALabelDBService
     try:
-        is_internal = FDALabelDBService.check_connectivity()
+        is_internal = FDALabelDBService.is_internal()
     except Exception as e:
-        logger.error(f"Error checking FDALabelDB connectivity: {e}")
+        logger.error(f"Error checking FDALabelDB internal status: {e}")
         is_internal = False
     
     if current_user.is_authenticated:

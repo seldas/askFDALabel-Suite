@@ -44,7 +44,7 @@ def create_unified_app():
     def check_fdalabel():
         from dashboard.services.fdalabel_db import FDALabelDBService
         from flask import current_app
-        is_internal = FDALabelDBService.check_connectivity()
+        is_internal = FDALabelDBService.is_internal()
         allow_local = current_app.config.get('LOCAL_QUERY', True)
         return jsonify({
             "isInternal": is_internal,

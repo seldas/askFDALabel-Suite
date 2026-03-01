@@ -41,7 +41,7 @@ class FDALabelDBService:
         """Establishes a connection based on Config.LABEL_DB."""
         db_choice = current_app.config.get('LABEL_DB', 'LOCAL')
         
-        # 1. Oracle Path
+        # 1. Oracle Path (Internal)
         if db_choice == 'ORACLE':
             if not ORACLE_AVAILABLE:
                 print("[ERROR] LABEL_DB=ORACLE requested but oracledb is not installed.")
@@ -62,15 +62,15 @@ class FDALabelDBService:
                 print(f"Oracle Connection Failed: {e}")
                 return None
 
-        # 2. Local SQLite Path (Default)
+        # 2. Local SQLite Path (Default/Local)
         conn = cls.get_sqlite_connection()
         if conn:
             cls._db_type = 'sqlite'
         return conn
 
     @classmethod
-    def check_connectivity(cls):
-        """Checks if the configured LABEL_DB is accessible. Caches the result."""
+    def is_available(cls):
+        """Checks if the configured LABEL_DB (either Oracle or SQLite) is accessible. Caches the result."""
         if cls._is_connected is not None:
             return cls._is_connected
 
@@ -78,13 +78,32 @@ class FDALabelDBService:
         conn = cls.get_connection()
         if conn:
             cls._is_connected = True
-            print(f"[SUCCESS] FDALabel DB connected ({db_choice} mode).")
+            print(f"[SUCCESS] Database connected in {db_choice} mode.")
             conn.close()
         else:
             cls._is_connected = False
             print(f"[ERROR] Failed to connect to {db_choice} database.")
         
         return cls._is_connected
+
+    @classmethod
+    def is_internal(cls):
+        """Returns True if the system is connected to the internal FDALabel Oracle DB."""
+        if not cls.is_available():
+            return False
+        return cls._db_type == 'oracle'
+
+    @classmethod
+    def is_local(cls):
+        """Returns True if the system is connected to the local SQLite label.db."""
+        if not cls.is_available():
+            return False
+        return cls._db_type == 'sqlite'
+
+    @classmethod
+    def check_connectivity(cls):
+        """Legacy method for backward compatibility. Use is_available() instead."""
+        return cls.is_available()
 
     @classmethod
     def search_labels(cls, query, skip=0, limit=100000):

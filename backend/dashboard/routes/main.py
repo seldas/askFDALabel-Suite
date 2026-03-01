@@ -287,8 +287,8 @@ def search():
         else:
              view = 'panel'
 
-    is_internal = FDALabelDBService.check_connectivity()
-    
+    is_internal = FDALabelDBService.is_internal()
+
     return jsonify({
         "drug_name": drug_name_display,
         "page_title": page_title,
@@ -301,6 +301,7 @@ def search():
         "batch_id_search": batch_id_search,
         "import_id": import_id
     })
+
 
 
 @main_bp.route('/label/<set_id>')
@@ -450,7 +451,8 @@ def view_label(set_id):
         'metadata': metadata,
         'saved_annotations': saved_annotations,
         'tox_summary': tox_summary,
-        'user_id': current_user.id if current_user.is_authenticated else None
+        'user_id': current_user.id if current_user.is_authenticated else None,
+        'is_internal': FDALabelDBService.is_internal()
     })
 
 @main_bp.route('/export_sections', methods=['POST'])
@@ -787,7 +789,7 @@ def project_stats():
 
         manu_set = {m for m in manufacturers if m and m != "Unknown"}
         brand_set = {b for b in brands if b and b != "Unknown"}
-        internal_ok = FDALabelDBService.check_connectivity()
+        internal_ok = FDALabelDBService.is_internal()
         filled_from_db = 0
         if internal_ok and missing_date_set_ids:
             db_map = FDALabelDBService.effective_time_map_for_set_ids(missing_date_set_ids)

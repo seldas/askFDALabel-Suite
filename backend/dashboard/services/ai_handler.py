@@ -24,43 +24,45 @@ class AIClientFactory:
         """
         default_gemini_key = os.getenv("GOOGLE_API_KEY") 
         
-        # Determine if internal
-        is_internal = False
-        try:
-            # check_connectivity now returns True for both Oracle and SQLite fallback
-            is_internal = FDALabelDBService.check_connectivity()
-        except Exception:
-            pass
+        # User specific or external defaults
+        provider = "gemini" # Default
+        if user and user.is_authenticated:
+            provider = user.ai_provider or "gemini"
+        
+        # Determine if we are in an "Internal" environment (FDA/Oracle)
+        # or a "Local" environment (SQLite)
+        is_internal_env = FDALabelDBService.is_internal()
+        
+        # Determine if we SHOULD use llama (internal LLM)
+        # 1. If explicitly requested by user
+        # 2. If in an internal environment and no user/provider specified, we might want llama
+        use_llama = (provider == "llama")
+        
+        # Special logic for internal environment defaults:
+        # If internal and no provider specified, we default to llama if configured
+        if is_internal_env and (not user or not user.is_authenticated) and os.getenv("LLM_URL"):
+            provider = "llama"
+            use_llama = True
+        
+        # If llama requested/defaulted, but not configured, fallback to gemini
+        if use_llama and not os.getenv("LLM_URL"):
+            if provider == "llama": # Only log if it was an explicit choice
+                logger.warning("Llama requested but LLM_URL not set. Falling back to Gemini.")
+            provider = "gemini"
+            use_llama = False
 
-        # Use internal OpenAI/Llama if internal environment detected
-        if is_internal and (not user or not user.is_authenticated or user.ai_provider != 'elsa'):
-             provider = "llama"
+        if use_llama:
              api_key = os.getenv("LLM_KEY", "")
              base_url = os.getenv("LLM_URL", "")
              model = os.getenv("LLM_MODEL", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8")
              
              cache_key = (provider, api_key, base_url)
              if cache_key not in AIClientFactory._clients:
-                 AIClientFactory._clients[cache_key] = OpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
-             return provider, AIClientFactory._clients[cache_key], model
+                 AIClientFactory._clients[cache_key] = OpenAI(api_key=api_key, base_url=base_url, timeout=30.0)
+             return "llama", AIClientFactory._clients[cache_key], model
 
-        # User specific or external defaults
-        if not user or not user.is_authenticated:
-            # External default: Gemini
-            provider = "gemini"
-            if (provider, default_gemini_key) not in AIClientFactory._clients:
-                AIClientFactory._clients[(provider, default_gemini_key)] = genai.Client(api_key=default_gemini_key)
-            return provider, AIClientFactory._clients[(provider, default_gemini_key)], os.getenv("PRIMARY_MODEL_ID", "gemini-2.5-flash")
-        
-        if user.ai_provider == 'llama':
-            provider = "llama"
-            api_key = os.getenv("LLM_KEY")
-            base_url = os.getenv("LLM_URL")
-            cache_key = (provider, api_key, base_url)
-            if cache_key not in AIClientFactory._clients:
-                AIClientFactory._clients[cache_key] = OpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
-            return provider, AIClientFactory._clients[cache_key], os.getenv("LLM_MODEL", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8")
-        elif user.ai_provider == 'elsa':
+        if provider == 'elsa':
+            # Elsa is ALWAYS internal
             elsa_config = {
                 'username': os.getenv("ELSA_API_NAME"),
                 'password': os.getenv("ELSA_API_KEY"),
@@ -68,12 +70,11 @@ class AIClientFactory:
                 'model_engine_id': os.getenv("ELSA_MODEL_ID"),
             }
             return "elsa", elsa_config, os.getenv("ELSA_MODEL_ID")
-        else:
-            # Gemini
-            provider = "gemini"
-            if (provider, default_gemini_key) not in AIClientFactory._clients:
-                AIClientFactory._clients[(provider, default_gemini_key)] = genai.Client(api_key=default_gemini_key)
-            return provider, AIClientFactory._clients[(provider, default_gemini_key)], os.getenv("PRIMARY_MODEL_ID", "gemini-2.5-flash")
+        
+        # Default: Gemini
+        if (provider, default_gemini_key) not in AIClientFactory._clients:
+            AIClientFactory._clients[(provider, default_gemini_key)] = genai.Client(api_key=default_gemini_key)
+        return "gemini", AIClientFactory._clients[(provider, default_gemini_key)], os.getenv("PRIMARY_MODEL_ID", "gemini-2.5-flash")
         
 def call_llm(user, system_prompt, user_message, history=None, model_override=None, **kwargs):
     provider, client, model = AIClientFactory.get_client(user)
@@ -104,8 +105,33 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
             if kwargs.get("stream", False): return response
             return response.choices[0].message.content
         except Exception as e:
-            logger.error(f"LLM error: {e}")
-            raise e
+            logger.error(f"LLM error (llama): {e}. Attempting fallback to Gemini.")
+            # FALLBACK TO GEMINI
+            try:
+                # Re-fetch client specifically for gemini
+                gemini_key = os.getenv("GOOGLE_API_KEY")
+                if ("gemini", gemini_key) not in AIClientFactory._clients:
+                    AIClientFactory._clients[("gemini", gemini_key)] = genai.Client(api_key=gemini_key)
+                
+                fallback_client = AIClientFactory._clients[("gemini", gemini_key)]
+                fallback_model = os.getenv("PRIMARY_MODEL_ID", "gemini-2.5-flash")
+                
+                config = types.GenerateContentConfig(
+                    temperature=temperature, top_p=top_p, max_output_tokens=max_tokens,
+                    system_instruction=system_prompt if system_prompt else None
+                )
+                contents = []
+                if history:
+                    for turn in history:
+                        role = "model" if turn.get('role') in ['assistant', 'ai'] else "user"
+                        contents.append(types.Content(role=role, parts=[types.Part.from_text(text=turn.get('content', ''))]))
+                contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_message)]))
+                
+                resp = fallback_client.models.generate_content(model=fallback_model, contents=contents, config=config)
+                return resp.text
+            except Exception as fallback_err:
+                logger.error(f"Fallback to Gemini also failed: {fallback_err}")
+                raise e
 
     elif provider == "elsa":
         full_prompt = f"SYSTEM INSTRUCTIONS:\n{system_prompt}\n\n" if system_prompt else ""

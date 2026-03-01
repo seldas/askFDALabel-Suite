@@ -206,7 +206,12 @@ def search_count():
         
         # Determine source
         from dashboard.services.fdalabel_db import FDALabelDBService
-        source = "FDALabel" if FDALabelDBService.check_connectivity() else "OpenFDA"
+        if FDALabelDBService.is_internal():
+            source = "FDALabel"
+        elif FDALabelDBService.is_local():
+            source = "LocalDB"
+        else:
+            source = "OpenFDA"
         
         return jsonify({'count': total, 'source': source})
     except Exception as e:
@@ -1759,12 +1764,12 @@ def run_assessment_logic(set_id, assessment_model, prompt):
                 clean_report = "\n".join(html_matches)
             else:
                 # Check for "no evidence" comments specifically for each type
-                if '<!-- No DILI evidence found' in response_text:
-                    clean_report = '<!-- No DILI evidence found in label -->'
-                elif '<!-- No DICT evidence found' in response_text:
-                    clean_report = '<!-- No DICT evidence found in label -->'
-                elif '<!-- No DIRI evidence found' in response_text:
-                    clean_report = '<!-- No DIRI evidence found in label -->'
+                if '<!-- No DILI evidence found' in response_text or 'No DILI Concern' in response_text:
+                    clean_report = '<div class="label-section"><!-- No DILI evidence found in label --><p><strong>Conclusion:</strong> No DILI Concern</p></div>'
+                elif '<!-- No DICT evidence found' in response_text or 'No DICT Concern' in response_text:
+                    clean_report = '<div class="label-section"><!-- No DICT evidence found in label --><p><strong>Conclusion:</strong> No DICT Concern</p></div>'
+                elif '<!-- No DIRI evidence found' in response_text or 'No DIRI Concern' in response_text:
+                    clean_report = '<div class="label-section"><!-- No DIRI evidence found in label --><p><strong>Conclusion:</strong> No DIRI Concern</p></div>'
                 else:
                     # Fallback for unexpected responses
                     clean_report = '<!-- AI response did not contain valid HTML report. -->'
