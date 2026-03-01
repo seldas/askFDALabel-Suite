@@ -26,4 +26,4 @@ psycopg2-binary
 flashtext
 waitress
 
-playwright
+beautifulsoup4
