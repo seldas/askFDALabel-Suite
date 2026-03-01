@@ -18,6 +18,7 @@ from drugtox.blueprint import drugtox_bp
 from labelcomp.blueprint import labelcomp_bp
 from device.blueprint import device_bp
 from localquery.blueprint import localquery_bp
+from webtest.blueprint import webtest_bp
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +40,7 @@ def create_unified_app():
     app.register_blueprint(labelcomp_bp, url_prefix='/api/labelcomp')
     app.register_blueprint(device_bp, url_prefix='/api/device')
     app.register_blueprint(localquery_bp, url_prefix='/api/localquery')
+    app.register_blueprint(webtest_bp, url_prefix='/api/webtest')
     
     @app.route('/api/check-fdalabel', methods=['POST'])
     def check_fdalabel():
