@@ -80,10 +80,6 @@ class WebTestManager:
                 }
 
                 # Hybrid Polling Mechanism
-                # 1. We fetch the page.
-                # 2. If we see "loading", we attempt to hit the API equivalent or just keep polling if it's a slow SSR page.
-                # 3. We only move on when we find "Results" or hit 60s.
-                
                 max_wait = 60
                 found_final_state = False
                 
@@ -98,59 +94,67 @@ class WebTestManager:
                             html = response.text
                             soup = BeautifulSoup(html, 'html.parser')
                             
-                            # Standard Selectors
-                            text_content = soup.get_text(separator=' ', strip=True)
+                            # Get all text but prioritize the specific result spans if they exist
+                            span4 = soup.find(class_='span4')
+                            span12 = soup.find(class_='span12')
                             
+                            if span4: text_content = span4.get_text(separator=' ', strip=True)
+                            elif span12: text_content = span12.get_text(separator=' ', strip=True)
+                            else: text_content = soup.get_text(separator=' ', strip=True)
+                            
+                            text_lower = text_content.lower()
+
                             # CHECK FOR FINAL SUCCESS STATE
-                            if "labeling results" in text_content.lower():
+                            if "labeling results" in text_lower:
+                                # Extract number: "125 Labeling Results"
                                 match = re.search(r'(\d+)\s+Labeling Results', text_content, re.IGNORECASE)
-                                result_entry["count"] = match.group(1) if match else "Found (No #)"
+                                result_entry["count"] = match.group(1) if match else "Found"
                                 result_entry["status"] = "Success"
                                 result_entry["time_to_ready"] = round(time.time() - task_start_time, 2)
                                 found_final_state = True
-                                self.add_log(f"   --> Success: {result_entry['count']} results found in {result_entry['time_to_ready']}s")
+                                self.add_log(f"   --> Detected: {result_entry['count']} results in {result_entry['time_to_ready']}s")
                                 break
                             
                             # CHECK FOR LOADING STATE
-                            elif "loading" in text_content.lower():
-                                # We are in loading state.
-                                # PRO-ACTIVE API PROBE: 
-                                # If the URL is fdalabel search, try to call the search API directly to speed things up
-                                if "fdalabel/ui/search" in url:
+                            elif "loading" in text_lower:
+                                # Still loading, let's try to hit the API directly if possible
+                                if "fdalabel" in url and "ui/search" in url:
                                     api_url = url.replace("ui/search", "services/spl/search")
-                                    # Very basic API probe attempt
+                                    # Handle different possible API endpoints
                                     try:
                                         api_resp = session.get(api_url, timeout=10, verify=False)
-                                        if api_resp.status_code == 200 and "total" in api_resp.text:
-                                            # This is likely a JSON response
-                                            api_data = api_resp.json()
-                                            result_entry["count"] = str(api_data.get('total', '0'))
-                                            result_entry["status"] = "Success (API)"
-                                            result_entry["time_to_ready"] = round(time.time() - task_start_time, 2)
-                                            found_final_state = True
-                                            break
-                                    except:
-                                        pass # Fallback to polling
+                                        if api_resp.status_code == 200:
+                                            try:
+                                                api_data = api_resp.json()
+                                                # Standard FDALabel API usually has 'total'
+                                                count = api_data.get('total') or api_data.get('count')
+                                                if count is not None:
+                                                    result_entry["count"] = str(count)
+                                                    result_entry["status"] = "Success (API)"
+                                                    result_entry["time_to_ready"] = round(time.time() - task_start_time, 2)
+                                                    found_final_state = True
+                                                    self.add_log(f"   --> Success via API: {count} results")
+                                                    break
+                                            except: pass
+                                    except: pass
                                 
-                                # Keep polling every 3 seconds
-                                time.sleep(3)
+                                # Wait and retry
+                                time.sleep(2)
                             
                             # CHECK FOR ERROR STATE
-                            elif "error" in text_content.lower() or "not found" in text_content.lower():
-                                result_entry["status"] = "Error Page"
+                            elif "error" in text_lower or "not found" in text_lower:
+                                result_entry["status"] = "Error detected"
+                                result_entry["count"] = "0"
                                 result_entry["time_to_ready"] = round(time.time() - task_start_time, 2)
                                 found_final_state = True
+                                self.add_log(f"   --> Error page found")
                                 break
                             
                             else:
-                                # Unknown state, might be an empty results page
-                                if soup.find(class_='span4') or soup.find(class_='span12'):
-                                     result_entry["status"] = "Loaded (Unknown Content)"
-                                     result_entry["time_to_ready"] = round(time.time() - task_start_time, 2)
-                                     found_final_state = True
-                                     break
-                                
-                                # If no specific classes but page returned, wait a bit longer
+                                # "Unknown Content" but let's keep polling instead of giving up
+                                # The original script waited until 'loading' disappeared.
+                                # If it's neither 'loading' nor 'results', maybe the search is slow.
+                                self.add_log(f"   --> Content detected but not 'Results' yet. Retrying...")
                                 time.sleep(3)
                         else:
                             result_entry["status"] = f"HTTP {response.status_code}"
@@ -159,14 +163,14 @@ class WebTestManager:
                             
                     except Exception as e:
                         result_entry["status"] = "Conn Error"
-                        self.add_log(f"   --> Connection Error: {str(e)}")
-                        found_final_state = True
-                        break
+                        self.add_log(f"   --> Error: {str(e)}")
+                        # Don't break immediately on transient connection errors, retry once
+                        time.sleep(2)
 
                 if not found_final_state:
-                    result_entry["status"] = "Timeout (60s)"
+                    result_entry["status"] = "Timeout"
                     result_entry["time_to_ready"] = 60.0
-                    self.add_log(f"   --> Task timed out after 60s")
+                    self.add_log(f"   --> Task timed out")
 
                 self.results.append(result_entry)
                 self.event_queue.put({"type": "result", "data": result_entry})
@@ -175,10 +179,9 @@ class WebTestManager:
             self.status = "completed"
             self.completed_at = datetime.now().isoformat()
             self.event_queue.put({"type": "status", "data": "completed"})
-            self.add_log("Auto-testing batch completed.")
             
         except Exception as e:
-            self.add_log(f"Batch Processing Error: {str(e)}")
+            self.add_log(f"Critical error: {str(e)}")
             self.status = "failed"
             self.event_queue.put({"type": "status", "data": "failed"})
 
@@ -188,7 +191,7 @@ def list_templates():
     if not os.path.exists(template_dir):
          template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest'))
     if not os.path.exists(template_dir): return jsonify([])
-    files = [f for f in os.listdir(template_dir) if f.lower().endswith('.xlsx')]
+    files = sorted([f for f in os.listdir(template_dir) if f.lower().endswith('.xlsx')])
     return jsonify(files)
 
 @webtest_bp.route('/start', methods=['POST'])
@@ -196,14 +199,11 @@ def start_test():
     data = request.get_json()
     template_name = data.get('template_name')
     if not template_name: return jsonify({"error": "No template"}), 400
-    
     template_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest')
     if not os.path.exists(template_dir):
          template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest'))
-    
     path = os.path.join(template_dir, template_name)
-    if not os.path.exists(path): return jsonify({"error": "File not found"}), 404
-
+    if not os.path.exists(path): return jsonify({"error": "Not found"}), 404
     try:
         df = pd.read_excel(path).fillna('')
         task_id = str(uuid.uuid4())
@@ -213,8 +213,7 @@ def start_test():
         t.daemon = True
         t.start()
         return jsonify({"task_id": task_id, "status": "started"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
 @webtest_bp.route('/events/<task_id>')
 def events(task_id):
@@ -236,11 +235,13 @@ def download_report(task_id):
     manager = testing_tasks.get(task_id)
     if not manager: return jsonify({"error": "No results"}), 404
     df_res = pd.DataFrame(manager.results)
+    # Remove large/internal content field for excel
+    if 'content' in df_res.columns: df_res = df_res.drop(columns=['content'])
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_res.to_excel(writer, index=False)
     output.seek(0)
-    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f"report_{task_id}.xlsx")
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f"webtest_report.xlsx")
 
 @webtest_bp.route('/stop/<task_id>', methods=['POST'])
 def stop_test(task_id):
