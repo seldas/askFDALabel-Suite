@@ -106,7 +106,10 @@ export default function WebTestingPage() {
                 const response = await fetch('/api/webtest/probe_single', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: results[i].url }),
+                    body: JSON.stringify({ 
+                        url: results[i].url,
+                        version: results[i].version 
+                    }),
                 });
                 const data = await response.json();
                 setResults(prev => {

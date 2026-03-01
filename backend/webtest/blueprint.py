@@ -14,14 +14,20 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 webtest_bp = Blueprint('webtest', __name__)
 
-def get_api_url(ui_url):
+def get_api_url(ui_url, version=""):
     """Translates a FDALabel UI URL to its corresponding JSON Service URL."""
     if "fdalabel" not in ui_url.lower():
         return ui_url
+    
+    # If version contains CDER, the path includes /ldt/
+    is_ldt = "CDER" in (version or "")
+    base_service = "/services/spl/ldt/summaries/json/" if is_ldt else "/services/spl/summaries/json/"
+    criteria_service = "/services/spl/ldt/summaries/json/criteria/" if is_ldt else "/services/spl/summaries/json/criteria/"
+
     if "/ui/spl-summaries/criteria/" in ui_url:
-        return ui_url.replace("/ui/spl-summaries/criteria/", "/services/spl/summaries/json/criteria/")
+        return ui_url.replace("/ui/spl-summaries/criteria/", criteria_service)
     if "/ui/spl-summaries/" in ui_url:
-        return ui_url.replace("/ui/spl-summaries/", "/services/spl/summaries/json/")
+        return ui_url.replace("/ui/spl-summaries/", base_service)
     if "/ui/search" in ui_url:
         return ui_url.replace("/ui/search", "/services/spl/search")
     if "/ui/spl-doc/" in ui_url:
@@ -66,6 +72,7 @@ def get_template_info():
 def probe_single():
     data = request.get_json()
     ui_url = data.get('url')
+    version = data.get('version', '')
     if not ui_url: return jsonify({"error": "No URL"}), 400
     session = requests.Session()
     session.headers.update({
@@ -73,7 +80,7 @@ def probe_single():
         'Accept': 'application/json, text/plain, */*'
     })
     start_time = time.time()
-    api_url = get_api_url(ui_url)
+    api_url = get_api_url(ui_url, version)
     try:
         resp = session.get(api_url, timeout=(5, 45), verify=False)
         elapsed = round(time.time() - start_time, 2)
