@@ -5,11 +5,16 @@ import threading
 import time
 import json
 import uuid
+import re
 from datetime import datetime
 from io import BytesIO
 import queue
 import requests
 from bs4 import BeautifulSoup
+import urllib3
+
+# Suppress insecure request warnings for internal/test servers
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 webtest_bp = Blueprint('webtest', __name__)
 
@@ -40,13 +45,11 @@ class WebTestManager:
 
     def run(self):
         self.status = "running"
-        self.add_log(f"Starting test task {self.task_id} using Lightweight HTTP Probe")
+        self.add_log(f"Starting test task {self.task_id} using Dynamic HTTP Polling")
         
         session = requests.Session()
         session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
         })
 
         try:
@@ -63,49 +66,81 @@ class WebTestManager:
                 query_details = row.get('Query Details', 'N/A')
                 version = row.get('Version', 'N/A')
                 
-                self.add_log(f"Probing {version}: {query_details}")
+                self.add_log(f"Testing {version}: {query_details}")
                 
-                start_time = time.time()
+                task_start_time = time.time()
                 result_entry = {
                     "task_num": index + 1,
                     "version": version,
                     "url": url,
                     "query_details": query_details,
                     "status": "pending",
-                    "time": 0,
+                    "count": "N/A",
+                    "time_to_ready": 0,
                     "content": ""
                 }
 
-                try:
-                    # Perform the HTTP GET request
-                    response = session.get(url, timeout=30, verify=False)
-                    elapsed = round(time.time() - start_time, 2)
-                    result_entry["time"] = elapsed
-
-                    if response.status_code == 200:
-                        soup = BeautifulSoup(response.text, 'html.parser')
+                # Polling loop: Wait for content to change from "loading" to "Results"
+                # Max wait: 60 seconds
+                ready = False
+                attempts = 0
+                max_wait = 60 
+                
+                while (time.time() - task_start_time) < max_wait:
+                    if self.stop_requested: break
+                    
+                    try:
+                        attempts += 1
+                        response = session.get(url, timeout=15, verify=False)
                         
-                        # Extract content using the same selectors as original script
-                        # Note: If the site is a pure SPA, BS4 will only see the "Loading..." placeholder.
-                        span4 = soup.find(class_='span4')
-                        content = span4.get_text(strip=True) if span4 else ""
-                        
-                        if not content:
-                            # Fallback: look for any text if span4 is missing
-                            body_text = soup.get_text(separator=' ', strip=True)
-                            content = body_text[:100] + "..." if len(body_text) > 100 else body_text
+                        if response.status_code == 200:
+                            soup = BeautifulSoup(response.text, 'html.parser')
+                            
+                            # Standard FDALabel selectors
+                            span4 = soup.find(class_='span4')
+                            span12 = soup.find(class_='span12')
+                            
+                            content = span4.get_text(strip=True) if span4 else ""
+                            if not content and span12:
+                                content = span12.get_text(strip=True)
+                            
+                            # Fallback to whole body if specific spans are missing
+                            if not content:
+                                content = soup.get_text(separator=' ', strip=True)
 
-                        result_entry["status"] = "Success" if response.status_code == 200 else f"HTTP {response.status_code}"
-                        result_entry["content"] = content
-                    else:
-                        result_entry["status"] = f"HTTP Error {response.status_code}"
-                        result_entry["content"] = f"Server returned {response.status_code}"
+                            # Check if we have the results yet
+                            if "labeling results" in content.lower():
+                                # Extract the number (e.g., "125 Labeling Results")
+                                match = re.search(r'(\d+)\s+Labeling Results', content, re.IGNORECASE)
+                                if match:
+                                    result_entry["count"] = match.group(1)
+                                
+                                result_entry["status"] = "Success"
+                                result_entry["content"] = content
+                                result_entry["time_to_ready"] = round(time.time() - task_start_time, 2)
+                                ready = True
+                                break
+                            elif "loading" in content.lower():
+                                # Still loading, wait and retry
+                                time.sleep(2)
+                            else:
+                                # Neither loading nor results - maybe an error page or empty?
+                                result_entry["status"] = "No Results Found"
+                                result_entry["content"] = content[:100]
+                                result_entry["time_to_ready"] = round(time.time() - task_start_time, 2)
+                                break
+                        else:
+                            result_entry["status"] = f"HTTP {response.status_code}"
+                            break
+                            
+                    except Exception as e:
+                        result_entry["status"] = "Conn Error"
+                        result_entry["content"] = str(e)
+                        break
 
-                except Exception as e:
-                    result_entry["status"] = "Connection Error"
-                    result_entry["content"] = str(e)
-                    result_entry["time"] = round(time.time() - start_time, 2)
-                    self.add_log(f"Error probing {url}: {str(e)}")
+                if not ready and result_entry["status"] == "pending":
+                    result_entry["status"] = "Timeout"
+                    result_entry["time_to_ready"] = max_wait
 
                 self.results.append(result_entry)
                 self.event_queue.put({"type": "result", "data": result_entry})
@@ -123,14 +158,12 @@ class WebTestManager:
 
 @webtest_bp.route('/templates', methods=['GET'])
 def list_templates():
-    """List all Excel templates in the public webtest folder."""
     template_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest')
     if not os.path.exists(template_dir):
          template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest'))
     
     if not os.path.exists(template_dir):
         return jsonify([])
-        
     files = [f for f in os.listdir(template_dir) if f.lower().endswith('.xlsx')]
     return jsonify(files)
 
@@ -138,7 +171,6 @@ def list_templates():
 def start_test():
     data = request.get_json()
     template_name = data.get('template_name')
-    
     if not template_name:
         return jsonify({"error": "No template selected"}), 400
     
@@ -147,79 +179,46 @@ def start_test():
          template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest'))
     
     template_path = os.path.join(template_dir, template_name)
-    
     if not os.path.exists(template_path):
-        return jsonify({"error": f"Template {template_name} not found on server"}), 404
+        return jsonify({"error": "Template not found"}), 404
 
     try:
         df = pd.read_excel(template_path).fillna('')
-        required = ['Result Link', 'Version']
-        if not all(col in df.columns for col in required):
-            return jsonify({"error": f"Missing required columns in {template_name}: {required}"}), 400
-            
         task_id = str(uuid.uuid4())
         manager = WebTestManager(task_id, df)
         testing_tasks[task_id] = manager
-        
         thread = threading.Thread(target=manager.run)
         thread.daemon = True
         thread.start()
-        
         return jsonify({"task_id": task_id, "status": "started"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@webtest_bp.route('/status/<task_id>')
-def get_status(task_id):
-    manager = testing_tasks.get(task_id)
-    if not manager:
-        return jsonify({"error": "Task not found"}), 404
-    
-    return jsonify({
-        "task_id": task_id,
-        "status": manager.status,
-        "progress": manager.progress,
-        "results_count": len(manager.results),
-        "completed_at": manager.completed_at
-    })
-
 @webtest_bp.route('/events/<task_id>')
 def events(task_id):
     manager = testing_tasks.get(task_id)
-    if not manager:
-        return Response("Task not found", status=404)
-
-    def event_stream():
-        init_data = json.dumps({'type': 'init', 'logs': manager.logs, 'results': manager.results})
-        yield f"data: {init_data}\n\n"
-        
+    if not manager: return Response("Not found", status=404)
+    def stream():
+        yield f"data: {json.dumps({'type': 'init', 'logs': manager.logs, 'results': manager.results})}\n\n"
         while True:
             try:
                 event = manager.event_queue.get(timeout=20)
                 yield f"data: {json.dumps(event)}\n\n"
-                if event['type'] == 'status' and event['data'] in ['completed', 'failed']:
-                    break
-            except queue.Empty:
-                yield ": keepalive\n\n"
-            except GeneratorExit:
-                break
-    
-    return Response(event_stream(), mimetype='text/event-stream')
+                if event['type'] == 'status' and event['data'] in ['completed', 'failed']: break
+            except queue.Empty: yield ": keepalive\n\n"
+            except GeneratorExit: break
+    return Response(stream(), mimetype='text/event-stream')
 
 @webtest_bp.route('/report/<task_id>')
 def download_report(task_id):
     manager = testing_tasks.get(task_id)
-    if not manager or not manager.results:
-        return jsonify({"error": "No results available"}), 404
-    
+    if not manager or not manager.results: return jsonify({"error": "No results"}), 404
     df_res = pd.DataFrame(manager.results)
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_res.to_excel(writer, index=False, sheet_name='Testing Results')
-    
+        df_res.to_excel(writer, index=False)
     output.seek(0)
-    filename = f"webtest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=filename)
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f"webtest_{task_id}.xlsx")
 
 @webtest_bp.route('/stop/<task_id>', methods=['POST'])
 def stop_test(task_id):
@@ -227,4 +226,4 @@ def stop_test(task_id):
     if manager:
         manager.stop_requested = True
         return jsonify({"success": True})
-    return jsonify({"error": "Task not found"}), 404
+    return jsonify({"error": "Not found"}), 404
