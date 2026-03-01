@@ -282,8 +282,9 @@ export default function WebTestingPage() {
                                 <thead style={{ backgroundColor: '#f8fafc' }}>
                                     <tr>
                                         <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>#</th>
-                                        <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>Version</th>
                                         <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>Task Details</th>
+                                        <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>Version</th>
+                                        <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>Result Link</th>
                                         <th style={{ padding: '12px 20px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>Result Count</th>
                                         <th style={{ padding: '12px 20px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>Time to Ready</th>
                                         <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>Status</th>
@@ -293,8 +294,28 @@ export default function WebTestingPage() {
                                     {paginatedResults.map((res, i) => (
                                         <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                             <td style={{ padding: '12px 20px', fontWeight: 500 }}>{res.task_num}</td>
-                                            <td style={{ padding: '12px 20px' }}><span style={{ backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>{res.version}</span></td>
                                             <td style={{ padding: '12px 20px' }}>{res.query_details}</td>
+                                            <td style={{ padding: '12px 20px' }}><span style={{ backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>{res.version}</span></td>
+                                            <td style={{ padding: '12px 20px' }}>
+                                                <a 
+                                                    href={res.url} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    style={{ 
+                                                        color: '#2563eb', 
+                                                        textDecoration: 'none',
+                                                        fontSize: '0.75rem',
+                                                        maxWidth: '200px',
+                                                        display: 'inline-block',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap'
+                                                    }}
+                                                    title={res.url}
+                                                >
+                                                    {res.url}
+                                                </a>
+                                            </td>
                                             <td style={{ padding: '12px 20px', textAlign: 'center' }}>
                                                 <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem' }}>{res.count}</span>
                                             </td>

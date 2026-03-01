@@ -10,7 +10,6 @@ from datetime import datetime
 from io import BytesIO
 import queue
 import requests
-from bs4 import BeautifulSoup
 import urllib3
 
 # Suppress insecure request warnings
@@ -43,13 +42,40 @@ class WebTestManager:
         self.progress = progress
         self.event_queue.put({"type": "progress", "data": progress})
 
+    def get_api_url(self, ui_url):
+        """
+        Translates a FDALabel UI URL to its corresponding JSON Service URL.
+        Example: .../ui/spl-summaries/criteria/215090 -> .../services/spl/summaries/json/criteria/215090
+        """
+        if "fdalabel" not in ui_url.lower():
+            return ui_url # No translation for non-fdalabel links
+            
+        # Target pattern: /ui/spl-summaries/criteria/ -> /services/spl/summaries/json/criteria/
+        if "/ui/spl-summaries/criteria/" in ui_url:
+            return ui_url.replace("/ui/spl-summaries/criteria/", "/services/spl/summaries/json/criteria/")
+        
+        # General summaries pattern: /ui/spl-summaries/ -> /services/spl/summaries/json/
+        if "/ui/spl-summaries/" in ui_url:
+            return ui_url.replace("/ui/spl-summaries/", "/services/spl/summaries/json/")
+
+        # Search pattern: /ui/search -> /services/spl/search
+        if "/ui/search" in ui_url:
+            return ui_url.replace("/ui/search", "/services/spl/search")
+            
+        # SPL Doc pattern: /ui/spl-doc/ -> /services/spl/set-ids/
+        if "/ui/spl-doc/" in ui_url:
+            return ui_url.replace("/ui/spl-doc/", "/services/spl/set-ids/")
+
+        return ui_url
+
     def run(self):
         self.status = "running"
-        self.add_log(f"Starting test task {self.task_id}")
+        self.add_log(f"Starting batch {self.task_id} (Direct JSON Service Mode)")
         
         session = requests.Session()
         session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*'
         })
 
         try:
@@ -59,129 +85,109 @@ class WebTestManager:
                     self.add_log("Task stopped by user.")
                     break
 
-                url = row.get('Result Link', '')
-                if not isinstance(url, str) or 'http' not in url:
+                ui_url = row.get('Result Link', '')
+                if not isinstance(ui_url, str) or 'http' not in ui_url:
                     continue
 
                 query_details = row.get('Query Details', 'N/A')
                 version = row.get('Version', 'N/A')
-                
                 self.add_log(f"[{index+1}/{total_rows}] Testing {version}: {query_details}")
                 
                 task_start_time = time.time()
                 result_entry = {
                     "task_num": index + 1,
                     "version": version,
-                    "url": url,
+                    "url": ui_url,
                     "query_details": query_details,
                     "status": "pending",
                     "count": "N/A",
                     "time_to_ready": 0
                 }
 
-                # Hybrid Polling Mechanism
-                max_wait = 60
-                found_final_state = False
+                api_url = self.get_api_url(ui_url)
+                self.add_log(f"   --> Probing: {api_url}")
                 
-                while (time.time() - task_start_time) < max_wait:
-                    if self.stop_requested: break
+                max_wait = 60
+                found = False
+                # Connection timeout: 5s, Read timeout: 55s
+                timeout = (5, 55)
+
+                try:
+                    # DIRECT PROBE: We expect JSON
+                    resp = session.get(api_url, timeout=timeout, verify=False)
                     
-                    try:
-                        # Fetch the current state
-                        response = session.get(url, timeout=20, verify=False)
-                        
-                        if response.status_code == 200:
-                            html = response.text
-                            soup = BeautifulSoup(html, 'html.parser')
-                            
-                            # Get all text but prioritize the specific result spans if they exist
-                            span4 = soup.find(class_='span4')
-                            span12 = soup.find(class_='span12')
-                            
-                            if span4: text_content = span4.get_text(separator=' ', strip=True)
-                            elif span12: text_content = span12.get_text(separator=' ', strip=True)
-                            else: text_content = soup.get_text(separator=' ', strip=True)
-                            
-                            text_lower = text_content.lower()
+                    elapsed = round(time.time() - task_start_time, 2)
+                    result_entry["time_to_ready"] = elapsed
 
-                            # CHECK FOR FINAL SUCCESS STATE
-                            if "labeling results" in text_lower:
-                                # Extract number: "125 Labeling Results"
-                                match = re.search(r'(\d+)\s+Labeling Results', text_content, re.IGNORECASE)
-                                result_entry["count"] = match.group(1) if match else "Found"
+                    if resp.status_code == 200:
+                        try:
+                            # Parse JSON result count
+                            data = resp.json()
+                            total = None
+                            
+                            # Handle FDALabel JSON response structures
+                            if isinstance(data, dict):
+                                # Prioritize the user-confirmed 'totalResultsCount'
+                                total = data.get('totalResultsCount')
+                                if total is None:
+                                    # Fallbacks for other possible search/summary endpoints
+                                    total = data.get('total') or data.get('count') or data.get('totalResults') or data.get('recordCount')
+                            elif isinstance(data, list):
+                                total = len(data)
+                            
+                            if total is not None:
+                                result_entry["count"] = str(total)
                                 result_entry["status"] = "Success"
-                                result_entry["time_to_ready"] = round(time.time() - task_start_time, 2)
-                                found_final_state = True
-                                self.add_log(f"   --> Detected: {result_entry['count']} results in {result_entry['time_to_ready']}s")
-                                break
-                            
-                            # CHECK FOR LOADING STATE
-                            elif "loading" in text_lower:
-                                # Still loading, let's try to hit the API directly if possible
-                                if "fdalabel" in url and "ui/search" in url:
-                                    api_url = url.replace("ui/search", "services/spl/search")
-                                    # Handle different possible API endpoints
-                                    try:
-                                        api_resp = session.get(api_url, timeout=10, verify=False)
-                                        if api_resp.status_code == 200:
-                                            try:
-                                                api_data = api_resp.json()
-                                                # Standard FDALabel API usually has 'total'
-                                                count = api_data.get('total') or api_data.get('count')
-                                                if count is not None:
-                                                    result_entry["count"] = str(count)
-                                                    result_entry["status"] = "Success (API)"
-                                                    result_entry["time_to_ready"] = round(time.time() - task_start_time, 2)
-                                                    found_final_state = True
-                                                    self.add_log(f"   --> Success via API: {count} results")
-                                                    break
-                                            except: pass
-                                    except: pass
-                                
-                                # Wait and retry
-                                time.sleep(2)
-                            
-                            # CHECK FOR ERROR STATE
-                            elif "error" in text_lower or "not found" in text_lower:
-                                result_entry["status"] = "Error detected"
-                                result_entry["count"] = "0"
-                                result_entry["time_to_ready"] = round(time.time() - task_start_time, 2)
-                                found_final_state = True
-                                self.add_log(f"   --> Error page found")
-                                break
-                            
+                                self.add_log(f"   --> Found {total} results in {elapsed}s")
+                                found = True
                             else:
-                                # "Unknown Content" but let's keep polling instead of giving up
-                                # The original script waited until 'loading' disappeared.
-                                # If it's neither 'loading' nor 'results', maybe the search is slow.
-                                self.add_log(f"   --> Content detected but not 'Results' yet. Retrying...")
-                                time.sleep(3)
-                        else:
-                            result_entry["status"] = f"HTTP {response.status_code}"
-                            found_final_state = True
-                            break
-                            
-                    except Exception as e:
-                        result_entry["status"] = "Conn Error"
-                        self.add_log(f"   --> Error: {str(e)}")
-                        # Don't break immediately on transient connection errors, retry once
-                        time.sleep(2)
+                                result_entry["status"] = "JSON Success (No Count)"
+                                self.add_log(f"   --> Success but no count field in JSON")
+                                found = True
+                        except Exception as je:
+                            # Not JSON - maybe it returned the HTML anyway?
+                            if "labeling results" in resp.text.lower():
+                                match = re.search(r'(\d+)\s+Labeling Results', resp.text, re.IGNORECASE)
+                                result_entry["count"] = match.group(1) if match else "Found"
+                                result_entry["status"] = "Success (Text)"
+                                found = True
+                            else:
+                                result_entry["status"] = "Format Error"
+                                self.add_log(f"   --> Received non-JSON response.")
+                                found = True
+                    elif resp.status_code == 404:
+                        result_entry["status"] = "Not Found (404)"
+                        self.add_log(f"   --> Error 404: Service endpoint not found.")
+                        found = True
+                    else:
+                        result_entry["status"] = f"HTTP {resp.status_code}"
+                        self.add_log(f"   --> HTTP Error {resp.status_code}")
+                        found = True
 
-                if not found_final_state:
-                    result_entry["status"] = "Timeout"
-                    result_entry["time_to_ready"] = 60.0
-                    self.add_log(f"   --> Task timed out")
+                except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout):
+                    result_entry["status"] = "Inaccessible"
+                    result_entry["time_to_ready"] = round(time.time() - task_start_time, 2)
+                    self.add_log(f"   --> Connection Failed.")
+                    found = True
+                except Exception as e:
+                    result_entry["status"] = "Error"
+                    self.add_log(f"   --> Unexpected error: {str(e)}")
+                    found = True
 
                 self.results.append(result_entry)
                 self.event_queue.put({"type": "result", "data": result_entry})
                 self.update_progress(int(((index + 1) / total_rows) * 100))
+                
+                # Small delay to ensure UI has time to catch up and show progress
+                time.sleep(0.3)
 
             self.status = "completed"
             self.completed_at = datetime.now().isoformat()
             self.event_queue.put({"type": "status", "data": "completed"})
+            self.add_log("Testing sequence completed.")
             
         except Exception as e:
-            self.add_log(f"Critical error: {str(e)}")
+            self.add_log(f"Batch Processing Error: {str(e)}")
             self.status = "failed"
             self.event_queue.put({"type": "status", "data": "failed"})
 
@@ -220,7 +226,15 @@ def events(task_id):
     manager = testing_tasks.get(task_id)
     if not manager: return Response("Not found", status=404)
     def stream():
-        yield f"data: {json.dumps({'type': 'init', 'logs': manager.logs, 'results': manager.results})}\n\n"
+        # Send initial state including progress
+        init_data = json.dumps({
+            'type': 'init', 
+            'logs': manager.logs, 
+            'results': manager.results, 
+            'progress': manager.progress,
+            'status': manager.status
+        })
+        yield f"data: {init_data}\n\n"
         while True:
             try:
                 ev = manager.event_queue.get(timeout=20)
@@ -228,14 +242,18 @@ def events(task_id):
                 if ev['type'] == 'status' and ev['data'] in ['completed', 'failed']: break
             except queue.Empty: yield ": keepalive\n\n"
             except GeneratorExit: break
-    return Response(stream(), mimetype='text/event-stream')
+            
+    return Response(stream(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no',
+        'Connection': 'keep-alive'
+    })
 
 @webtest_bp.route('/report/<task_id>')
 def download_report(task_id):
     manager = testing_tasks.get(task_id)
     if not manager: return jsonify({"error": "No results"}), 404
     df_res = pd.DataFrame(manager.results)
-    # Remove large/internal content field for excel
     if 'content' in df_res.columns: df_res = df_res.drop(columns=['content'])
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
