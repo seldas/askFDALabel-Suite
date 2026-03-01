@@ -35,3 +35,8 @@ dashboard_old/
 logs/
 GEMINI.md
 data/
+
+# FDALabel web testing log and result files
+web_testing/full_report/
+web_testing/testing_result/
+web_testing/Source

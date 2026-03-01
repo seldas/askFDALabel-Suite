@@ -25,3 +25,6 @@ gunicorn
 psycopg2-binary
 flashtext
 waitress
+
+selenium==4.15.2
+webdriver_manager==4.0.1
