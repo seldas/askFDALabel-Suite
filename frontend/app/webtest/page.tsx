@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
@@ -10,7 +10,8 @@ interface TestResult {
     url: string;
     query_details: string;
     status: string;
-    time: number;
+    count: string;
+    time_to_ready: number;
     content: string;
 }
 
@@ -21,11 +22,13 @@ export default function WebTestingPage() {
     const [status, setStatus] = useState<'idle' | 'running' | 'completed' | 'failed'>('idle');
     const [progress, setProgress] = useState(0);
     const [results, setResults] = useState<TestResult[]>([]);
-    const [logs, setLogs] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     
-    const logEndRef = useRef<HTMLDivElement>(null);
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
     const eventSourceRef = useRef<EventSource | null>(null);
 
     const fetchTemplates = async () => {
@@ -49,13 +52,7 @@ export default function WebTestingPage() {
     }, []);
 
     useEffect(() => {
-        if (logEndRef.current) {
-            logEndRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [logs]);
-
-    useEffect(() => {
-        if (taskId && status === 'running') {
+        if (taskId && (status === 'running' || status === 'idle')) {
             const es = new EventSource(`/api/webtest/events/${taskId}`);
             eventSourceRef.current = es;
 
@@ -63,10 +60,7 @@ export default function WebTestingPage() {
                 const data = JSON.parse(event.data);
                 
                 if (data.type === 'init') {
-                    setLogs(data.logs || []);
                     setResults(data.results || []);
-                } else if (data.type === 'log') {
-                    setLogs(prev => [...prev, data.data]);
                 } else if (data.type === 'progress') {
                     setProgress(data.data);
                 } else if (data.type === 'result') {
@@ -80,7 +74,6 @@ export default function WebTestingPage() {
             };
 
             es.onerror = () => {
-                console.error("EventSource failed.");
                 es.close();
             };
 
@@ -99,9 +92,9 @@ export default function WebTestingPage() {
         try {
             setStatus('running');
             setResults([]);
-            setLogs([]);
             setProgress(0);
             setError(null);
+            setCurrentPage(1);
 
             const response = await fetch('/api/webtest/start', {
                 method: 'POST',
@@ -135,6 +128,15 @@ export default function WebTestingPage() {
         window.location.href = `/api/webtest/report/${taskId}`;
     };
 
+    // Pagination calculations
+    const paginatedResults = useMemo(() => {
+        const sorted = [...results].sort((a, b) => a.task_num - b.task_num);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return sorted.slice(startIndex, startIndex + itemsPerPage);
+    }, [results, currentPage]);
+
+    const totalPages = Math.ceil(results.length / itemsPerPage);
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
             <Header />
@@ -143,7 +145,7 @@ export default function WebTestingPage() {
                 <div style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                         <h1 style={{ fontSize: '2rem', fontWeight: 800, color: '#0f172a' }}>Web Application Auto-Testing</h1>
-                        <p style={{ color: '#64748b' }}>Interactive portal for running automated browser tests against FDALabel instances.</p>
+                        <p style={{ color: '#64748b' }}>Monitor FDALabel search result accuracy and system performance in real-time.</p>
                     </div>
                     <button 
                         onClick={fetchTemplates}
@@ -175,15 +177,10 @@ export default function WebTestingPage() {
                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                     marginBottom: '24px'
                 }}>
-                    <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20V10M18 20V4M6 20V16"/></svg>
-                        Test Configuration
-                    </h2>
-                    
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'flex-end' }}>
                         <div style={{ flex: 1, minWidth: '300px' }}>
                             <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
-                                Select Testing Template (from server)
+                                Select Performance Template
                             </label>
                             <select 
                                 value={selectedTemplate}
@@ -207,9 +204,6 @@ export default function WebTestingPage() {
                                     ))
                                 )}
                             </select>
-                            <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '6px' }}>
-                                Templates are loaded from <code>./frontend/public/webtest</code>
-                            </p>
                         </div>
                         
                         <div style={{ display: 'flex', gap: '12px' }}>
@@ -267,76 +261,128 @@ export default function WebTestingPage() {
                     {error && <p style={{ color: '#ef4444', fontSize: '0.875rem', marginTop: '12px' }}>{error}</p>}
                 </div>
 
-                {/* Status and Logs */}
+                {/* Results Table Section */}
                 {(status !== 'idle' || taskId) && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '24px', marginBottom: '24px' }}>
-                        {/* Results Table */}
-                        <div style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-                            <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Real-time Results</h3>
-                                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#2563eb' }}>{progress}% Complete</div>
+                    <div style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+                        <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Extraction Results</h3>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#64748b' }}>
+                                    Total: {results.length} tasks
+                                </div>
+                                <div style={{ width: '150px', height: '8px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                                    <div style={{ width: `${progress}%`, height: '100%', backgroundColor: '#2563eb', transition: 'width 0.3s ease' }}></div>
+                                </div>
+                                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#2563eb' }}>{progress}%</span>
                             </div>
-                            
-                            <div style={{ height: '400px', overflowY: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                                    <thead style={{ backgroundColor: '#f8fafc', position: 'sticky', top: 0 }}>
-                                        <tr>
-                                            <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9' }}>#</th>
-                                            <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9' }}>Version</th>
-                                            <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9' }}>Task</th>
-                                            <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9' }}>Status</th>
-                                            <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9' }}>Time</th>
+                        </div>
+                        
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                                <thead style={{ backgroundColor: '#f8fafc' }}>
+                                    <tr>
+                                        <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>#</th>
+                                        <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>Version</th>
+                                        <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>Task Details</th>
+                                        <th style={{ padding: '12px 20px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>Result Count</th>
+                                        <th style={{ padding: '12px 20px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>Time to Ready</th>
+                                        <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#475569' }}>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {paginatedResults.map((res, i) => (
+                                        <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                            <td style={{ padding: '12px 20px', fontWeight: 500 }}>{res.task_num}</td>
+                                            <td style={{ padding: '12px 20px' }}><span style={{ backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>{res.version}</span></td>
+                                            <td style={{ padding: '12px 20px' }}>{res.query_details}</td>
+                                            <td style={{ padding: '12px 20px', textAlign: 'center' }}>
+                                                <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem' }}>{res.count}</span>
+                                            </td>
+                                            <td style={{ padding: '12px 20px', textAlign: 'center' }}>
+                                                <span style={{ 
+                                                    color: res.time_to_ready > 15 ? '#dc2626' : (res.time_to_ready > 5 ? '#d97706' : '#059669'),
+                                                    fontWeight: 700
+                                                }}>
+                                                    {res.time_to_ready}s
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '12px 20px' }}>
+                                                <span style={{ 
+                                                    padding: '4px 10px',
+                                                    borderRadius: '20px',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 700,
+                                                    backgroundColor: res.status === 'Success' ? '#ecfdf5' : '#fef2f2',
+                                                    color: res.status === 'Success' ? '#059669' : '#dc2626'
+                                                }}>
+                                                    {res.status}
+                                                </span>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        {results.map((res, i) => (
-                                            <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                                <td style={{ padding: '12px 20px' }}>{res.task_num}</td>
-                                                <td style={{ padding: '12px 20px' }}><span style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem' }}>{res.version}</span></td>
-                                                <td style={{ padding: '12px 20px' }}>{res.query_details}</td>
-                                                <td style={{ padding: '12px 20px' }}>
-                                                    <span style={{ 
-                                                        color: res.status === 'Success' ? '#059669' : '#dc2626',
-                                                        fontWeight: 600
-                                                    }}>
-                                                        {res.status}
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: '12px 20px' }}>{res.time}s</td>
-                                            </tr>
-                                        ))}
-                                        {results.length === 0 && (
-                                            <tr>
-                                                <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
-                                                    Waiting for test results...
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
+                                    ))}
+                                    {results.length === 0 && (
+                                        <tr>
+                                            <td colSpan={6} style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+                                                Initializing testing environment...
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
 
-                        {/* Live Logs */}
-                        <div style={{ background: '#1e293b', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                            <div style={{ padding: '12px 16px', backgroundColor: '#334155', color: '#fff', fontSize: '0.875rem', fontWeight: 600 }}>
-                                Live Execution Logs
-                            </div>
-                            <div style={{ 
-                                flex: 1, 
-                                padding: '16px', 
-                                color: '#cbd5e1', 
-                                fontFamily: 'monospace', 
-                                fontSize: '0.75rem', 
-                                overflowY: 'auto',
-                                height: '400px'
-                            }}>
-                                {logs.map((log, i) => (
-                                    <div key={i} style={{ marginBottom: '4px' }}>{log}</div>
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div style={{ padding: '16px 20px', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                                <button 
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    style={{
+                                        padding: '6px 12px',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '4px',
+                                        backgroundColor: '#fff',
+                                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                        opacity: currentPage === 1 ? 0.5 : 1
+                                    }}
+                                >
+                                    Previous
+                                </button>
+                                
+                                {[...Array(totalPages)].map((_, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => setCurrentPage(i + 1)}
+                                        style={{
+                                            padding: '6px 12px',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '4px',
+                                            backgroundColor: currentPage === i + 1 ? '#2563eb' : '#fff',
+                                            color: currentPage === i + 1 ? '#fff' : '#0f172a',
+                                            fontWeight: 600,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {i + 1}
+                                    </button>
                                 ))}
-                                <div ref={logEndRef} />
+
+                                <button 
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    style={{
+                                        padding: '6px 12px',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '4px',
+                                        backgroundColor: '#fff',
+                                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                                        opacity: currentPage === totalPages ? 0.5 : 1
+                                    }}
+                                >
+                                    Next
+                                </button>
                             </div>
-                        </div>
+                        )}
                     </div>
                 )}
             </main>
