@@ -36,3 +36,5 @@ afd.db
 afd.db*
 logs/
 GEMINI.md
+
+data/
