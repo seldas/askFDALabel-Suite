@@ -446,13 +446,29 @@ def toggle_favorite():
         if not meta:
             return jsonify({'error': 'Could not fetch label metadata'}), 404
 
+        # REFINEMENT: If brand or manufacturer is 'n/a' or 'N/A', try extracting from XML
+        brand = meta.get('brand_name', 'n/a')
+        manufacturer = meta.get('manufacturer_name', 'n/a')
+        
+        if brand.lower() in ['n/a', 'unknown drug'] or manufacturer.lower() in ['n/a', 'unknown manufacturer']:
+            from dashboard.services.fda_client import get_label_xml
+            from dashboard.services.xml_handler import extract_metadata_from_xml
+            xml_raw = get_label_xml(set_id)
+            if xml_raw:
+                xml_meta = extract_metadata_from_xml(xml_raw)
+                if xml_meta:
+                    if brand.lower() in ['n/a', 'unknown drug'] and xml_meta.get('brand_name') and xml_meta.get('brand_name') != 'Unknown Drug':
+                        brand = xml_meta['brand_name']
+                    if manufacturer.lower() in ['n/a', 'unknown manufacturer'] and xml_meta.get('manufacturer_name') and xml_meta.get('manufacturer_name') != 'Unknown Manufacturer':
+                        manufacturer = xml_meta['manufacturer_name']
+
         new_favorite = Favorite(
             user_id=current_user.id, 
             project_id=project_id,
             set_id=set_id, 
-            brand_name=meta.get('brand_name', 'n/a'),
+            brand_name=brand,
             generic_name=meta.get('generic_name', 'n/a'),
-            manufacturer_name=meta.get('manufacturer_name', 'n/a'),
+            manufacturer_name=manufacturer,
             market_category=meta.get('market_category', 'n/a'),
             application_number=meta.get('application_number', 'n/a'),
             ndc=meta.get('ndc', 'n/a'),
@@ -948,13 +964,29 @@ def favorite_all():
         # Check if already exists IN THIS PROJECT (regardless of user)
         existing = Favorite.query.filter_by(set_id=set_id, project_id=target_project.id).first()
         if not existing:
+            brand = label.get('brand_name', 'n/a')
+            manufacturer = label.get('manufacturer_name', 'n/a')
+
+            # XML Fallback for favorite_all
+            if brand.lower() in ['n/a', 'unknown drug'] or manufacturer.lower() in ['n/a', 'unknown manufacturer']:
+                from dashboard.services.fda_client import get_label_xml
+                from dashboard.services.xml_handler import extract_metadata_from_xml
+                xml_raw = get_label_xml(set_id)
+                if xml_raw:
+                    xml_meta = extract_metadata_from_xml(xml_raw)
+                    if xml_meta:
+                        if brand.lower() in ['n/a', 'unknown drug'] and xml_meta.get('brand_name') and xml_meta.get('brand_name') != 'Unknown Drug':
+                            brand = xml_meta['brand_name']
+                        if manufacturer.lower() in ['n/a', 'unknown manufacturer'] and xml_meta.get('manufacturer_name') and xml_meta.get('manufacturer_name') != 'Unknown Manufacturer':
+                            manufacturer = xml_meta['manufacturer_name']
+
             new_fav = Favorite(
                 user_id=current_user.id,
                 project_id=target_project.id,
                 set_id=set_id,
-                brand_name=label.get('brand_name', 'n/a'),
+                brand_name=brand,
                 generic_name=label.get('generic_name', 'n/a'),
-                manufacturer_name=label.get('manufacturer_name', 'n/a'),
+                manufacturer_name=manufacturer,
                 market_category=label.get('market_category', 'n/a'),
                 application_number=label.get('application_number', 'n/a'),
                 ndc=label.get('ndc', 'n/a'),
