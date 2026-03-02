@@ -340,7 +340,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
           const searchData = await searchResponse.json();
 
           if (searchData.error) {
-            setChatHistory(prev => [...prev, { role: 'assistant', content: `Error: ${searchData.error}` }]);
+            const isConnectivity = searchData.error.includes("internet environment");
+            setChatHistory(prev => [...prev, { 
+                role: 'assistant', 
+                content: isConnectivity 
+                    ? `⚠️ **Connectivity Notice:** ${searchData.error}`
+                    : `**Error:** ${searchData.error}` 
+            }]);
             setIsLoading(false);
             setLoadingStatus("");
             return;

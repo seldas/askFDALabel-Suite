@@ -84,9 +84,15 @@ Assign a single severity score per evidence sentence based on the **highest** re
 - **[Score: 0] Pre-existing Condition:** Patient history or contraindications (e.g., "avoid if patient has cirrhosis").
 
 ### Processing Logic for Multiple Terms
-- **Deduplication:** If an evidence sentence contains multiple DILI-related keywords (e.g., "elevated ALT [Score 3] and acute liver failure [Score 7]"), **list the sentence only once**.
+- **Deduplication:** If an evidence sentence contains multiple DILI-related keywords, **list the sentence only once**.
 - **Max Score Selection:** Assign the badge for the **highest severity score** present in that sentence.
 - **Multi-Keyword Highlighting:** Use `<mark>` tags for **all** identified DILI keywords within that single sentence.
+
+### DILI Risk Level Classification (CRITICAL)
+After the list of evidence, you MUST provide a final summary sentence inside the `div`:
+- **Most DILI Concern:** If there is ANY evidence with **Score 5, 6, 7, or 8**, or if DILI is mentioned in **Boxed Warning** or **Warnings and Precautions**.
+- **Less DILI Concern:** If there is evidence with **Score 1, 2, 3, or 4** but no higher scores, AND it is only in **Adverse Reactions**.
+- **No DILI Concern:** If no DILI-related evidence is identified in any section.
 
 ### HTML Output Requirements
 Use the following structure for the web panel:
@@ -94,6 +100,7 @@ Use the following structure for the web panel:
 2. **Evidence List:** <ul> list.
 3. **Evidence Sentence:** Wrap in `<span class="dili-evidence">`. Use `<mark>` for keywords.
 4. **Severity Badge:** Use `<span class="badge-score badge-score-{score}">` after the sentence.
+5. **Risk Summary:** A paragraph at the end: `<p><strong>Conclusion:</strong> {Risk Level Phrase}</p>`
 
 ### Expected HTML Example:
 <div class="label-section">
@@ -104,6 +111,7 @@ Use the following structure for the web panel:
       <span class="badge-score badge-score-8">Score: 8 - Fatal liver failure</span>
     </li>
   </ul>
+  <p><strong>Conclusion:</strong> Most DILI Concern</p>
 </div>
 
 ### Constraints
@@ -112,10 +120,10 @@ Use the following structure for the web panel:
 
 **CRITICAL OUTPUT REQUIREMENTS:**
 -   Your final response MUST be ONLY the raw HTML code.
--   DO NOT include ANY explanatory text, headers, step-by-step reasoning, or conversational phrases like "Here is the HTML output:".
+-   DO NOT include ANY explanatory text, headers, step-by-step reasoning, or conversational phrases.
 -   Your entire response must start with `<div class="label-section">` and end with a closing `</div>`.
--   If no DILI evidence is found, output a single HTML comment: `<!-- No DILI evidence found in label -->`.
--   DO NOT wrap the HTML in Markdown code blocks (e.g., html).
+-   If no DILI evidence is found, output: `<div class="label-section"><!-- No DILI evidence found in label --><p><strong>Conclusion:</strong> No DILI Concern</p></div>`.
+-   DO NOT wrap the HTML in Markdown code blocks.
 '''
 DICT_prompt = '''
 ### Role & Objective
@@ -136,16 +144,18 @@ Assign a single severity level per evidence sentence based on the **highest** re
 - **[Level: Mild] Arrhythmia:** AV block I & II, atrial fibrillation (AFib), tachycardia, bradycardia, palpitations, sinus node dysfunction.
 - **[Level: 0] Pre-existing Condition:** Patient history, contraindications, or risk factors (e.g., "patients with pre-existing heart failure").
 
-### Processing Logic
-- **Deduplication:** List the sentence only once.
-- **Max Severity Selection:** Assign the badge for the highest level (Severe > Moderate > Mild > 0).
-- **Multi-Keyword Highlighting:** Use `<mark>` tags for ALL identified DICT keywords (including abbreviations like LVEF, MI, CHF).
+### DICT Risk Level Classification (CRITICAL)
+After the list of evidence, you MUST provide a final summary sentence inside the `div`:
+- **Most DICT Concern:** If there is ANY evidence with **Level: Severe**, or if cardiotoxicity is mentioned in **Boxed Warning** or **Warnings and Precautions**.
+- **Less DICT Concern:** If there is evidence with **Level: Moderate or Mild** but no Severe scores, AND it is only in **Adverse Reactions**.
+- **No DICT Concern:** If no cardiotoxicity-related evidence is identified.
 
 ### HTML Output Requirements
 1. **Section Headers:** <h3> for main sections, <h4> for subsections.
 2. **Evidence List:** <ul> list.
 3. **Evidence Sentence:** Wrap in `<span class="dict-evidence">`. Use `<mark>` for keywords.
 4. **Severity Badge:** Use `<span class="badge-score badge-score-{level}">` after the sentence.
+5. **Risk Summary:** A paragraph at the end: `<p><strong>Conclusion:</strong> {Risk Level Phrase}</p>`
 
 ### Expected HTML Example:
 <div class="label-section">
@@ -156,18 +166,13 @@ Assign a single severity level per evidence sentence based on the **highest** re
       <span class="badge-score badge-score-severe">Level: Severe (Heart damage)</span>
     </li>
   </ul>
+  <p><strong>Conclusion:</strong> Most DICT Concern</p>
 </div>
 
-### Constraints
-- Skip sections with no findings.
-- If no text: <p class="error">(No Section) No input text was provided</p>
-
 **CRITICAL OUTPUT REQUIREMENTS:**
--   Your final response MUST be ONLY the raw HTML code.
--   DO NOT include ANY explanatory text, headers, step-by-step reasoning, or conversational phrases like "Here is the HTML output:".
--   Your entire response must start with `<div class="label-section">` and end with a closing `</div>`.
--   If no DICT evidence is found, output a single HTML comment: `<!-- No DICT evidence found in label -->`.
--   DO NOT wrap the HTML in Markdown code blocks (e.g., html).
+-   Your response must be ONLY the raw HTML code.
+-   Response must start with `<div class="label-section">` and end with a closing `</div>`.
+-   If no DICT evidence is found, output: `<div class="label-section"><!-- No DICT evidence found in label --><p><strong>Conclusion:</strong> No DICT Concern</p></div>`.
 '''
 
 DIRI_prompt = '''
@@ -181,42 +186,27 @@ Focus your analysis on: Boxed Warnings, 4. Contraindications, 5. Warnings and Pr
 ### Analysis Criteria (Hierarchy of Severity)
 Assign a single severity level per evidence sentence based on the **highest** relevant term found:
 
-- **[Level: Certain] High Severity:** Renal failure, AKI, anuria, nephrotoxicity, glomerulonephritis, acute tubular necrosis (ATN), CKD secondary to drug, interstitial nephritis, nephropathy, nephrotic syndrome, nephritis, renal toxicity, Fanconi syndrome, rhabdomyolysis-induced renal failure. *Note: "Renal function deterioration" becomes Certain if modified by "severe" or "moderate".*
+- **[Level: Certain] High Severity:** Renal failure, AKI, anuria, nephrotoxicity, glomerulonephritis, acute tubular necrosis (ATN), CKD secondary to drug, interstitial nephritis, nephropathy, nephrotic syndrome, nephritis, renal toxicity, Fanconi syndrome, rhabdomyolysis-induced renal failure.
 - **[Level: Possible] Low Severity:** Elevated creatinine, Creatinine Clearance (CrCl) decreased, CLcr reduced, decreased GFR, proteinuria, albuminuria, hematuria, oliguria, hyperkalemia, pyuria, urinary casts, increased BUN, nephrolithiasis, renal impairment, renal insufficiency, renal dysfunction, azotemia, renal tubular acidosis, renal function deterioration.
-- **[Level: 0] Pre-existing Condition:** Terms describing patient history or baseline impairment (e.g., "In patients with baseline renal impairment").
+- **[Level: 0] Pre-existing Condition:** Terms describing patient history or baseline impairment.
 
-### Processing Logic
-- **Deduplication:** List the sentence only once.
-- **Max Severity Selection:** Assign "Certain" if any certain keyword is present; otherwise "Possible".
-- **Multi-Keyword Highlighting:** Use `<mark>` tags for ALL identified DIRI keywords (including abbreviations like AKI, CrCl, GFR).
+### DIRI Risk Level Classification (CRITICAL)
+After the list of evidence, you MUST provide a final summary sentence inside the `div`:
+- **Most DIRI Concern:** If there is ANY evidence with **Level: Certain**, or if renal injury is mentioned in **Boxed Warning** or **Warnings and Precautions**.
+- **Less DIRI Concern:** If there is evidence with **Level: Possible** but no Certain scores, AND it is only in **Adverse Reactions**.
+- **No DIRI Concern:** If no renal-related evidence is identified.
 
 ### HTML Output Requirements
 1. **Section Headers:** <h3> for main sections, <h4> for subsections.
 2. **Evidence List:** <ul> list.
 3. **Evidence Sentence:** Wrap in `<span class="diri-evidence">`. Use `<mark>` for keywords.
 4. **Severity Badge:** Use `<span class="badge-score badge-score-{level}">` after the sentence.
-
-### Expected HTML Example:
-<div class="label-section">
-  <h3>6. Adverse Reactions</h3>
-  <ul>
-    <li>
-      <span class="diri-evidence">Laboratory changes included <mark>elevated serum creatinine</mark> and <mark>acute kidney injury</mark>.</span> 
-      <span class="badge-score badge-score-certain">Level: Certain</span>
-    </li>
-  </ul>
-</div>
-
-### Constraints
-- Skip sections with no findings.
-- If no text: <p class="error">(No Section) No input text was provided</p>
+5. **Risk Summary:** A paragraph at the end: `<p><strong>Conclusion:</strong> {Risk Level Phrase}</p>`
 
 **CRITICAL OUTPUT REQUIREMENTS:**
--   Your final response MUST be ONLY the raw HTML code.
--   DO NOT include ANY explanatory text, headers, step-by-step reasoning, or conversational phrases like "Here is the HTML output:".
--   Your entire response must start with `<div class="label-section">` and end with a closing `</div>`.
--   If no DIRI evidence is found, output a single HTML comment: `<!-- No DIRI evidence found in label -->`.
--   DO NOT wrap the HTML in Markdown code blocks (e.g., html).
+-   Your response must be ONLY the raw HTML code.
+-   Response must start with `<div class="label-section">` and end with a closing `</div>`.
+-   If no DIRI evidence is found, output: `<div class="label-section"><!-- No DIRI evidence found in label --><p><strong>Conclusion:</strong> No DIRI Concern</p></div>`.
 '''
 
 SEARCH_HELPER_PROMPT = '''
