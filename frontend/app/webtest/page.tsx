@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import { useUser } from '../context/UserContext';
 import { 
     BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, 
     Tooltip, Legend, ResponsiveContainer, ComposedChart 
@@ -25,6 +26,8 @@ interface HistoryItem {
     URL: string;
     Count: string;
     Delay: number;
+    Timestamp?: number;
+    Notes?: string;
 }
 
 type SortConfig = {
@@ -33,6 +36,7 @@ type SortConfig = {
 };
 
 export default function WebTestingPage() {
+    const { session, openAuthModal } = useUser();
     const [templates, setTemplates] = useState<string[]>([]);
     const [selectedTemplate, setSelectedTemplate] = useState<string>('');
     const [status, setStatus] = useState<'idle' | 'running' | 'completed' | 'failed'>('idle');
@@ -92,12 +96,14 @@ export default function WebTestingPage() {
                 return;
             }
 
-            // Convert Count to number for chart
+            // Convert Count to number for chart and add timestamp
             const formatted = data.map((h: any) => ({
                 ...h,
                 CountNum: parseInt(h.Count) || 0,
+                Timestamp: new Date(h.Date).getTime(),
                 // Shorten date for display
-                DisplayDate: h.Date.split(' ')[0].replace('2026-', '') 
+                DisplayDate: h.Date.split(' ')[0].replace('2026-', ''),
+                Notes: h.Notes
             }));
             setTaskHistory(formatted);
         } catch (err) {
@@ -149,6 +155,10 @@ export default function WebTestingPage() {
     }, []);
 
     const startAutomation = async () => {
+        if (!session?.is_authenticated) {
+            openAuthModal('login');
+            return;
+        }
         if (results.length === 0) return;
         setStatus('running');
         stopRef.current = false;
@@ -171,6 +181,13 @@ export default function WebTestingPage() {
                         template_name: selectedTemplate
                     }),
                 });
+                
+                if (response.status === 401) {
+                    setStatus('idle');
+                    openAuthModal('login');
+                    return;
+                }
+
                 const data = await response.json();
                 setResults(prev => {
                     const next = [...prev];
@@ -624,49 +641,45 @@ export default function WebTestingPage() {
                                     <ComposedChart data={taskHistory}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis 
-                                            dataKey="DisplayDate" 
+                                            dataKey="Timestamp" 
+                                            type="number"
+                                            domain={['auto', 'auto']}
+                                            tickFormatter={(unixTime) => new Date(unixTime).toLocaleDateString()}
                                             axisLine={false}
                                             tickLine={false}
                                             tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
                                         />
                                         <YAxis 
-                                            yAxisId="left" 
                                             axisLine={false}
                                             tickLine={false}
-                                            domain={['dataMin - 100', 'dataMax + 100']}
+                                            domain={['auto', 'auto']}
                                             tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
                                             label={{ value: 'Label Count', angle: -90, position: 'insideLeft', style: { fill: '#6366f1', fontWeight: 800, fontSize: 12 } }}
                                         />
-                                        <YAxis 
-                                            yAxisId="right" 
-                                            orientation="right" 
-                                            axisLine={false}
-                                            tickLine={false}
-                                            tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
-                                            label={{ value: 'Delay (s)', angle: 90, position: 'insideRight', style: { fill: '#f43f5e', fontWeight: 800, fontSize: 12 } }}
-                                        />
                                         <Tooltip 
                                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px' }}
+                                            content={({ active, payload, label }) => {
+                                                if (active && payload && payload.length) {
+                                                    const data = payload[0].payload;
+                                                    return (
+                                                        <div style={{ backgroundColor: '#fff', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
+                                                            <p style={{ margin: '0 0 8px 0', fontWeight: 800, color: '#1e293b', fontSize: '0.85rem' }}>{data.Date}</p>
+                                                            <p style={{ margin: '4px 0', color: '#6366f1', fontWeight: 700, fontSize: '0.8rem' }}>Result Count: {data.Count}</p>
+                                                            {data.Notes && <p style={{ margin: '8px 0 0 0', padding: '6px 0 0 0', borderTop: '1px solid #f1f5f9', color: '#64748b', fontSize: '0.75rem', fontStyle: 'italic' }}>{data.Notes}</p>}
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }}
                                         />
                                         <Legend wrapperStyle={{ paddingTop: '20px' }} />
                                         <Line 
-                                            yAxisId="left" 
                                             type="monotone" 
                                             dataKey="CountNum" 
                                             name="Result Count" 
                                             stroke="#6366f1" 
                                             strokeWidth={3}
                                             dot={{ r: 6, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
-                                            activeDot={{ r: 8 }}
-                                        />
-                                        <Line 
-                                            yAxisId="right" 
-                                            type="monotone" 
-                                            dataKey="Delay" 
-                                            name="Delay (s)" 
-                                            stroke="#f43f5e" 
-                                            strokeWidth={3} 
-                                            dot={{ r: 6, fill: '#f43f5e', strokeWidth: 2, stroke: '#fff' }}
                                             activeDot={{ r: 8 }}
                                         />
                                     </ComposedChart>
