@@ -596,33 +596,35 @@ export default function WebTestingPage() {
                                                     padding: '14px 20px', 
                                                     fontWeight: 700, 
                                                     color: '#1e293b',
-                                                    maxWidth: '300px',
-                                                    whiteSpace: 'nowrap',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis'
+                                                    wordBreak: 'break-word',
+                                                    whiteSpace: 'pre-wrap',
+                                                    minWidth: '200px'
                                                 }} title={res.query_details}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        {res.query_details}
-                                                        {isConsistent && (
-                                                            <span style={{ 
-                                                                backgroundColor: '#f0f9ff', 
-                                                                color: '#0369a1', 
-                                                                fontSize: '0.6rem', 
-                                                                padding: '1px 6px', 
-                                                                borderRadius: '4px', 
-                                                                border: '1px solid #bae6fd',
-                                                                textTransform: 'uppercase',
-                                                                letterSpacing: '0.02em'
-                                                            }}>
-                                                                Matched
-                                                            </span>
+                                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexDirection: 'column' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                            {res.query_details}
+                                                            {isConsistent && (
+                                                                <span style={{ 
+                                                                    backgroundColor: '#f0f9ff', 
+                                                                    color: '#0369a1', 
+                                                                    fontSize: '0.6rem', 
+                                                                    padding: '1px 6px', 
+                                                                    borderRadius: '4px', 
+                                                                    border: '1px solid #bae6fd',
+                                                                    textTransform: 'uppercase',
+                                                                    letterSpacing: '0.02em',
+                                                                    whiteSpace: 'nowrap'
+                                                                }}>
+                                                                    Matched
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {res.isGroup && (
+                                                            <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 600 }}>
+                                                                {res.tasks.length} versions grouped
+                                                            </div>
                                                         )}
                                                     </div>
-                                                    {res.isGroup && (
-                                                        <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '2px', fontWeight: 600 }}>
-                                                            {res.tasks.length} versions grouped
-                                                        </div>
-                                                    )}
                                                 </td>
                                                 <td style={{ padding: '14px 20px' }}>
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
@@ -747,14 +749,20 @@ export default function WebTestingPage() {
                         </div>
 
                         {/* Table Footer Explanation */}
-                        <div style={{ padding: '12px 24px', backgroundColor: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ padding: '12px 24px', backgroundColor: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+                                    <span style={{ backgroundColor: '#f0f9ff', color: '#0369a1', fontSize: '0.6rem', padding: '1px 6px', borderRadius: '4px', border: '1px solid #bae6fd', textTransform: 'uppercase', marginRight: '8px' }}>Matched</span>
+                                    Indicates that all grouped versions (e.g. PROD, DEV, TEST) returned identical result counts for this query.
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                    Click a row to view full historical trends.
+                                </div>
+                            </div>
                             <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
                                 <span style={{ fontWeight: 800, color: '#475569', marginRight: '8px' }}>NOTE:</span> 
                                 "PREV" columns display results from the last historical record 
                                 {lastRunDate && lastRunDate !== 'N/A' ? ` (Query Date: ${lastRunDate})` : ''}.
-                            </div>
-                            <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                                Click a row to view full historical trends.
                             </div>
                         </div>
                     </div>
