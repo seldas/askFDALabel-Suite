@@ -53,31 +53,90 @@ def get_template_info():
          template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest'))
     path = os.path.join(template_dir, template_name)
     if not os.path.exists(path): return jsonify({"error": "Not found"}), 404
+    
+    # Load history if available to show "last seen" values
+    history_map = {}
+    last_run_date = "N/A"
+    safe_name = "".join([c for c in template_name if c.isalnum() or c in (' ', '.', '_')]).rstrip()
+    if safe_name.lower().endswith('.xlsx'): safe_name = safe_name[:-5]
+    history_dir = os.path.join(template_dir, 'history')
+    h_path = os.path.join(history_dir, f"History_{safe_name}.xlsx")
+    
+    if os.path.exists(h_path):
+        try:
+            h_df = pd.read_excel(h_path)
+            
+            # Robust parsing of Query_Date for sorting
+            def parse_qd(val):
+                val_str = str(val).strip()
+                try:
+                    if ',' in val_str: # YYYY/MM/DD, HH:MM
+                        return datetime.strptime(val_str, "%Y/%m/%d, %H:%M")
+                    return pd.to_datetime(val_str)
+                except:
+                    return datetime.min
+
+            if not h_df.empty:
+                h_df['_sort_date'] = h_df['Query_Date'].apply(parse_qd)
+                h_df = h_df.sort_values('_sort_date')
+                
+                max_date = h_df['_sort_date'].max()
+                if max_date != datetime.min:
+                    last_run_date = max_date.strftime("%Y/%m/%d, %H:%M")
+
+                # Group by URL and get the latest record
+                for url, group in h_df.groupby('URL', sort=False):
+                    last_row = group.iloc[-1]
+                    count = last_row.get('Count')
+                    if pd.isna(count) or count == 'nan':
+                        qr = str(last_row.get('Query Results', ''))
+                        m = re.search(r'(\d+)', qr)
+                        count = m.group(1) if m else "N/A"
+                    
+                    delay = last_row.get('Delay')
+                    if pd.isna(delay):
+                        delay = last_row.get('Result Time (Minimum 1s)', 0)
+                    
+                    history_map[str(url)] = {
+                        "count": str(count),
+                        "time": float(delay) if not pd.isna(delay) else 0.0
+                    }
+        except Exception as e:
+            print(f"Error loading history for template info: {e}")
+
     try:
         df = pd.read_excel(path).fillna('N/A')
         tasks = []
         last_query_details = "N/A"
         
         for index, row in df.iterrows():
+            current_url = str(row.get('Result Link', ''))
             current_details = str(row.get('Query Details', 'N/A')).strip()
             
-            # If current is N/A, use the last seen valid details
             if current_details == 'N/A' or not current_details:
                 current_details = last_query_details
             else:
-                # Update last seen details
                 last_query_details = current_details
+            
+            h_data = history_map.get(current_url, {"count": "N/A", "time": 0})
                 
             tasks.append({
                 "task_num": index + 1,
                 "version": str(row.get('Version', 'N/A')).strip(),
-                "url": str(row.get('Result Link', '')),
+                "url": current_url,
                 "query_details": current_details,
                 "status": "pending",
                 "count": "N/A",
-                "time_to_ready": 0
+                "time_to_ready": 0,
+                "prev_count": h_data["count"],
+                "prev_time": h_data["time"]
             })
-        return jsonify({"template_name": template_name, "total_tasks": len(tasks), "tasks": tasks})
+        return jsonify({
+            "template_name": template_name, 
+            "total_tasks": len(tasks), 
+            "tasks": tasks,
+            "last_run_date": last_run_date
+        })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 @webtest_bp.route('/probe_single', methods=['POST'])

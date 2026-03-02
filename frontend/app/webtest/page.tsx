@@ -16,6 +16,8 @@ interface TestResult {
     status: string;
     count: string;
     time_to_ready: number;
+    prev_count?: string;
+    prev_time?: number;
 }
 
 interface HistoryItem {
@@ -40,6 +42,7 @@ export default function WebTestingPage() {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
     const [savedFilename, setSavedFilename] = useState<string | null>(null);
+    const [lastRunDate, setLastRunDate] = useState<string | null>(null);
 
     const [selectedTask, setSelectedTask] = useState<TestResult | null>(null);
     const [taskHistory, setTaskHistory] = useState<HistoryItem[]>([]);
@@ -119,6 +122,7 @@ export default function WebTestingPage() {
                     if (data.tasks) {
                         setTotalTasks(data.total_tasks);
                         setResults(data.tasks);
+                        setLastRunDate(data.last_run_date || 'N/A');
                         setCurrentPage(1);
                         setVersionFilters([]); // Reset filters on new template
                         setSelectedTask(null);
@@ -170,7 +174,12 @@ export default function WebTestingPage() {
                 const data = await response.json();
                 setResults(prev => {
                     const next = [...prev];
-                    next[i] = { ...next[i], status: data.status, count: data.count, time_to_ready: data.time };
+                    next[i] = { 
+                        ...next[i], 
+                        status: data.status, 
+                        count: data.count, 
+                        time_to_ready: data.time 
+                    };
                     return next;
                 });
             } catch (err) {
@@ -427,22 +436,33 @@ export default function WebTestingPage() {
                                         </th>
 
                                         <th style={{ padding: '14px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.7rem' }}>Result Link</th>
-                                        <th style={{ padding: '14px 20px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.7rem' }}>Result Count</th>
                                         
-                                        {/* Time to Ready with Sort */}
+                                        {/* Result Count Split Header */}
+                                        <th style={{ padding: '14px 20px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', borderLeft: '1px solid #f1f5f9', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.7rem' }}>
+                                            Result Count
+                                            <div style={{ display: 'flex', marginTop: '4px', borderTop: '1px solid #f1f5f9', fontSize: '0.6rem' }}>
+                                                <div style={{ flex: 1, padding: '2px', borderRight: '1px solid #f1f5f9' }}>Prev</div>
+                                                <div style={{ flex: 1, padding: '2px', color: '#2563eb' }}>Current</div>
+                                            </div>
+                                        </th>
+                                        
+                                        {/* Time to Ready Split Header with Sort */}
                                         <th 
-                                            style={{ padding: '14px 20px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', color: sortConfig.key === 'time_to_ready' ? '#2563eb' : '#64748b', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.7rem', cursor: 'pointer' }}
-                                            onClick={() => toggleSort('time_to_ready')}
+                                            style={{ padding: '14px 20px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', borderLeft: '1px solid #f1f5f9', color: sortConfig.key === 'time_to_ready' ? '#2563eb' : '#64748b', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.7rem', cursor: 'pointer' }}
                                         >
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                            <div onClick={() => toggleSort('time_to_ready')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                                                 Time to Ready
                                                 <span style={{ fontSize: '0.8rem' }}>
                                                     {sortConfig.key === 'time_to_ready' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                                                 </span>
                                             </div>
+                                            <div style={{ display: 'flex', marginTop: '4px', borderTop: '1px solid #f1f5f9', fontSize: '0.6rem' }}>
+                                                <div style={{ flex: 1, padding: '2px', borderRight: '1px solid #f1f5f9' }}>Prev</div>
+                                                <div style={{ flex: 1, padding: '2px', color: '#2563eb' }}>Current</div>
+                                            </div>
                                         </th>
 
-                                        <th style={{ padding: '14px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.7rem' }}>Status</th>
+                                        <th style={{ padding: '14px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', borderLeft: '1px solid #f1f5f9', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.7rem' }}>Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -514,17 +534,36 @@ export default function WebTestingPage() {
                                                     {res.url}
                                                 </a>
                                             </td>
-                                            <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                                                <span style={{ fontWeight: 900, color: '#0f172a', fontSize: '1rem' }}>{res.count}</span>
+                                            
+                                            {/* Count Comparison Cells */}
+                                            <td style={{ padding: '0', textAlign: 'center', borderLeft: '1px solid #f1f5f9', minWidth: '140px' }}>
+                                                <div style={{ display: 'flex', height: '100%' }}>
+                                                    <div style={{ flex: 1, padding: '14px 10px', color: '#94a3b8', borderRight: '1px solid #f8fafc', fontWeight: 600 }}>
+                                                        {res.prev_count || 'N/A'}
+                                                    </div>
+                                                    <div style={{ flex: 1, padding: '14px 10px', fontWeight: 900, color: '#0f172a' }}>
+                                                        {res.count}
+                                                    </div>
+                                                </div>
                                             </td>
-                                            <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                                                {res.time_to_ready > 0 ? (
-                                                    <span style={{ color: res.time_to_ready > 15 ? '#ef4444' : (res.time_to_ready > 5 ? '#f59e0b' : '#10b981'), fontWeight: 800 }}>
-                                                        {res.time_to_ready}s
-                                                    </span>
-                                                ) : <span style={{ color: '#e2e8f0' }}>&mdash;</span>}
+
+                                            {/* Time Comparison Cells */}
+                                            <td style={{ padding: '0', textAlign: 'center', borderLeft: '1px solid #f1f5f9', minWidth: '140px' }}>
+                                                <div style={{ display: 'flex', height: '100%' }}>
+                                                    <div style={{ flex: 1, padding: '14px 10px', color: '#94a3b8', borderRight: '1px solid #f8fafc', fontSize: '0.75rem' }}>
+                                                        {res.prev_time ? `${res.prev_time}s` : '—'}
+                                                    </div>
+                                                    <div style={{ flex: 1, padding: '14px 10px', fontWeight: 800 }}>
+                                                        {res.time_to_ready > 0 ? (
+                                                            <span style={{ color: res.time_to_ready > 15 ? '#ef4444' : (res.time_to_ready > 5 ? '#f59e0b' : '#10b981') }}>
+                                                                {res.time_to_ready}s
+                                                            </span>
+                                                        ) : <span style={{ color: '#e2e8f0' }}>&mdash;</span>}
+                                                    </div>
+                                                </div>
                                             </td>
-                                            <td style={{ padding: '14px 20px' }}>
+
+                                            <td style={{ padding: '14px 20px', borderLeft: '1px solid #f1f5f9' }}>
                                                 <span style={{ padding: '4px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', backgroundColor: res.status === 'Success' ? '#ecfdf5' : (res.status === 'pending' ? '#f8fafc' : '#fef2f2'), color: res.status === 'Success' ? '#059669' : (res.status === 'pending' ? '#94a3b8' : '#dc2626'), border: `1px solid ${res.status === 'Success' ? '#d1fae5' : (res.status === 'pending' ? '#e2e8f0' : '#fee2e2')}` }}>
                                                     {res.status}
                                                 </span>
@@ -540,6 +579,18 @@ export default function WebTestingPage() {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+
+                        {/* Table Footer Explanation */}
+                        <div style={{ padding: '12px 24px', backgroundColor: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+                                <span style={{ fontWeight: 800, color: '#475569', marginRight: '8px' }}>NOTE:</span> 
+                                "PREV" columns display results from the last historical record 
+                                {lastRunDate && lastRunDate !== 'N/A' ? ` (Query Date: ${lastRunDate})` : ''}.
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                Click a row to view full historical trends.
+                            </div>
                         </div>
                     </div>
                 )}
