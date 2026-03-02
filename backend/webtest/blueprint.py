@@ -384,6 +384,7 @@ def get_task_history():
                     "Date": record_dt.strftime("%Y-%m-%d %H:%M:%S") if record_dt else str(dt_str),
                     "SortDate": record_dt if record_dt else datetime.min,
                     "URL": str(url),
+                    "Version": str(row.get('Version', 'N/A')),
                     "Count": str(count),
                     "Delay": float(delay) if not pd.isna(delay) else 0.0,
                     "Notes": str(row.get('Notes', ''))
@@ -401,4 +402,103 @@ def get_task_history():
         return jsonify([])
     except Exception as e:
         print(f"Error in get_task_history: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@webtest_bp.route('/group_history', methods=['GET'])
+def get_group_history():
+    template_name = request.args.get('template_name')
+    query_details = request.args.get('query_details')
+    
+    if not template_name or not query_details:
+        return jsonify({"error": "Missing template_name or query_details"}), 400
+        
+    history_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest', 'history')
+    if not os.path.exists(history_dir):
+        history_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest', 'history'))
+        
+    safe_name = "".join([c for c in template_name if c.isalnum() or c in (' ', '.', '_')]).rstrip()
+    if safe_name.lower().endswith('.xlsx'):
+        safe_name = safe_name[:-5]
+        
+    filepath = os.path.join(history_dir, f"History_{safe_name}.xlsx")
+    
+    if not os.path.exists(filepath):
+        return jsonify([])
+        
+    try:
+        df = pd.read_excel(filepath)
+        # Ensure column exists
+        if 'Query Details' not in df.columns:
+            # Fallback for older history files if they use different names
+            possible_names = ['Query Details', 'Details', 'Query', 'Task Details']
+            for name in possible_names:
+                if name in df.columns:
+                    df['Query Details'] = df[name]
+                    break
+        
+        if 'Query Details' not in df.columns:
+            return jsonify([])
+
+        # Filter for Query Details match
+        # Clean query details to match robustly
+        q_clean = str(query_details).strip()
+        # Handle cases where Query Details might be NaN
+        df['Query Details'] = df['Query Details'].fillna('').astype(str).str.strip()
+        group_history = df[df['Query Details'] == q_clean].copy()
+        
+        if not group_history.empty:
+            results = []
+            two_years_ago = datetime.now() - pd.DateOffset(years=2)
+            
+            for _, row in group_history.iterrows():
+                dt_str = row.get('Date')
+                if pd.isna(dt_str) or str(dt_str) == 'NaT' or str(dt_str) == 'nan' or not str(dt_str).strip():
+                    dt_str = row.get('Query_Date', '')
+                
+                record_dt = None
+                try:
+                    clean_dt_str = str(dt_str).strip()
+                    if clean_dt_str:
+                        if ',' in clean_dt_str:
+                            date_part = clean_dt_str.split(',')[0].strip()
+                            record_dt = datetime.strptime(date_part, "%Y/%m/%d")
+                        else:
+                            record_dt = pd.to_datetime(clean_dt_str)
+                    
+                    if record_dt and record_dt < two_years_ago:
+                        continue
+                except:
+                    pass
+                
+                count = row.get('Count')
+                if pd.isna(count) or str(count).lower() == 'nan' or str(count).strip() == '':
+                    qr = str(row.get('Query Results', ''))
+                    m = re.search(r'(\d+)', qr)
+                    count = m.group(1) if m else "0"
+                
+                delay = row.get('Delay')
+                if pd.isna(delay) or str(delay).lower() == 'nan':
+                    delay = row.get('Result Time (Minimum 1s)', 0)
+                
+                results.append({
+                    "Date": record_dt.strftime("%Y-%m-%d %H:%M:%S") if record_dt else str(dt_str),
+                    "SortDate": record_dt if record_dt else datetime.min,
+                    "URL": str(row.get('URL', '')),
+                    "Version": str(row.get('Version', 'N/A')),
+                    "Count": str(count),
+                    "Delay": float(delay) if not pd.isna(delay) and str(delay).strip() != '' else 0.0,
+                    "Notes": str(row.get('Notes', ''))
+                })
+            
+            results.sort(key=lambda x: x['SortDate'])
+            for r in results:
+                r.pop('SortDate', None)
+            
+            return jsonify(results)
+            
+        return jsonify([])
+    except Exception as e:
+        import traceback
+        print(f"Error in get_group_history: {e}")
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500

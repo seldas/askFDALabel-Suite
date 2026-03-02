@@ -49,8 +49,22 @@ export default function WebTestingPage() {
     const [lastRunDate, setLastRunDate] = useState<string | null>(null);
 
     const [selectedTask, setSelectedTask] = useState<TestResult | null>(null);
-    const [taskHistory, setTaskHistory] = useState<HistoryItem[]>([]);
+    const [isGrouped, setIsGrouped] = useState(false);
+    const [taskHistory, setTaskHistory] = useState<any[]>([]);
     const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+
+    const chartVersions = useMemo(() => {
+        if (!isGrouped) return [];
+        const versions = new Set<string>();
+        taskHistory.forEach(h => {
+            Object.keys(h).forEach(k => {
+                if (k.startsWith('count_')) {
+                    versions.add(k.replace('count_', ''));
+                }
+            });
+        });
+        return Array.from(versions);
+    }, [taskHistory, isGrouped]);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: null });
@@ -81,7 +95,12 @@ export default function WebTestingPage() {
         if (!selectedTemplate) return;
         setIsHistoryLoading(true);
         try {
-            const res = await fetch(`/api/webtest/task_history?template_name=${encodeURIComponent(selectedTemplate)}&url=${encodeURIComponent(task.url)}`);
+            const endpoint = isGrouped ? '/api/webtest/group_history' : '/api/webtest/task_history';
+            const params = isGrouped 
+                ? `template_name=${encodeURIComponent(selectedTemplate)}&query_details=${encodeURIComponent(task.query_details)}`
+                : `template_name=${encodeURIComponent(selectedTemplate)}&url=${encodeURIComponent(task.url)}`;
+            
+            const res = await fetch(`${endpoint}?${params}`);
             const data = await res.json();
             
             if (data.error) {
@@ -96,16 +115,32 @@ export default function WebTestingPage() {
                 return;
             }
 
-            // Convert Count to number for chart and add timestamp
-            const formatted = data.map((h: any) => ({
-                ...h,
-                CountNum: parseInt(h.Count) || 0,
-                Timestamp: new Date(h.Date).getTime(),
-                // Shorten date for display
-                DisplayDate: h.Date.split(' ')[0].replace('2026-', ''),
-                Notes: h.Notes
-            }));
-            setTaskHistory(formatted);
+            if (isGrouped) {
+                // Group by Version and Date for chart
+                // For multi-version chart, we need data like: { Date: '...', VersionA: count, VersionB: count }
+                const dateMap = new Map();
+                data.forEach((h: any) => {
+                    const date = h.Date.split(' ')[0]; // Group by day for simpler chart
+                    if (!dateMap.has(date)) {
+                        dateMap.set(date, { Date: date, DisplayDate: date.replace('2026-', ''), Timestamp: new Date(h.Date).getTime() });
+                    }
+                    const entry = dateMap.get(date);
+                    entry[`count_${h.Version}`] = parseInt(h.Count) || 0;
+                    entry[`delay_${h.Version}`] = h.Delay;
+                });
+                const formatted = Array.from(dateMap.values()).sort((a, b) => a.Timestamp - b.Timestamp);
+                setTaskHistory(formatted);
+            } else {
+                // Convert Count to number for chart and add timestamp
+                const formatted = data.map((h: any) => ({
+                    ...h,
+                    CountNum: parseInt(h.Count) || 0,
+                    Timestamp: new Date(h.Date).getTime(),
+                    DisplayDate: h.Date.split(' ')[0].replace('2026-', ''),
+                    Notes: h.Notes
+                }));
+                setTaskHistory(formatted);
+            }
         } catch (err) {
             console.error("Failed to fetch task history", err);
         } finally {
@@ -117,7 +152,7 @@ export default function WebTestingPage() {
         if (selectedTask) {
             fetchTaskHistory(selectedTask);
         }
-    }, [selectedTask]);
+    }, [selectedTask, isGrouped]);
 
     useEffect(() => {
         if (selectedTemplate && status === 'idle') {
@@ -257,7 +292,7 @@ export default function WebTestingPage() {
         return Array.from(v).filter(x => x !== 'N/A' && x !== '');
     }, [results]);
 
-    // Filtering, Sorting, and Pagination Logic
+    // Filtering, Sorting, and Grouping Logic
     const processedResults = useMemo(() => {
         let filtered = [...results];
 
@@ -275,8 +310,36 @@ export default function WebTestingPage() {
             });
         }
 
+        // 3. Group by Query Details if enabled
+        if (isGrouped) {
+            const groups: Map<string, any> = new Map();
+            filtered.forEach(r => {
+                const key = r.query_details;
+                if (!groups.has(key)) {
+                    groups.set(key, {
+                        ...r,
+                        isGroup: true,
+                        versions: [r.version],
+                        tasks: [r],
+                        // For display, use the "best" or "first" available info
+                        all_counts: { [r.version]: r.count },
+                        all_times: { [r.version]: r.time_to_ready }
+                    });
+                } else {
+                    const g = groups.get(key);
+                    g.versions.push(r.version);
+                    g.tasks.push(r);
+                    g.all_counts[r.version] = r.count;
+                    g.all_times[r.version] = r.time_to_ready;
+                    // If any task in group is running/success, update aggregate
+                    if (r.status === 'Success' && g.status !== 'Success') g.status = 'Success';
+                }
+            });
+            return Array.from(groups.values());
+        }
+
         return filtered;
-    }, [results, versionFilters, sortConfig]);
+    }, [results, versionFilters, sortConfig, isGrouped]);
 
     const paginatedResults = useMemo(() => {
         const startIndex = (currentPage - 1) * itemsPerPage;
@@ -357,6 +420,31 @@ export default function WebTestingPage() {
                         )}
                         
                         <div style={{ display: 'flex', gap: '12px' }}>
+                            <button 
+                                onClick={() => { setIsGrouped(!isGrouped); setCurrentPage(1); }}
+                                style={{ 
+                                    padding: '12px 24px', 
+                                    backgroundColor: isGrouped ? '#6366f1' : '#fff', 
+                                    color: isGrouped ? '#fff' : '#6366f1', 
+                                    borderRadius: '10px', 
+                                    fontWeight: 700, 
+                                    border: '2px solid #6366f1', 
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                                {isGrouped ? 'Ungroup Tasks' : 'Group by Task'}
+                            </button>
+
                             {status === 'running' ? (
                                 <button onClick={() => { stopRef.current = true; }} style={{ padding: '12px 24px', backgroundColor: '#ef4444', color: '#fff', borderRadius: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}>Stop</button>
                             ) : (
@@ -483,110 +571,167 @@ export default function WebTestingPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {paginatedResults.map((res) => (
-                                        <tr 
-                                            key={res.task_num} 
-                                            style={{ 
-                                                borderBottom: '1px solid #f1f5f9',
-                                                backgroundColor: selectedTask?.task_num === res.task_num ? '#f1f5f9' : 'transparent',
-                                                cursor: 'pointer'
-                                            }} 
-                                            className="row-hover"
-                                            onClick={() => setSelectedTask(res)}
-                                        >
-                                            <td style={{ padding: '14px 20px', color: '#94a3b8', fontWeight: 700 }}>{res.task_num}</td>
-                                            <td style={{ 
-                                                padding: '14px 20px', 
-                                                fontWeight: 700, 
-                                                color: '#1e293b',
-                                                maxWidth: '300px',
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis'
-                                            }} title={res.query_details}>
-                                                {res.query_details}
-                                            </td>
-                                            <td style={{ padding: '14px 20px' }}>
-                                                {(() => {
-                                                    const v = res.version.toLowerCase();
-                                                    let styles = { bg: '#f0fdf4', text: '#166534', border: '#bbf7d0' }; // Default Green
-                                                    if (v.includes('test')) styles = { bg: '#fef9c3', text: '#854d0e', border: '#fef08a' }; // Yellow
-                                                    if (v.includes('dev')) styles = { bg: '#fef2f2', text: '#991b1b', border: '#fecaca' }; // Red
-                                                    
-                                                    return (
-                                                        <span style={{ 
-                                                            backgroundColor: styles.bg, 
-                                                            color: styles.text,
-                                                            border: `1px solid ${styles.border}`,
-                                                            padding: '2px 8px', 
-                                                            borderRadius: '6px', 
-                                                            fontSize: '0.7rem', 
-                                                            fontWeight: 800,
-                                                            textTransform: 'uppercase'
-                                                        }}>
-                                                            {res.version}
-                                                        </span>
-                                                    );
-                                                })()}
-                                            </td>
-                                            <td style={{ padding: '14px 20px' }}>
-                                                <a 
-                                                    href={res.url} 
-                                                    target="_blank" 
-                                                    rel="noreferrer" 
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    style={{ 
-                                                        color: '#2563eb', 
-                                                        textDecoration: 'none', 
-                                                        fontSize: '0.7rem', 
-                                                        fontWeight: 600,
-                                                        maxWidth: '250px',
-                                                        display: 'inline-block',
-                                                        whiteSpace: 'nowrap',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis'
-                                                    }}
-                                                    title={res.url}
-                                                >
-                                                    {res.url}
-                                                </a>
-                                            </td>
-                                            
-                                            {/* Count Comparison Cells */}
-                                            <td style={{ padding: '0', textAlign: 'center', borderLeft: '1px solid #f1f5f9', minWidth: '140px' }}>
-                                                <div style={{ display: 'flex', height: '100%' }}>
-                                                    <div style={{ flex: 1, padding: '14px 10px', color: '#94a3b8', borderRight: '1px solid #f8fafc', fontWeight: 600 }}>
-                                                        {res.prev_count || 'N/A'}
-                                                    </div>
-                                                    <div style={{ flex: 1, padding: '14px 10px', fontWeight: 900, color: '#0f172a' }}>
-                                                        {res.count}
-                                                    </div>
-                                                </div>
-                                            </td>
+                                    {paginatedResults.map((res: any) => {
+                                        const isConsistent = res.isGroup && res.versions.length > 1 && 
+                                            res.versions.every((v: string) => res.all_counts[v] === res.all_counts[res.versions[0]]);
 
-                                            {/* Time Comparison Cells */}
-                                            <td style={{ padding: '0', textAlign: 'center', borderLeft: '1px solid #f1f5f9', minWidth: '140px' }}>
-                                                <div style={{ display: 'flex', height: '100%' }}>
-                                                    <div style={{ flex: 1, padding: '14px 10px', color: '#94a3b8', borderRight: '1px solid #f8fafc', fontSize: '0.75rem' }}>
-                                                        {res.prev_time ? `${res.prev_time}s` : '—'}
-                                                    </div>
-                                                    <div style={{ flex: 1, padding: '14px 10px', fontWeight: 800 }}>
-                                                        {res.time_to_ready > 0 ? (
-                                                            <span style={{ color: res.time_to_ready > 15 ? '#ef4444' : (res.time_to_ready > 5 ? '#f59e0b' : '#10b981') }}>
-                                                                {res.time_to_ready}s
+                                        return (
+                                            <tr 
+                                                key={res.isGroup ? `group-${res.query_details}` : res.task_num} 
+                                                style={{ 
+                                                    borderBottom: '1px solid #f1f5f9',
+                                                    backgroundColor: selectedTask?.query_details === res.query_details ? '#f1f5f9' : 'transparent',
+                                                    cursor: 'pointer'
+                                                }} 
+                                                className="row-hover"
+                                                onClick={() => setSelectedTask(res)}
+                                            >
+                                                <td style={{ padding: '14px 20px', color: '#94a3b8', fontWeight: 700 }}>
+                                                    {res.isGroup ? 'GRP' : res.task_num}
+                                                </td>
+                                                <td style={{ 
+                                                    padding: '14px 20px', 
+                                                    fontWeight: 700, 
+                                                    color: '#1e293b',
+                                                    maxWidth: '300px',
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis'
+                                                }} title={res.query_details}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        {res.query_details}
+                                                        {isConsistent && (
+                                                            <span style={{ 
+                                                                backgroundColor: '#f0f9ff', 
+                                                                color: '#0369a1', 
+                                                                fontSize: '0.6rem', 
+                                                                padding: '1px 6px', 
+                                                                borderRadius: '4px', 
+                                                                border: '1px solid #bae6fd',
+                                                                textTransform: 'uppercase',
+                                                                letterSpacing: '0.02em'
+                                                            }}>
+                                                                Matched
                                                             </span>
-                                                        ) : <span style={{ color: '#e2e8f0' }}>&mdash;</span>}
+                                                        )}
                                                     </div>
-                                                </div>
-                                            </td>
+                                                    {res.isGroup && (
+                                                        <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '2px', fontWeight: 600 }}>
+                                                            {res.tasks.length} versions grouped
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td style={{ padding: '14px 20px' }}>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                                        {(res.isGroup ? res.versions : [res.version]).map((v: string, idx: number) => {
+                                                            const vLower = v.toLowerCase();
+                                                            let styles = { bg: '#f0fdf4', text: '#166534', border: '#bbf7d0' }; 
+                                                            if (vLower.includes('test')) styles = { bg: '#fef9c3', text: '#854d0e', border: '#fef08a' };
+                                                            if (vLower.includes('dev')) styles = { bg: '#fef2f2', text: '#991b1b', border: '#fecaca' };
+                                                            
+                                                            return (
+                                                                <span key={idx} style={{ 
+                                                                    backgroundColor: styles.bg, 
+                                                                    color: styles.text,
+                                                                    border: `1px solid ${styles.border}`,
+                                                                    padding: '2px 8px', 
+                                                                    borderRadius: '6px', 
+                                                                    fontSize: '0.65rem', 
+                                                                    fontWeight: 800,
+                                                                    textTransform: 'uppercase'
+                                                                }}>
+                                                                    {v}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '14px 20px' }}>
+                                                    <div style={{ maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {res.isGroup ? (
+                                                            <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Multiple Links</span>
+                                                        ) : (
+                                                            <a 
+                                                                href={res.url} 
+                                                                target="_blank" 
+                                                                rel="noreferrer" 
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                style={{ color: '#2563eb', textDecoration: 'none', fontSize: '0.7rem', fontWeight: 600 }}
+                                                                title={res.url}
+                                                            >
+                                                                {res.url}
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                
+                                                {/* Count Comparison Cells */}
+                                                <td style={{ padding: '0', textAlign: 'center', borderLeft: '1px solid #f1f5f9', minWidth: '140px' }}>
+                                                    {res.isGroup ? (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '8px' }}>
+                                                            {isConsistent ? (
+                                                                <div style={{ padding: '4px', textAlign: 'center' }}>
+                                                                    <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 700, marginBottom: '2px' }}>ALL VERSIONS</div>
+                                                                    <div style={{ fontSize: '1rem', fontWeight: 900, color: '#0f172a' }}>{res.all_counts[res.versions[0]]}</div>
+                                                                </div>
+                                                            ) : (
+                                                                res.versions.map((v: string) => (
+                                                                    <div key={v} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', borderBottom: '1px solid #f8fafc' }}>
+                                                                        <span style={{ color: '#94a3b8', fontWeight: 600 }}>{v}:</span>
+                                                                        <span style={{ fontWeight: 800 }}>{res.all_counts[v] || 'N/A'}</span>
+                                                                    </div>
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ display: 'flex', height: '100%' }}>
+                                                            <div style={{ flex: 1, padding: '14px 10px', color: '#94a3b8', borderRight: '1px solid #f8fafc', fontWeight: 600 }}>
+                                                                {res.prev_count || 'N/A'}
+                                                            </div>
+                                                            <div style={{ flex: 1, padding: '14px 10px', fontWeight: 900, color: '#0f172a' }}>
+                                                                {res.count}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </td>
 
-                                            <td style={{ padding: '14px 20px', borderLeft: '1px solid #f1f5f9' }}>
-                                                <span style={{ padding: '4px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', backgroundColor: res.status === 'Success' ? '#ecfdf5' : (res.status === 'pending' ? '#f8fafc' : '#fef2f2'), color: res.status === 'Success' ? '#059669' : (res.status === 'pending' ? '#94a3b8' : '#dc2626'), border: `1px solid ${res.status === 'Success' ? '#d1fae5' : (res.status === 'pending' ? '#e2e8f0' : '#fee2e2')}` }}>
-                                                    {res.status}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                {/* Time Comparison Cells */}
+                                                <td style={{ padding: '0', textAlign: 'center', borderLeft: '1px solid #f1f5f9', minWidth: '140px' }}>
+                                                    {res.isGroup ? (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '8px' }}>
+                                                            {res.versions.map((v: string) => (
+                                                                <div key={v} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', borderBottom: '1px solid #f8fafc' }}>
+                                                                    <span style={{ color: '#94a3b8', fontWeight: 600 }}>{v}:</span>
+                                                                    <span style={{ fontWeight: 800, color: res.all_times[v] > 15 ? '#ef4444' : (res.all_times[v] > 5 ? '#f59e0b' : '#10b981') }}>
+                                                                        {res.all_times[v] > 0 ? `${res.all_times[v]}s` : '--'}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ display: 'flex', height: '100%' }}>
+                                                            <div style={{ flex: 1, padding: '14px 10px', color: '#94a3b8', borderRight: '1px solid #f8fafc', fontSize: '0.75rem' }}>
+                                                                {res.prev_time ? `${res.prev_time}s` : '—'}
+                                                            </div>
+                                                            <div style={{ flex: 1, padding: '14px 10px', fontWeight: 800 }}>
+                                                                {res.time_to_ready > 0 ? (
+                                                                    <span style={{ color: res.time_to_ready > 15 ? '#ef4444' : (res.time_to_ready > 5 ? '#f59e0b' : '#10b981') }}>
+                                                                        {res.time_to_ready}s
+                                                                    </span>
+                                                                ) : <span style={{ color: '#e2e8f0' }}>&mdash;</span>}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </td>
+
+                                                <td style={{ padding: '14px 20px', borderLeft: '1px solid #f1f5f9' }}>
+                                                    <span style={{ padding: '4px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', backgroundColor: res.status === 'Success' ? '#ecfdf5' : (res.status === 'pending' ? '#f8fafc' : '#fef2f2'), color: res.status === 'Success' ? '#059669' : (res.status === 'pending' ? '#94a3b8' : '#dc2626'), border: `1px solid ${res.status === 'Success' ? '#d1fae5' : (res.status === 'pending' ? '#e2e8f0' : '#fee2e2')}` }}>
+                                                        {res.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                     {paginatedResults.length === 0 && (
                                         <tr>
                                             <td colSpan={7} style={{ padding: '80px', textAlign: 'center', color: '#94a3b8' }}>
@@ -641,10 +786,10 @@ export default function WebTestingPage() {
                                     <ComposedChart data={taskHistory}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis 
-                                            dataKey="Timestamp" 
-                                            type="number"
+                                            dataKey={isGrouped ? "DisplayDate" : "Timestamp"} 
+                                            type={isGrouped ? "category" : "number"}
                                             domain={['auto', 'auto']}
-                                            tickFormatter={(unixTime) => new Date(unixTime).toLocaleDateString()}
+                                            tickFormatter={(val) => isGrouped ? val : new Date(val).toLocaleDateString()}
                                             axisLine={false}
                                             tickLine={false}
                                             tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
@@ -661,6 +806,37 @@ export default function WebTestingPage() {
                                             content={({ active, payload, label }) => {
                                                 if (active && payload && payload.length) {
                                                     const data = payload[0].payload;
+                                                    
+                                                    if (isGrouped) {
+                                                        // Group versions by identical count values
+                                                        const valueGroups: Map<number, { versions: string[], color: string }> = new Map();
+                                                        chartVersions.forEach((v, idx) => {
+                                                            const val = data[`count_${v}`] ?? 0;
+                                                            const color = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][idx % 6];
+                                                            if (!valueGroups.has(val)) {
+                                                                valueGroups.set(val, { versions: [], color });
+                                                            }
+                                                            valueGroups.get(val)!.versions.push(v);
+                                                        });
+
+                                                        return (
+                                                            <div style={{ backgroundColor: '#fff', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
+                                                                <p style={{ margin: '0 0 8px 0', fontWeight: 800, color: '#1e293b', fontSize: '0.85rem' }}>{data.Date}</p>
+                                                                {Array.from(valueGroups.entries()).map(([val, { versions, color }]) => (
+                                                                    <div key={val} style={{ margin: '6px 0', display: 'flex', flexDirection: 'column' }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color }}></div>
+                                                                            <span style={{ fontWeight: 800, color: '#1e293b', fontSize: '0.8rem' }}>{val}</span>
+                                                                        </div>
+                                                                        <div style={{ marginLeft: '14px', color: '#64748b', fontSize: '0.65rem', fontWeight: 600 }}>
+                                                                            {versions.join(' • ')}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        );
+                                                    }
+
                                                     return (
                                                         <div style={{ backgroundColor: '#fff', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
                                                             <p style={{ margin: '0 0 8px 0', fontWeight: 800, color: '#1e293b', fontSize: '0.85rem' }}>{data.Date}</p>
@@ -673,15 +849,31 @@ export default function WebTestingPage() {
                                             }}
                                         />
                                         <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                        <Line 
-                                            type="monotone" 
-                                            dataKey="CountNum" 
-                                            name="Result Count" 
-                                            stroke="#6366f1" 
-                                            strokeWidth={3}
-                                            dot={{ r: 6, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
-                                            activeDot={{ r: 8 }}
-                                        />
+                                        {isGrouped ? (
+                                            chartVersions.map((v, i) => {
+                                                const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+                                                return (
+                                                    <Bar 
+                                                        key={v}
+                                                        dataKey={`count_${v}`} 
+                                                        name={`Version ${v}`} 
+                                                        fill={colors[i % colors.length]} 
+                                                        radius={[4, 4, 0, 0]}
+                                                        barSize={30}
+                                                    />
+                                                );
+                                            })
+                                        ) : (
+                                            <Line 
+                                                type="monotone" 
+                                                dataKey="CountNum" 
+                                                name="Result Count" 
+                                                stroke="#6366f1" 
+                                                strokeWidth={3}
+                                                dot={{ r: 6, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+                                                activeDot={{ r: 8 }}
+                                            />
+                                        )}
                                     </ComposedChart>
                                 </ResponsiveContainer>
                             </div>
