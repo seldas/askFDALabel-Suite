@@ -131,11 +131,10 @@ const LocalQueryPage = () => {
                     }}>
                         <p style={{ fontWeight: 700, marginBottom: '5px' }}>⚠️ Development Use Only</p>
                         <p>
-                            This is a <strong>static clinical repository</strong> intended for rapid local testing and development. 
-                            It contains a snapshot of FDA labeling data last updated on <strong>February 27, 2026</strong>. 
+                            This is a <strong>static labeling repository</strong> intended for rapid local testing and development.
+                            It contains a snapshot of FDA labeling data last updated on <strong>February 27, 2026</strong>.
                             Newer updates published after this date are not reflected in this local index.
-                        </p>
-                    </div>
+                        </p>                    </div>
                 </div>
 
                 <div style={{ 
