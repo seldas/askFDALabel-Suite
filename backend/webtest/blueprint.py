@@ -9,6 +9,7 @@ import json
 from io import BytesIO
 from datetime import datetime
 import urllib3
+from flask_login import current_user
 
 # Suppress insecure request warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -141,6 +142,9 @@ def get_template_info():
 
 @webtest_bp.route('/probe_single', methods=['POST'])
 def probe_single():
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Unauthorized"}), 401
+        
     data = request.get_json()
     ui_url = data.get('url')
     version = data.get('version', '')
@@ -167,13 +171,13 @@ def probe_single():
                 elif isinstance(data, list): total = len(data)
                 
                 if total is not None:
-                    record_history(template_name, ui_url, str(total), elapsed)
+                    record_history(template_name, ui_url, str(total), elapsed, current_user.username)
                     return jsonify({"status": "Success", "count": str(total), "time": elapsed})
             except:
                 if "labeling results" in resp.text.lower():
                     match = re.search(r'(\d+)\s+Labeling Results', resp.text, re.IGNORECASE)
                     count = match.group(1) if match else "Found"
-                    record_history(template_name, ui_url, count, elapsed)
+                    record_history(template_name, ui_url, count, elapsed, current_user.username)
                     return jsonify({"status": "Success", "count": count, "time": elapsed})
             return jsonify({"status": "Format Error", "count": "N/A", "time": elapsed})
         elif resp.status_code == 404: return jsonify({"status": "Not Found (404)", "count": "N/A", "time": elapsed})
@@ -184,6 +188,7 @@ def get_formatted_df(results):
     """Helper to format results into the history-consistent structure."""
     now_str = datetime.now().strftime("%Y/%m/%d, %H:%M")
     formatted = []
+    username = current_user.username if current_user.is_authenticated else "Anonymous"
     for r in results:
         server = "PROD"
         url = r.get('url', '')
@@ -202,12 +207,14 @@ def get_formatted_df(results):
             "Result Time (Minimum 1s)": r.get('time_to_ready'),
             "Query_Date": now_str,
             "Query Details": r.get('query_details'),
-            "Notes": ""
+            "Notes": f"Ran by {username}"
         })
     return pd.DataFrame(formatted)
 
 @webtest_bp.route('/report_from_data', methods=['POST'])
 def report_from_data():
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Unauthorized"}), 401
     data = request.get_json()
     results = data.get('results', [])
     if not results: return jsonify({"error": "No data"}), 400
@@ -222,6 +229,8 @@ def report_from_data():
 @webtest_bp.route('/save_results', methods=['POST'])
 def save_results():
     """Automatically saves the completed run as a JSON file, consistent with history format."""
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Unauthorized"}), 401
     data = request.get_json()
     results = data.get('results', [])
     template_name = data.get('template_name', 'unknown')
@@ -253,7 +262,7 @@ def save_results():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-def record_history(template_name, url, count, delay):
+def record_history(template_name, url, count, delay, username="Anonymous"):
     """Appends a task run to the history Excel file, matching its original format."""
     if not template_name or template_name == "unknown":
         return
@@ -278,7 +287,7 @@ def record_history(template_name, url, count, delay):
         "Query Results": f"{count} labeling results",
         "Result Time (Minimum 1s)": round(float(delay), 2) if delay is not None else 0.0,
         "Query_Date": now.strftime("%Y/%m/%d, %H:%M"),
-        "Notes": "Auto-Test Recorded"
+        "Notes": f"Ran by {username}"
     }
     
     try:
@@ -376,7 +385,8 @@ def get_task_history():
                     "SortDate": record_dt if record_dt else datetime.min,
                     "URL": str(url),
                     "Count": str(count),
-                    "Delay": float(delay) if not pd.isna(delay) else 0.0
+                    "Delay": float(delay) if not pd.isna(delay) else 0.0,
+                    "Notes": str(row.get('Notes', ''))
                 })
             
             # Accurate chronological sort

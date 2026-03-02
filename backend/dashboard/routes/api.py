@@ -37,13 +37,8 @@ def scan_label_meddra(set_id):
         return jsonify({'error': 'Label not found'}), 404
 
     # 2. Extract plain text (simple stripping for matching purposes)
-    # We need a way to get the text that the user sees.
-    # The frontend sees the HTML rendered from XML.
-    # Ideally, we should parse the XML similarly to how it's rendered.
-    # For now, let's do a robust XML->Text extraction.
     try:
-        root = ET.fromstring(xml_content.encode('utf-8'))
-        # Using a namespace map if necessary, but itertext() usually works fine
+        root = ET.fromstring(xml_content.encode('ascii', 'ignore').decode('ascii'))
         text_content = "".join(root.itertext())
     except Exception as e:
         logger.error(f"XML Parse error for MedDRA scan: {e}")
@@ -63,6 +58,89 @@ def scan_label_meddra(set_id):
         enriched_terms = enriched_list
 
     return jsonify({'found_terms': enriched_terms, 'count': len(enriched_terms)})
+
+@api_bp.route('/meddra/profile/<set_id>')
+def get_label_meddra_profile(set_id):
+    """
+    Returns a JSON profile of all MedDRA terms found in specific SPL sections.
+    This endpoint is public (no login required).
+    """
+    xml_content = get_label_xml(set_id)
+    if not xml_content:
+        return jsonify({'error': 'Label not found'}), 404
+
+    target_sections = {
+        '34066-1': 'Boxed Warning',
+        '34070-3': 'Contraindications',
+        '34071-1': 'Warnings and Precautions',
+        '43685-7': 'Warnings and Precautions',
+        '34084-4': 'Adverse Reactions'
+    }
+
+    profile_data = {
+        'metadata': {
+            'set_id': set_id,
+            'generated_at': datetime.utcnow().isoformat()
+        },
+        'sections': [],
+        'all_found_terms': []
+    }
+
+    try:
+        ns = {'v3': 'urn:hl7-org:v3'}
+        # Clean XML string from any non-ascii characters that might cause ET issues
+        clean_xml = xml_content.encode('ascii', 'ignore').decode('ascii')
+        root = ET.fromstring(clean_xml)
+        
+        all_terms_set = set()
+        
+        for section in root.findall(".//v3:section", ns):
+            code_el = section.find("v3:code", ns)
+            if code_el is not None:
+                code_val = code_el.get('code')
+                if code_val in target_sections:
+                    section_name = target_sections[code_val]
+                    # Extract text content from this section only
+                    # We iterate through children to avoid getting text from nested subsections twice
+                    # but itertext is simpler for initial extraction
+                    text_content = "".join(section.itertext()).strip()
+                    
+                    if text_content:
+                        found = scan_label_for_meddra(text_content)
+                        if found:
+                            # Enrich found terms for this section
+                            mock_list = [{'term': t} for t in found]
+                            enriched = enrich_faers_with_meddra(mock_list)
+                            
+                            profile_data['sections'].append({
+                                'section_code': code_val,
+                                'section_name': section_name,
+                                'terms': enriched
+                            })
+                            
+                            for t in found:
+                                all_terms_set.add(t)
+
+        # Final summary enrichment
+        if all_terms_set:
+            summary_list = [{'term': t} for t in all_terms_set]
+            profile_data['all_found_terms'] = enrich_faers_with_meddra(summary_list)
+
+        # Add label metadata to the final response
+        meta = extract_metadata_from_xml(xml_content)
+        if meta:
+            profile_data['metadata'].update({
+                'brand_name': meta.get('brand_name'),
+                'generic_name': meta.get('generic_name'),
+                'manufacturer': meta.get('manufacturer_name'),
+                'effective_time': meta.get('effective_time')
+            })
+
+        return jsonify(profile_data)
+
+    except Exception as e:
+        logger.error(f"Error generating MedDRA profile for {set_id}: {e}")
+        return jsonify({'error': str(e)}), 500
 
 def enrich_faers_with_meddra(faers_list):
     """
