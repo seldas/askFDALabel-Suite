@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app, send_file
 import os
 import pandas as pd
+import numpy as np
 import time
 import re
 import requests
@@ -55,12 +56,23 @@ def get_template_info():
     try:
         df = pd.read_excel(path).fillna('N/A')
         tasks = []
+        last_query_details = "N/A"
+        
         for index, row in df.iterrows():
+            current_details = str(row.get('Query Details', 'N/A')).strip()
+            
+            # If current is N/A, use the last seen valid details
+            if current_details == 'N/A' or not current_details:
+                current_details = last_query_details
+            else:
+                # Update last seen details
+                last_query_details = current_details
+                
             tasks.append({
                 "task_num": index + 1,
                 "version": str(row.get('Version', 'N/A')).strip(),
                 "url": str(row.get('Result Link', '')),
-                "query_details": str(row.get('Query Details', 'N/A')),
+                "query_details": current_details,
                 "status": "pending",
                 "count": "N/A",
                 "time_to_ready": 0
@@ -73,6 +85,8 @@ def probe_single():
     data = request.get_json()
     ui_url = data.get('url')
     version = data.get('version', '')
+    template_name = data.get('template_name', '')
+    
     if not ui_url: return jsonify({"error": "No URL"}), 400
     session = requests.Session()
     session.headers.update({
@@ -92,22 +106,54 @@ def probe_single():
                     total = data.get('totalResultsCount')
                     if total is None: total = data.get('total') or data.get('count') or data.get('totalResults') or data.get('recordCount')
                 elif isinstance(data, list): total = len(data)
-                if total is not None: return jsonify({"status": "Success", "count": str(total), "time": elapsed})
+                
+                if total is not None:
+                    record_history(template_name, ui_url, str(total), elapsed)
+                    return jsonify({"status": "Success", "count": str(total), "time": elapsed})
             except:
                 if "labeling results" in resp.text.lower():
                     match = re.search(r'(\d+)\s+Labeling Results', resp.text, re.IGNORECASE)
-                    return jsonify({"status": "Success", "count": match.group(1) if match else "Found", "time": elapsed})
+                    count = match.group(1) if match else "Found"
+                    record_history(template_name, ui_url, count, elapsed)
+                    return jsonify({"status": "Success", "count": count, "time": elapsed})
             return jsonify({"status": "Format Error", "count": "N/A", "time": elapsed})
         elif resp.status_code == 404: return jsonify({"status": "Not Found (404)", "count": "N/A", "time": elapsed})
         else: return jsonify({"status": f"HTTP {resp.status_code}", "count": "N/A", "time": elapsed})
     except: return jsonify({"status": "Inaccessible", "count": "N/A", "time": round(time.time() - start_time, 2)})
+
+def get_formatted_df(results):
+    """Helper to format results into the history-consistent structure."""
+    now_str = datetime.now().strftime("%Y/%m/%d, %H:%M")
+    formatted = []
+    for r in results:
+        server = "PROD"
+        url = r.get('url', '')
+        if "dev" in url.lower(): server = "DEV"
+        elif "tst" in url.lower() or "test" in url.lower(): server = "TEST"
+        
+        count_val = r.get('count', 'N/A')
+        query_results = f"{count_val} labeling results" if count_val not in ['N/A', 'Found', ''] else count_val
+        
+        formatted.append({
+            "#Task": r.get('task_num'),
+            "Server": server,
+            "Version": r.get('version'),
+            "URL": url,
+            "Query Results": query_results,
+            "Result Time (Minimum 1s)": r.get('time_to_ready'),
+            "Query_Date": now_str,
+            "Query Details": r.get('query_details'),
+            "Notes": ""
+        })
+    return pd.DataFrame(formatted)
 
 @webtest_bp.route('/report_from_data', methods=['POST'])
 def report_from_data():
     data = request.get_json()
     results = data.get('results', [])
     if not results: return jsonify({"error": "No data"}), 400
-    df = pd.DataFrame(results)
+    
+    df = get_formatted_df(results)
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Testing Results')
@@ -116,7 +162,7 @@ def report_from_data():
 
 @webtest_bp.route('/save_results', methods=['POST'])
 def save_results():
-    """Automatically saves the completed run as a JSON file."""
+    """Automatically saves the completed run as a JSON file, consistent with history format."""
     data = request.get_json()
     results = data.get('results', [])
     template_name = data.get('template_name', 'unknown')
@@ -124,7 +170,6 @@ def save_results():
     
     results_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest', 'results')
     if not os.path.exists(results_dir):
-        # Alternative path check
         results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest', 'results'))
         os.makedirs(results_dir, exist_ok=True)
     
@@ -133,14 +178,158 @@ def save_results():
     filename = f"result_{safe_name}_{timestamp}.json"
     filepath = os.path.join(results_dir, filename)
     
+    # Format results for consistency
+    df_formatted = get_formatted_df(results)
+    formatted_results = df_formatted.to_dict(orient='records')
+    
     try:
         with open(filepath, 'w') as f:
             json.dump({
                 "template": template_name,
                 "timestamp": datetime.now().isoformat(),
                 "total_tasks": len(results),
-                "results": results
+                "results": formatted_results
             }, f, indent=4)
         return jsonify({"success": True, "filename": filename})
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def record_history(template_name, url, count, delay):
+    """Appends a task run to the history Excel file, matching its original format."""
+    if not template_name or template_name == "unknown":
+        return
+    
+    history_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest', 'history')
+    if not os.path.exists(history_dir):
+        history_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest', 'history'))
+        os.makedirs(history_dir, exist_ok=True)
+    
+    safe_name = "".join([c for c in template_name if c.isalnum() or c in (' ', '.', '_')]).rstrip()
+    if safe_name.lower().endswith('.xlsx'):
+        safe_name = safe_name[:-5]
+        
+    filepath = os.path.join(history_dir, f"History_{safe_name}.xlsx")
+    
+    now = datetime.now()
+    new_data = {
+        "URL": url,
+        "Date": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "Count": str(count) if count is not None else "0",
+        "Delay": round(float(delay), 2) if delay is not None else 0.0,
+        "Query Results": f"{count} labeling results",
+        "Result Time (Minimum 1s)": round(float(delay), 2) if delay is not None else 0.0,
+        "Query_Date": now.strftime("%Y/%m/%d, %H:%M"),
+        "Notes": "Auto-Test Recorded"
+    }
+    
+    try:
+        if os.path.exists(filepath):
+            df_history = pd.read_excel(filepath)
+            # Try to populate more fields from previous entries if URL matches
+            match = df_history[df_history['URL'] == url]
+            if not match.empty:
+                last_match = match.iloc[-1]
+                new_data["#Task"] = last_match.get("#Task")
+                new_data["Server"] = last_match.get("Server")
+                new_data["Version"] = last_match.get("Version")
+                new_data["Query Details"] = last_match.get("Query Details")
+            
+            df_history = pd.concat([df_history, pd.DataFrame([new_data])], ignore_index=True)
+        else:
+            df_history = pd.DataFrame([new_data])
+        
+        # Ensure Count and URL stay string
+        df_history['Count'] = df_history['Count'].astype(str)
+        df_history['URL'] = df_history['URL'].astype(str)
+        df_history.to_excel(filepath, index=False)
+    except Exception as e:
+        print(f"Error recording history: {e}")
+
+@webtest_bp.route('/task_history', methods=['GET'])
+def get_task_history():
+    template_name = request.args.get('template_name')
+    url = request.args.get('url')
+    
+    if not template_name or not url:
+        return jsonify({"error": "Missing template_name or url"}), 400
+        
+    history_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest', 'history')
+    if not os.path.exists(history_dir):
+        history_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest', 'history'))
+        
+    safe_name = "".join([c for c in template_name if c.isalnum() or c in (' ', '.', '_')]).rstrip()
+    if safe_name.lower().endswith('.xlsx'):
+        safe_name = safe_name[:-5]
+        
+    filepath = os.path.join(history_dir, f"History_{safe_name}.xlsx")
+    
+    if not os.path.exists(filepath):
+        return jsonify([])
+        
+    try:
+        df = pd.read_excel(filepath)
+        # Filter for URL match
+        task_history = df[df['URL'].astype(str) == str(url)].copy()
+        
+        if not task_history.empty:
+            results = []
+            # Calculate 2 years ago cutoff
+            two_years_ago = datetime.now() - pd.DateOffset(years=2)
+            
+            for _, row in task_history.iterrows():
+                # Extract Date and handle filtering
+                dt_str = row.get('Date')
+                if pd.isna(dt_str) or str(dt_str) == 'NaT' or str(dt_str) == 'nan':
+                    dt_str = row.get('Query_Date', '')
+                
+                # Attempt to parse for filtering and consistent sorting
+                record_dt = None
+                try:
+                    # Handle multiple potential formats
+                    clean_dt_str = str(dt_str).strip()
+                    if ',' in clean_dt_str: # YYYY/MM/DD, HH:MM
+                        # Split and take just the date part for more robust parsing if time format varies
+                        date_part = clean_dt_str.split(',')[0].strip()
+                        record_dt = datetime.strptime(date_part, "%Y/%m/%d")
+                    else: # YYYY-MM-DD HH:MM:SS
+                        record_dt = pd.to_datetime(clean_dt_str)
+                    
+                    if record_dt and record_dt < two_years_ago:
+                        continue
+                except:
+                    pass
+                
+                # Extract Count
+                count = row.get('Count')
+                if pd.isna(count) or count == 'nan':
+                    # Try parsing from 'Query Results' column
+                    qr = str(row.get('Query Results', ''))
+                    m = re.search(r'(\d+)', qr)
+                    count = m.group(1) if m else "0"
+                
+                # Extract Delay
+                delay = row.get('Delay')
+                if pd.isna(delay):
+                    delay = row.get('Result Time (Minimum 1s)', 0)
+                
+                results.append({
+                    "Date": record_dt.strftime("%Y-%m-%d %H:%M:%S") if record_dt else str(dt_str),
+                    "SortDate": record_dt if record_dt else datetime.min,
+                    "URL": str(url),
+                    "Count": str(count),
+                    "Delay": float(delay) if not pd.isna(delay) else 0.0
+                })
+            
+            # Accurate chronological sort
+            results.sort(key=lambda x: x['SortDate'])
+            
+            # Cleanup for JSON response
+            for r in results:
+                r.pop('SortDate', None)
+            
+            return jsonify(results)
+            
+        return jsonify([])
+    except Exception as e:
+        print(f"Error in get_task_history: {e}")
         return jsonify({"error": str(e)}), 500

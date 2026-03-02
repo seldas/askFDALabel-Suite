@@ -3,6 +3,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import { 
+    BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, 
+    Tooltip, Legend, ResponsiveContainer, ComposedChart 
+} from 'recharts';
 
 interface TestResult {
     task_num: number;
@@ -12,6 +16,13 @@ interface TestResult {
     status: string;
     count: string;
     time_to_ready: number;
+}
+
+interface HistoryItem {
+    Date: string;
+    URL: string;
+    Count: string;
+    Delay: number;
 }
 
 type SortConfig = {
@@ -30,7 +41,9 @@ export default function WebTestingPage() {
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
     const [savedFilename, setSavedFilename] = useState<string | null>(null);
 
-    // Stop signal
+    const [selectedTask, setSelectedTask] = useState<TestResult | null>(null);
+    const [taskHistory, setTaskHistory] = useState<HistoryItem[]>([]);
+    const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: null });
@@ -57,6 +70,46 @@ export default function WebTestingPage() {
         }
     };
 
+    const fetchTaskHistory = async (task: TestResult) => {
+        if (!selectedTemplate) return;
+        setIsHistoryLoading(true);
+        try {
+            const res = await fetch(`/api/webtest/task_history?template_name=${encodeURIComponent(selectedTemplate)}&url=${encodeURIComponent(task.url)}`);
+            const data = await res.json();
+            
+            if (data.error) {
+                console.error("Task history error:", data.error);
+                setTaskHistory([]);
+                return;
+            }
+
+            if (!Array.isArray(data)) {
+                console.error("Task history is not an array:", data);
+                setTaskHistory([]);
+                return;
+            }
+
+            // Convert Count to number for chart
+            const formatted = data.map((h: any) => ({
+                ...h,
+                CountNum: parseInt(h.Count) || 0,
+                // Shorten date for display
+                DisplayDate: h.Date.split(' ')[0].replace('2026-', '') 
+            }));
+            setTaskHistory(formatted);
+        } catch (err) {
+            console.error("Failed to fetch task history", err);
+        } finally {
+            setIsHistoryLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (selectedTask) {
+            fetchTaskHistory(selectedTask);
+        }
+    }, [selectedTask]);
+
     useEffect(() => {
         if (selectedTemplate && status === 'idle') {
             const fetchInfo = async () => {
@@ -68,6 +121,8 @@ export default function WebTestingPage() {
                         setResults(data.tasks);
                         setCurrentPage(1);
                         setVersionFilters([]); // Reset filters on new template
+                        setSelectedTask(null);
+                        setTaskHistory([]);
                     }
                 } catch (err) {
                     console.error("Error fetching template info", err);
@@ -108,7 +163,8 @@ export default function WebTestingPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         url: results[i].url,
-                        version: results[i].version 
+                        version: results[i].version,
+                        template_name: selectedTemplate
                     }),
                 });
                 const data = await response.json();
@@ -391,7 +447,16 @@ export default function WebTestingPage() {
                                 </thead>
                                 <tbody>
                                     {paginatedResults.map((res) => (
-                                        <tr key={res.task_num} style={{ borderBottom: '1px solid #f1f5f9' }} className="row-hover">
+                                        <tr 
+                                            key={res.task_num} 
+                                            style={{ 
+                                                borderBottom: '1px solid #f1f5f9',
+                                                backgroundColor: selectedTask?.task_num === res.task_num ? '#f1f5f9' : 'transparent',
+                                                cursor: 'pointer'
+                                            }} 
+                                            className="row-hover"
+                                            onClick={() => setSelectedTask(res)}
+                                        >
                                             <td style={{ padding: '14px 20px', color: '#94a3b8', fontWeight: 700 }}>{res.task_num}</td>
                                             <td style={{ 
                                                 padding: '14px 20px', 
@@ -432,6 +497,7 @@ export default function WebTestingPage() {
                                                     href={res.url} 
                                                     target="_blank" 
                                                     rel="noreferrer" 
+                                                    onClick={(e) => e.stopPropagation()}
                                                     style={{ 
                                                         color: '#2563eb', 
                                                         textDecoration: 'none', 
@@ -475,6 +541,91 @@ export default function WebTestingPage() {
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                )}
+
+                {/* History Panel */}
+                {selectedTask && (
+                    <div style={{ marginTop: '30px', background: '#fff', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', padding: '24px', border: '1px solid #f1f5f9' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <div>
+                                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>
+                                    Task History: <span style={{ color: '#2563eb' }}>{selectedTask.query_details}</span>
+                                </h3>
+                                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0' }}>Performance trends over time for this specific query.</p>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedTask(null)}
+                                style={{ padding: '6px 12px', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}
+                            >
+                                Clear Selection
+                            </button>
+                        </div>
+
+                        {isHistoryLoading ? (
+                            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+                                <div className="loader" style={{ width: '30px', height: '30px', marginRight: '15px' }}></div>
+                                Fetching historical data...
+                            </div>
+                        ) : taskHistory.length > 0 ? (
+                            <div style={{ height: '400px', width: '100%' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <ComposedChart data={taskHistory}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis 
+                                            dataKey="DisplayDate" 
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
+                                        />
+                                        <YAxis 
+                                            yAxisId="left" 
+                                            axisLine={false}
+                                            tickLine={false}
+                                            domain={['dataMin - 100', 'dataMax + 100']}
+                                            tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
+                                            label={{ value: 'Label Count', angle: -90, position: 'insideLeft', style: { fill: '#6366f1', fontWeight: 800, fontSize: 12 } }}
+                                        />
+                                        <YAxis 
+                                            yAxisId="right" 
+                                            orientation="right" 
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
+                                            label={{ value: 'Delay (s)', angle: 90, position: 'insideRight', style: { fill: '#f43f5e', fontWeight: 800, fontSize: 12 } }}
+                                        />
+                                        <Tooltip 
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px' }}
+                                        />
+                                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                                        <Line 
+                                            yAxisId="left" 
+                                            type="monotone" 
+                                            dataKey="CountNum" 
+                                            name="Result Count" 
+                                            stroke="#6366f1" 
+                                            strokeWidth={3}
+                                            dot={{ r: 6, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+                                            activeDot={{ r: 8 }}
+                                        />
+                                        <Line 
+                                            yAxisId="right" 
+                                            type="monotone" 
+                                            dataKey="Delay" 
+                                            name="Delay (s)" 
+                                            stroke="#f43f5e" 
+                                            strokeWidth={3} 
+                                            dot={{ r: 6, fill: '#f43f5e', strokeWidth: 2, stroke: '#fff' }}
+                                            activeDot={{ r: 8 }}
+                                        />
+                                    </ComposedChart>
+                                </ResponsiveContainer>
+                            </div>
+                        ) : (
+                            <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', border: '2px dashed #f1f5f9', borderRadius: '12px', backgroundColor: '#fafafa' }}>
+                                No historical data found for this task. Run the automation to start tracking.
+                            </div>
+                        )}
                     </div>
                 )}
             </main>
