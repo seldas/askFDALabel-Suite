@@ -848,54 +848,158 @@ class FDALabelDBService:
         return out
 
     @classmethod
+    def effective_time_map_for_set_ids(cls, set_ids):
+        """Fetches EFF_TIME/revised_date for multiple set_ids."""
+        if not set_ids or not cls.check_connectivity():
+            return {}
+
+        conn = cls.get_connection()
+        if not conn:
+            return {}
+
+        out = {}
+        try:
+            cursor = conn.cursor()
+            if cls._db_type == 'oracle':
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    binds = {f"sid{i}": v for i, v in enumerate(chunk)}
+                    in_clause = ", ".join([f":sid{i}" for i in range(len(chunk))])
+                    sql = f"SELECT SET_ID, EFF_TIME FROM druglabel.DGV_SUM_SPL WHERE SET_ID IN ({in_clause})"
+                    cursor.execute(sql, binds)
+                    for sid, eff in cursor.fetchall():
+                        out[str(sid)] = eff
+            else:
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    placeholders = ", ".join(["?"] * len(chunk))
+                    sql = f"SELECT set_id, revised_date FROM sum_spl WHERE set_id IN ({placeholders})"
+                    cursor.execute(sql, chunk)
+                    for row in cursor.fetchall():
+                        out[str(row['set_id'])] = row['revised_date']
+            cursor.close()
+        except Exception as e:
+            print(f"Error in effective_time_map_for_set_ids ({cls._db_type}): {e}")
+        finally:
+            conn.close()
+        return out
+
+    @classmethod
     def ingredient_role_breakdown_for_set_ids(cls, set_ids, substance_name):
-        # Implementation for breakdown... 
-        # For brevity, I'll keep this logic similar but adapt for SQLite
+        """Analyzes active/inactive ingredient roles for a set of labels."""
         if not set_ids or not substance_name or not cls.check_connectivity():
             return {"query": substance_name, "active_count": 0, "inactive_count": 0, "both_count": 0, "not_found_count": len(set_ids or []), "matches": {}}
 
         conn = cls.get_connection()
         if not conn: return {}
 
-        matches = {}
+        matches = {} # {set_id: {active: bool, inactive: bool}}
         try:
+            cursor = conn.cursor()
+            search_name = substance_name.strip().upper()
+            
             if cls._db_type == 'oracle':
-                # Existing oracle logic...
-                pass 
+                # Oracle logic
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    binds = {f"sid{i}": v for i, v in enumerate(chunk)}
+                    binds['q'] = search_name
+                    in_clause = ", ".join([f":sid{i}" for i in range(len(chunk))])
+                    sql = f"""
+                        SELECT s.SET_ID, m.IS_ACTIVE 
+                        FROM druglabel.active_ingredients_map m
+                        JOIN druglabel.DGV_SUM_SPL s ON s.SPL_ID = m.SPL_ID
+                        WHERE s.SET_ID IN ({in_clause})
+                        AND UPPER(m.SUBSTANCE_NAME) = :q
+                    """
+                    cursor.execute(sql, binds)
+                    for sid, is_act in cursor.fetchall():
+                        sid_str = str(sid)
+                        if sid_str not in matches: matches[sid_str] = {"active": False, "inactive": False}
+                        if is_act == 'Y' or is_act == 1: matches[sid_str]["active"] = True
+                        else: matches[sid_str]["inactive"] = True
             else:
-                cursor = conn.cursor()
+                # SQLite Logic
                 for chunk in cls._chunk(list(set_ids), n=900):
                     placeholders = ", ".join(["?"] * len(chunk))
                     sql = f"""
-                        SELECT spl_id, substance_name, is_active 
-                        FROM active_ingredients_map 
-                        WHERE spl_id IN (SELECT spl_id FROM sum_spl WHERE set_id IN ({placeholders}))
-                        AND UPPER(substance_name) = UPPER(?)
+                        SELECT s.set_id, m.is_active 
+                        FROM active_ingredients_map m
+                        JOIN sum_spl s ON s.spl_id = m.spl_id
+                        WHERE s.set_id IN ({placeholders})
+                        AND UPPER(m.substance_name) = ?
                     """
-                    cursor.execute(sql, list(chunk) + [substance_name.strip()])
+                    cursor.execute(sql, list(chunk) + [search_name])
                     for row in cursor.fetchall():
-                        # Note: we need to map spl_id back to set_id or use set_id in the map
-                        # For now, let's assume we can find the set_id from the result or just use spl_id
-                        # (Simplified for now)
-                        pass
-                cursor.close()
+                        sid_str = str(row['set_id'])
+                        if sid_str not in matches: matches[sid_str] = {"active": False, "inactive": False}
+                        if row['is_active'] == 1: matches[sid_str]["active"] = True
+                        else: matches[sid_str]["inactive"] = True
+            cursor.close()
+        except Exception as e:
+            print(f"Error in ingredient_role_breakdown ({cls._db_type}): {e}")
         finally:
             conn.close()
-        
-        # This breakdown method is complex, I will focus on making sure basic search works first.
-        # Returning a simplified result for now if not fully implemented for SQLite.
-        return {"query": substance_name, "active_count": 0, "inactive_count": 0, "both_count": 0, "not_found_count": len(set_ids), "matches": {}}
+
+        # Count roles
+        active_c, inactive_c, both_c = 0, 0, 0
+        found_set_ids = set(matches.keys())
+        for sid, roles in matches.items():
+            if roles["active"] and roles["inactive"]: both_c += 1
+            elif roles["active"]: active_c += 1
+            else: inactive_c += 1
+            
+        return {
+            "query": substance_name,
+            "active_count": active_c,
+            "inactive_count": inactive_c,
+            "both_count": both_c,
+            "not_found_count": len(set_ids) - len(found_set_ids),
+            "matches": matches
+        }
 
     @classmethod
     def document_type_breakdown_for_set_ids(cls, set_ids):
-        # This relies on get_label_core_by_set_ids which is already adapted
+        """Categorizes labels by document type using LOINC codes."""
         core = cls.get_label_core_by_set_ids(set_ids)
         raw = {}
         for sid in set_ids:
             info = core.get(str(sid), {})
-            code = info.get("document_type_loinc_code") or "UNKNOWN"
+            # Fallback to document_type string if LOINC code is missing
+            code = info.get("document_type_loinc_code") or info.get("document_type") or "UNKNOWN"
             raw[code] = raw.get(code, 0) + 1
+
+        # LOINC mapping for bucketing
+        LOINC_MAP = {
+            '34391-3': 'human_rx', '48401-4': 'human_rx', '48402-2': 'human_rx',
+            '34390-5': 'human_otc', '48405-5': 'human_otc', '48406-3': 'human_otc',
+            '34392-1': 'vaccine', '50516-4': 'vaccine',
+            '50517-2': 'animal_rx', '50518-0': 'animal_otc',
+        }
         
-        # Bucketing logic remains the same...
-        # (omitted for brevity, same as before)
-        return {"raw": raw, "buckets": {}}
+        # String mapping fallback for local DB if LOINC is missing
+        STR_MAP = {
+            'HUMAN PRESCRIPTION DRUG LABEL': 'human_rx',
+            'HUMAN OTC DRUG LABEL': 'human_otc',
+            'VACCINE LABEL': 'vaccine',
+            'ANIMAL PRESCRIPTION DRUG LABEL': 'animal_rx',
+            'ANIMAL OTC DRUG LABEL': 'animal_otc',
+        }
+
+        buckets = {"human_rx": 0, "human_otc": 0, "vaccine": 0, "animal_rx": 0, "animal_otc": 0, "other": 0, "unknown": 0}
+        for code, count in raw.items():
+            mapped = False
+            if code in LOINC_MAP:
+                buckets[LOINC_MAP[code]] += count
+                mapped = True
+            else:
+                # Try string mapping
+                upper_code = str(code).upper()
+                for key, bucket in STR_MAP.items():
+                    if key in upper_code:
+                        buckets[bucket] += count
+                        mapped = True
+                        break
+            
+            if not mapped:
+                if code == "UNKNOWN": buckets["unknown"] += count
+                else: buckets["other"] += count
+
+        return {"raw": raw, "buckets": buckets}
