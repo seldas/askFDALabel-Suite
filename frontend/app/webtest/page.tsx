@@ -327,8 +327,11 @@ export default function WebTestingPage() {
                     });
                 } else {
                     const g = groups.get(key);
-                    g.versions.push(r.version);
+                    if (!g.versions.includes(r.version)) {
+                        g.versions.push(r.version);
+                    }
                     g.tasks.push(r);
+                    // Update to latest count/time for this version
                     g.all_counts[r.version] = r.count;
                     g.all_times[r.version] = r.time_to_ready;
                     // If any task in group is running/success, update aggregate
