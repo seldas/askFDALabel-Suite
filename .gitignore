@@ -40,3 +40,4 @@ data/
 web_testing/full_report/
 web_testing/testing_result/
 web_testing/Source
+frontend/public/webtest/results/
