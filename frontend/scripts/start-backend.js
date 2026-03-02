@@ -41,7 +41,7 @@ if (isProd) {
 } else {
   console.log(`> Starting backend in DEVELOPMENT on http://${host}:${port}`);
   cmd = pythonExe;
-  args = ['-m', 'waitress', `--host=${host}`, `--port=${port}`, moduleSpec];
+  args = ['app.py'];
 }
 
 const pythonProcess = spawn(cmd, args, {

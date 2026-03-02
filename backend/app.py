@@ -12,11 +12,13 @@ load_dotenv(dotenv_path=env_path)
 
 # Import Dashboard app factory
 from dashboard import create_app as create_dashboard_app
-# Import Blueprints for Search, DrugTox, and Device
+# Import Blueprints
 from search.blueprint import search_bp
 from drugtox.blueprint import drugtox_bp
 from labelcomp.blueprint import labelcomp_bp
 from device.blueprint import device_bp
+from localquery.blueprint import localquery_bp
+from webtest.blueprint import webtest_bp
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -37,12 +39,19 @@ def create_unified_app():
     app.register_blueprint(drugtox_bp, url_prefix='/api/drugtox')
     app.register_blueprint(labelcomp_bp, url_prefix='/api/labelcomp')
     app.register_blueprint(device_bp, url_prefix='/api/device')
+    app.register_blueprint(localquery_bp, url_prefix='/api/localquery')
+    app.register_blueprint(webtest_bp, url_prefix='/api/webtest')
     
     @app.route('/api/check-fdalabel', methods=['POST'])
     def check_fdalabel():
         from dashboard.services.fdalabel_db import FDALabelDBService
-        is_internal = FDALabelDBService.check_connectivity()
-        return jsonify({"isInternal": is_internal})
+        from flask import current_app
+        is_internal = FDALabelDBService.is_internal()
+        allow_local = current_app.config.get('LOCAL_QUERY', True)
+        return jsonify({
+            "isInternal": is_internal,
+            "allowLocalQuery": allow_local
+        })
 
     return app
 
@@ -50,6 +59,6 @@ app = create_unified_app()
    
 
 if __name__ == "__main__":
-    port = int(os.environ.get("BACKEND_PORT"))
+    port = int(os.environ.get("BACKEND_PORT", 5000))
     host = os.environ.get("HOST", "0.0.0.0")
     app.run(host=host, port=port, debug=False, use_reloader=False, threaded=True)

@@ -67,6 +67,22 @@ export default function DashboardPage() {
   const ITEMS_PER_PAGE = 10;
   const [effTimeSort, setEffTimeSort] = useState<SortMode>('none');
 
+  // robust-ish parser: supports YYYY-MM-DD, YYYY/MM/DD, ISO, and returns null if unknown
+  const parseEffTime = (v?: string | null): number | null => {
+    if (!v) return null;
+    const s = String(v).trim();
+    if (!s || s.toLowerCase() === 'n/a') return null;
+
+    // Normalize slashes to dashes for Safari-friendliness
+    const normalized = s.replace(/\//g, '-');
+
+    // If looks like YYYY-MM-DD, use Date.parse directly
+    const t = Date.parse(normalized);
+    if (!Number.isNaN(t)) return t;
+
+    return null;
+  };
+
   // Memoized Filtered Content
   const filteredLabels = useMemo(() => {
     const q = projectSearch.toLowerCase();
@@ -102,22 +118,6 @@ export default function DashboardPage() {
 
   const toggleEffTimeSort = () => {
     setEffTimeSort((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none'));
-  };
-
-  // robust-ish parser: supports YYYY-MM-DD, YYYY/MM/DD, ISO, and returns null if unknown
-  const parseEffTime = (v?: string | null): number | null => {
-    if (!v) return null;
-    const s = String(v).trim();
-    if (!s || s.toLowerCase() === 'n/a') return null;
-
-    // Normalize slashes to dashes for Safari-friendliness
-    const normalized = s.replace(/\//g, '-');
-
-    // If looks like YYYY-MM-DD, use Date.parse directly
-    const t = Date.parse(normalized);
-    if (!Number.isNaN(t)) return t;
-
-    return null;
   };
 
   const [showProjectStats, setShowProjectStats] = useState(false);

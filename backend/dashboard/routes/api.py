@@ -206,7 +206,12 @@ def search_count():
         
         # Determine source
         from dashboard.services.fdalabel_db import FDALabelDBService
-        source = "FDALabel" if FDALabelDBService.check_connectivity() else "OpenFDA"
+        if FDALabelDBService.is_internal():
+            source = "FDALabel"
+        elif FDALabelDBService.is_local():
+            source = "LocalDB"
+        else:
+            source = "OpenFDA"
         
         return jsonify({'count': total, 'source': source})
     except Exception as e:
@@ -1669,6 +1674,7 @@ def generic_assessment_route(set_id, assessment_model, pt_terms, prompt, keyword
     
     # FAERS data check
     faers_data = []
+    faers_error = None
     meta = get_label_metadata(set_id)
     if meta and meta.get('brand_name') and meta.get('brand_name') != 'N/A':
         brand_name = meta['brand_name'].split(',')[0].strip()
@@ -1684,17 +1690,25 @@ def generic_assessment_route(set_id, assessment_model, pt_terms, prompt, keyword
             params['api_key'] = Config.OPENFDA_API_KEY
             
         try:
-            resp = requests.get(base_url, params=params)
+            resp = requests.get(base_url, params=params, timeout=10)
             if resp.status_code == 200:
                 raw_results = resp.json().get('results', [])
                 faers_data = [item for item in raw_results if item['term'].upper() in pt_terms]
+            elif resp.status_code == 404:
+                # openFDA returns 404 for "No results found"
+                faers_data = []
             else:
                 logger.warning(f"FAERS query failed: {resp.status_code}")
+                faers_error = f"API returned status {resp.status_code}"
         except Exception as e:
+
             logger.error(f"FAERS error: {e}")
+            from dashboard.services.fda_client import handle_openfda_error
+            faers_error = handle_openfda_error(e)
 
     return jsonify({
         'faers_data': faers_data, 
+        'faers_error': faers_error,
         'existing_assessment': existing_report,
         'assessment_timestamp': timestamp
     })
@@ -1750,12 +1764,12 @@ def run_assessment_logic(set_id, assessment_model, prompt):
                 clean_report = "\n".join(html_matches)
             else:
                 # Check for "no evidence" comments specifically for each type
-                if '<!-- No DILI evidence found' in response_text:
-                    clean_report = '<!-- No DILI evidence found in label -->'
-                elif '<!-- No DICT evidence found' in response_text:
-                    clean_report = '<!-- No DICT evidence found in label -->'
-                elif '<!-- No DIRI evidence found' in response_text:
-                    clean_report = '<!-- No DIRI evidence found in label -->'
+                if '<!-- No DILI evidence found' in response_text or 'No DILI Concern' in response_text:
+                    clean_report = '<div class="label-section"><!-- No DILI evidence found in label --><p><strong>Conclusion:</strong> No DILI Concern</p></div>'
+                elif '<!-- No DICT evidence found' in response_text or 'No DICT Concern' in response_text:
+                    clean_report = '<div class="label-section"><!-- No DICT evidence found in label --><p><strong>Conclusion:</strong> No DICT Concern</p></div>'
+                elif '<!-- No DIRI evidence found' in response_text or 'No DIRI Concern' in response_text:
+                    clean_report = '<div class="label-section"><!-- No DIRI evidence found in label --><p><strong>Conclusion:</strong> No DIRI Concern</p></div>'
                 else:
                     # Fallback for unexpected responses
                     clean_report = '<!-- AI response did not contain valid HTML report. -->'

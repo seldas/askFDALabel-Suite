@@ -25,3 +25,5 @@ gunicorn
 psycopg2-binary
 flashtext
 waitress
+
+beautifulsoup4

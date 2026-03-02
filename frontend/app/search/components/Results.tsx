@@ -464,7 +464,11 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
       const jsonData = await response.json();
 
       if (jsonData.error) {
-        alert(`Error: ${jsonData.error}`);
+        if (jsonData.error.includes("internet environment")) {
+            setMedAnswer(jsonData.error);
+        } else {
+            alert(`Error: ${jsonData.error}`);
+        }
         setIsSqlRunning(false);
         return;
       }

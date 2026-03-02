@@ -287,8 +287,8 @@ def search():
         else:
              view = 'panel'
 
-    is_internal = FDALabelDBService.check_connectivity()
-    
+    is_internal = FDALabelDBService.is_internal()
+
     return jsonify({
         "drug_name": drug_name_display,
         "page_title": page_title,
@@ -301,6 +301,7 @@ def search():
         "batch_id_search": batch_id_search,
         "import_id": import_id
     })
+
 
 
 @main_bp.route('/label/<set_id>')
@@ -450,7 +451,8 @@ def view_label(set_id):
         'metadata': metadata,
         'saved_annotations': saved_annotations,
         'tox_summary': tox_summary,
-        'user_id': current_user.id if current_user.is_authenticated else None
+        'user_id': current_user.id if current_user.is_authenticated else None,
+        'is_internal': FDALabelDBService.is_internal()
     })
 
 @main_bp.route('/export_sections', methods=['POST'])
@@ -787,9 +789,9 @@ def project_stats():
 
         manu_set = {m for m in manufacturers if m and m != "Unknown"}
         brand_set = {b for b in brands if b and b != "Unknown"}
-        internal_ok = FDALabelDBService.check_connectivity()
+        db_ok = FDALabelDBService.is_available()
         filled_from_db = 0
-        if internal_ok and missing_date_set_ids:
+        if db_ok and missing_date_set_ids:
             db_map = FDALabelDBService.effective_time_map_for_set_ids(missing_date_set_ids)
             for sid in missing_date_set_ids:
                 d = _parse_eff_time_to_date(db_map.get(sid))
@@ -803,10 +805,10 @@ def project_stats():
         manu_counts = Counter(manufacturers)
         top_manufacturers = [{"name": name, "count": count} for name, count in manu_counts.most_common(10) if name and name != "Unknown"]
 
-        if internal_ok and set_ids:
+        if db_ok and set_ids:
             document_type = FDALabelDBService.document_type_breakdown_for_set_ids(set_ids)
         else:
-            document_type = {"raw": {}, "buckets": {"human_rx": 0, "human_otc": 0, "vaccine": 0, "animal_rx": 0, "animal_otc": 0, "other": 0, "unknown": len(set_ids) or len(favs)}, "note": "Internal DB not available."}
+            document_type = {"raw": {}, "buckets": {"human_rx": 0, "human_otc": 0, "vaccine": 0, "animal_rx": 0, "animal_otc": 0, "other": 0, "unknown": len(set_ids) or len(favs)}, "note": "Local/Internal DB not available."}
 
         daily = Counter(eff_dates)
         cumulative_by_effective_time, cum = [], 0
@@ -817,10 +819,10 @@ def project_stats():
         ingredient_breakdown = None
         if ingredient and ingredient.strip():
             q = ingredient.strip()
-            if internal_ok and set_ids:
+            if db_ok and set_ids:
                 ingredient_breakdown = FDALabelDBService.ingredient_role_breakdown_for_set_ids(set_ids=set_ids, substance_name=q)
             else:
-                ingredient_breakdown = {"query": q, "active_count": 0, "inactive_count": 0, "both_count": 0, "not_found_count": len(set_ids) or len(favs), "matches": {}, "note": "Internal DB not available."}
+                ingredient_breakdown = {"query": q, "active_count": 0, "inactive_count": 0, "both_count": 0, "not_found_count": len(set_ids) or len(favs), "matches": {}, "note": "Local/Internal DB not available."}
 
         return jsonify({
             "success": True, "project_id": project_id, "total_labels": len(favs), "unique_manufacturers": len(manu_set), "unique_brands": len(brand_set),
