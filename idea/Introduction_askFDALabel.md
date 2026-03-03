@@ -114,11 +114,26 @@ One of the most powerful project-level functions is the generation of **AE Profi
 ---
 
 ## 5. Dashboard - Label View & Analysis
-The **Label View** provides a deep-dive into individual product labels, extracting structured insights from raw SPL XML.
+The **Label View** is not merely a document viewer; it is a clinical extraction engine designed to overcome the structural inconsistencies of raw SPL data. While platforms like DailyMed provide a flat view of labels, our suite employs advanced parsing logic to provide a structured, regulatory-grade analysis environment.
 
-- **Automated Metadata Extraction:** Instantly identifies NDC codes, SetIDs, Application Numbers, and Market Status.
-- **Interactive Section Highlighting:** Powered by DailyMed integration, users can jump to specific sections (e.g., Boxed Warnings, Adverse Reactions) with automatic text highlighting.
-- **Ingredient Role Breakdown:** A specialized service that distinguishes between active ingredients and complex inactive excipient roles across multiple products in a project.
+### 5.1 Canonical Section Mapping and Standardized Navigation
+A primary challenge in labeling review is the inconsistent numbering and naming of sections across different manufacturers. Our suite addresses this through:
+- **PLR Canonical Mapping:** For Physician Labeling Rule (PLR) labels, the system automatically maps LOINC codes to the standard **1-17 Section Framework**. Even if a manufacturer omits a number or uses a non-standard title, the suite enforces the correct regulatory numbering (e.g., ensuring "Contraindications" is always navigated as Section 4).
+- **Specialized Format Handlers:** The suite dynamically detects the label format (**PLR**, **Non-PLR**, or **OTC**) and applies format-specific processing. For Over-the-Counter (OTC) products, it automatically clusters relevant sections into a virtual "Drug Facts" container for intuitive review.
+
+### 5.2 Preservation of Recursive Hierarchy
+Unlike standard viewers that flatten XML content, our parser maintains the **Recursive Section Hierarchy**. This preserves the "parent-child" relationship between major sections (e.g., 5 Warnings and Precautions) and their specific clinical subsections (e.g., 5.1 Embryo-Fetal Toxicity). This hierarchy is crucial for accurate LLM "snippet" extraction and ensures that the clinical context of a subsection is never lost.
+
+### 5.3 Deep Metadata and Entity Extraction
+Beyond basic drug names, the Label View performs "deep extraction" of regulatory metadata:
+- **Entity Role Detection:** The system parses complex organizational relationships, distinguishing between the Registrant, Manufacturer, and Distributor. It extracts **DUNS numbers** and physical addresses, allowing for manufacturer-level tracking across projects.
+- **Safety Contact Parsing:** Automatically identifies and extracts the required "Adverse Reaction" reporting contact information, including manufacturer-specific phone numbers and reporting instructions.
+
+### 5.4 Project-Wide Ingredient Role Breakdown
+The suite offers a unique **Ingredient Role Breakdown** service that moves beyond a simple ingredient list.
+- **Deep Database Integration:** Powered by a specialized `active_ingredients_map` in the suite's underlying database (Oracle or SQLite), this function performs a project-wide census of substance roles.
+- **Active vs. Inactive Discrimination:** The system identifies whether a substance is classified as an "Active Ingredient" or an "Inactive Excipient" for every product in a project.
+- **Cross-Product Safety Analysis:** Within a project, users can query a specific substance (e.g., "Aspartame") and see a quantitative breakdown: how many products use it as an active ingredient, how many as an inactive, and for which products the substance is not present. This is a critical feature for allergy screening and excipient-level safety reviews that is unavailable in traditional search tools.
 
 ---
 
