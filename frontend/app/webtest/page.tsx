@@ -52,6 +52,7 @@ export default function WebTestingPage() {
     const [isGrouped, setIsGrouped] = useState(false);
     const [taskHistory, setTaskHistory] = useState<any[]>([]);
     const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+    const [historyRange, setHistoryRange] = useState<'all' | '1y' | '3m'>('1y');
 
     const chartVersions = useMemo(() => {
         if (!isGrouped) return [];
@@ -96,10 +97,11 @@ export default function WebTestingPage() {
         setIsHistoryLoading(true);
         try {
             const endpoint = isGrouped ? '/api/webtest/group_history' : '/api/webtest/task_history';
-            const params = isGrouped 
-                ? `template_name=${encodeURIComponent(selectedTemplate)}&query_details=${encodeURIComponent(task.query_details)}`
-                : `template_name=${encodeURIComponent(selectedTemplate)}&url=${encodeURIComponent(task.url)}`;
-            
+
+            const params = isGrouped
+            ? `template_name=${encodeURIComponent(selectedTemplate)}&query_details=${encodeURIComponent(task.query_details)}&range=${historyRange}`
+            : `template_name=${encodeURIComponent(selectedTemplate)}&url=${encodeURIComponent(task.url)}&range=${historyRange}`;
+
             const res = await fetch(`${endpoint}?${params}`);
             const data = await res.json();
             
@@ -152,7 +154,7 @@ export default function WebTestingPage() {
         if (selectedTask) {
             fetchTaskHistory(selectedTask);
         }
-    }, [selectedTask, isGrouped]);
+    }, [selectedTask, isGrouped, historyRange]);
 
     useEffect(() => {
         if (selectedTemplate && status === 'idle') {
@@ -542,9 +544,6 @@ export default function WebTestingPage() {
                                                 </div>
                                             )}
                                         </th>
-
-                                        <th style={{ padding: '14px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.7rem' }}>Result Link</th>
-                                        
                                         {/* Result Count Split Header */}
                                         <th style={{ padding: '14px 20px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', borderLeft: '1px solid #f1f5f9', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.7rem' }}>
                                             Result Count
@@ -571,6 +570,8 @@ export default function WebTestingPage() {
                                         </th>
 
                                         <th style={{ padding: '14px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', borderLeft: '1px solid #f1f5f9', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.7rem' }}>Status</th>
+                                        <th style={{ padding: '14px 20px', textAlign: 'left', borderBottom: '1px solid #f1f5f9', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.7rem' }}>Result Link</th>
+                                            
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -651,24 +652,7 @@ export default function WebTestingPage() {
                                                         })}
                                                     </div>
                                                 </td>
-                                                <td style={{ padding: '14px 20px' }}>
-                                                    <div style={{ maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {res.isGroup ? (
-                                                            <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Multiple Links</span>
-                                                        ) : (
-                                                            <a 
-                                                                href={res.url} 
-                                                                target="_blank" 
-                                                                rel="noreferrer" 
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                style={{ color: '#2563eb', textDecoration: 'none', fontSize: '0.7rem', fontWeight: 600 }}
-                                                                title={res.url}
-                                                            >
-                                                                {res.url}
-                                                            </a>
-                                                        )}
-                                                    </div>
-                                                </td>
+                                                
                                                 
                                                 {/* Count Comparison Cells */}
                                                 <td style={{ padding: '0', textAlign: 'center', borderLeft: '1px solid #f1f5f9', minWidth: '140px' }}>
@@ -734,6 +718,25 @@ export default function WebTestingPage() {
                                                         {res.status}
                                                     </span>
                                                 </td>
+                                                
+                                                <td style={{ padding: '14px 20px' }}>
+                                                    <div style={{ maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {res.isGroup ? (
+                                                            <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Multiple Links</span>
+                                                        ) : (
+                                                            <a 
+                                                                href={res.url} 
+                                                                target="_blank" 
+                                                                rel="noreferrer" 
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                style={{ color: '#2563eb', textDecoration: 'none', fontSize: '0.7rem', fontWeight: 600 }}
+                                                                title={res.url}
+                                                            >
+                                                                {res.url}
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </td>
                                             </tr>
                                         );
                                     })}
@@ -778,12 +781,33 @@ export default function WebTestingPage() {
                                 </h3>
                                 <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0' }}>Performance trends over time for this specific query.</p>
                             </div>
-                            <button 
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            {(['all','1y', '3m'] as const).map(r => (
+                                <button
+                                key={r}
+                                onClick={() => setHistoryRange(r)}
+                                style={{
+                                    padding: '6px 10px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e2e8f0',
+                                    background: historyRange === r ? '#2563eb' : '#fff',
+                                    color: historyRange === r ? '#fff' : '#475569',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 800,
+                                    cursor: 'pointer'
+                                }}
+                                >
+                                {r === 'all' ? 'All' : r === '1y' ? '1 Year' : '3 Months'}
+                                </button>
+                            ))}
+
+                            <button
                                 onClick={() => setSelectedTask(null)}
                                 style={{ padding: '6px 12px', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}
                             >
                                 Clear Selection
                             </button>
+                            </div>
                         </div>
 
                         {isHistoryLoading ? (
