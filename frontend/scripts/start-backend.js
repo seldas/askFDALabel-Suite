@@ -8,12 +8,9 @@ if (fs.existsSync(envPath)) {
   require('dotenv').config({ path: envPath });
 }
 
-// 2. Load suite config as fallback
-const config = require('../../suite.config.js');
-
-// 3. Resolve host and port
-const host = process.env.HOST || config.backend.host || '0.0.0.0';
-const port = process.env.BACKEND_PORT || config.backend.port || 8842;
+// Resolve host and port
+const host = process.env.HOST || '0.0.0.0';
+const port = process.env.BACKEND_PORT || 8842;
 const isProd = process.env.NODE_ENV === 'production';
 
 const backendPath = path.resolve(__dirname, '../../backend/app.py');

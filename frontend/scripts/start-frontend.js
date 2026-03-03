@@ -11,9 +11,8 @@ if (fs.existsSync(envPath)) {
   require('dotenv').config({ path: envPath });
 }
 
-const config = require('../../suite.config.js');
-const host = process.env.HOST || config.frontend.host || '0.0.0.0';
-const port = parseInt(process.env.FRONTEND_PORT || config.frontend.port || 8841);
+const host = process.env.HOST || '0.0.0.0';
+const port = parseInt(process.env.FRONTEND_PORT || 8841);
 const isProd = process.env.NODE_ENV === 'production';
 
 // 2. Automatic HTTPS Detection
