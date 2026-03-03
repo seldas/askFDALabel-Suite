@@ -1652,7 +1652,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                         <td>{result.GENERIC_NAMES}</td>
                         <td>{result.COMPANY}</td>
                         <td>{result.APPR_NUM}</td>
-                        <td>{result.NDC_CODES.length > 25 ? `${result.NDC_CODES.substring(0, 25)}...` : result.NDC_CODES}</td>
+                        <td>{result.NDC_CODES ? (result.NDC_CODES.length > 25 ? `${result.NDC_CODES.substring(0, 25)}...` : result.NDC_CODES) : ''}</td>
                         <td>
                           {String((result as any).RLD ?? (result as any).rld ?? '')
                             .toLowerCase() === 'yes' ? (
