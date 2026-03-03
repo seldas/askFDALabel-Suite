@@ -284,9 +284,6 @@ def record_history(template_name, url, count, delay, username="Anonymous"):
         "Date": now.strftime("%Y-%m-%d %H:%M:%S"),
         "Count": str(count) if count is not None else "0",
         "Delay": round(float(delay), 2) if delay is not None else 0.0,
-        "Query Results": f"{count} labeling results",
-        "Result Time (Minimum 1s)": round(float(delay), 2) if delay is not None else 0.0,
-        "Query_Date": now.strftime("%Y/%m/%d, %H:%M"),
         "Notes": f"Ran by {username}"
     }
     
