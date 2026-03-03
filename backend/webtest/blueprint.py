@@ -284,6 +284,9 @@ def record_history(template_name, url, count, delay, username="Anonymous"):
         "Date": now.strftime("%Y-%m-%d %H:%M:%S"),
         "Count": str(count) if count is not None else "0",
         "Delay": round(float(delay), 2) if delay is not None else 0.0,
+        "Query Results": f"{count} labeling results",
+        "Result Time (Minimum 1s)": round(float(delay), 2) if delay is not None else 0.0,
+        "Query_Date": now.strftime("%Y/%m/%d, %H:%M"),
         "Notes": f"Ran by {username}"
     }
     
@@ -339,7 +342,7 @@ def get_task_history():
         if not task_history.empty:
             results = []
             # Calculate 2 years ago cutoff
-            two_years_ago = datetime.now() - pd.DateOffset(years=2)
+            two_years_ago = datetime.now() - pd.DateOffset(years=1)
             
             for _, row in task_history.iterrows():
                 # Extract Date and handle filtering
@@ -445,7 +448,7 @@ def get_group_history():
         
         if not group_history.empty:
             results = []
-            two_years_ago = datetime.now() - pd.DateOffset(years=2)
+            two_years_ago = datetime.now() - pd.DateOffset(years=1)
             
             for _, row in group_history.iterrows():
                 dt_str = row.get('Date')
