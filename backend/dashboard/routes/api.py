@@ -720,8 +720,8 @@ def api_projects():
             return jsonify({'error': 'Title is required'}), 400
         
         count = Project.query.filter_by(owner_id=current_user.id).count()
-        if count >= 5:
-            return jsonify({'error': 'Project limit reached (Max 5).'}), 403
+        if count >= 100:
+            return jsonify({'error': 'Project limit reached (Max 100).'}), 403
             
         max_order = db.session.query(db.func.max(Project.display_order)).filter_by(owner_id=current_user.id).scalar() or 0
         
@@ -924,8 +924,8 @@ def favorite_all():
 
     target_project = None
     if new_project_name:
-        if Project.query.filter_by(owner_id=current_user.id).count() >= 5:
-             return jsonify({'error': 'Project limit reached (Max 5). Cannot create new project.'}), 403
+        if Project.query.filter_by(owner_id=current_user.id).count() >= 100:
+             return jsonify({'error': 'Project limit reached (Max 100). Cannot create new project.'}), 403
         
         target_project = Project(title=new_project_name, owner_id=current_user.id)
         db.session.add(target_project)
