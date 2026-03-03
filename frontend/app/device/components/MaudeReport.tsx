@@ -14,10 +14,12 @@ export default function MaudeReport({ productCode, kNumber, onClose }: MaudeRepo
   const [data, setData] = useState<any>(null);
   const [recallData, setRecallData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchSafetyData() {
       setLoading(true);
+      setError(null);
       try {
         const url = `/api/device/safety/${productCode}${kNumber ? `?id=${kNumber}` : ''}`;
         const recallUrl = `/api/device/recalls/${productCode}${kNumber ? `?id=${kNumber}` : ''}`;
@@ -30,10 +32,15 @@ export default function MaudeReport({ productCode, kNumber, onClose }: MaudeRepo
         const result = await resp.json();
         const recallResult = await recallResp.json();
         
-        setData(result);
-        setRecallData(recallResult);
+        if (result.error) {
+            setError(result.error);
+        } else {
+            setData(result);
+            setRecallData(recallResult);
+        }
       } catch (err) {
         console.error("Failed to fetch safety data", err);
+        setError("Connectivity issue detected while reaching safety intelligence endpoints.");
       } finally {
         setLoading(false);
       }
@@ -66,7 +73,22 @@ export default function MaudeReport({ productCode, kNumber, onClose }: MaudeRepo
 
   if (loading) return (
     <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: 'white', borderRadius: '20px', fontWeight: 800, color: '#6366f1', fontSize: '0.9rem' }}>
+      <div className="loader" style={{ margin: '0 auto 1rem auto' }}></div>
       Synchronizing MAUDE & Recall Intelligence...
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: '#fff7ed', borderRadius: '20px', border: '1px solid #fdba74', maxWidth: '600px' }}>
+      <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⚠️</div>
+      <h3 style={{ color: '#c2410c', fontWeight: 800, marginBottom: '0.5rem' }}>Data Source Restricted</h3>
+      <p style={{ color: '#9a3412', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{error}</p>
+      <button 
+        onClick={onClose}
+        style={{ padding: '10px 20px', backgroundColor: '#c2410c', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
+      >
+        Close Dashboard
+      </button>
     </div>
   );
 

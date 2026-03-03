@@ -1138,6 +1138,48 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                           >
                              <span style={{ fontSize: '1rem' }}>{"\u2913"}</span> EXPORT
                           </button>
+
+                          <button 
+                               onClick={async () => {
+                                 try {
+                                   const response = await fetch(`/api/dashboard/meddra/profile/${setId}`);
+                                   if (!response.ok) throw new Error("Failed to fetch MedDRA profile");
+                                   const dataJson = await response.json();
+                                   
+                                   const blob = new Blob([JSON.stringify(dataJson, null, 2)], { type: 'application/json' });
+                                   const url = window.URL.createObjectURL(blob);
+                                   const a = document.createElement('a');
+                                   a.href = url;
+                                   a.download = `MedDRA_Profile_${dataJson.metadata?.brand_name || setId}.json`;
+                                   document.body.appendChild(a);
+                                   a.click();
+                                   window.URL.revokeObjectURL(url);
+                                   document.body.removeChild(a);
+                                 } catch (err) {
+                                   console.error("MedDRA Profile Export Error:", err);
+                                   alert("Failed to export MedDRA profile.");
+                                 }
+                               }}
+                             title="Export MedDRA Profile JSON"
+                             style={{ 
+                                background: '#f1f5f9', 
+                                border: '1px solid #e2e8f0', 
+                                color: '#6366f1', // Subtle indigo for distinction
+                                padding: '8px 14px', 
+                                borderRadius: '10px', 
+                                fontSize: '0.8rem', 
+                                fontWeight: 800, 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '6px', 
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onMouseOver={e => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+                            onMouseOut={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                          >
+                             <span style={{ fontSize: '1rem' }}>{"\u2b21"}</span> MedDRA Profile
+                          </button>
                           <button id="favorite-btn" className="favorite-btn" title="Toggle Project" style={{ background:'none', border:'none', cursor:'pointer', fontSize: '2rem', color: '#cbd5e1', padding: 0 }}>
                               {"\u2606"}
                           </button>

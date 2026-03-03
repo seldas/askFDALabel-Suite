@@ -126,8 +126,22 @@ def run_planner(state):
     success, response_text = safe_llm_call(client, messages, temperature=0.0, user=state.user)
 
     if not success:
-        logger.error("Planner LLM call failed.")
-        state.flags["next_step"] = "error"
+        logger.error("Planner LLM call failed. Falling back to heuristics.")
+        state.trace_log.append("Planner LLM call failed. Using heuristic fallback.")
+        
+        # Heuristic Fallback
+        state.intent = {"type": "search", "slots": {}}
+        state.retrieval = {"plan": {"plan_type": "metadata_only", "sql_template_hint": "metadata_search", "filters": {}}}
+        
+        # Apply overrides (SET_ID, NDC, etc.)
+        apply_plan_overrides(state)
+        
+        # Determine next step based on fallback intent
+        intent_type = state.intent.get("type", "search")
+        if intent_type == "aggregate":
+            state.flags["next_step"] = "aggregate_executor"
+        else:
+            state.flags["next_step"] = "db_executor"
         return
 
     try:

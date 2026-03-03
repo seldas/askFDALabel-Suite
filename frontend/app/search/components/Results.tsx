@@ -55,6 +55,7 @@ interface ResultItem {
   section_content: string;
   RLD?: string;   // 'Yes' means RLD (may be missing)
   is_combination?: boolean;
+  is_metadata_only?: boolean;
 }
 
 const SQLHighlighter = ({ sql }: { sql: string }) => {
@@ -464,7 +465,11 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
       const jsonData = await response.json();
 
       if (jsonData.error) {
-        alert(`Error: ${jsonData.error}`);
+        if (jsonData.error.includes("internet environment")) {
+            setMedAnswer(jsonData.error);
+        } else {
+            alert(`Error: ${jsonData.error}`);
+        }
         setIsSqlRunning(false);
         return;
       }
@@ -1647,7 +1652,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                         <td>{result.GENERIC_NAMES}</td>
                         <td>{result.COMPANY}</td>
                         <td>{result.APPR_NUM}</td>
-                        <td>{result.NDC_CODES.length > 25 ? `${result.NDC_CODES.substring(0, 25)}...` : result.NDC_CODES}</td>
+                        <td>{result.NDC_CODES ? (result.NDC_CODES.length > 25 ? `${result.NDC_CODES.substring(0, 25)}...` : result.NDC_CODES) : ''}</td>
                         <td>
                           {String((result as any).RLD ?? (result as any).rld ?? '')
                             .toLowerCase() === 'yes' ? (

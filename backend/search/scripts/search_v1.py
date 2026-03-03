@@ -1,20 +1,22 @@
-# ./backend/scripts/search_v1.py
+# ./backend/search/scripts/search_v1.py
 
 import os
 import re
 import json
 import logging
+import sqlite3
 from collections import defaultdict
 from html import unescape
 from typing import Any, Dict, List, Optional, Tuple, Generator
 
-import oracledb
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from search.call_llm import safe_llm_call  # expected to exist in your project
-from search.file_util import process_uploaded_file, process_image  # expected to exist
-from search.scripts.prompt_search_v1 import prompt_query, prompt_answering  # expected to exist
+from search.call_llm import safe_llm_call
+from search.file_util import process_uploaded_file, process_image
+from search.scripts.prompt_search_v1 import prompt_query, prompt_answering
+from dashboard.services.fdalabel_db import FDALabelDBService
+from dashboard.services.ai_handler import call_llm as unified_call_llm
 
 load_dotenv()
 
@@ -22,7 +24,6 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 logging.getLogger("openai").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
-
 
 # -----------------------------
 # Environment / Initialization
@@ -33,23 +34,9 @@ llm_model_name = os.getenv("LLM_MODEL", "")
 
 client = OpenAI(api_key=openai_api_key, base_url=openai_api_base)
 
-FDALabel_SERV = os.getenv("FDALabel_SERV")
-FDALabel_PORT = os.getenv("FDALabel_PORT")
-FDALabel_APP = os.getenv("FDALabel_APP")
-FDALabel_USER = os.getenv("FDALabel_USER")
-FDALabel_PSW = os.getenv("FDALabel_PSW")
-
-if FDALabel_SERV and FDALabel_PORT and FDALabel_APP:
-    dsnStr = oracledb.makedsn(FDALabel_SERV, FDALabel_PORT, FDALabel_APP)
-else:
-    dsnStr = None
-    logger.warning("Oracle DB environment variables missing. DB features will be disabled.")
-
-
-def get_db_connection() -> oracledb.Connection:
-    """Create a new Oracle DB connection. Caller is responsible for closing."""
-    return oracledb.connect(user=FDALabel_USER, password=FDALabel_PSW, dsn=dsnStr)
-
+def get_db_connection():
+    """Create a new SQLite DB connection."""
+    return FDALabelDBService.get_sqlite_connection()
 
 # -----------------------------
 # Safety / Utilities
@@ -59,41 +46,12 @@ def is_safe_sql(sql: str) -> bool:
     if not sql:
         return False
     sql_upper = sql.upper()
-    forbidden = [
-        "INSERT ",
-        "UPDATE ",
-        "DELETE ",
-        "DROP ",
-        "CREATE ",
-        "ALTER ",
-        "TRUNCATE ",
-        "GRANT ",
-        "REVOKE ",
-        "EXEC ",
-        "MERGE ",
-        "REPLACE ",
-    ]
+    forbidden = ["INSERT ", "UPDATE ", "DELETE ", "DROP ", "CREATE ", "ALTER ", "TRUNCATE ", "GRANT ", "REVOKE ", "EXEC ", "MERGE ", "REPLACE "]
     if not sql_upper.strip().startswith("SELECT"):
         return False
     return not any(word in sql_upper for word in forbidden)
 
-
-def remove_application_prefixes(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Remove NDA/BLA/ANDA/NDC prefixes from certain string fields."""
-    for k, v in list(data.items()):
-        if ("appr" in k.lower() or "ndc" in k.lower()) and isinstance(v, str):
-            v = re.sub(r"ANDA\s*", "", v)
-            v = re.sub(r"NDA\s*", "", v)
-            v = re.sub(r"BLA\s*", "", v)
-            data[k] = re.sub(r"NDC\s*", "", v)
-    return data
-
-
 def clean_xml_content(content: Any) -> str:
-    """
-    Remove XML/HTML tags and clean up content for display.
-    Preserves highlight markers (<b>, <mark>) if present.
-    """
     if not content:
         return ""
     content = str(content)
@@ -102,62 +60,16 @@ def clean_xml_content(content: Any) -> str:
     content = re.sub(r"\s+", " ", content).strip()
     return content
 
-
-def lob_to_string(lob_obj: Any) -> str:
-    """Convert Oracle LOB object to a string (no truncation)."""
-    if lob_obj is None:
-        return ""
-    try:
-        if hasattr(lob_obj, "read"):
-            content = lob_obj.read()
-            if isinstance(content, bytes):
-                return content.decode("utf-8", errors="ignore")
-            return str(content)
-        return str(lob_obj)
-    except Exception as e:
-        logger.error(f"Error reading LOB object: {e}")
-        return "[Error reading XML content]"
-
-
-def lob_to_string_limited(value: Any, max_length: int = 5000) -> Optional[str]:
-    """Convert LOB (or value) to cleaned string with length limit."""
-    if value is None:
-        return None
-    try:
-        if hasattr(value, "read"):
-            content = value.read()
-            if isinstance(content, bytes):
-                content = content.decode("utf-8", errors="ignore")
-            content = clean_xml_content(content)
-        else:
-            content = clean_xml_content(str(value))
-
-        if len(content) > max_length:
-            return content[:max_length] + "..."
-        return content
-    except Exception as e:
-        return f"[Error reading LOB: {str(e)}]"
-
-
 # -----------------------------
 # Core: Search (callable)
 # -----------------------------
 def search_v1(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
-    """
-    Callable search function.
-    Input payload keys (expected):
-      - query: str
-      - manual_sql: str
-      - current_sql: str
-      - chat_history: list[dict]
-    Returns: (response_payload, http_status)
-    """
     user_query = (payload or {}).get("query", "") or ""
     manual_sql = (payload or {}).get("manual_sql", "") or ""
     current_sql = (payload or {}).get("current_sql", "") or ""
     chat_history = (payload or {}).get("chat_history", []) or []
 
-    logger.info(f"Search Request: {user_query}")
+    logger.info(f"Search Request (V1 - Local DB): {user_query}")
 
     con = None
     cursor = None
@@ -169,32 +81,21 @@ def search_v1(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
     med_answer = ""
 
     try:
-        con = get_db_connection()
-        cursor = con.cursor()
-
         if manual_sql:
             if not is_safe_sql(manual_sql):
                 return {"error": "Unsafe SQL detected"}, 400
             generated_query = manual_sql
             med_answer = "Executing manual SQL query."
-            # For manual sql, we can assume answerable is True-ish, but keep conservative:
             is_answerable = True
         else:
             used_prompt = prompt_query.replace("{{CURRENT_SQL_CONTEXT}}", current_sql)
-
-            # Always include current user query as the last user message.
             messages: List[Dict[str, Any]] = [{"role": "system", "content": used_prompt}]
             if isinstance(chat_history, list) and chat_history:
                 messages.extend(chat_history)
-
             messages.append({"role": "user", "content": user_query})
 
             process_success, llm_response = safe_llm_call(
-                client,
-                messages,
-                max_tokens=1024,
-                temperature=0.01,
-                user=user
+                client, messages, max_tokens=1024, temperature=0.01, user=user
             )
 
             if not process_success:
@@ -204,15 +105,12 @@ def search_v1(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
                 llm_text = llm_response or ""
                 if "```json" in llm_text:
                     match = re.search(r"```json\s*(.*?)\s*```", llm_text, re.DOTALL)
-                    if match:
-                        llm_text = match.group(1).strip()
+                    if match: llm_text = match.group(1).strip()
                 elif "```" in llm_text:
                     match = re.search(r"```\s*(.*?)\s*```", llm_text, re.DOTALL)
-                    if match:
-                        llm_text = match.group(1).strip()
+                    if match: llm_text = match.group(1).strip()
 
                 response_data = json.loads(llm_text)
-
                 generated_query = response_data.get("sql", "") or ""
                 med_answer = response_data.get("explanation", "") or ""
                 suggestions = response_data.get("suggestions", []) or []
@@ -237,12 +135,19 @@ def search_v1(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
         if not is_safe_sql(generated_query):
             return {"error": "Generated SQL was unsafe"}, 400
 
+        con = get_db_connection()
+        if not con:
+            return {"error": "Local Database connection failed"}, 500
+            
+        cursor = con.cursor()
         cursor.execute(generated_query)
         rows = cursor.fetchall()
-        column_names = [desc[0] for desc in cursor.description] if cursor.description else []
-        oracle_results: List[Dict[str, Any]] = [dict(zip(column_names, row)) for row in rows]
+        
+        # In SQLiteRow mode, we can get keys
+        column_names = [d[0] for d in cursor.description]
+        results_list = [dict(row) for row in rows]
 
-        processed_result = convert_oracle_to_filtered_results(oracle_results)
+        processed_result = convert_sqlite_to_filtered_results(results_list)
         return {
             "input_type": "T1",
             "med_answer": med_answer,
@@ -255,80 +160,51 @@ def search_v1(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
         }, 200
 
     except Exception as e:
+        import traceback
         logger.error(f"Search Error: {e}")
+        traceback.print_exc()
         return {"error": str(e)}, 500
     finally:
-        try:
-            if cursor:
-                cursor.close()
-        except Exception:
-            pass
-        try:
-            if con:
-                con.close()
-        except Exception:
-            pass
-
+        if con: con.close()
 
 # -----------------------------
 # Core: Answer generation (stream)
 # -----------------------------
-from dashboard.services.ai_handler import call_llm as unified_call_llm
-
 def generate_answer_stream(payload: Dict[str, Any], user=None) -> Generator[str, None, None]:
-    """
-    Returns a generator that yields streamed text chunks for an answer.
-
-    payload keys:
-      - results: list[dict]
-      - refined_question: str
-      - chat_history: list[dict]
-    """
     results = (payload or {}).get("results", []) or []
     refined_question = (payload or {}).get("refined_question", "") or ""
     chat_history = (payload or {}).get("chat_history", []) or []
 
-    con = None
-    cursor = None
     try:
-        con = get_db_connection()
-        cursor = con.cursor()
-
         if not results:
             yield json.dumps({"error": "No results provided"}) + "\n"
             return
 
-        top_content = fetch_top_results_content(results[:5], cursor)
-
-        if not top_content:
-            yield "I couldn't retrieve enough content from the top results to answer confidently.\n"
-            return
+        # V1 logic now only uses metadata
+        top_meta = ""
+        for i, res in enumerate(results[:10]):
+            top_meta += f"--- Result {i+1} ---\n"
+            top_meta += f"Brand: {res.get('PRODUCT_NAMES')}\n"
+            top_meta += f"Generic: {res.get('GENERIC_NAMES')}\n"
+            top_meta += f"Manufacturer: {res.get('COMPANY')}\n"
+            top_meta += f"EPC: {res.get('EPC')}\n"
+            top_meta += f"Indications/Usage: [NOT READ - Metadata Search Only]\n\n"
 
         answer_prompt = f"""
 You are a helpful medical assistant.
 The user asked: "{refined_question}"
 
-Here is the relevant information extracted from the top search results:
-{top_content}
+Here is the labeling metadata found for relevant products:
+{top_meta}
 
-Please provide a concise and direct answer to the user's question based ONLY on the provided information.
-
-**CITATION RULE:**
-You MUST cite your sources. When you use information from a result, add a clickable citation at the end of the sentence.
-The format MUST be: `[[Result Index]](#cite-SET_ID)`
-Example: "Ozempic causes nausea [[1]](#cite-1234-5678-...)".
-
-If the information is contradictory, mention that.
-If the information is not sufficient to answer, state that.
-Format the answer in Markdown.
-
-**GUIDANCE RULE:**
-At the very end of your response, always include a separate paragraph with a helpful suggestion or question to guide the user toward missing information or further search refinements.
+Please provide an answer based ONLY on the provided metadata. 
+Explain that you are searching based on metadata only.
+Follow the introduction and disclaimer rules from your system prompt.
 """
 
         stream = unified_call_llm(
             user=user,
-            system_prompt="You are a helpful medical assistant.",
+            system_prompt=prompt_answering,
             user_message=answer_prompt,
             history=chat_history,
             max_tokens=4096,
@@ -337,10 +213,10 @@ At the very end of your response, always include a separate paragraph with a hel
         )
 
         for chunk in stream:
-            if hasattr(chunk, 'choices'): # OpenAI style
+            if hasattr(chunk, 'choices'):
                 if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
-            elif hasattr(chunk, 'text'): # Gemini style
+            elif hasattr(chunk, 'text'):
                 yield chunk.text
             elif isinstance(chunk, str):
                 yield chunk
@@ -348,105 +224,85 @@ At the very end of your response, always include a separate paragraph with a hel
     except Exception as e:
         logger.error(f"Answer Generation Error: {e}")
         yield f"Error generating answer: {str(e)}"
-    finally:
-        try:
-            if cursor:
-                cursor.close()
-        except Exception:
-            pass
-        try:
-            if con:
-                con.close()
-        except Exception:
-            pass
 
+# -----------------------------
+# Metadata fetch (callable)
+# -----------------------------
+def get_metadata(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+    requested_set_ids = (payload or {}).get("set_ids", []) or []
+    if not requested_set_ids:
+        return {"results": []}, 200
 
-def fetch_top_results_content(top_results: List[Dict[str, Any]], cursor) -> str:
-    """
-    Fetches text content for the top results to enable answering.
-    If LOINC_CODE exists, fetches that section's text.
-    Otherwise, fetches full SPL XML (partial).
-    """
-    content_snippets: List[str] = []
+    try:
+        formatted_results = []
+        for x in requested_set_ids:
+            tmp_res = dict(x)
+            set_id = x.get("set_id")
+            if not set_id:
+                formatted_results.append(tmp_res)
+                continue
 
-    for i, res in enumerate(top_results):
-        row = {str(k).upper(): v for k, v in (res or {}).items()}
-        set_id = row.get("SET_ID")
-        product = row.get("PRODUCT_NAMES")
+            meta = FDALabelDBService.get_label_metadata(set_id)
+            if meta:
+                tmp_res["EFF_TIME"] = meta.get("effective_time")
+            formatted_results.append(tmp_res)
 
-        if not set_id:
-            continue
+        return {"results": formatted_results}, 200
+    except Exception as e:
+        logger.error(f"Error in get_metadata: {e}")
+        return {"error": str(e)}, 500
 
-        snippet = f"--- Result {i+1} (ID: {set_id}): {product} ---\n"
+# -----------------------------
+# Result shaping
+# -----------------------------
+def convert_sqlite_to_filtered_results(sqlite_results: List[Dict[str, Any]], keywords: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    filtered_results: Dict[str, Dict[str, Any]] = defaultdict(dict)
+    visited = set()
 
-        if row.get("LOINC_CODE"):
-            loinc = row["LOINC_CODE"]
-            try:
-                spl_id = row.get("SPL_ID")
-                query = """
-                    SELECT XMLSERIALIZE(CONTENT s.CONTENT_XML AS CLOB)
-                    FROM druglabel.SPL_SEC s
-                    WHERE s.SPL_ID = :spl_id AND s.LOINC_CODE = :loinc
-                """
-                cursor.execute(query, {"spl_id": spl_id, "loinc": loinc})
-                lob_res = cursor.fetchone()
+    for result in sqlite_results:
+        # Standardize keys to uppercase for compatibility with frontend if needed, 
+        # or keep consistent with prompt mandatory columns
+        res_upper = {k.upper(): v for k, v in result.items()}
+        
+        set_id = res_upper.get("SET_ID")
+        if not set_id or set_id in visited: continue
 
-                if lob_res and lob_res[0]:
-                    text = lob_to_string(lob_res[0])
-                    snippet += f"Section ({row.get('SECTION_TITLE')}):\n{clean_xml_content(text)[:2000]}...\n"
-                else:
-                    snippet += "Section text not found.\n"
+        filtered_results[set_id] = {
+            "set_id": set_id,
+            "PRODUCT_NAMES": res_upper.get("PRODUCT_NAMES"),
+            "GENERIC_NAMES": res_upper.get("GENERIC_NAMES"),
+            "COMPANY": res_upper.get("MANUFACTURER"),
+            "APPR_NUM": res_upper.get("APPR_NUM"),
+            "ACT_INGR_NAMES": res_upper.get("ACTIVE_INGREDIENTS"),
+            "MARKET_CATEGORIES": res_upper.get("MARKET_CATEGORIES"),
+            "DOCUMENT_TYPE": res_upper.get("DOC_TYPE"),
+            "Routes": res_upper.get("ROUTES"),
+            "DOSAGE_FORMS": res_upper.get("DOSAGE_FORMS"),
+            "EPC": res_upper.get("EPC"),
+            "NDC_CODES": res_upper.get("NDC_CODES"),
+            "REVISED_DATE": res_upper.get("REVISED_DATE"),
+            "section_content": "Metadata Search Only. Use AFL Agent for content analysis.",
+            "is_metadata_only": True
+        }
+        visited.add(set_id)
 
-            except Exception as e:
-                logger.error(f"Error fetching section content: {e}")
-                snippet += "Error fetching section text.\n"
-
-        else:
-            try:
-                query = """
-                    SELECT XMLSERIALIZE(DOCUMENT l.SPL_XML AS CLOB)
-                    FROM druglabel.SPL l
-                    WHERE l.SET_ID = :set_id
-                """
-                cursor.execute(query, {"set_id": set_id})
-                lob_res = cursor.fetchone()
-
-                if lob_res and lob_res[0]:
-                    text = lob_to_string(lob_res[0])
-                    snippet += f"Full Label Content (partial):\n{clean_xml_content(text)[:20000]}...\n"
-                else:
-                    snippet += "Label XML content not found.\n"
-                    snippet += f"Generic Name: {row.get('PRODUCT_NORMD_GENERIC_NAMES')}\n"
-                    snippet += f"Manufacturer: {row.get('AUTHOR_ORG_NORMD_NAME')}\n"
-
-            except Exception as e:
-                logger.error(f"Error fetching full SPL content: {e}")
-                snippet += "Error fetching label content.\n"
-
-        content_snippets.append(snippet)
-
-    return "\n".join(content_snippets)
-
+    return filtered_results
 
 # -----------------------------
 # LLM answering with uploads (stream)
 # -----------------------------
-def call_llm_stream(chat_history: List[Dict[str, Any]], AI_ref: str, uploads: Optional[List[Any]] = None, user=None) -> Generator[str, None, None]:
+def call_llm_stream(chat_history: List[Dict[str, Any]], spl_xmls: List[str], uploads: Optional[List[Any]] = None, user=None) -> Generator[str, None, None]:
     """
     Streams LLM response as JSON lines: {"summary_chunk": "..."}\n
-
-    uploads: list of werkzeug FileStorage objects (or compatible),
-             processed via file_util.process_uploaded_file / process_image
     """
     processed_uploads = ""
-    image_contents: List[Dict[str, Any]] = []
+    image_contents: List[Dict[Dict[str, Any], Any]] = []
 
     if uploads:
         processed_uploads = "\n**User-Uploaded Files:**\n"
         for i, file_storage in enumerate(uploads, 1):
             file_name = getattr(file_storage, "filename", None) or f"file_{i}"
             file_type = getattr(file_storage, "content_type", None) or "unknown"
-
             file_extension = file_name.lower().split(".")[-1] if "." in file_name else ""
             is_image = (str(file_type).startswith("image/") or file_extension in ["jpg", "jpeg", "png", "gif", "bmp", "webp"])
 
@@ -456,14 +312,19 @@ def call_llm_stream(chat_history: List[Dict[str, Any]], AI_ref: str, uploads: Op
                     image_contents.append(image_content)
                     processed_uploads += f"\n{i}. File: {file_name} (Type: {file_type}) - Image processed for AI analysis\n"
                 else:
-                    processed_uploads += f"\n{i}. File: {file_name} (Type: {file_type})\n"
-                    processed_uploads += f"Content: {image_content}\n"
+                    processed_uploads += f"\n{i}. File: {file_name} (Type: {file_type})\nContent: {image_content}\n"
                 processed_uploads += "---\n"
             else:
                 processed_content = process_uploaded_file(file_storage)
-                processed_uploads += f"\n{i}. File: {file_name} (Type: {file_type})\n"
-                processed_uploads += f"Content:\n{processed_content}\n"
+                processed_uploads += f"\n{i}. File: {file_name} (Type: {file_type})\nContent:\n{processed_content}\n"
                 processed_uploads += "---\n"
+
+    # Reference documents
+    AI_ref = ""
+    if spl_xmls:
+        AI_ref = "\n**Reference Labeling XMLs:**\n"
+        for idx, xml in enumerate(spl_xmls):
+            AI_ref += f"--- Document {idx+1} ---\n{xml[:10000]}...\n---\n"
 
     system_prompt = (
         prompt_answering.replace("{{AI_ref}}", AI_ref)
@@ -481,15 +342,10 @@ def call_llm_stream(chat_history: List[Dict[str, Any]], AI_ref: str, uploads: Op
                 messages[-1]["content"] = [{"type": "text", "text": messages[-1]["content"]}]
             messages[-1]["content"].extend(image_contents)
         else:
-            messages.append(
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": "Include the uploaded images in context of our conversation."}]
-                    + image_contents,
-                }
-            )
+            messages.append({"role": "user", "content": [{"type": "text", "text": "Include the uploaded images in context of our conversation."}] + image_contents})
 
     user_message = ""
+    history = []
     if messages and messages[-1]['role'] == 'user':
         user_message = messages[-1]['content']
         history = messages[:-1]
@@ -520,133 +376,5 @@ def call_llm_stream(chat_history: List[Dict[str, Any]], AI_ref: str, uploads: Op
         if text:
             yield json.dumps({"summary_chunk": text}) + "\n"
 
-
-# -----------------------------
-# Metadata fetch (callable)
-# -----------------------------
-def get_metadata(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
-    """
-    Callable metadata function.
-    payload: {"set_ids": [{"set_id": "..."} , ...]}
-    Returns: (payload, status)
-    """
-    requested_set_ids = (payload or {}).get("set_ids", []) or []
-    if not requested_set_ids:
-        return {"results": []}, 200
-
-    con = None
-    cursor = None
-    try:
-        con = get_db_connection()
-        cursor = con.cursor()
-
-        formatted_results = []
-        for x in requested_set_ids:
-            tmp_res = dict(x)
-            set_id = x.get("set_id")
-            if not set_id:
-                formatted_results.append(tmp_res)
-                continue
-
-            query = """
-                SELECT l.set_id, l.product_names, l.AUTHOR_ORG_NORMD_NAME, l.eff_time, l.APPR_NUM
-                FROM druglabel.dgv_sum_rx_spl l
-                WHERE l.set_id = :set_id
-            """
-            cursor.execute(query, {"set_id": set_id})
-            result = cursor.fetchone()
-            if result:
-                tmp_res["EFF_TIME"] = result[3]
-
-            formatted_results.append(tmp_res)
-
-        return {"results": formatted_results}, 200
-
-    except Exception as e:
-        logger.error(f"Error in get_metadata: {e}")
-        return {"error": str(e)}, 500
-    finally:
-        try:
-            if cursor:
-                cursor.close()
-        except Exception:
-            pass
-        try:
-            if con:
-                con.close()
-        except Exception:
-            pass
-
-
-# -----------------------------
-# Result shaping
-# -----------------------------
-def convert_oracle_to_filtered_results(oracle_results: List[Dict[str, Any]], keywords: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
-    """
-    Convert Oracle search results to filtered_results format.
-    Handles LOB objects, cleans XML content, and extracts context snippets.
-    """
-    filtered_results: Dict[str, Dict[str, Any]] = defaultdict(dict)
-    visited = set()
-
-    if not oracle_results:
-        return filtered_results
-
-    def extract_setid_from_link(spl_link: Optional[str]) -> Optional[str]:
-        if not spl_link:
-            return None
-        match = re.search(r"setid=([a-f0-9-]{36})", spl_link, re.IGNORECASE)
-        return match.group(1) if match else None
-
-    def safe_get(d: Dict[str, Any], *keys: str) -> Any:
-        for key in keys:
-            val = d.get(key)
-            if val is not None:
-                return lob_to_string_limited(val) if hasattr(val, "read") else val
-        return None
-
-    for result in oracle_results:
-        result_dict = {str(k).upper(): v for k, v in (result or {}).items()}
-
-        set_id = safe_get(result_dict, "SET_ID", "SETID", "SPL_GUID", "SPLGUID")
-        if not set_id:
-            set_id = extract_setid_from_link(result_dict.get("SPL_LINK"))
-
-        if not set_id or set_id in visited:
-            continue
-
-        has_section_code = result_dict.get("LOINC_CODE") or result_dict.get("SECTION_CODE")
-        if has_section_code:
-            section_title = safe_get(result_dict, "SECTION_TITLE", "TITLE")
-            section_content = f"Detailed Evidence in {section_title} - TBD" if section_title else "Detailed Evidence - TBD"
-        else:
-            section_content = "Detailed Evidence - TBD"
-
-        filtered_results[set_id] = {
-            "set_id": set_id,
-            "keywords": re.sub(r";\s*", "%7c", keywords) if keywords else "",
-            "section_code": safe_get(result_dict, "LOINC_CODE", "SECTION_CODE", "SEC_CODE") or "",
-            "similarity_score": 0,
-            "section_content": section_content,
-            "PRODUCT_NAMES": safe_get(result_dict, "PRODUCT_NAMES", "PRODUCTNAMES", "PRODUCT_TITLE", "DRUG NAME (BRAND - GENERIC)"),
-            "GENERIC_NAMES": safe_get(result_dict, "PRODUCT_NORMD_GENERIC_NAMES", "GENERIC_NAMES", "PRODUCT_GENERIC_NAMES"),
-            "COMPANY": safe_get(result_dict, "AUTHOR_ORG_NORMD_NAME", "COMPANY", "MANUFACTURER", "AUTHOR_ORG"),
-            "APPR_NUM": safe_get(result_dict, "APPR_NUM", "APPROVAL_NUM", "APPLICATION_NUM"),
-            "ACT_INGR_NAMES": safe_get(result_dict, "ACT_INGR_NAMES", "ACTIVE_INGREDIENTS", "INGREDIENTS"),
-            "MARKET_CATEGORIES": safe_get(result_dict, "MARKET_CATEGORIES", "MARKETING_CATEGORIES", "APPLICATION_TYPE"),
-            "DOCUMENT_TYPE": safe_get(result_dict, "DOCUMENT_TYPE", "DOC_TYPE", "LABEL_TYPE"),
-            "Routes": safe_get(result_dict, "ROUTES_OF_ADMINISTRATION", "ROUTES", "ROUTE"),
-            "DOSAGE_FORMS": safe_get(result_dict, "DOSAGE_FORMS", "DOSAGEFORMS", "FORMULATION"),
-            "EPC": safe_get(result_dict, "EPC", "PHARMACOLOGIC_CLASS", "PHARM_CLASS"),
-            "NDC_CODES": safe_get(result_dict, "NDC_CODES", "NDC", "PRODUCT_NDC"),
-            "SPL_ID": safe_get(result_dict, "SPL_ID", "SPLID"),
-            "REVISED_DATE": safe_get(result_dict, "REVISED_DATE", "REVISION_DATE"),
-            "INITIAL_APPROVAL_YEAR": safe_get(result_dict, "INITIAL_APPROVAL_YEAR", "APPROVAL_YEAR"),
-            "SPL_LINK": result_dict.get("SPL_LINK"),
-            "SECTION_TITLE": safe_get(result_dict, "SECTION_TITLE", "TITLE"),
-        }
-
-        visited.add(set_id)
-
-    return filtered_results
-
+# Backwards compatibility for the imports in blueprint.py
+lob_to_string = lambda x: str(x)

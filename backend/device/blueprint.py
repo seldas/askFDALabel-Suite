@@ -16,6 +16,8 @@ def search_devices():
         return jsonify({'results': [], 'total': 0})
         
     results, total = find_devices(query, skip=skip, limit=limit)
+    if isinstance(results, dict) and "error" in results:
+        return jsonify({'results': [], 'total': 0, 'error': results["error"]})
     return jsonify({'results': results, 'total': total})
 
 @device_bp.route('/metadata/<id>', methods=['GET'])

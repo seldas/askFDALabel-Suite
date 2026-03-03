@@ -37,13 +37,8 @@ def scan_label_meddra(set_id):
         return jsonify({'error': 'Label not found'}), 404
 
     # 2. Extract plain text (simple stripping for matching purposes)
-    # We need a way to get the text that the user sees.
-    # The frontend sees the HTML rendered from XML.
-    # Ideally, we should parse the XML similarly to how it's rendered.
-    # For now, let's do a robust XML->Text extraction.
     try:
-        root = ET.fromstring(xml_content.encode('utf-8'))
-        # Using a namespace map if necessary, but itertext() usually works fine
+        root = ET.fromstring(xml_content.encode('ascii', 'ignore').decode('ascii'))
         text_content = "".join(root.itertext())
     except Exception as e:
         logger.error(f"XML Parse error for MedDRA scan: {e}")
@@ -63,6 +58,89 @@ def scan_label_meddra(set_id):
         enriched_terms = enriched_list
 
     return jsonify({'found_terms': enriched_terms, 'count': len(enriched_terms)})
+
+@api_bp.route('/meddra/profile/<set_id>')
+def get_label_meddra_profile(set_id):
+    """
+    Returns a JSON profile of all MedDRA terms found in specific SPL sections.
+    This endpoint is public (no login required).
+    """
+    xml_content = get_label_xml(set_id)
+    if not xml_content:
+        return jsonify({'error': 'Label not found'}), 404
+
+    target_sections = {
+        '34066-1': 'Boxed Warning',
+        '34070-3': 'Contraindications',
+        '34071-1': 'Warnings and Precautions',
+        '43685-7': 'Warnings and Precautions',
+        '34084-4': 'Adverse Reactions'
+    }
+
+    profile_data = {
+        'metadata': {
+            'set_id': set_id,
+            'generated_at': datetime.utcnow().isoformat()
+        },
+        'sections': [],
+        'all_found_terms': []
+    }
+
+    try:
+        ns = {'v3': 'urn:hl7-org:v3'}
+        # Clean XML string from any non-ascii characters that might cause ET issues
+        clean_xml = xml_content.encode('ascii', 'ignore').decode('ascii')
+        root = ET.fromstring(clean_xml)
+        
+        all_terms_set = set()
+        
+        for section in root.findall(".//v3:section", ns):
+            code_el = section.find("v3:code", ns)
+            if code_el is not None:
+                code_val = code_el.get('code')
+                if code_val in target_sections:
+                    section_name = target_sections[code_val]
+                    # Extract text content from this section only
+                    # We iterate through children to avoid getting text from nested subsections twice
+                    # but itertext is simpler for initial extraction
+                    text_content = "".join(section.itertext()).strip()
+                    
+                    if text_content:
+                        found = scan_label_for_meddra(text_content)
+                        if found:
+                            # Enrich found terms for this section
+                            mock_list = [{'term': t} for t in found]
+                            enriched = enrich_faers_with_meddra(mock_list)
+                            
+                            profile_data['sections'].append({
+                                'section_code': code_val,
+                                'section_name': section_name,
+                                'terms': enriched
+                            })
+                            
+                            for t in found:
+                                all_terms_set.add(t)
+
+        # Final summary enrichment
+        if all_terms_set:
+            summary_list = [{'term': t} for t in all_terms_set]
+            profile_data['all_found_terms'] = enrich_faers_with_meddra(summary_list)
+
+        # Add label metadata to the final response
+        meta = extract_metadata_from_xml(xml_content)
+        if meta:
+            profile_data['metadata'].update({
+                'brand_name': meta.get('brand_name'),
+                'generic_name': meta.get('generic_name'),
+                'manufacturer': meta.get('manufacturer_name'),
+                'effective_time': meta.get('effective_time')
+            })
+
+        return jsonify(profile_data)
+
+    except Exception as e:
+        logger.error(f"Error generating MedDRA profile for {set_id}: {e}")
+        return jsonify({'error': str(e)}), 500
 
 def enrich_faers_with_meddra(faers_list):
     """
@@ -206,7 +284,12 @@ def search_count():
         
         # Determine source
         from dashboard.services.fdalabel_db import FDALabelDBService
-        source = "FDALabel" if FDALabelDBService.check_connectivity() else "OpenFDA"
+        if FDALabelDBService.is_internal():
+            source = "FDALabel"
+        elif FDALabelDBService.is_local():
+            source = "LocalDB"
+        else:
+            source = "OpenFDA"
         
         return jsonify({'count': total, 'source': source})
     except Exception as e:
@@ -363,13 +446,29 @@ def toggle_favorite():
         if not meta:
             return jsonify({'error': 'Could not fetch label metadata'}), 404
 
+        # REFINEMENT: If brand or manufacturer is 'n/a' or 'N/A', try extracting from XML
+        brand = meta.get('brand_name', 'n/a')
+        manufacturer = meta.get('manufacturer_name', 'n/a')
+        
+        if brand.lower() in ['n/a', 'unknown drug'] or manufacturer.lower() in ['n/a', 'unknown manufacturer']:
+            from dashboard.services.fda_client import get_label_xml
+            from dashboard.services.xml_handler import extract_metadata_from_xml
+            xml_raw = get_label_xml(set_id)
+            if xml_raw:
+                xml_meta = extract_metadata_from_xml(xml_raw)
+                if xml_meta:
+                    if brand.lower() in ['n/a', 'unknown drug'] and xml_meta.get('brand_name') and xml_meta.get('brand_name') != 'Unknown Drug':
+                        brand = xml_meta['brand_name']
+                    if manufacturer.lower() in ['n/a', 'unknown manufacturer'] and xml_meta.get('manufacturer_name') and xml_meta.get('manufacturer_name') != 'Unknown Manufacturer':
+                        manufacturer = xml_meta['manufacturer_name']
+
         new_favorite = Favorite(
             user_id=current_user.id, 
             project_id=project_id,
             set_id=set_id, 
-            brand_name=meta.get('brand_name', 'n/a'),
+            brand_name=brand,
             generic_name=meta.get('generic_name', 'n/a'),
-            manufacturer_name=meta.get('manufacturer_name', 'n/a'),
+            manufacturer_name=manufacturer,
             market_category=meta.get('market_category', 'n/a'),
             application_number=meta.get('application_number', 'n/a'),
             ndc=meta.get('ndc', 'n/a'),
@@ -621,8 +720,8 @@ def api_projects():
             return jsonify({'error': 'Title is required'}), 400
         
         count = Project.query.filter_by(owner_id=current_user.id).count()
-        if count >= 5:
-            return jsonify({'error': 'Project limit reached (Max 5).'}), 403
+        if count >= 100:
+            return jsonify({'error': 'Project limit reached (Max 100).'}), 403
             
         max_order = db.session.query(db.func.max(Project.display_order)).filter_by(owner_id=current_user.id).scalar() or 0
         
@@ -825,8 +924,8 @@ def favorite_all():
 
     target_project = None
     if new_project_name:
-        if Project.query.filter_by(owner_id=current_user.id).count() >= 5:
-             return jsonify({'error': 'Project limit reached (Max 5). Cannot create new project.'}), 403
+        if Project.query.filter_by(owner_id=current_user.id).count() >= 100:
+             return jsonify({'error': 'Project limit reached (Max 100). Cannot create new project.'}), 403
         
         target_project = Project(title=new_project_name, owner_id=current_user.id)
         db.session.add(target_project)
@@ -865,13 +964,29 @@ def favorite_all():
         # Check if already exists IN THIS PROJECT (regardless of user)
         existing = Favorite.query.filter_by(set_id=set_id, project_id=target_project.id).first()
         if not existing:
+            brand = label.get('brand_name', 'n/a')
+            manufacturer = label.get('manufacturer_name', 'n/a')
+
+            # XML Fallback for favorite_all
+            if brand.lower() in ['n/a', 'unknown drug'] or manufacturer.lower() in ['n/a', 'unknown manufacturer']:
+                from dashboard.services.fda_client import get_label_xml
+                from dashboard.services.xml_handler import extract_metadata_from_xml
+                xml_raw = get_label_xml(set_id)
+                if xml_raw:
+                    xml_meta = extract_metadata_from_xml(xml_raw)
+                    if xml_meta:
+                        if brand.lower() in ['n/a', 'unknown drug'] and xml_meta.get('brand_name') and xml_meta.get('brand_name') != 'Unknown Drug':
+                            brand = xml_meta['brand_name']
+                        if manufacturer.lower() in ['n/a', 'unknown manufacturer'] and xml_meta.get('manufacturer_name') and xml_meta.get('manufacturer_name') != 'Unknown Manufacturer':
+                            manufacturer = xml_meta['manufacturer_name']
+
             new_fav = Favorite(
                 user_id=current_user.id,
                 project_id=target_project.id,
                 set_id=set_id,
-                brand_name=label.get('brand_name', 'n/a'),
+                brand_name=brand,
                 generic_name=label.get('generic_name', 'n/a'),
-                manufacturer_name=label.get('manufacturer_name', 'n/a'),
+                manufacturer_name=manufacturer,
                 market_category=label.get('market_category', 'n/a'),
                 application_number=label.get('application_number', 'n/a'),
                 ndc=label.get('ndc', 'n/a'),
@@ -1669,6 +1784,7 @@ def generic_assessment_route(set_id, assessment_model, pt_terms, prompt, keyword
     
     # FAERS data check
     faers_data = []
+    faers_error = None
     meta = get_label_metadata(set_id)
     if meta and meta.get('brand_name') and meta.get('brand_name') != 'N/A':
         brand_name = meta['brand_name'].split(',')[0].strip()
@@ -1684,17 +1800,25 @@ def generic_assessment_route(set_id, assessment_model, pt_terms, prompt, keyword
             params['api_key'] = Config.OPENFDA_API_KEY
             
         try:
-            resp = requests.get(base_url, params=params)
+            resp = requests.get(base_url, params=params, timeout=10)
             if resp.status_code == 200:
                 raw_results = resp.json().get('results', [])
                 faers_data = [item for item in raw_results if item['term'].upper() in pt_terms]
+            elif resp.status_code == 404:
+                # openFDA returns 404 for "No results found"
+                faers_data = []
             else:
                 logger.warning(f"FAERS query failed: {resp.status_code}")
+                faers_error = f"API returned status {resp.status_code}"
         except Exception as e:
+
             logger.error(f"FAERS error: {e}")
+            from dashboard.services.fda_client import handle_openfda_error
+            faers_error = handle_openfda_error(e)
 
     return jsonify({
         'faers_data': faers_data, 
+        'faers_error': faers_error,
         'existing_assessment': existing_report,
         'assessment_timestamp': timestamp
     })
@@ -1750,12 +1874,12 @@ def run_assessment_logic(set_id, assessment_model, prompt):
                 clean_report = "\n".join(html_matches)
             else:
                 # Check for "no evidence" comments specifically for each type
-                if '<!-- No DILI evidence found' in response_text:
-                    clean_report = '<!-- No DILI evidence found in label -->'
-                elif '<!-- No DICT evidence found' in response_text:
-                    clean_report = '<!-- No DICT evidence found in label -->'
-                elif '<!-- No DIRI evidence found' in response_text:
-                    clean_report = '<!-- No DIRI evidence found in label -->'
+                if '<!-- No DILI evidence found' in response_text or 'No DILI Concern' in response_text:
+                    clean_report = '<div class="label-section"><!-- No DILI evidence found in label --><p><strong>Conclusion:</strong> No DILI Concern</p></div>'
+                elif '<!-- No DICT evidence found' in response_text or 'No DICT Concern' in response_text:
+                    clean_report = '<div class="label-section"><!-- No DICT evidence found in label --><p><strong>Conclusion:</strong> No DICT Concern</p></div>'
+                elif '<!-- No DIRI evidence found' in response_text or 'No DIRI Concern' in response_text:
+                    clean_report = '<div class="label-section"><!-- No DIRI evidence found in label --><p><strong>Conclusion:</strong> No DIRI Concern</p></div>'
                 else:
                     # Fallback for unexpected responses
                     clean_report = '<!-- AI response did not contain valid HTML report. -->'
