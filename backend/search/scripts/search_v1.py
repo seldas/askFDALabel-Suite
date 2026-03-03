@@ -6,7 +6,7 @@ import json
 import logging
 import sqlite3
 from collections import defaultdict
-from html import unescapeae of Sdamlo
+from html import unescape
 from typing import Any, Dict, List, Optional, Tuple, Generator
 
 from dotenv import load_dotenv
