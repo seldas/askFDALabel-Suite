@@ -55,6 +55,7 @@ interface ResultItem {
   section_content: string;
   RLD?: string;   // 'Yes' means RLD (may be missing)
   is_combination?: boolean;
+  is_metadata_only?: boolean;
 }
 
 const SQLHighlighter = ({ sql }: { sql: string }) => {

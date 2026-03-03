@@ -948,12 +948,13 @@ function LabelCompContent() {
             </div>
             <h3 style={{ color: '#0f172a', marginBottom: '1rem', fontSize: '1.5rem', fontWeight: 800 }}>Comparative workspace empty</h3>
             <p style={{ lineHeight: 1.7, fontSize: '1.05rem', fontWeight: 500 }}>Initiate a side-by-side analysis by selecting drug labels from your projects or entering specific identifiers.</p>
-            <button 
+            <button
               onClick={() => setShowAddModal(true)}
               style={{ ...primaryButtonStyle, margin: '2rem auto 0' }}
             >
-              Add Your First Label
+              Select Labeling from your projects
             </button>
+
           </div>
         )}
       </main>
@@ -963,44 +964,21 @@ function LabelCompContent() {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
           <div style={{ backgroundColor: 'white', borderRadius: '12px', width: '95%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(1rem, 5vw, 2rem)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative' }}>
             
-            {/* Bulk Add Button (Top Right) */}
-            {selectedLabelsForAdd.length > 0 && (
-                <button 
-                    onClick={handleBulkAdd}
-                    style={{ 
-                        position: 'absolute', 
-                        top: '1rem', 
-                        right: '3.5rem', 
-                        backgroundColor: '#10b981', 
-                        color: 'white', 
-                        border: 'none', 
-                        padding: '8px 16px', 
-                        borderRadius: '6px', 
-                        fontWeight: 700, 
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)',
-                        zIndex: 10
-                    }}
-                >
-                    Add {selectedLabelsForAdd.length}
-                </button>
-            )}
-
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h3 style={{ margin: 0, color: '#002e5d' }}>Add Labels</h3>
               <button onClick={() => { setShowAddModal(false); setSelectedProject(null); }} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
             </div>
 
-            {/* Selected Badges Row */}
-            {selectedLabelsForAdd.length > 0 && (
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', flexWrap: 'wrap', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', alignSelf: 'center', marginRight: '4px' }}>SELECTED:</span>
-                    {selectedLabelsForAdd.map((l, i) => (
+            {/* Selected Badges Row (Always Visible) */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', flexWrap: 'wrap', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', minHeight: '50px' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', alignSelf: 'center', marginRight: '4px' }}>SELECTED:</span>
+                {selectedLabelsForAdd.length > 0 ? (
+                    selectedLabelsForAdd.map((l, i) => (
                         <div key={l.set_id} className="badge-container">
                             <div 
                                 style={{ 
-                                    width: '24px', 
-                                    height: '24px', 
+                                    width: '26px', 
+                                    height: '26px', 
                                     borderRadius: '50%', 
                                     backgroundColor: '#002e5d', 
                                     color: 'white', 
@@ -1020,36 +998,64 @@ function LabelCompContent() {
                                 <div style={{ fontSize: '0.7rem', opacity: 0.8, marginTop: '4px' }}>{l.manufacturer_name}</div>
                             </div>
                         </div>
-                    ))}
-                </div>
-            )}
+                    ))
+                ) : (
+                    <span style={{ fontSize: '0.8rem', color: '#94a3b8', alignSelf: 'center', fontStyle: 'italic' }}>
+                        No labels selected yet. Select from the list below.
+                    </span>
+                )}
+            </div>
 
-            {/* Global Filter Bar */}
-            <div style={{ marginBottom: '1.5rem', position: 'relative' }}>
-                <input 
-                    type="text" 
-                    placeholder="Search labels..."
-                    value={labelFilter}
-                    onChange={(e) => setLabelFilter(e.target.value)}
+            {/* Global Search & Add Bar */}
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '1.5rem' }}>
+                <div style={{ flex: 1, position: 'relative' }}>
+                    <input 
+                        type="text" 
+                        placeholder="Search labels..."
+                        value={labelFilter}
+                        onChange={(e) => setLabelFilter(e.target.value)}
+                        style={{ 
+                            width: '100%', 
+                            padding: '12px 12px 12px 40px', 
+                            borderRadius: '10px', 
+                            border: '1px solid #e2e8f0', 
+                            fontSize: '0.95rem',
+                            outline: 'none',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                            transition: 'all 0.2s ease'
+                        }}
+                        onFocus={e => e.currentTarget.style.borderColor = '#3b82f6'}
+                        onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
+                    />
+                    <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', display: 'flex' }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                      </svg>
+                    </span>
+                </div>
+                <button 
+                    onClick={handleBulkAdd}
+                    disabled={selectedLabelsForAdd.length === 0}
                     style={{ 
-                        width: '100%', 
-                        padding: '12px 12px 12px 40px', 
+                        backgroundColor: selectedLabelsForAdd.length > 0 ? '#10b981' : '#cbd5e1', 
+                        color: 'white', 
+                        border: 'none', 
+                        padding: '0 24px', 
                         borderRadius: '10px', 
-                        border: '1px solid #e2e8f0', 
-                        fontSize: '0.95rem',
-                        outline: 'none',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                        transition: 'all 0.2s ease'
+                        fontWeight: 700, 
+                        cursor: selectedLabelsForAdd.length > 0 ? 'pointer' : 'not-allowed',
+                        boxShadow: selectedLabelsForAdd.length > 0 ? '0 4px 12px rgba(16, 185, 129, 0.2)' : 'none',
+                        transition: 'all 0.2s ease',
+                        whiteSpace: 'nowrap',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
                     }}
-                    onFocus={e => e.currentTarget.style.borderColor = '#3b82f6'}
-                    onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
-                />
-                <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', display: 'flex' }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                  </svg>
-                </span>
+                >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    Add {selectedLabelsForAdd.length > 0 ? `(${selectedLabelsForAdd.length})` : ''}
+                </button>
             </div>
 
             <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', background: '#f8fafc', padding: '4px', borderRadius: '12px', border: '1px solid #eef2f7' }}>

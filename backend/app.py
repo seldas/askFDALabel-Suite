@@ -61,4 +61,6 @@ app = create_unified_app()
 if __name__ == "__main__":
     port = int(os.environ.get("BACKEND_PORT", 5000))
     host = os.environ.get("HOST", "0.0.0.0")
-    app.run(host=host, port=port, debug=False, use_reloader=False, threaded=True)
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    logger.info(f"Starting backend with debug={debug}")
+    app.run(host=host, port=port, debug=debug, use_reloader=debug, threaded=True)

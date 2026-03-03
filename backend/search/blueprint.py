@@ -270,22 +270,15 @@ def export_xml():
         set_ids = data.get("set_ids", [])
         if len(set_ids) > 5: set_ids = set_ids[:5]
         if not set_ids: return jsonify({"error": "No SET_IDs provided"}), 400
+        
+        from dashboard.services.fdalabel_db import FDALabelDBService
         xml_data = {}
-        con = None
-        try:
-            con = oracledb.connect(user=FDALabel_USER, password=FDALabel_PSW, dsn=dsnStr)
-            cursor = con.cursor()
-            query = "SELECT XMLSERIALIZE(DOCUMENT spl_xml AS CLOB) FROM spl WHERE set_id = :set_id"
-            for set_id in set_ids:
-                cursor.execute(query, {"set_id": set_id})
-                result = cursor.fetchone()
-                if result: xml_data[set_id] = lob_to_string(result[0])
-                else: xml_data[set_id] = "XML content not found in database."
-        except oracledb.DatabaseError as db_err:
-            logger.error(f"Database error during XML export: {db_err}")
-            return jsonify({"error": "Database operation failed"}), 500
-        finally:
-            if con: con.close()
+        for set_id in set_ids:
+            xml = FDALabelDBService.get_full_xml(set_id)
+            if xml:
+                xml_data[set_id] = xml
+            else:
+                xml_data[set_id] = "XML content not found in local database."
         return jsonify(xml_data)
     except Exception as e:
         logger.error(f"Error in export_xml: {e}")
@@ -297,51 +290,14 @@ def export_excel():
         data = request.json or {}
         set_ids = data.get("set_ids", [])
         if not set_ids: return jsonify({"error": "No SET_IDs provided"}), 400
-        con = None
-        try:
-            con = oracledb.connect(user=FDALabel_USER, password=FDALabel_PSW, dsn=dsnStr)
-            cursor = con.cursor()
-            bind_names = [f":id{i}" for i in range(len(set_ids))]
-            bind_map = {f"id{i}": sid for i, sid in enumerate(set_ids)}
-            sql = f"SELECT * FROM druglabel.dgv_sum_rx_spl WHERE set_id IN ({','.join(bind_names)})"
-            cursor.execute(sql, bind_map)
-            columns = [col[0].upper() for col in cursor.description]
-            rows = cursor.fetchall()
-            df_db = pd.DataFrame(rows, columns=columns)
-        except Exception as e:
-            logger.error(f"DB Error in export_excel: {e}")
-            return jsonify({"error": "Database query failed"}), 500
-        finally:
-            if con: con.close()
-        def get_col(df, candidates):
-            for c in candidates:
-                if c in df.columns: return df[c]
-            return ""
-        export_df = pd.DataFrame()
-        export_df["Marketing Category"] = get_col(df_db, ["MARKET_CATEGORIES", "MARKETING_CATEGORIES", "APPLICATION_TYPE"])
-        export_df["Application Number(s)"] = get_col(df_db, ["APPR_NUM", "APPROVAL_NUM"])
-        export_df["Trade Name"] = get_col(df_db, ["PRODUCT_NAMES", "PRODUCT_TITLE"])
-        export_df["Generic/Proper Name(s)"] = get_col(df_db, ["GENERIC_NAMES", "PRODUCT_NORMD_GENERIC_NAMES"])
-        eff_time = get_col(df_db, ["EFF_TIME", "EFFECTIVE_TIME"])
-        export_df["SPL Effective Date (YYYY/MM/DD)"] = pd.to_datetime(eff_time, errors="coerce").dt.strftime("%Y/%m/%d")
-        export_df["Initial U.S. Approval"] = get_col(df_db, ["INITIAL_APPROVAL_YEAR", "APPROVAL_YEAR"])
-        export_df["Dosage Form(s)"] = get_col(df_db, ["DOSAGE_FORMS"])
-        export_df["Route(s) of Administration"] = get_col(df_db, ["ROUTES", "ROUTES_OF_ADMINISTRATION"])
-        export_df["Established Pharmacologic Class(es)"] = get_col(df_db, ["EPC"])
-        export_df["Company"] = get_col(df_db, ["AUTHOR_ORG_NORMD_NAME", "COMPANY"])
-        export_df["NDC(s)"] = get_col(df_db, ["NDC_CODES", "NDC"])
-        export_df["Marketing Date(s) (YYYY/MM/DD)"] = get_col(df_db, ["MARKETING_START_DATE", "START_MARKETING_DATE"])
-        export_df["Active Ingredient UNII(s)"] = get_col(df_db, ["ACT_INGR_UNIIS", "UNII"])
-        export_df["Active Ingredient(s)"] = get_col(df_db, ["ACT_INGR_NAMES", "ACTIVE_INGREDIENTS"])
-        export_df["Labeling Type"] = get_col(df_db, ["DOCUMENT_TYPE", "DOC_TYPE", "LABEL_TYPE"])
-        base_fda = "https://fdalabel.fda.gov/fdalabel-r/services/spl/set-ids/{}/spl-doc"
-        base_dm_spl = "https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={}"
-        base_dm_pdf = "https://dailymed.nlm.nih.gov/dailymed/downloadpdffile.cfm?setId={}"
-        set_ids_col = get_col(df_db, ["SET_ID"])
-        export_df["FDALabel Link"] = set_ids_col.apply(lambda x: base_fda.format(x) if x else "")
-        export_df["DailyMed SPL Link"] = set_ids_col.apply(lambda x: base_dm_spl.format(x) if x else "")
-        export_df["DailyMed PDF Link"] = set_ids_col.apply(lambda x: base_dm_pdf.format(x) if x else "")
-        export_df["SET ID"] = set_ids_col
+        
+        from dashboard.services.fdalabel_db import FDALabelDBService
+        export_data = FDALabelDBService.get_labels_by_set_ids_for_export(set_ids)
+        if not export_data:
+            return jsonify({"error": "No data found for the provided SET IDs"}), 404
+            
+        df_export = pd.DataFrame(export_data)
+        
         template_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
             "idea",
@@ -351,7 +307,12 @@ def export_excel():
             wb = load_workbook(template_path)
             ws = wb.active
             if ws.max_row > 1: ws.delete_rows(2, ws.max_row - 1)
-            for r in dataframe_to_rows(export_df, index=False, header=False): ws.append(r)
+            
+            # Map column names if they differ from template
+            # For now just append data rows
+            for r in dataframe_to_rows(df_export, index=False, header=False): 
+                ws.append(r)
+                
             out_buffer = io.BytesIO()
             wb.save(out_buffer)
             out_buffer.seek(0)

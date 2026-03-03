@@ -51,6 +51,7 @@ const pythonProcess = spawn(cmd, args, {
     ...process.env,
     PORT: String(port),
     HOST: String(host),
+    FLASK_DEBUG: isProd ? '0' : '1',
   },
 });
 
