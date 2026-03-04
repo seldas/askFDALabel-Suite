@@ -147,6 +147,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [selectedSectionsForExport, setSelectedSectionsForExport] = useState<Set<string>>(new Set());
   const [exportFormat, setExportFormat] = useState<'html' | 'xml' | 'text'>('html');
+  const [techDetailsOpen, setTechDetailsOpen] = useState(false);
 
   const toggleSectionSelection = (id: string, includeChildren: boolean = true) => {
     setSelectedSectionsForExport((prev) => {
@@ -1266,28 +1267,96 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                     </div>
                 </div>
 
-                {/* Technical Product Data Strategy: Separated from book, show here in metadata */}
+                {/* Technical Product Data Strategy: Clean, official table layout */}
                 {data.product_data && data.product_data.length > 0 && (
-                   <div style={{ marginTop: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '15px' }}>
+                   <div style={{ marginTop: '24px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
                       <button 
-                        onClick={() => {
-                          const el = document.getElementById('tech-details-dropdown');
-                          if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+                        onClick={() => setTechDetailsOpen(!techDetailsOpen)}
+                        style={{ 
+                            background: techDetailsOpen ? '#f1f5f9' : '#ffffff', 
+                            border: '1px solid #e2e8f0', 
+                            padding: '10px 20px', 
+                            borderRadius: '12px', 
+                            fontSize: '0.85rem', 
+                            fontWeight: 800, 
+                            color: '#334155', 
+                            cursor: 'pointer', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '10px',
+                            transition: 'all 0.2s ease',
+                            boxShadow: techDetailsOpen ? 'inset 0 2px 4px rgba(0,0,0,0.05)' : '0 2px 4px rgba(0,0,0,0.02)'
                         }}
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '8px 16px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 800, color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                        onMouseOver={e => e.currentTarget.style.borderColor = '#cbd5e1'}
+                        onMouseOut={e => e.currentTarget.style.borderColor = '#e2e8f0'}
                       >
-                         📦 Technical Product Details ({data.product_data.length}) <span style={{ opacity: 0.5 }}>▼</span>
+                         <span style={{ fontSize: '1.1rem' }}>📦</span> 
+                         TECHNICAL PRODUCT SPECIFICATIONS ({data.product_data.length}) 
+                         <span style={{ opacity: 0.5, transition: 'transform 0.3s ease', transform: techDetailsOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
                       </button>
-                      <div id="tech-details-dropdown" style={{ display: 'none', marginTop: '12px', background: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0' }}>
-                          {data.product_data.map((prod, pIdx) => (
-                             <div key={pIdx} style={{ marginBottom: pIdx < data.product_data.length - 1 ? '16px' : 0, paddingBottom: pIdx < data.product_data.length - 1 ? '16px' : 0, borderBottom: pIdx < data.product_data.length - 1 ? '1px dashed #cbd5e1' : 'none' }}>
-                                <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>{prod.name} - {prod.form}</div>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                                   <strong>NDC:</strong> {prod.ndc} | <strong>Ingredients:</strong> {prod.ingredients.map(i => `${i.name} (${i.strength})`).join(', ')}
-                                </div>
-                             </div>
-                          ))}
-                      </div>
+                      
+                      {techDetailsOpen && (
+                        <div style={{ 
+                            marginTop: '16px', 
+                            background: '#ffffff', 
+                            borderRadius: '16px', 
+                            border: '1px solid #e2e8f0',
+                            overflow: 'hidden',
+                            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)'
+                        }}>
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                    <thead>
+                                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #f1f5f9' }}>
+                                            <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>NDC Identifier</th>
+                                            <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Name & Dosage Form</th>
+                                            <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Composition Analysis</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {data.product_data.map((prod, pIdx) => (
+                                            <tr key={pIdx} style={{ borderBottom: pIdx < data.product_data.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                                                <td style={{ padding: '16px 20px', verticalAlign: 'top' }}>
+                                                    <span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 700, color: '#0f172a', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem' }}>
+                                                        {prod.ndc}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '16px 20px', verticalAlign: 'top' }}>
+                                                    <div style={{ fontWeight: 700, color: '#334155', fontSize: '0.9rem' }}>{prod.name}</div>
+                                                    <div style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '4px', fontWeight: 500 }}>{prod.form}</div>
+                                                </td>
+                                                <td style={{ padding: '16px 20px', verticalAlign: 'top' }}>
+                                                    <div style={{ background: '#f9fafb', borderRadius: '10px', padding: '12px', border: '1px solid #f1f5f9' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                            {prod.ingredients.map((ingr, iIdx) => (
+                                                                <div key={iIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px' }}>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                        <span style={{ 
+                                                                            fontSize: '0.6rem', 
+                                                                            fontWeight: 900, 
+                                                                            background: ingr.type === 'active' ? '#fee2e2' : '#f1f5f9',
+                                                                            color: ingr.type === 'active' ? '#991b1b' : '#64748b',
+                                                                            padding: '2px 6px',
+                                                                            borderRadius: '4px',
+                                                                            textTransform: 'uppercase'
+                                                                        }}>
+                                                                            {ingr.type === 'active' ? 'ACT' : 'INC'}
+                                                                        </span>
+                                                                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1e293b' }}>{ingr.name}</span>
+                                                                    </div>
+                                                                    <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700, fontFamily: 'ui-monospace, monospace' }}>{ingr.strength}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                      )}
                    </div>
                 )}
             </div>
