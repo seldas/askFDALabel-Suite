@@ -940,22 +940,6 @@ export default function DrugToxPage() {
                           position: 'relative'
                         }}
                       >
-                        {item.rld_info?.setid && (
-                          <Chip 
-                            label="RLD FOUND" 
-                            size="small" 
-                            color="error"
-                            sx={{ 
-                              position: 'absolute', 
-                              top: 10, 
-                              right: 10, 
-                              height: 18, 
-                              fontSize: '0.6rem', 
-                              fontWeight: 900,
-                              zIndex: 1
-                            }} 
-                          />
-                        )}
                         <Box
                           sx={{
                             p: 2,
