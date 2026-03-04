@@ -1,6 +1,6 @@
 # Bug Logs and Reports
 
-## 1. PROD Backend Port Issue
+## 1. PROD Backend Port Issue (Completed)
 **Problem:** In Production, the frontend always looks for port 8842 as the backend, even if `BACKEND_PORT` is set to something else (like 8849) in `.env`.
 **Solution/Steps:**
 1.  **Environment Sync during Build:** Next.js rewrites in `next.config.ts` are often evaluated during `next build`. Ensure the `.env` file is present in the project root *before* running the build command.
@@ -9,7 +9,7 @@
 3.  **Manual Override:** If the build environment doesn't support `.env` files, provide `BACKEND_PORT` as an environment variable directly to the build command:
     `BACKEND_PORT=8849 npm run build` (or similar).
 
-## 2. search_v2 Oracle Version Fallback
+## 2. search_v2 Oracle Version Fallback (Completed)
 **Problem:** `config.py` in `search_v2` defaults to Oracle table names/prefixes, causing errors (like `DRUGLABEL.SPL_SEC not found`) during local DB searches.
 **Solution/Steps:**
 1.  **Check LABEL_DB Setting:** Ensure `.env` has `LABEL_DB=LOCAL`.
@@ -17,7 +17,7 @@
 3.  **Path Resolution:** Check `backend/search/scripts/search_v2_core/config.py`'s `PROJECT_ROOT` calculation. If running in a nested environment, the number of `..` might need adjustment.
 4.  **Restart Backend:** Since `DB_TYPE` and table constants are determined at import time, any changes to `.env` or the presence of `label.db` require a backend restart.
 
-## 3. Missing `favorite.active_ingredients` Column
+## 3. Missing `favorite.active_ingredients` Column (Completed)
 **Problem:** `sqlite3.OperationalError: no such column: favorite.active_ingredients` when accessing the Dashboard/Favorites.
 **Solution/Steps:**
 1.  **Run Fix Script:** Execute the provided database patch script from the project root:
@@ -38,3 +38,13 @@
 **Implementation Plan:**
 1.  Update `frontend/app/labelcomp/components/DiscrepancyPanel.tsx` (or similar) to include the new UI elements.
 2.  Ensure the comparison logic in `backend/labelcomp/compare.py` calculates and returns the "severity gap" and "RLD availability" status.
+
+
+## 5. AFL agent (search_V2) responding time:
+--- Running Evidence Fetcher --- in sqlite (not sure in oracle) it stucks at this step when doing search, I think the potential issue is it tries to read xml (local files) for over 28 items which is very slow; particularly if multiple sections are needed from one labeling and were processed separately.
+
+[1] INFO:search_v2:DB returned 28 rows.
+[1] INFO:search_v2:--- Running Postprocess ---
+[1] INFO:search_v2:--- Running Evidence Fetcher ---
+
+we need to refine this strategy that for most queries that requires to read the whole xml, limited to the top 3 results instead of all. Also, optimize the workflow to make sure one labeling xml/zip will only be called ONCE for all needed sections.
