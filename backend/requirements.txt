@@ -28,3 +28,5 @@ flashtext
 waitress
 
 beautifulsoup4
+sentence-transformers
+torch

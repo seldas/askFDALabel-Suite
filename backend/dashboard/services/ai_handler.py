@@ -6,12 +6,16 @@ from urllib.parse import quote_plus
 import json
 import logging
 import os
+import time
 import urllib3
 from dashboard.prompts import SEARCH_HELPER_PROMPT
 from dashboard.services.fdalabel_db import FDALabelDBService
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger(__name__)
+
+# Global cache for local embedding model
+_local_embedding_model = None
 
 class AIClientFactory:
     _clients = {} # Cache for clients: (provider, api_key) -> client
@@ -22,28 +26,32 @@ class AIClientFactory:
         Returns the appropriate client and model based on user preferences.
         Caches clients to avoid 'client closed' errors during streaming.
         """
-        default_gemini_key = os.getenv("GOOGLE_API_KEY") 
-        
+        default_gemini_key = os.getenv("GOOGLE_API_KEY")
+
         # User specific or external defaults
         provider = "gemini" # Default
         if user and user.is_authenticated:
             provider = user.ai_provider or "gemini"
-        
+
         # Determine if we are in an "Internal" environment (FDA/Oracle)
         # or a "Local" environment (SQLite)
-        is_internal_env = FDALabelDBService.is_internal()
-        
+        try:
+            is_internal_env = FDALabelDBService.is_internal()
+        except RuntimeError:
+            # Fallback if outside of app context
+            is_internal_env = os.getenv('LABEL_DB') == 'ORACLE'
+
         # Determine if we SHOULD use llama (internal LLM)
         # 1. If explicitly requested by user
         # 2. If in an internal environment and no user/provider specified, we might want llama
         use_llama = (provider == "llama")
-        
+
         # Special logic for internal environment defaults:
         # If internal and no provider specified, we default to llama if configured
         if is_internal_env and (not user or not user.is_authenticated) and os.getenv("LLM_URL"):
             provider = "llama"
             use_llama = True
-        
+
         # If llama requested/defaulted, but not configured, fallback to gemini
         if use_llama and not os.getenv("LLM_URL"):
             if provider == "llama": # Only log if it was an explicit choice
@@ -55,7 +63,7 @@ class AIClientFactory:
              api_key = os.getenv("LLM_KEY", "")
              base_url = os.getenv("LLM_URL", "")
              model = os.getenv("LLM_MODEL", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8")
-             
+
              cache_key = (provider, api_key, base_url)
              if cache_key not in AIClientFactory._clients:
                  AIClientFactory._clients[cache_key] = OpenAI(api_key=api_key, base_url=base_url, timeout=30.0)
@@ -70,12 +78,107 @@ class AIClientFactory:
                 'model_engine_id': os.getenv("ELSA_MODEL_ID"),
             }
             return "elsa", elsa_config, os.getenv("ELSA_MODEL_ID")
-        
+
         # Default: Gemini
         if (provider, default_gemini_key) not in AIClientFactory._clients:
             AIClientFactory._clients[(provider, default_gemini_key)] = genai.Client(api_key=default_gemini_key)
         return "gemini", AIClientFactory._clients[(provider, default_gemini_key)], os.getenv("PRIMARY_MODEL_ID", "gemini-2.5-flash")
-        
+
+    @staticmethod
+    def get_embedding_client(user=None):
+        """Returns client and model for embeddings."""
+        # Check if local embedding is forced via env
+        if os.getenv("EMBEDDING_PROVIDER") == "local":
+            return "local", None, os.getenv("LOCAL_EMBEDDING_MODEL_ID", "all-mpnet-base-v2")
+
+        provider, client, _ = AIClientFactory.get_client(user)
+
+        if provider == "gemini":
+            return "gemini", client, "gemini-embedding-001"
+        elif provider == "llama":
+            # If the llama provider is used, check if we should use a local model for embeddings
+            # instead of assuming the llama endpoint supports them
+            if os.getenv("LOCAL_EMBEDDING_MODEL_ID"):
+                return "local", None, os.getenv("LOCAL_EMBEDDING_MODEL_ID")
+            return "llama", client, "text-embedding-3-small" # Fallback or specific
+
+        return provider, client, None
+
+def _get_local_model(model_name):
+    """Lazy loads the local SentenceTransformer model."""
+    global _local_embedding_model
+    if _local_embedding_model is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            logger.info(f"Loading local embedding model: {model_name}")
+            _local_embedding_model = SentenceTransformer(model_name)
+        except ImportError:
+            logger.error("sentence-transformers not installed. Run 'pip install sentence-transformers torch'")
+            raise
+    return _local_embedding_model
+
+def call_embedding(text_or_list, user=None):
+    """Generates embedding for the given text or list of texts with retry logic."""
+    provider, client, model = AIClientFactory.get_embedding_client(user)
+    
+    max_retries = 3
+    retry_delay = 5 # seconds
+
+    for attempt in range(max_retries):
+        try:
+            if provider == "local":
+                local_model = _get_local_model(model)
+                embeddings = local_model.encode(text_or_list)
+                # Ensure it's a list of lists if input was a list
+                if isinstance(text_or_list, list):
+                    return [e.tolist() for e in embeddings]
+                return embeddings.tolist()
+
+            if provider == "gemini":
+                # Gemini 2.0 SDK style supports batching in one call
+                is_list = isinstance(text_or_list, list)
+                contents = text_or_list if is_list else [text_or_list]
+                
+                result = client.models.embed_content(
+                    model=model,
+                    contents=contents,
+                    config=types.EmbedContentConfig(output_dimensionality=768)
+                )
+                
+                embeddings = [e.values for e in result.embeddings]
+                return embeddings if is_list else embeddings[0]
+
+            elif provider == "llama" or provider == "openai":
+                is_list = isinstance(text_or_list, list)
+                response = client.embeddings.create(
+                    input=text_or_list,
+                    model=model,
+                    dimensions=768
+                )
+                embeddings = [data.embedding for data in response.data]
+                return embeddings if is_list else embeddings[0]
+
+            elif provider == "elsa":
+                logger.warning("Elsa embedding not yet implemented.")
+                return None
+            
+            break # Success
+
+        except Exception as e:
+            if provider == "local":
+                logger.error(f"Local embedding error: {e}")
+                return None
+            
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                if attempt < max_retries - 1:
+                    logger.warning(f"Embedding quota hit. Retrying in {retry_delay}s... (Attempt {attempt+1}/{max_retries})")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2 # Exponential backoff
+                    continue
+            logger.error(f"Embedding error ({provider}): {e}")
+            return None
+    return None
+
 def call_llm(user, system_prompt, user_message, history=None, model_override=None, **kwargs):
     provider, client, model = AIClientFactory.get_client(user)
     if model_override:

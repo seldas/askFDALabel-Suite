@@ -64,6 +64,34 @@
 - **Encoding:** Explicitly set `client_encoding` to `UTF8` to prevent potential character set issues during transfer.
 **Results:** Successfully migrated over 400,000 rows across all schemas. Verified data integrity and updated `.env` to `LABEL_DB=POSTGRES`. SQLite files (`afd.db`, `label.db`) renamed to `.bak` and confirmed safe for removal.
 
+## ✅ 11. Localized Embedding Support (sentence-transformers)
+**Problem:** Dependency on external Gemini API for embeddings can lead to latency, quota issues, and data privacy concerns.
+**Status:** Completed.
+**Implementation:**
+- **Provider Logic:** Updated `backend/dashboard/services/ai_handler.py` to support a `local` embedding provider using `sentence-transformers`.
+- **Model Selection:** Integrated `all-mpnet-base-v2` as the default local model. This model produces **768-dimension** vectors, which matches the existing `gemini-embedding-001` configuration in the `label_embeddings` table.
+- **Lazy Loading:** The model is only loaded into memory (RAM/VRAM) when an embedding call is actually made, preventing overhead during standard LLM chat tasks.
+- **Batching:** Maintained support for batch embedding (list of strings) to ensure high performance during database population.
+
+### 🛠️ Steps to Enable Local Embeddings:
+1.  **Install Dependencies:**
+    Install the required machine learning libraries:
+    ```powershell
+    pip install sentence-transformers torch
+    ```
+2.  **Configure `.env`:**
+    Add or update these variables in your root `.env` file to redirect embedding calls to the local model:
+    ```env
+    EMBEDDING_PROVIDER=local
+    LOCAL_EMBEDDING_MODEL_ID=all-mpnet-base-v2
+    ```
+3.  **Verify Setup:**
+    Run the dedicated test script to ensure the model downloads and generates valid vectors:
+    ```powershell
+    python scripts/test_local_embedding.py
+    ```
+    *Note: The first run will download the model files (~420MB) to your local cache.*
+
 ### 🛠️ Steps to Update Your Local System:
 1.  **Ensure Data Presence:**
     Place the latest FDA Orange Book `products.txt` file at:
