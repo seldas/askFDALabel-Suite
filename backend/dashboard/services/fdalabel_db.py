@@ -408,17 +408,17 @@ class FDALabelDBService:
         return None
 
     @classmethod
-    def local_search(cls, query_term, skip=0, limit=50):
+    def local_search(cls, query_term, skip=0, limit=50, human_rx_only=False, rld_only=False):
         """
         Performs a multi-field search specifically for the local 'localquery' app.
         Supports Brand Name, Generic Name, Set ID, and Application Number.
         """
         if not cls.check_connectivity():
-            return [], 0
+            return []
 
         conn = cls.get_connection()
         if not conn:
-            return [], 0
+            return []
 
         try:
             cursor = conn.cursor()
@@ -426,38 +426,53 @@ class FDALabelDBService:
             
             if cls._db_type == 'oracle':
                 # Simplified Oracle search for localquery
-                sql = """
+                where_clauses = [
+                    "(UPPER(PRODUCT_NAMES) LIKE UPPER(:q) OR UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q) OR UPPER(SET_ID) = UPPER(:sid) OR UPPER(APPR_NUM) LIKE UPPER(:q))"
+                ]
+                params = {"q": q, "sid": query_term}
+
+                if human_rx_only:
+                    where_clauses.append("DOCUMENT_TYPE_LOINC_CODE IN ('34391-3', '48401-4', '48402-2')")
+                
+                if rld_only:
+                    where_clauses.append("EXISTS (SELECT 1 FROM druglabel.sum_spl_rld rld WHERE rld.SPL_ID = druglabel.DGV_SUM_SPL.SPL_ID)")
+
+                sql = f"""
                     SELECT 
                         SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES,
                         AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME,
                         MARKET_CATEGORIES, DOCUMENT_TYPE
                     FROM druglabel.DGV_SUM_SPL
-                    WHERE 
-                        UPPER(PRODUCT_NAMES) LIKE UPPER(:q) OR
-                        UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q) OR
-                        UPPER(SET_ID) = UPPER(:sid) OR
-                        UPPER(APPR_NUM) LIKE UPPER(:q)
+                    WHERE {" AND ".join(where_clauses)}
                     ORDER BY EFF_TIME DESC
                 """
-                # For Oracle, we might need a separate param for exact set_id if we want that
-                cursor.execute(sql, {"q": q, "sid": query_term})
+                cursor.execute(sql, params)
             else:
                 # SQLite Search
-                sql = """
+                where_clauses = [
+                    "(product_names LIKE :q OR generic_names LIKE :q OR set_id = :sid OR appr_num LIKE :q)"
+                ]
+                params = {"q": q, "sid": query_term, "limit": limit, "offset": skip}
+
+                if human_rx_only:
+                    # LOINCs for Human Rx: 34391-3, 48401-4, 48402-2
+                    # In local DB we might have the string if LOINC is missing
+                    where_clauses.append("(doc_type LIKE '%HUMAN PRESCRIPTION%' OR doc_type IN ('34391-3', '48401-4', '48402-2'))")
+                
+                if rld_only:
+                    where_clauses.append("(is_rld = 1 OR is_rs = 1)")
+
+                sql = f"""
                     SELECT 
                         set_id, product_names, generic_names, manufacturer, 
                         appr_num, ndc_codes, revised_date, market_categories,
                         doc_type, local_path
                     FROM sum_spl
-                    WHERE 
-                        product_names LIKE ? OR
-                        generic_names LIKE ? OR
-                        set_id = ? OR
-                        appr_num LIKE ?
+                    WHERE {" AND ".join(where_clauses)}
                     ORDER BY revised_date DESC
-                    LIMIT ? OFFSET ?
+                    LIMIT :limit OFFSET :offset
                 """
-                cursor.execute(sql, (q, q, query_term, q, limit, skip))
+                cursor.execute(sql, params)
 
             rows = cursor.fetchall()
             results = []
@@ -703,7 +718,7 @@ class FDALabelDBService:
             conn.close()
 
     @classmethod
-    def get_autocomplete_suggestions(cls, query, limit=10):
+    def get_autocomplete_suggestions(cls, query, limit=10, human_rx_only=False, rld_only=False):
         """
         Fetches autocomplete suggestions for brand and generic names.
         """
@@ -719,23 +734,43 @@ class FDALabelDBService:
             q = f"%{query}%"
             
             if cls._db_type == 'oracle':
-                sql = """
+                where_clauses = [
+                    "(UPPER(PRODUCT_NAMES) LIKE UPPER(:q) OR UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q))"
+                ]
+                params = {"q": q}
+
+                if human_rx_only:
+                    where_clauses.append("DOCUMENT_TYPE_LOINC_CODE IN ('34391-3', '48401-4', '48402-2')")
+                
+                if rld_only:
+                    where_clauses.append("EXISTS (SELECT 1 FROM druglabel.sum_spl_rld rld WHERE rld.SPL_ID = druglabel.DGV_SUM_SPL.SPL_ID)")
+
+                sql = f"""
                     SELECT DISTINCT PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES 
                     FROM druglabel.DGV_SUM_SPL 
-                    WHERE UPPER(PRODUCT_NAMES) LIKE UPPER(:q) 
-                       OR UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q)
+                    WHERE {" AND ".join(where_clauses)}
                     FETCH NEXT 50 ROWS ONLY
                 """
-                cursor.execute(sql, {"q": q})
+                cursor.execute(sql, params)
             else:
-                sql = """
+                where_clauses = [
+                    "(product_names LIKE :q OR generic_names LIKE :q)"
+                ]
+                params = {"q": q}
+
+                if human_rx_only:
+                    where_clauses.append("(doc_type LIKE '%HUMAN PRESCRIPTION%' OR doc_type IN ('34391-3', '48401-4', '48402-2'))")
+                
+                if rld_only:
+                    where_clauses.append("(is_rld = 1 OR is_rs = 1)")
+
+                sql = f"""
                     SELECT DISTINCT product_names, generic_names 
                     FROM sum_spl 
-                    WHERE product_names LIKE ? 
-                       OR generic_names LIKE ? 
+                    WHERE {" AND ".join(where_clauses)}
                     LIMIT 50
                 """
-                cursor.execute(sql, (q, q))
+                cursor.execute(sql, params)
 
             rows = cursor.fetchall()
             suggestions = set()
@@ -762,7 +797,7 @@ class FDALabelDBService:
             conn.close()
 
     @classmethod
-    def get_random_labels(cls, limit=5):
+    def get_random_labels(cls, limit=5, human_rx_only=False, rld_only=False):
         """
         Fetches a few random labels for quick access.
         """
@@ -777,29 +812,53 @@ class FDALabelDBService:
             cursor = conn.cursor()
             if cls._db_type == 'oracle':
                 # Oracle random sampling
-                sql = """
+                where_clauses = []
+                params = {"limit": limit}
+
+                if human_rx_only:
+                    where_clauses.append("DOCUMENT_TYPE_LOINC_CODE IN ('34391-3', '48401-4', '48402-2')")
+                
+                if rld_only:
+                    where_clauses.append("EXISTS (SELECT 1 FROM druglabel.sum_spl_rld rld WHERE rld.SPL_ID = druglabel.DGV_SUM_SPL.SPL_ID)")
+
+                where_stmt = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+                sql = f"""
                     SELECT * FROM (
                         SELECT 
                             SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES,
                             AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME,
                             MARKET_CATEGORIES, DOCUMENT_TYPE
                         FROM druglabel.DGV_SUM_SPL
+                        {where_stmt}
                         ORDER BY DBMS_RANDOM.VALUE
                     ) WHERE ROWNUM <= :limit
                 """
-                cursor.execute(sql, {"limit": limit})
+                cursor.execute(sql, params)
             else:
                 # SQLite random
-                sql = """
+                where_clauses = []
+                params = {"limit": limit}
+
+                if human_rx_only:
+                    where_clauses.append("(doc_type LIKE '%HUMAN PRESCRIPTION%' OR doc_type IN ('34391-3', '48401-4', '48402-2'))")
+                
+                if rld_only:
+                    where_clauses.append("(is_rld = 1 OR is_rs = 1)")
+
+                where_stmt = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+                sql = f"""
                     SELECT 
                         set_id, product_names, generic_names, manufacturer, 
                         appr_num, ndc_codes, revised_date, market_categories,
                         doc_type, local_path
                     FROM sum_spl
+                    {where_stmt}
                     ORDER BY RANDOM()
-                    LIMIT ?
+                    LIMIT :limit
                 """
-                cursor.execute(sql, (limit,))
+                cursor.execute(sql, params)
 
             rows = cursor.fetchall()
             results = []

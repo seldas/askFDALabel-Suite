@@ -25,6 +25,8 @@ const LocalQueryPage = () => {
     const [results, setResults] = useState<LocalQueryResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
+    const [humanRxOnly, setHumanRxOnly] = useState(false);
+    const [rldOnly, setRldOnly] = useState(false);
 
     // Debounced Autocomplete
     useEffect(() => {
@@ -36,7 +38,7 @@ const LocalQueryPage = () => {
             }
 
             try {
-                const res = await fetch(`/api/localquery/autocomplete?query=${encodeURIComponent(query)}`);
+                const res = await fetch(`/api/localquery/autocomplete?query=${encodeURIComponent(query)}&human_rx_only=${humanRxOnly}&rld_only=${rldOnly}`);
                 const data = await res.json();
                 if (data.suggestions) {
                     setSuggestions(data.suggestions);
@@ -62,7 +64,7 @@ const LocalQueryPage = () => {
         setIsLoading(true);
         setHasSearched(true);
         try {
-            const response = await fetch(`/api/localquery/search?query=${encodeURIComponent(finalQuery)}`);
+            const response = await fetch(`/api/localquery/search?query=${encodeURIComponent(finalQuery)}&human_rx_only=${humanRxOnly}&rld_only=${rldOnly}`);
             const data = await response.json();
             if (data.results) {
                 setResults(data.results);
@@ -88,7 +90,7 @@ const LocalQueryPage = () => {
         setQuery('');
         setUserWantsSuggestions(false);
         try {
-            const response = await fetch('/api/localquery/random');
+            const response = await fetch(`/api/localquery/random?human_rx_only=${humanRxOnly}&rld_only=${rldOnly}`);
             const data = await response.json();
             if (data.results) {
                 setResults(data.results);
@@ -276,6 +278,27 @@ const LocalQueryPage = () => {
                             {isLoading && !query ? 'Fetching...' : 'Quick Access'}
                         </button>
                     </form>
+
+                    <div style={{ display: 'flex', gap: '30px', marginTop: '20px', paddingLeft: '5px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.95rem', color: '#334155', fontWeight: 700 }}>
+                            <input 
+                                type="checkbox" 
+                                checked={humanRxOnly} 
+                                onChange={(e) => setHumanRxOnly(e.target.checked)}
+                                style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#2563eb' }}
+                            />
+                            Human Prescription Only
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.95rem', color: '#334155', fontWeight: 700 }}>
+                            <input 
+                                type="checkbox" 
+                                checked={rldOnly} 
+                                onChange={(e) => setRldOnly(e.target.checked)}
+                                style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#2563eb' }}
+                            />
+                            RLD / RS Only
+                        </label>
+                    </div>
                 </div>
 
                 {hasSearched && (

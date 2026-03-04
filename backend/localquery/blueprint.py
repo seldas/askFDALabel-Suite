@@ -13,11 +13,18 @@ def local_search():
     Supports Brand Name, Generic Name, Set ID, and Application Number.
     """
     query = request.args.get('query', '').strip()
+    human_rx_only = request.args.get('human_rx_only') == 'true'
+    rld_only = request.args.get('rld_only') == 'true'
+
     if not query:
         return jsonify({'results': [], 'total': 0})
 
     try:
-        results = FDALabelDBService.local_search(query)
+        results = FDALabelDBService.local_search(
+            query, 
+            human_rx_only=human_rx_only, 
+            rld_only=rld_only
+        )
         return jsonify({
             'results': results,
             'total': len(results)
@@ -97,11 +104,18 @@ def autocomplete():
     Autocomplete suggestions for Brand/Generic names.
     """
     query = request.args.get('query', '').strip()
+    human_rx_only = request.args.get('human_rx_only') == 'true'
+    rld_only = request.args.get('rld_only') == 'true'
+
     if not query or len(query) < 2:
         return jsonify({'suggestions': []})
 
     try:
-        suggestions = FDALabelDBService.get_autocomplete_suggestions(query)
+        suggestions = FDALabelDBService.get_autocomplete_suggestions(
+            query, 
+            human_rx_only=human_rx_only, 
+            rld_only=rld_only
+        )
         return jsonify({'suggestions': suggestions})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -111,8 +125,14 @@ def get_random():
     """
     Returns 5 random records for quick access.
     """
+    human_rx_only = request.args.get('human_rx_only') == 'true'
+    rld_only = request.args.get('rld_only') == 'true'
     try:
-        results = FDALabelDBService.get_random_labels(limit=5)
+        results = FDALabelDBService.get_random_labels(
+            limit=5, 
+            human_rx_only=human_rx_only, 
+            rld_only=rld_only
+        )
         return jsonify({'results': results})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
