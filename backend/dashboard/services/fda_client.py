@@ -181,7 +181,8 @@ def get_label_metadata(set_id, import_id=None):
         if 'results' in data and data['results']:
             result = data['results'][0]
             openfda = result.get('openfda', {})
-            return {
+            
+            meta = {
                 'set_id': result.get('set_id'),
                 'brand_name': ', '.join(openfda.get('brand_name', ['N/A'])),
                 'generic_name': ', '.join(openfda.get('generic_name', ['N/A'])),
@@ -190,8 +191,26 @@ def get_label_metadata(set_id, import_id=None):
                 'label_format': 'openFDA',
                 'application_number': openfda.get('application_number', ['N/A'])[0],
                 'market_category': openfda.get('product_type', ['N/A'])[0],
-                'ndc': ', '.join(openfda.get('product_ndc', []))
+                'ndc': ', '.join(openfda.get('product_ndc', [])),
+                'source': 'openFDA'
             }
+
+            # FALLBACK: If names are N/A, try to extract from XML directly
+            if meta['brand_name'] == 'N/A' or meta['generic_name'] == 'N/A':
+                logger.info(f"openFDA mapping missing for {set_id}. Attempting direct XML extraction.")
+                xml_content = get_label_xml(set_id)
+                if xml_content:
+                    xml_meta = extract_metadata_from_xml(xml_content)
+                    if xml_meta:
+                        if meta['brand_name'] == 'N/A' and xml_meta.get('brand_name') != 'Unknown Drug':
+                            meta['brand_name'] = xml_meta['brand_name']
+                        if meta['generic_name'] == 'N/A' and xml_meta.get('generic_name') != 'Unknown Generic':
+                            meta['generic_name'] = xml_meta['generic_name']
+                        if meta['manufacturer_name'] == 'N/A' and xml_meta.get('manufacturer_name') != 'Unknown Manufacturer':
+                            meta['manufacturer_name'] = xml_meta['manufacturer_name']
+                        meta['source'] = 'openFDA + XML Fallback'
+            
+            return meta
     except requests.exceptions.RequestException as e:
         return {"error": handle_openfda_error(e)}
     return None

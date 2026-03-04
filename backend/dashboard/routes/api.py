@@ -1810,35 +1810,56 @@ def generic_assessment_route(set_id, assessment_model, pt_terms, prompt, keyword
     faers_data = []
     faers_error = None
     meta = get_label_metadata(set_id)
-    if meta and meta.get('brand_name') and meta.get('brand_name') != 'N/A':
-        brand_name = meta['brand_name'].split(',')[0].strip()
-        base_url = "https://api.fda.gov/drug/event.json"
-        
-        search_query = keyword_check_fn(brand_name)
-        params = {
-            'search': search_query,
-            'count': 'patient.reaction.reactionmeddrapt.exact',
-            'limit': 1000
-        }
-        if Config.OPENFDA_API_KEY:
-            params['api_key'] = Config.OPENFDA_API_KEY
-            
-        try:
-            resp = requests.get(base_url, params=params, timeout=10)
-            if resp.status_code == 200:
-                raw_results = resp.json().get('results', [])
-                faers_data = [item for item in raw_results if item['term'].upper() in pt_terms]
-            elif resp.status_code == 404:
-                # openFDA returns 404 for "No results found"
-                faers_data = []
-            else:
-                logger.warning(f"FAERS query failed: {resp.status_code}")
-                faers_error = f"API returned status {resp.status_code}"
-        except Exception as e:
+    if meta:
+        brand_name = meta.get('brand_name', '').split(',')[0].strip()
+        generic_name = meta.get('generic_name', '').split(',')[0].strip()
 
-            logger.error(f"FAERS error: {e}")
-            from dashboard.services.fda_client import handle_openfda_error
-            faers_error = handle_openfda_error(e)
+        # Use first non-N/A name
+        drug_name = brand_name if (brand_name and brand_name != 'N/A') else generic_name
+
+        if drug_name and drug_name != 'N/A':
+            base_url = "https://api.fda.gov/drug/event.json"
+
+            # Improved search: search both brand and generic in medicinalproduct field
+            # and generic_name field if possible.
+            # Simplified: use the provided keyword_check_fn but wrap the query logic
+            def enhanced_check_fn(b_name, g_name):
+                # Build an OR clause for brand and generic
+                name_clause = f'(patient.drug.medicinalproduct:"{b_name}"'
+                if g_name and g_name != b_name:
+                    name_clause += f' OR patient.drug.medicinalproduct:"{g_name}"'
+                name_clause += ')'
+
+                # Extract the reaction part from the original fn (assuming it's after the first AND)
+                original_q = keyword_check_fn(b_name)
+                reaction_part = original_q.split(' AND ', 1)[1] if ' AND ' in original_q else ""
+
+                return f'{name_clause} AND {reaction_part}'
+
+            search_query = enhanced_check_fn(brand_name, generic_name)
+            params = {
+                'search': search_query,
+                'count': 'patient.reaction.reactionmeddrapt.exact',
+                'limit': 1000
+            }
+            if Config.OPENFDA_API_KEY:
+                params['api_key'] = Config.OPENFDA_API_KEY
+                
+            try:
+                resp = requests.get(base_url, params=params, timeout=10)
+                if resp.status_code == 200:
+                    raw_results = resp.json().get('results', [])
+                    faers_data = [item for item in raw_results if item['term'].upper() in pt_terms]
+                elif resp.status_code == 404:
+                    # openFDA returns 404 for "No results found"
+                    faers_data = []
+                else:
+                    logger.warning(f"FAERS query failed: {resp.status_code}")
+                    faers_error = f"API returned status {resp.status_code}"
+            except Exception as e:
+                logger.error(f"FAERS error: {e}")
+                from dashboard.services.fda_client import handle_openfda_error
+                faers_error = handle_openfda_error(e)
 
     return jsonify({
         'faers_data': faers_data, 
