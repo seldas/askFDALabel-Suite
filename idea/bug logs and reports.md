@@ -1,22 +1,40 @@
-when using PROD, it always looks for 8842 as the backend port even if in the .env it sets to other like 8849; 
-In dev:all it works all good. (solved?)
+# Bug Logs and Reports
 
-the config.ts in search_v2 always points to oracle version, so will return error (like DRUGLABEL.SPL_SEC was not found) in local db search. (solved?)
+## 1. PROD Backend Port Issue
+**Problem:** In Production, the frontend always looks for port 8842 as the backend, even if `BACKEND_PORT` is set to something else (like 8849) in `.env`.
+**Solution/Steps:**
+1.  **Environment Sync during Build:** Next.js rewrites in `next.config.ts` are often evaluated during `next build`. Ensure the `.env` file is present in the project root *before* running the build command.
+2.  **Verify .env Loading:** Check that the path in `frontend/next.config.ts` correctly resolves to the project root `.env`:
+    `const envPath = path.resolve(process.cwd(), "../.env");`
+3.  **Manual Override:** If the build environment doesn't support `.env` files, provide `BACKEND_PORT` as an environment variable directly to the build command:
+    `BACKEND_PORT=8849 npm run build` (or similar).
 
- 
-during a last update we added favorite.active_ingredients? in new env it returns this error:
-[1] sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: favorite.active_ingredients
-[1] [SQL: SELECT favorite.id AS favorite_id, favorite.user_id AS favorite_user_id, favorite.project_id AS favorite_project_id, favorite.set_id AS favorite_set_id, favorite.brand_name AS favorite_brand_name, favorite.generic_name AS favorite_generic_name, favorite.manufacturer_name AS favorite_manufacturer_name, favorite.market_category AS favorite_market_category, favorite.application_number AS favorite_application_number, favorite.ndc AS favorite_ndc, favorite.effective_time AS favorite_effective_time, favorite.active_ingredients AS favorite_active_ingredients, favorite.labeling_type AS favorite_labeling_type, favorite.dosage_forms AS favorite_dosage_forms, favorite.routes AS favorite_routes, favorite.epc AS favorite_epc, favorite.fdalabel_link AS favorite_fdalabel_link, favorite.dailymed_spl_link AS favorite_dailymed_spl_link, favorite.dailymed_pdf_link AS favorite_dailymed_pdf_link, favorite.product_type AS favorite_product_type, favorite.label_format AS favorite_label_format, favorite.source AS favorite_source, favorite.timestamp AS favorite_timestamp 
-[1] FROM favorite 
-[1] WHERE ? = favorite.project_id]
-[1] [parameters: (1,)]
+## 2. search_v2 Oracle Version Fallback
+**Problem:** `config.py` in `search_v2` defaults to Oracle table names/prefixes, causing errors (like `DRUGLABEL.SPL_SEC not found`) during local DB searches.
+**Solution/Steps:**
+1.  **Check LABEL_DB Setting:** Ensure `.env` has `LABEL_DB=LOCAL`.
+2.  **Verify label.db Existence:** The system fallbacks to Oracle if `data/label.db` is not found. Ensure the file exists in the correct path.
+3.  **Path Resolution:** Check `backend/search/scripts/search_v2_core/config.py`'s `PROJECT_ROOT` calculation. If running in a nested environment, the number of `..` might need adjustment.
+4.  **Restart Backend:** Since `DB_TYPE` and table constants are determined at import time, any changes to `.env` or the presence of `label.db` require a backend restart.
 
-[1] sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: favorite.active_ingredients
-[1] [SQL: SELECT favorite.id AS favorite_id, favorite.user_id AS favorite_user_id, favorite.project_id AS favorite_project_id, favorite.set_id AS favorite_set_id, favorite.brand_name AS favorite_brand_name, favorite.generic_name AS favorite_generic_name, favorite.manufacturer_name AS favorite_manufacturer_name, favorite.market_category AS favorite_market_category, favorite.application_number AS favorite_application_number, favorite.ndc AS favorite_ndc, favorite.effective_time AS favorite_effective_time, favorite.active_ingredients AS favorite_active_ingredients, favorite.labeling_type AS favorite_labeling_type, favorite.dosage_forms AS favorite_dosage_forms, favorite.routes AS favorite_routes, favorite.epc AS favorite_epc, favorite.fdalabel_link AS favorite_fdalabel_link, favorite.dailymed_spl_link AS favorite_dailymed_spl_link, favorite.dailymed_pdf_link AS favorite_dailymed_pdf_link, favorite.product_type AS favorite_product_type, favorite.label_format AS favorite_label_format, favorite.source AS favorite_source, favorite.timestamp AS favorite_timestamp 
-[1] FROM favorite 
-[1] WHERE favorite.set_id = ? AND favorite.project_id = ?
-[1]  LIMIT ? OFFSET ?]
-[1] [parameters: ('01e46f58-8bda-4ff3-ab21-57d5b540d440', 5, 1, 0)]
-[1] (Background on this error at: https://sqlalche.me/e/20/e3q8)
+## 3. Missing `favorite.active_ingredients` Column
+**Problem:** `sqlite3.OperationalError: no such column: favorite.active_ingredients` when accessing the Dashboard/Favorites.
+**Solution/Steps:**
+1.  **Run Fix Script:** Execute the provided database patch script from the project root:
+    ```bash
+    python scripts/fix_favorite_columns.py
+    ```
+2.  **Verify Database Path:** Ensure the script points to your actual database. The default in the script is `data/afd.db`.
+3.  **Manual Migration (SQL):** If the script fails, you can manually add the missing columns using a SQLite browser or CLI:
+    ```sql
+    ALTER TABLE favorite ADD COLUMN active_ingredients TEXT;
+    ALTER TABLE favorite ADD COLUMN labeling_type VARCHAR(200);
+    -- (Add other missing columns as defined in backend/database/models.py)
+    ```
 
-for discrepancy panel, add a new tag of "RLD available" along with FILTER BY SEVERITY GAP
+## 4. Discrepancy Panel Enhancements
+**Request:** Add "RLD available" tag and "FILTER BY SEVERITY GAP".
+**Status:** Pending.
+**Implementation Plan:**
+1.  Update `frontend/app/labelcomp/components/DiscrepancyPanel.tsx` (or similar) to include the new UI elements.
+2.  Ensure the comparison logic in `backend/labelcomp/compare.py` calculates and returns the "severity gap" and "RLD availability" status.
