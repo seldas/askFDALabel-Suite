@@ -1,4 +1,13 @@
 import type { NextConfig } from "next";
+import * as path from "path";
+import * as fs from "fs";
+import dotenv from "dotenv";
+
+// 1. Load .env from project root
+const envPath = path.resolve(process.cwd(), "../.env");
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+}
 
 const backendHost = process.env.HOST || 'localhost';
 const backendPort = process.env.BACKEND_PORT || 8842;

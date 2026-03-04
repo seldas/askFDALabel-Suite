@@ -68,14 +68,24 @@ def get_db_connection():
     
     raise ConnectionError(f"No database available. Checked Oracle and SQLite at: {LOCAL_LABEL_DB_PATH}")
 
-DB_SCHEMA = os.getenv("FDALABEL_SCHEMA", "DRUGLABEL")
+# For SQLite, we don't use a schema prefix. For Oracle, we default to DRUGLABEL.
+if DB_TYPE == "sqlite":
+    DB_SCHEMA = ""
+else:
+    DB_SCHEMA = os.getenv("FDALABEL_SCHEMA", "DRUGLABEL")
+
+if DB_SCHEMA:
+    # Ensure it ends with a dot for the f-strings below
+    PREFIX = f"{DB_SCHEMA}."
+else:
+    PREFIX = ""
 
 # Note: Table constants are managed inside SQLManager for dynamic switching.
-T_DGV_SUM_SPL = f"{DB_SCHEMA}.DGV_SUM_SPL"
-T_SPL_SEC = f"{DB_SCHEMA}.SPL_SEC"
-T_SECTION_TYPE = f"{DB_SCHEMA}.SECTION_TYPE"
-T_DOCUMENT_TYPE = f"{DB_SCHEMA}.DOCUMENT_TYPE"
-T_DGV_SUM_SPL_ACT_INGR = f"{DB_SCHEMA}.DGV_SUM_SPL_ACT_INGR_NAME"
-T_DGV_SUM_SPL_EPC = f"{DB_SCHEMA}.DGV_SUM_SPL_EPC"
-T_SPL_SEC_MEDDRA_LLT_OCC = f"{DB_SCHEMA}.SPL_SEC_MEDDRA_LLT_OCC"
-T_SUM_SPL_RLD = f"{DB_SCHEMA}.SUM_SPL_RLD"
+T_DGV_SUM_SPL = f"{PREFIX}DGV_SUM_SPL"
+T_SPL_SEC = f"{PREFIX}SPL_SEC"
+T_SECTION_TYPE = f"{PREFIX}SECTION_TYPE"
+T_DOCUMENT_TYPE = f"{PREFIX}DOCUMENT_TYPE"
+T_DGV_SUM_SPL_ACT_INGR = f"{PREFIX}DGV_SUM_SPL_ACT_INGR_NAME"
+T_DGV_SUM_SPL_EPC = f"{PREFIX}DGV_SUM_SPL_EPC"
+T_SPL_SEC_MEDDRA_LLT_OCC = f"{PREFIX}SPL_SEC_MEDDRA_LLT_OCC"
+T_SUM_SPL_RLD = f"{PREFIX}SUM_SPL_RLD"
