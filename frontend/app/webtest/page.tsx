@@ -119,7 +119,8 @@ export default function WebTestingPage() {
 
             if (isGrouped) {
                 // Group by Version and Date for chart
-                const CUTOFF_DATE = new Date('2025-06-01T00:00:00');
+                const DELAY_START_DATE = new Date('2025-06-01T00:00:00');
+                const TECH_CUTOFF_DATE = new Date('2026-03-01T00:00:00').getTime();
                 const dateMap = new Map();
                 data.forEach((h: any) => {
                     const hDate = new Date(h.Date);
@@ -129,30 +130,60 @@ export default function WebTestingPage() {
                     }
                     const entry = dateMap.get(date);
                     entry[`count_${h.Version}`] = parseInt(h.Count) || 0;
-                    // Strict Rule: Delay only comparable after 2026-03-03
-                    if (hDate >= CUTOFF_DATE) {
+                    
+                    // Delay recording logic
+                    if (hDate >= DELAY_START_DATE) {
                         entry[`delay_${h.Version}`] = h.Delay;
                     } else {
                         entry[`delay_${h.Version}`] = null;
                     }
                 });
-                const formatted = Array.from(dateMap.values()).sort((a, b) => a.Timestamp - b.Timestamp);
+                const sorted = Array.from(dateMap.values()).sort((a, b) => a.Timestamp - b.Timestamp);
+                
+                // Insert Cut-off point to break the line between Feb and March 2026
+                const formatted: any[] = [];
+                for (let i = 0; i < sorted.length; i++) {
+                    if (i > 0 && sorted[i-1].Timestamp < TECH_CUTOFF_DATE && sorted[i].Timestamp > TECH_CUTOFF_DATE) {
+                        formatted.push({ 
+                            Date: '2026-03-01 (Tech Shift)', 
+                            DisplayDate: 'SHIFT', 
+                            Timestamp: TECH_CUTOFF_DATE,
+                            isBreak: true 
+                        });
+                    }
+                    formatted.push(sorted[i]);
+                }
                 setTaskHistory(formatted);
             } else {
                 // Convert Count to number for chart and add timestamp
-                const CUTOFF_DATE = new Date('2025-06-01T00:00:00');
-                const formatted = data.map((h: any) => {
+                const DELAY_START_DATE = new Date('2025-06-01T00:00:00');
+                const TECH_CUTOFF_DATE = new Date('2026-03-01T00:00:00').getTime();
+                const sorted = data.map((h: any) => {
                     const hDate = new Date(h.Date);
                     return {
                         ...h,
                         CountNum: parseInt(h.Count) || 0,
                         Timestamp: hDate.getTime(),
                         DisplayDate: h.Date.split(' ')[0].replace('2026-', ''),
-                        // Strict Rule: Delay only comparable after 2026-03-03
-                        Delay: hDate >= CUTOFF_DATE ? h.Delay : null,
-                        Notes: h.Notes
+                        Delay: hDate >= DELAY_START_DATE ? h.Delay : null,
                     };
-                });
+                }).sort((a: any, b: any) => a.Timestamp - b.Timestamp);
+
+                // Insert Cut-off point
+                const formatted: any[] = [];
+                for (let i = 0; i < sorted.length; i++) {
+                    if (i > 0 && sorted[i-1].Timestamp < TECH_CUTOFF_DATE && sorted[i].Timestamp > TECH_CUTOFF_DATE) {
+                        formatted.push({ 
+                            Date: '2026-03-01 (Tech Shift)', 
+                            DisplayDate: 'SHIFT', 
+                            Timestamp: TECH_CUTOFF_DATE,
+                            Delay: null,
+                            CountNum: null,
+                            isBreak: true 
+                        });
+                    }
+                    formatted.push(sorted[i]);
+                }
                 setTaskHistory(formatted);
             }
         } catch (err) {
@@ -974,6 +1005,7 @@ export default function WebTestingPage() {
                                                     strokeWidth={3}
                                                     dot={{ r: 6, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
                                                     activeDot={{ r: 8 }}
+                                                    connectNulls={true}
                                                 />
                                                 <Line 
                                                     yAxisId="right"
@@ -991,7 +1023,7 @@ export default function WebTestingPage() {
                                     </ComposedChart>
                                 </ResponsiveContainer>
                                 <div style={{ marginTop: '10px', fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', textAlign: 'center' }}>
-                                    * Note: Delay values are only recorded and comparable after 06/01/2025 due to technical architecture updates.
+                                    * Note: Delay values after 03/01/2026 utilize a new measurement technology and are not directly comparable to previous dates.
                                 </div>
                             </div>
                         ) : (
