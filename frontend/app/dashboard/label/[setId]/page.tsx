@@ -1085,20 +1085,38 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                 </span>
                                 {data.is_rld && (
                                   <span style={{ 
-                                      backgroundColor: '#eff6ff',
-                                      color: '#1e40af',
+                                      backgroundColor: '#fef2f2',
+                                      color: '#ef4444',
                                       padding: '6px 14px',
                                       borderRadius: '30px',
                                       fontSize: '0.75rem',
-                                      fontWeight: 800,
+                                      fontWeight: 900,
                                       textTransform: 'uppercase',
                                       letterSpacing: '0.05em',
                                       flexShrink: 0,
                                       marginTop: '8px',
                                       boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                                      border: '1px solid #bfdbfe'
+                                      border: '1px solid #fee2e2'
                                   }}>
                                       RLD
+                                  </span>
+                                )}
+                                {data.is_rs && (
+                                  <span style={{ 
+                                      backgroundColor: '#f0fdf4',
+                                      color: '#16a34a',
+                                      padding: '6px 14px',
+                                      borderRadius: '30px',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 900,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.05em',
+                                      flexShrink: 0,
+                                      marginTop: '8px',
+                                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                                      border: '1px solid #dcfce7'
+                                  }}>
+                                      RS
                                   </span>
                                 )}
                             </div>

@@ -316,8 +316,6 @@ def view_label(set_id):
 
     doc_title, sections, fallback_html, highlights, table_of_contents, product_data = parse_spl_xml(label_xml_raw, set_id)
     
-    metadata = extract_metadata_from_xml(label_xml_raw)
-    
     # Re-use the clean_name logic for the display drug name
     def clean_header_text(text):
         if not text: return text
@@ -355,15 +353,20 @@ def view_label(set_id):
 
     metadata = extract_metadata_from_xml(label_xml_raw)
     
-    if not metadata or (metadata.get('brand_name') == 'Unknown Drug' and metadata.get('generic_name') == 'Unknown Generic'):
-        ext_metadata = get_label_metadata(set_id, import_id=import_id)
-        if ext_metadata:
-            if not metadata: 
-                metadata = ext_metadata
-            else:
-                for k, v in ext_metadata.items():
-                    if not metadata.get(k) or metadata.get(k) in ['N/A', 'Unknown Drug', 'Unknown Generic', 'Unknown Manufacturer']:
-                        metadata[k] = v
+    # Enrich with database metadata (RLD, RS, etc.)
+    db_meta = get_label_metadata(set_id, import_id=import_id)
+    if db_meta:
+        if not metadata:
+            metadata = db_meta
+        else:
+            # Always take RLD/RS from DB as they aren't in XML
+            metadata['is_rld'] = db_meta.get('is_rld', False)
+            metadata['is_rs'] = db_meta.get('is_rs', False)
+            
+            # Fill other missing fields
+            for k, v in db_meta.items():
+                if not metadata.get(k) or metadata.get(k) in ['N/A', 'Unknown Drug', 'Unknown Generic', 'Unknown Manufacturer']:
+                    metadata[k] = v
 
     brand_name = metadata.get('brand_name') if metadata and metadata.get('brand_name') != 'N/A' else None
     generic_name = metadata.get('generic_name') if metadata and metadata.get('generic_name') != 'N/A' else None
@@ -377,6 +380,7 @@ def view_label(set_id):
     document_type = metadata.get('document_type') if metadata else None
     has_boxed_warning = metadata.get('has_boxed_warning') if metadata else False
     is_rld = metadata.get('is_rld', False) if metadata else False
+    is_rs = metadata.get('is_rs', False) if metadata else False
     
     clean_app_num = None
     if application_number and application_number != 'N/A':
@@ -440,6 +444,7 @@ def view_label(set_id):
         'document_type': document_type,
         'has_boxed_warning': has_boxed_warning,
         'is_rld': is_rld,
+        'is_rs': is_rs,
         'clean_app_num': clean_app_num,
         'companies': companies,
         'original_search': drug_name_from_query,
