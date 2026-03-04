@@ -54,6 +54,16 @@
 - **Logic:** Updated system to match NDA/ANDA numbers against the Orange Book for distinct RLD and RS flags.
 - **UI:** Added color-coded tags: **RLD (Red)** and **RS (Green)** across Label View, Comparison, and DrugTox.
 
+## ✅ 10. Database Migration Optimization (SQLite to PostgreSQL)
+**Problem:** `scripts/migrate_to_postgres.py` was too slow on large tables (`meddra_llt`, `meddra_smq_content`, `spl_sections`), leading to a `KeyboardInterrupt` as the process appeared hung.
+**Status:** Resolved (Performance Optimization).
+**Solution:**
+- **Bulk Insert:** Replaced standard `executemany` with `psycopg2.extras.execute_values`.
+- **Chunking:** Implemented 5,000-row chunking to manage memory while maintaining high throughput.
+- **Progress Logging:** Added row-count intervals (e.g., "Inserted 15000/89774...") to provide visual feedback during long migrations.
+- **Encoding:** Explicitly set `client_encoding` to `UTF8` to prevent potential character set issues during transfer.
+**Results:** Successfully migrated over 400,000 rows across all schemas. Verified data integrity and updated `.env` to `LABEL_DB=POSTGRES`. SQLite files (`afd.db`, `label.db`) renamed to `.bak` and confirmed safe for removal.
+
 ### 🛠️ Steps to Update Your Local System:
 1.  **Ensure Data Presence:**
     Place the latest FDA Orange Book `products.txt` file at:
