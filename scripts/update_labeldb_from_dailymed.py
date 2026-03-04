@@ -195,6 +195,36 @@ class LabelDBUpdater:
         buffer_sum_spl, buffer_ingr, buffer_sec_db, buffer_sec_fts, buffer_spl_ids = [], [], [], [], []
 
         num_workers = multiprocessing.cpu_count()
+        # Load RLD application numbers from Orange Book products.txt
+        rld_appl_nos = set()
+        ob_file_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'downloads', 'EOB_2026_01', 'products.txt')
+        if os.path.exists(ob_file_path):
+            try:
+                with open(ob_file_path, 'r', encoding='latin-1') as f:
+                    header = f.readline()
+                    # Header: Ingredient~DF;Route~Trade_Name~Applicant~Strength~Appl_Type~Appl_No~Product_No~TE_Code~Approval_Date~RLD~RS~Type~Applicant_Full_Name
+                    # RLD is column index 10 (0-indexed)
+                    # Appl_No is column index 6
+                    for line in f:
+                        parts = line.split('~')
+                        if len(parts) > 10:
+                            is_rld_val = parts[10].strip().upper()
+                            if is_rld_val == 'YES':
+                                appl_no = parts[6].strip()
+                                # Orange Book Appl_No is often 6 digits, might need normalization
+                                rld_appl_nos.add(appl_no.lstrip('0'))
+                print(f"Loaded {len(rld_appl_nos)} RLD application numbers from Orange Book.")
+            except Exception as e:
+                print(f"Error reading Orange Book file: {e}")
+        else:
+            print(f"Warning: Orange Book file not found at {ob_file_path}. Defaulting to existing RLD identification.")
+            # Fallback to the old rld_drug_name.txt if available
+            rld_names = set()
+            rld_file_path = os.path.join(os.path.dirname(__file__), '..', 'backend', 'search', 'scripts', 'drug_snippet', 'rld_drug_name.txt')
+            if os.path.exists(rld_file_path):
+                with open(rld_file_path, 'r', encoding='latin-1') as f:
+                    rld_names = {line.strip().upper() for line in f if line.strip() and line.strip() != "Trade Name"}
+            
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
             futures = {executor.submit(self.parse_spl_worker, f): f for f in all_zips}
             
@@ -207,6 +237,26 @@ class LabelDBUpdater:
                 else:
                     spl_id = data['spl_id']
                     buffer_spl_ids.append(spl_id)
+
+                    # Determine is_rld
+                    is_rld = 0
+                    if rld_appl_nos:
+                        # Match by application number
+                        # data['appr_nums'] can contain multiple values like "NDA0205613; ANDA078337"
+                        if data['appr_nums']:
+                            appr_parts = re.findall(r'\d+', data['appr_nums'])
+                            for ap in appr_parts:
+                                if ap.lstrip('0') in rld_appl_nos:
+                                    is_rld = 1
+                                    break
+                    elif 'rld_names' in locals() and rld_names:
+                        # Fallback to name matching
+                        p_names = data['product_names'].split('; ')
+                        for pn in p_names:
+                            if pn.strip().upper() in rld_names:
+                                is_rld = 1
+                                break
+
                     # sum_spl has 17 columns: 
                     # 1.spl_id, 2.set_id, 3.product_names, 4.generic_names, 5.manufacturer, 
                     # 6.appr_num, 7.active_ingredients, 8.market_categories, 9.doc_type, 10.routes, 
@@ -216,7 +266,7 @@ class LabelDBUpdater:
                         spl_id, data['set_id'], data['product_names'], data['generic_names'], data['manufacturer'],
                         data['appr_nums'], data['active_ingredients'], "", data['doc_type'], data['routes'],
                         data['dosage_forms'], "", data['ndc_codes'], data['revised_date'], data['initial_approval_year'],
-                        0, data['local_rel_path']
+                        is_rld, data['local_rel_path']
                     ))
                     if data['ingr_map']: buffer_ingr.extend(data['ingr_map'])
                     if data['sections_db']: buffer_sec_db.extend(data['sections_db'])
