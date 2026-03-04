@@ -43,6 +43,9 @@ import {
   DialogTitle,
   DialogContent,
   Alert,
+  Select,
+  MenuItem,
+  FormControl,
 } from '@mui/material';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import Grid from '@mui/material/GridLegacy'; 
@@ -115,6 +118,10 @@ interface DiscrepancyItem {
   manufacturer_count: number;
   classes_found: string[];
   details: { Trade_Name: string; Author_Organization: string; Toxicity_Class: string; SETID: string }[];
+  rld_info?: {
+    status: string;
+    setid: string | null;
+  };
 }
 
 interface Stats {
@@ -194,6 +201,7 @@ export default function DrugToxPage() {
   const [companyPortfolio, setCompanyPortfolio] = useState<DrugSummary[]>([]);
   const [companyLoading, setCompanyLoading] = useState(false);
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
+  const [rldOnly, setRldOnly] = useState(false);
 
   // Drawer Resizing State
   const [drawerWidth, setDrawerWidth] = useState(800);
@@ -223,7 +231,7 @@ export default function DrugToxPage() {
   // Discrepancy State
   const [discrepancies, setDiscrepancies] = useState<DiscrepancyItem[]>([]);
   const [discrepancyLoading, setDiscrepancyLoading] = useState(false);
-  const [severityFilter, setSeverityFilter] = useState<string | null>('ALL');
+  const [severityFilter, setSeverityFilter] = useState<string | null>('HIGH');
 
   const filteredMarket = useMemo(() => {
     return market.filter(m => {
@@ -276,12 +284,18 @@ export default function DrugToxPage() {
   }, [toxType, activeTab, fetchStats, fetchDiscrepancies]);
 
   const filteredDiscrepancies = useMemo(() => {
-    if (severityFilter === 'ALL') return discrepancies;
-    if (severityFilter === 'HIGH') return discrepancies.filter((d) => d.severity_gap >= 3);
-    if (severityFilter === 'MEDIUM') return discrepancies.filter((d) => d.severity_gap === 2);
-    if (severityFilter === 'LOW') return discrepancies.filter((d) => d.severity_gap === 1);
-    return discrepancies;
-  }, [discrepancies, severityFilter]);
+    let result = discrepancies;
+    
+    if (severityFilter === 'HIGH') result = result.filter((d) => d.severity_gap >= 3);
+    else if (severityFilter === 'MEDIUM') result = result.filter((d) => d.severity_gap === 2);
+    else if (severityFilter === 'LOW') result = result.filter((d) => d.severity_gap === 1);
+
+    if (rldOnly) {
+      result = result.filter((d) => d.rld_info?.setid);
+    }
+
+    return result;
+  }, [discrepancies, severityFilter, rldOnly]);
 
   const fetchSuggestions = useCallback(
     debounce((input: string) => {
@@ -847,36 +861,61 @@ export default function DrugToxPage() {
               )}
             </Box>
           ) : (
-            <Box>
+          <Box>
               <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid xs={12} md={8}>
-                  <Paper sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 3, border: '1px solid #e0e0e0' }}>
+                <Grid xs={12} md={9}>
+                  <Paper sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 3, border: '1px solid #e0e0e0', flexWrap: 'wrap' }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1a237e', display: 'flex', alignItems: 'center' }}>
-                      <FilterListIcon sx={{ mr: 1 }} /> FILTER BY SEVERITY GAP:
+                      <FilterListIcon sx={{ mr: 1 }} /> FILTERS:
                     </Typography>
-                    <ToggleButtonGroup value={severityFilter} exclusive onChange={(_e, v) => v && setSeverityFilter(v)} size="small" color="primary">
-                      <ToggleButton value="ALL" sx={{ px: 3, fontWeight: 700 }}>
-                        ALL ({discrepancies.length})
-                      </ToggleButton>
-                      <ToggleButton value="HIGH" sx={{ px: 3, fontWeight: 700, color: 'error.main' }}>
-                        HIGH ({discrepancies.filter((d) => d.severity_gap >= 3).length})
-                      </ToggleButton>
-                      <ToggleButton value="MEDIUM" sx={{ px: 3, fontWeight: 700, color: 'warning.main' }}>
-                        MEDIUM ({discrepancies.filter((d) => d.severity_gap === 2).length})
-                      </ToggleButton>
-                      <ToggleButton value="LOW" sx={{ px: 3, fontWeight: 700, color: 'info.main' }}>
-                        LOW ({discrepancies.filter((d) => d.severity_gap === 1).length})
-                      </ToggleButton>
-                    </ToggleButtonGroup>
+                    
+                    <FormControl size="small" sx={{ minWidth: 200 }}>
+                      <Select
+                        value={severityFilter || 'ALL'}
+                        onChange={(e) => setSeverityFilter(e.target.value)}
+                        sx={{ 
+                          fontWeight: 700, 
+                          fontSize: '0.8rem',
+                          borderRadius: '8px',
+                          backgroundColor: '#fff',
+                          '& .MuiSelect-select': { py: 1 }
+                        }}
+                      >
+                        <MenuItem value="ALL" sx={{ fontWeight: 700 }}>ALL DISCREPANCIES ({discrepancies.length})</MenuItem>
+                        <MenuItem value="HIGH" sx={{ fontWeight: 700, color: 'error.main' }}>HIGH SEVERITY GAP ({discrepancies.filter((d) => d.severity_gap >= 3).length})</MenuItem>
+                        <MenuItem value="MEDIUM" sx={{ fontWeight: 700, color: 'warning.main' }}>MEDIUM SEVERITY GAP ({discrepancies.filter((d) => d.severity_gap === 2).length})</MenuItem>
+                        <MenuItem value="LOW" sx={{ fontWeight: 700, color: 'info.main' }}>LOW SEVERITY GAP ({discrepancies.filter((d) => d.severity_gap === 1).length})</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    <Box sx={{ borderLeft: '1px solid #e0e0e0', pl: 3, ml: 1 }}>
+                      <Button
+                        variant={rldOnly ? "contained" : "outlined"}
+                        color={rldOnly ? "error" : "primary"}
+                        size="small"
+                        onClick={() => setRldOnly(!rldOnly)}
+                        startIcon={<ScienceIcon />}
+                        sx={{ 
+                          fontWeight: 800, 
+                          textTransform: 'none', 
+                          borderRadius: '8px',
+                          fontSize: '0.75rem',
+                          px: 2,
+                          height: '38px'
+                        }}
+                      >
+                        RLD AVAILABLE ONLY {rldOnly ? 'ON' : 'OFF'}
+                      </Button>
+                    </Box>
                   </Paper>
                 </Grid>
-                <Grid xs={12} md={4}>
+                <Grid xs={12} md={3}>
                   <Alert
                     severity="warning"
                     icon={<GavelIcon />}
                     sx={{ height: '100%', display: 'flex', alignItems: 'center', borderRadius: '12px', fontWeight: 700 }}
                   >
-                    {discrepancies.length} Controversial Agents Detected
+                    {filteredDiscrepancies.length} Controversial Agents Detected
                   </Alert>
                 </Grid>
               </Grid>
@@ -898,8 +937,25 @@ export default function DrugToxPage() {
                           borderTop: `4px solid ${
                             item.severity_gap >= 3 ? '#c62828' : item.severity_gap === 2 ? '#ef6c00' : '#1565c0'
                           }`,
+                          position: 'relative'
                         }}
                       >
+                        {item.rld_info?.setid && (
+                          <Chip 
+                            label="RLD FOUND" 
+                            size="small" 
+                            color="error"
+                            sx={{ 
+                              position: 'absolute', 
+                              top: 10, 
+                              right: 10, 
+                              height: 18, 
+                              fontSize: '0.6rem', 
+                              fontWeight: 900,
+                              zIndex: 1
+                            }} 
+                          />
+                        )}
                         <Box
                           sx={{
                             p: 2,

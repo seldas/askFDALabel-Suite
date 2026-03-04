@@ -42,13 +42,16 @@
     *   "RLD" tag display on label metadata cards.
     *   "FILTER BY SEVERITY GAP" toggle button in the Discrepancy Panel.
     *   Dynamic filtering logic using `useMemo` to show only significant changes (similarity < 0.5) when the filter is active.
+4.  Updated `frontend/app/drugtox/page.tsx` with:
+    *   "RLD FOUND" badge on discrepancy cards.
+    *   "RLD AVAILABLE ONLY" toggle button.
+    *   Refactored severity filters into a dropdown panel with "HIGH" as the default selection.
 
-
-## 5. AFL agent (search_V2) responding time:
---- Running Evidence Fetcher --- in sqlite (not sure in oracle) it stucks at this step when doing search, I think the potential issue is it tries to read xml (local files) for over 28 items which is very slow; particularly if multiple sections are needed from one labeling and were processed separately.
-
-[1] INFO:search_v2:DB returned 28 rows.
-[1] INFO:search_v2:--- Running Postprocess ---
-[1] INFO:search_v2:--- Running Evidence Fetcher ---
-
-we need to refine this strategy that for most queries that requires to read the whole xml, limited to the top 3 results instead of all. Also, optimize the workflow to make sure one labeling xml/zip will only be called ONCE for all needed sections.
+## 5. AFL Agent (search_v2) Responding Time
+**Problem:** Evidence Fetcher was extremely slow (stuck) when processing 28+ items, especially when multiple sections were fetched individually.
+**Status:** Completed.
+**Optimizations:**
+1.  **QA Result Throttling:** For QA-type queries, the fetcher now limits processing to the top 5 results to ensure rapid response times while maintaining relevance.
+2.  **Batched Section Retrieval:** Replaced individual database calls per section with a single `IN` clause query. This retrieves all requested LOINC sections for a label in one trip to the database.
+3.  **Single-Pass Processing:** Logic optimized to ensure a labeling (XML/content) is only fetched and parsed once per result, regardless of how many sections are requested.
+4.  **Character Clamping:** Added stricter sanity clamps on total character counts to prevent context window overflows and LLM latency.
