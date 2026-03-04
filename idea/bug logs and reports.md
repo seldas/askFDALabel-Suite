@@ -54,23 +54,6 @@
 - **Logic:** Updated system to match NDA/ANDA numbers against the Orange Book for distinct RLD and RS flags.
 - **UI:** Added color-coded tags: **RLD (Red)** and **RS (Green)** across Label View, Comparison, and DrugTox.
 
-### 🛠️ Steps to Update Your Local System:
-1.  **Ensure Data Presence:**
-    Place the latest FDA Orange Book `products.txt` file at:
-    `data\downloads\EOB_2026_01\products.txt`
-2.  **Add Database Column:**
-    Run the following command from the project root to add the `is_rs` column to your existing database:
-    ```powershell
-    python -c "import sqlite3; conn = sqlite3.connect('data/label.db'); cursor = conn.cursor(); cursor.execute('PRAGMA table_info(sum_spl)'); columns = [row[1] for row in cursor.fetchall()]; [cursor.execute('ALTER TABLE sum_spl ADD COLUMN is_rs INTEGER DEFAULT 0') if 'is_rs' not in columns else None]; conn.commit(); conn.close(); print('is_rs column verified/added.')"
-    ```
-3.  **Synchronize Reference Status:**
-    Run the migration script to populate the RLD/RS flags based on the Orange Book data:
-    ```bash
-    python scripts/fix_rld_status.py
-    ```
-4.  **Restart Backend:**
-    Restart the Flask backend to clear any cached database metadata and enable the new UI tags.
-
 ## ✅ 7. Dynamic FDALabel Version Differentiation
 **Problem:** The system showed public or internal links based solely on DB connection, without verifying if internal URLs were actually reachable by the user/server.
 **Status:** Completed.
@@ -151,4 +134,47 @@
     ```
     *Note: The first run will download the model files (~420MB) to your local cache.*
 
+## ✅ 12. Automated Embedding Synchronization (Multi-GPU Optimized)
+**Problem:** Single-GPU or CPU processing is too slow for the entire FDA labeling database (tens of thousands of labels).
+**Status:** Optimized for 8x NVIDIA V100 Environment.
+**Implementation:**
+- **Sync Script:** Enhanced `scripts/sync_label_embeddings.py` with multi-process GPU support.
+- **Parallelism:** Utilizes `SentenceTransformer.encode_multi_process` to distribute workload across all detected CUDA devices (e.g., all 8 V100s).
+- **Throughput:** Processes data in large batches (512 chunks per GPU call) to maximize utilization of Tensor Cores.
+- **Reliability:** Includes atomic database commits per label-batch and full logging of synchronization progress.
 
+### 🛠️ Steps to Sync Embeddings (8x V100 Environment):
+1.  **Verify CUDA Availability:**
+    Ensure all 8 GPUs are visible to the system:
+    ```powershell
+    nvidia-smi
+    ```
+2.  **Run High-Performance Sync:**
+    Execute the sync script. It will automatically detect all 8 GPUs and start a worker pool:
+    ```powershell
+    python scripts/sync_label_embeddings.py
+    ```
+3.  **Monitor GPU Utilization:**
+    In a separate terminal, watch the GPUs load balancing:
+    ```powershell
+    watch -n 1 nvidia-smi
+    ```
+4.  **Logging:**
+    Check `sync_embeddings_multigpu.log` for a record of processed batches and any skipped sections.
+
+### 🛠️ Steps to Update Your Local System:
+1.  **Ensure Data Presence:**
+    Place the latest FDA Orange Book `products.txt` file at:
+    `data\downloads\EOB_2026_01\products.txt`
+2.  **Add Database Column:**
+    Run the following command from the project root to add the `is_rs` column to your existing database:
+    ```powershell
+    python -c "import sqlite3; conn = sqlite3.connect('data/label.db'); cursor = conn.cursor(); cursor.execute('PRAGMA table_info(sum_spl)'); columns = [row[1] for row in cursor.fetchall()]; [cursor.execute('ALTER TABLE sum_spl ADD COLUMN is_rs INTEGER DEFAULT 0') if 'is_rs' not in columns else None]; conn.commit(); conn.close(); print('is_rs column verified/added.')"
+    ```
+3.  **Synchronize Reference Status:**
+    Run the migration script to populate the RLD/RS flags based on the Orange Book data:
+    ```bash
+    python scripts/fix_rld_status.py
+    ```
+4.  **Restart Backend:**
+    Restart the Flask backend to clear any cached database metadata and enable the new UI tags.
