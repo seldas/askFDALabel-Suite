@@ -376,6 +376,7 @@ def view_label(set_id):
     version_number = metadata.get('version_number') if metadata else None
     document_type = metadata.get('document_type') if metadata else None
     has_boxed_warning = metadata.get('has_boxed_warning') if metadata else False
+    is_rld = metadata.get('is_rld', False) if metadata else False
     
     clean_app_num = None
     if application_number and application_number != 'N/A':
@@ -438,6 +439,7 @@ def view_label(set_id):
         'version_number': version_number,
         'document_type': document_type,
         'has_boxed_warning': has_boxed_warning,
+        'is_rld': is_rld,
         'clean_app_num': clean_app_num,
         'companies': companies,
         'original_search': drug_name_from_query,

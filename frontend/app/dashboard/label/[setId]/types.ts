@@ -75,6 +75,7 @@ export interface LabelData {
   version_number: string | null;
   document_type: string | null;
   has_boxed_warning: boolean;
+  is_rld?: boolean;
   clean_app_num: string | null;
   sections: Section[];
   fallback_html: string | null;

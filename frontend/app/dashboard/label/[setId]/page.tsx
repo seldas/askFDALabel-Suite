@@ -1083,6 +1083,24 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                 }}>
                                     {data.label_format}
                                 </span>
+                                {data.is_rld && (
+                                  <span style={{ 
+                                      backgroundColor: '#eff6ff',
+                                      color: '#1e40af',
+                                      padding: '6px 14px',
+                                      borderRadius: '30px',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 800,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.05em',
+                                      flexShrink: 0,
+                                      marginTop: '8px',
+                                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                                      border: '1px solid #bfdbfe'
+                                  }}>
+                                      RLD
+                                  </span>
+                                )}
                             </div>
                             {data.generic_name && (
                                 <div style={{ 

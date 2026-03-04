@@ -327,12 +327,13 @@ class FDALabelDBService:
                 cursor = conn.cursor()
                 sql = """
                     SELECT 
-                        SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES,
-                        AUTHOR_ORG_NORMD_NAME, MARKET_CATEGORIES, APPR_NUM,
-                        NDC_CODES, EFF_TIME, ACT_INGR_NAMES, LABELING_TYPE,
-                        DOSAGE_FORMS, ROUTES, EPC
-                    FROM druglabel.DGV_SUM_SPL
-                    WHERE SET_ID = :sid
+                        s.SET_ID, s.PRODUCT_NAMES, s.PRODUCT_NORMD_GENERIC_NAMES,
+                        s.AUTHOR_ORG_NORMD_NAME, s.MARKET_CATEGORIES, s.APPR_NUM,
+                        s.NDC_CODES, s.EFF_TIME, s.ACT_INGR_NAMES, s.LABELING_TYPE,
+                        s.DOSAGE_FORMS, s.ROUTES, s.EPC,
+                        (SELECT COUNT(*) FROM druglabel.sum_spl_rld rld WHERE rld.SPL_ID = s.SPL_ID) as IS_RLD
+                    FROM druglabel.DGV_SUM_SPL s
+                    WHERE s.SET_ID = :sid
                 """
                 cursor.execute(sql, {"sid": set_id})
                 row = cursor.fetchone()
@@ -356,7 +357,8 @@ class FDALabelDBService:
                         'labeling_type': row[9],
                         'dosage_forms': row[10],
                         'routes': row[11],
-                        'epc': row[12]
+                        'epc': row[12],
+                        'is_rld': bool(row[13])
                     }
                 cursor.close()
             else:
@@ -366,7 +368,7 @@ class FDALabelDBService:
                         set_id, product_names, generic_names,
                         manufacturer, market_categories, appr_num,
                         ndc_codes, revised_date, active_ingredients,
-                        doc_type, dosage_forms, routes, epc
+                        doc_type, dosage_forms, routes, epc, is_rld
                     FROM sum_spl
                     WHERE set_id = ?
                 """
@@ -387,7 +389,8 @@ class FDALabelDBService:
                         'labeling_type': row['doc_type'],
                         'dosage_forms': row['dosage_forms'],
                         'routes': row['routes'],
-                        'epc': row['epc']
+                        'epc': row['epc'],
+                        'is_rld': bool(row['is_rld'])
                     }
                 cursor.close()
         except Exception as e:

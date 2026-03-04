@@ -975,12 +975,12 @@ export default function DrugToxPage() {
                             sx={{ fontWeight: 700, textTransform: 'none', fontSize: '0.7rem' }}
                             onClick={() => {
                               if (item.rld_info?.setid) {
-                                window.open(`/dashboard/label-view?set_id=${item.rld_info.setid}`, '_blank');
+                                window.open(`/dashboard/label/${item.rld_info.setid}`, '_blank');
                               } else {
                                 axios.get(`/api/drugtox/latest_rld?generic_name=${item.generic_name}`)
                                   .then(res => {
                                     if (res.data.set_id) {
-                                      window.open(`/dashboard/label-view?set_id=${res.data.set_id}`, '_blank');
+                                      window.open(`/dashboard/label/${res.data.set_id}`, '_blank');
                                     } else {
                                       alert('No labeling found for this drug in the database.');
                                     }
