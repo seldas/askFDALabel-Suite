@@ -4,7 +4,6 @@ services:
   db:
     image: ankane/pgvector:latest
     container_name: askfdalabel-db
-    user: $UID
     ports:
       - "5432:5432"
     environment:

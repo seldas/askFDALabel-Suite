@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node scripts/start-frontend.js",
     "dev:backend": "node scripts/start-backend.js",
-    "db:start": "docker compose up -d",
+    "db:start": "UID=$UID docker compose up -d",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:backend\"",
     "build": "next build",
     "start": "cross-env NODE_ENV=production node scripts/start-frontend.js",
