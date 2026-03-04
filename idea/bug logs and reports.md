@@ -54,6 +54,23 @@
 - **Logic:** Updated system to match NDA/ANDA numbers against the Orange Book for distinct RLD and RS flags.
 - **UI:** Added color-coded tags: **RLD (Red)** and **RS (Green)** across Label View, Comparison, and DrugTox.
 
+### 🛠️ Steps to Implement RLD/RS Identification:
+1.  **Ensure Data Presence:**
+    Place the latest FDA Orange Book `products.txt` file at:
+    `data\downloads\EOB_2026_01\products.txt`
+2.  **Add Database Column:**
+    Run the following command from the project root to add the `is_rs` column to your existing database:
+    ```powershell
+    python -c "import sqlite3; conn = sqlite3.connect('data/label.db'); cursor = conn.cursor(); cursor.execute('PRAGMA table_info(sum_spl)'); columns = [row[1] for row in cursor.fetchall()]; [cursor.execute('ALTER TABLE sum_spl ADD COLUMN is_rs INTEGER DEFAULT 0') if 'is_rs' not in columns else None]; conn.commit(); conn.close(); print('is_rs column verified/added.')"
+    ```
+3.  **Synchronize Reference Status:**
+    Run the migration script to populate the RLD/RS flags based on the Orange Book data:
+    ```bash
+    python scripts/fix_rld_status.py
+    ```
+4.  **Restart Backend:**
+    Restart the Flask backend to clear any cached database metadata and enable the new UI tags.
+
 ## ✅ 7. Dynamic FDALabel Version Differentiation
 **Problem:** The system showed public or internal links based solely on DB connection, without verifying if internal URLs were actually reachable by the user/server.
 **Status:** Completed.
