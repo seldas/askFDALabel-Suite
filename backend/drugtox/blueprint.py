@@ -148,6 +148,10 @@ def get_discrepancies():
         params["tox"] = tox_type
 
     db = get_db_session()
+    
+    # 1. Connect to local label.db to find RLD status in realtime
+    from dashboard.services.fdalabel_db import FDALabelDBService
+    
     try:
         query = text(f"SELECT Generic_Proper_Names, Author_Organization, Toxicity_Class, Trade_Name, SETID "
                      f"FROM drug_toxicity {where_clause}")
@@ -161,21 +165,125 @@ def get_discrepancies():
         for generic_name, items in groups.items():
             unique_classes = set(item['Toxicity_Class'] for item in items)
             if len(unique_classes) > 1:
+                # Calculate severity gap
                 scores = [tox_map.get(c, 0) for c in unique_classes]
                 gap = max(scores) - min(scores)
                 sorted_classes = sorted(list(unique_classes), key=lambda x: tox_map.get(x, 0))
+                
+                # 2. Realtime RLD check for this generic drug
+                rld_info = {"status": "Unknown", "setid": None}
+                try:
+                    # Look for RLD labels by generic name in label.db
+                    # We pick the latest one (by effective date) that is marked as RLD
+                    # Note: We use search_labels or direct SQL here.
+                    # Simplified: search for the first RLD in the list of set_ids we already have in items
+                    # OR search the local DB for any RLD with this generic name.
+                    
+                    # Direct check in items first (maybe one of the manufacturers IS the RLD)
+                    found_rld = None
+                    set_ids = [it['SETID'] for it in items]
+                    
+                    # Check local DB for RLD status of these set_ids
+                    # We use chunks because set_ids could be long
+                    rld_map = {}
+                    if FDALabelDBService.is_available():
+                        # We look for ANY label with this generic name that is an RLD in the local/internal DB
+                        # This is more accurate than just checking current project items
+                        conn_lbl = FDALabelDBService.get_connection()
+                        if conn_lbl:
+                            cursor = conn_lbl.cursor()
+                            if FDALabelDBService._db_type == 'oracle':
+                                sql = "SELECT SET_ID FROM druglabel.DGV_SUM_SPL s JOIN druglabel.sum_spl_rld rld ON s.SPL_ID = rld.SPL_ID WHERE UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:gn) AND ROWNUM = 1"
+                                cursor.execute(sql, {"gn": f"%{generic_name}%"})
+                            else:
+                                sql = "SELECT set_id FROM sum_spl WHERE generic_names LIKE ? AND is_rld = 1 ORDER BY revised_date DESC LIMIT 1"
+                                cursor.execute(sql, (f"%{generic_name}%",))
+                            
+                            r_row = cursor.fetchone()
+                            if r_row:
+                                found_rld = r_row[0] if isinstance(r_row, tuple) else r_row['set_id']
+                            conn_lbl.close()
+
+                    if found_rld:
+                        # Find the toxicity class for this RLD SETID
+                        rld_tox = db.execute(text("SELECT Toxicity_Class FROM drug_toxicity WHERE SETID = :sid AND Tox_Type = :tox AND is_historical = 0 LIMIT 1"), 
+                                           {"sid": found_rld, "tox": tox_type}).fetchone()
+                        rld_info = {
+                            "status": rld_tox[0] if rld_tox else "Not evaluated",
+                            "setid": found_rld
+                        }
+                except Exception as e:
+                    print(f"Error fetching RLD info for {generic_name}: {e}")
+
                 discrepancies.append({
                     "generic_name": generic_name,
                     "tox_range": f"{sorted_classes[0]} to {sorted_classes[-1]}",
                     "severity_gap": gap,
                     "manufacturer_count": len(items),
                     "classes_found": sorted_classes,
-                    "details": items
+                    "details": items,
+                    "rld_info": rld_info
                 })
+        
         discrepancies.sort(key=lambda x: (-x['severity_gap'], x['generic_name']))
         return jsonify(discrepancies)
     finally:
         db.close()
+
+@drugtox_bp.route("/latest_rld")
+def get_latest_rld():
+    generic_name = request.args.get('generic_name')
+    if not generic_name: return jsonify({"error": "Missing generic_name"}), 400
+    
+    from dashboard.services.fdalabel_db import FDALabelDBService
+    if not FDALabelDBService.is_available():
+        return jsonify({"error": "Label database not available"}), 503
+        
+    try:
+        conn = FDALabelDBService.get_connection()
+        cursor = conn.cursor()
+        
+        # 1. Search for latest RLD
+        if FDALabelDBService._db_type == 'oracle':
+            sql = """
+                SELECT s.SET_ID, s.PRODUCT_NAMES 
+                FROM druglabel.DGV_SUM_SPL s 
+                JOIN druglabel.sum_spl_rld rld ON s.SPL_ID = rld.SPL_ID 
+                WHERE UPPER(s.PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:gn) 
+                ORDER BY s.EFF_TIME DESC
+            """
+            cursor.execute(sql, {"gn": f"%{generic_name}%"})
+        else:
+            sql = """
+                SELECT set_id, product_names FROM sum_spl 
+                WHERE generic_names LIKE ? AND is_rld = 1 
+                ORDER BY revised_date DESC
+            """
+            cursor.execute(sql, (f"%{generic_name}%",))
+            
+        row = cursor.fetchone()
+        if row:
+            sid = row[0] if isinstance(row, tuple) else row['set_id']
+            return jsonify({"set_id": sid, "is_rld": True})
+            
+        # 2. If no RLD, fallback to latest labeling
+        if FDALabelDBService._db_type == 'oracle':
+            sql = "SELECT SET_ID FROM druglabel.DGV_SUM_SPL WHERE UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:gn) ORDER BY EFF_TIME DESC"
+            cursor.execute(sql, {"gn": f"%{generic_name}%"})
+        else:
+            sql = "SELECT set_id FROM sum_spl WHERE generic_names LIKE ? ORDER BY revised_date DESC"
+            cursor.execute(sql, (f"%{generic_name}%",))
+            
+        row = cursor.fetchone()
+        if row:
+            sid = row[0] if isinstance(row, tuple) else row['set_id']
+            return jsonify({"set_id": sid, "is_rld": False})
+            
+        return jsonify({"error": "No labeling found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 @drugtox_bp.route("/autocomplete")
 def autocomplete():

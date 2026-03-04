@@ -63,6 +63,7 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import GavelIcon from '@mui/icons-material/Gavel';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import LaunchIcon from '@mui/icons-material/Launch';
 import { useUser } from '../context/UserContext';
 import Link from 'next/link';
 import debounce from 'lodash/debounce';
@@ -949,9 +950,46 @@ export default function DrugToxPage() {
                           </Stack>
                         </CardContent>
 
-                        <Box sx={{ p: 1.5, textAlign: 'right', borderTop: '1px solid #f0f0f0' }}>
-                          <Button size="small" endIcon={<CompareArrowsIcon />} onClick={() => setSelectedSetid(item.details[0].SETID)}>
-                            View market details
+                        <Box sx={{ p: 1.5, borderTop: '1px solid #f0f0f0' }}>
+                          <Box sx={{ mb: 1, p: 1, backgroundColor: '#fdfdfd', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                              <GavelIcon sx={{ fontSize: 14, mr: 0.5 }} /> RLD SEVERITY GAP:
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="caption" sx={{ fontWeight: 700 }}>RLD Class:</Typography>
+                              <Chip 
+                                label={item.rld_info?.status || 'Not Found'} 
+                                size="small" 
+                                color={item.rld_info?.status === 'Unknown' || !item.rld_info?.status ? 'default' : (getToxColor(item.rld_info?.status) as any)}
+                                sx={{ height: 18, fontSize: '0.65rem', fontWeight: 800 }}
+                              />
+                            </Box>
+                          </Box>
+                          
+                          <Button 
+                            fullWidth
+                            size="small" 
+                            variant="outlined"
+                            color="primary"
+                            endIcon={<LaunchIcon sx={{ fontSize: 14 }} />} 
+                            sx={{ fontWeight: 700, textTransform: 'none', fontSize: '0.7rem' }}
+                            onClick={() => {
+                              if (item.rld_info?.setid) {
+                                window.open(`/dashboard/label-view?set_id=${item.rld_info.setid}`, '_blank');
+                              } else {
+                                axios.get(`/api/drugtox/latest_rld?generic_name=${item.generic_name}`)
+                                  .then(res => {
+                                    if (res.data.set_id) {
+                                      window.open(`/dashboard/label-view?set_id=${res.data.set_id}`, '_blank');
+                                    } else {
+                                      alert('No labeling found for this drug in the database.');
+                                    }
+                                  })
+                                  .catch(() => alert('Could not retrieve labeling.'));
+                              }
+                            }}
+                          >
+                            {item.rld_info?.setid ? 'View RLD Labeling' : 'View Latest Labeling (no RLD found)'}
                           </Button>
                         </Box>
                       </Card>
