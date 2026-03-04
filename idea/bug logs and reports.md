@@ -36,6 +36,22 @@
     - Added **"RLD AVAILABLE ONLY"** toggle.
     - Removed redundant badges to resolve UI overlap with the Gap indicator.
 
+update: a 500 server error:
+[0] Failed to proxy http://0.0.0.0:8842/api/drugtox/discrepancies?tox_type=DICT Error: socket hang up
+[0]     at ignore-listed frames {
+[0]   code: 'ECONNRESET'
+[0] }
+[0] Error: socket hang up
+[0]     at ignore-listed frames {
+[0]   code: 'ECONNRESET'
+[0] }
+
+api/drugtox/discrepancies?tox_type=DILI:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+intercept-console-error.ts:42 AxiosError: Request failed with status code 500
+    at settle (settle.js:19:12)
+    at XMLHttpRequest.onloadend (xhr.js:59:13)
+    at Axios.request (Axios.js:46:41)
+
 ## ✅ 5. AFL Agent (search_v2) Performance Optimization
 **Problem:** System hung during Evidence Fetcher when processing many results (28+).
 **Status:** Completed.
