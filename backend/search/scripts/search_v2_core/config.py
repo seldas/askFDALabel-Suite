@@ -68,24 +68,26 @@ def get_db_connection():
     
     raise ConnectionError(f"No database available. Checked Oracle and SQLite at: {LOCAL_LABEL_DB_PATH}")
 
-# For SQLite, we don't use a schema prefix. For Oracle, we default to DRUGLABEL.
+# For SQLite, we use different table names and no schema prefix.
 if DB_TYPE == "sqlite":
     DB_SCHEMA = ""
+    PREFIX = ""
+    T_DGV_SUM_SPL = "sum_spl"
+    T_SPL_SEC = "spl_sections"
+    T_SECTION_TYPE = "section_type" # assuming these exist or aren't used in sqlite
+    T_DOCUMENT_TYPE = "document_type"
+    T_DGV_SUM_SPL_ACT_INGR = "active_ingredients_map"
+    T_DGV_SUM_SPL_EPC = "dgv_sum_spl_epc"
+    T_SPL_SEC_MEDDRA_LLT_OCC = "spl_sec_meddra_llt_occ"
+    T_SUM_SPL_RLD = "sum_spl" # is_rld column in sum_spl
 else:
     DB_SCHEMA = os.getenv("FDALABEL_SCHEMA", "DRUGLABEL")
-
-if DB_SCHEMA:
-    # Ensure it ends with a dot for the f-strings below
-    PREFIX = f"{DB_SCHEMA}."
-else:
-    PREFIX = ""
-
-# Note: Table constants are managed inside SQLManager for dynamic switching.
-T_DGV_SUM_SPL = f"{PREFIX}DGV_SUM_SPL"
-T_SPL_SEC = f"{PREFIX}SPL_SEC"
-T_SECTION_TYPE = f"{PREFIX}SECTION_TYPE"
-T_DOCUMENT_TYPE = f"{PREFIX}DOCUMENT_TYPE"
-T_DGV_SUM_SPL_ACT_INGR = f"{PREFIX}DGV_SUM_SPL_ACT_INGR_NAME"
-T_DGV_SUM_SPL_EPC = f"{PREFIX}DGV_SUM_SPL_EPC"
-T_SPL_SEC_MEDDRA_LLT_OCC = f"{PREFIX}SPL_SEC_MEDDRA_LLT_OCC"
-T_SUM_SPL_RLD = f"{PREFIX}SUM_SPL_RLD"
+    PREFIX = f"{DB_SCHEMA}." if DB_SCHEMA else ""
+    T_DGV_SUM_SPL = f"{PREFIX}DGV_SUM_SPL"
+    T_SPL_SEC = f"{PREFIX}SPL_SEC"
+    T_SECTION_TYPE = f"{PREFIX}SECTION_TYPE"
+    T_DOCUMENT_TYPE = f"{PREFIX}DOCUMENT_TYPE"
+    T_DGV_SUM_SPL_ACT_INGR = f"{PREFIX}DGV_SUM_SPL_ACT_INGR_NAME"
+    T_DGV_SUM_SPL_EPC = f"{PREFIX}DGV_SUM_SPL_EPC"
+    T_SPL_SEC_MEDDRA_LLT_OCC = f"{PREFIX}SPL_SEC_MEDDRA_LLT_OCC"
+    T_SUM_SPL_RLD = f"{PREFIX}SUM_SPL_RLD"
