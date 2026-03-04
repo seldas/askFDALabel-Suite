@@ -123,7 +123,7 @@ class FDALabelDBService:
                         SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES,
                         AUTHOR_ORG_NORMD_NAME, MARKET_CATEGORIES, APPR_NUM,
                         NDC_CODES, EFF_TIME, ACT_INGR_NAMES, LABELING_TYPE,
-                        DOSAGE_FORMS, ROUTES, EPC
+                        DOSAGE_FORMS, ROUTES, EPC, 0 as IS_RLD, 0 as IS_RS
                     FROM druglabel.DGV_SUM_SPL
                     WHERE 
                         UPPER(TITLE) LIKE UPPER(:q) OR
@@ -152,7 +152,8 @@ class FDALabelDBService:
                         'dosage_forms': row[10],
                         'routes': row[11],
                         'epc': row[12],
-                        'is_rld': row[13] if len(row) > 13 else 0
+                        'is_rld': row[13] if len(row) > 13 else 0,
+                        'is_rs': row[14] if len(row) > 14 else 0
                     })
                 cursor.close()
             else:
@@ -163,7 +164,7 @@ class FDALabelDBService:
                         set_id, product_names, generic_names,
                         manufacturer, market_categories, appr_num,
                         ndc_codes, revised_date, active_ingredients,
-                        doc_type, dosage_forms, routes, epc, is_rld
+                        doc_type, dosage_forms, routes, epc, is_rld, is_rs
                     FROM sum_spl
                     WHERE 
                         product_names LIKE :q OR
@@ -191,7 +192,8 @@ class FDALabelDBService:
                         'dosage_forms': row['dosage_forms'],
                         'routes': row['routes'],
                         'epc': row['epc'],
-                        'is_rld': row['is_rld']
+                        'is_rld': row['is_rld'],
+                        'is_rs': row['is_rs']
                     })
                 cursor.close()
         except Exception as e:
@@ -245,12 +247,12 @@ class FDALabelDBService:
                     SELECT 
                         set_id, appr_num, product_names, 
                         generic_names, active_ingredients,
-                        is_rld, revised_date
+                        is_rld, is_rs, revised_date
                     FROM sum_spl
                     WHERE product_names LIKE :dn OR 
                           generic_names LIKE :dn OR 
                           active_ingredients LIKE :dn
-                    ORDER BY is_rld DESC, revised_date DESC
+                    ORDER BY is_rld DESC, is_rs DESC, revised_date DESC
                     LIMIT 1
                 """
                 cursor.execute(query, {"dn": drug_name})
@@ -263,7 +265,9 @@ class FDALabelDBService:
                     return {
                         "set_id": row['set_id'], "appr_num": row['appr_num'], "product_name": row['product_names'],
                         "generic_name": row['generic_names'], "active_ingredients": row['active_ingredients'],
-                        "is_RLD": "Yes" if row['is_rld'] else "No", "effective_date": row['revised_date']
+                        "is_RLD": "Yes" if row['is_rld'] else "No", 
+                        "is_RS": "Yes" if row['is_rs'] else "No",
+                        "effective_date": row['revised_date']
                     }
                 cursor.close()
         except Exception as e:
@@ -360,7 +364,8 @@ class FDALabelDBService:
                         'dosage_forms': row[10],
                         'routes': row[11],
                         'epc': row[12],
-                        'is_rld': bool(row[13])
+                        'is_rld': bool(row[13]),
+                        'is_rs': False # Oracle mapping needs check if RS is in internal DB
                     }
                 cursor.close()
             else:
@@ -370,7 +375,7 @@ class FDALabelDBService:
                         set_id, product_names, generic_names,
                         manufacturer, market_categories, appr_num,
                         ndc_codes, revised_date, active_ingredients,
-                        doc_type, dosage_forms, routes, epc, is_rld
+                        doc_type, dosage_forms, routes, epc, is_rld, is_rs
                     FROM sum_spl
                     WHERE set_id = ?
                 """
@@ -392,7 +397,8 @@ class FDALabelDBService:
                         'dosage_forms': row['dosage_forms'],
                         'routes': row['routes'],
                         'epc': row['epc'],
-                        'is_rld': bool(row['is_rld'])
+                        'is_rld': bool(row['is_rld']),
+                        'is_rs': bool(row['is_rs'])
                     }
                 cursor.close()
         except Exception as e:

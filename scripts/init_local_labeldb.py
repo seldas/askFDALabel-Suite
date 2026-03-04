@@ -29,6 +29,7 @@ def init_db(db_path="data/label.db"):
         revised_date TEXT,
         initial_approval_year INTEGER,
         is_rld INTEGER DEFAULT 0,
+        is_rs INTEGER DEFAULT 0,
         local_path TEXT
     )
     """)

@@ -61,10 +61,27 @@ intercept-console-error.ts:42 AxiosError: Request failed with status code 500
 - **Single-Pass Parsing:** Optimized workflow ensures each SPL XML is accessed and parsed exactly once per query.
 - **Sanity Clamping:** Added stricter character limits to prevent LLM latency and context overflows.
 
-## ✅ 6. Authoritative RLD Identification (Orange Book)
-**Problem:** `is_rld` flag was hardcoded to 0 or based on inconsistent name matching.
+## ✅ 6. Authoritative RLD/RS Identification (Orange Book)
+**Problem:** Reference labels were not authoritative and did not differentiate between Reference Listed Drugs (RLD) and Reference Standards (RS).
 **Status:** Completed.
 **Implementation:**
-- **Source of Truth:** Integrated official FDA Orange Book data (`data/downloads/EOB_2026_01/products.txt`).
-- **Logic:** Updated `scripts/update_labeldb_from_dailymed.py` to match application numbers (NDA/ANDA) against the Orange Book RLD list.
-- **Migration:** Created `scripts/fix_rld_status.py` to retroactively patch the `is_rld` column in the current `label.db`.
+- **Source of Truth:** Integrated official FDA Orange Book data.
+- **Logic:** Updated system to match NDA/ANDA numbers against the Orange Book for distinct RLD and RS flags.
+- **UI:** Added color-coded tags: **RLD (Red)** and **RS (Green)**.
+
+### 🛠️ Steps to Update Your Local System:
+1.  **Ensure Data Presence:**
+    Place the latest FDA Orange Book `products.txt` file at:
+    `data\downloads\EOB_2026_01\products.txt`
+2.  **Add Database Column:**
+    Run the following command from the project root to add the `is_rs` column to your existing database:
+    ```powershell
+    python -c "import sqlite3; conn = sqlite3.connect('data/label.db'); cursor = conn.cursor(); cursor.execute('PRAGMA table_info(sum_spl)'); columns = [row[1] for row in cursor.fetchall()]; [cursor.execute('ALTER TABLE sum_spl ADD COLUMN is_rs INTEGER DEFAULT 0') if 'is_rs' not in columns else None]; conn.commit(); conn.close(); print('is_rs column verified/added.')"
+    ```
+3.  **Synchronize Reference Status:**
+    Run the migration script to populate the RLD/RS flags based on the Orange Book data:
+    ```bash
+    python scripts/fix_rld_status.py
+    ```
+4.  **Restart Backend:**
+    Restart the Flask backend to clear any cached database metadata and enable the new UI tags.

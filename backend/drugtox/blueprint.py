@@ -111,43 +111,43 @@ def get_discrepancies():
                     "unique_classes": unique_classes
                 })
 
-        # BATCH FETCH RLD STATUS
+        # BATCH FETCH RLD/RS STATUS
         rld_map = {} # generic_name -> set_id
+        rs_map = {} # generic_name -> set_id
         if generic_names_to_check and FDALabelDBService.is_available():
             conn_lbl = FDALabelDBService.get_connection()
             if conn_lbl:
                 try:
                     cursor = conn_lbl.cursor()
                     if FDALabelDBService._db_type == 'oracle':
-                        # Oracle batch check might be complex with LIKE, keep it simple for now or use a temp table
-                        # For Oracle we'll still do it carefully or just a few at a time
-                        for gn in generic_names_to_check[:50]: # Cap for Oracle safety
+                        # Oracle batch check
+                        for gn in generic_names_to_check[:50]:
                              sql = "SELECT SET_ID FROM druglabel.DGV_SUM_SPL s JOIN druglabel.sum_spl_rld rld ON s.SPL_ID = rld.SPL_ID WHERE UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:gn) AND ROWNUM = 1"
                              cursor.execute(sql, {"gn": f"%{gn}%"})
                              r_row = cursor.fetchone()
                              if r_row: rld_map[gn] = r_row[0]
                     else:
-                        # SQLite Optimized Batch
-                        # Instead of LIKE for each, we can try to fetch all RLDs and match in Python if small, 
-                        # but label.db is large. 
-                        # We'll use a slightly better approach: find RLDs where generic_name is in our list
-                        # This is still tricky with LIKE. Let's use individual but reuse connection.
+                        # SQLite Optimized
                         for gn in generic_names_to_check:
-                            sql = "SELECT set_id FROM sum_spl WHERE generic_names LIKE ? AND is_rld = 1 ORDER BY revised_date DESC LIMIT 1"
+                            # Prefer RLD then RS
+                            sql = "SELECT set_id, is_rld, is_rs FROM sum_spl WHERE generic_names LIKE ? AND (is_rld = 1 OR is_rs = 1) ORDER BY is_rld DESC, is_rs DESC, revised_date DESC LIMIT 1"
                             cursor.execute(sql, (f"%{gn}%",))
                             r_row = cursor.fetchone()
                             if r_row:
-                                rld_map[gn] = r_row[0] if isinstance(r_row, tuple) else r_row['set_id']
+                                sid = r_row['set_id']
+                                if r_row['is_rld']:
+                                    rld_map[gn] = sid
+                                elif r_row['is_rs']:
+                                    rs_map[gn] = sid
                 finally:
                     conn_lbl.close()
 
-        # Batch fetch toxicity for found RLDs
-        rld_tox_map = {}
-        if rld_map:
-            rld_set_ids = list(set(rld_map.values()))
-            # SQLite supports up to 999 parameters
-            for i in range(0, len(rld_set_ids), 900):
-                chunk = rld_set_ids[i:i+900]
+        # Batch fetch toxicity for found RLDs/RSs
+        ref_tox_map = {}
+        ref_set_ids = list(set(list(rld_map.values()) + list(rs_map.values())))
+        if ref_set_ids:
+            for i in range(0, len(ref_set_ids), 900):
+                chunk = ref_set_ids[i:i+900]
                 placeholders = ",".join([f":s{j}" for j in range(len(chunk))])
                 binds = {f"s{j}": sid for j, sid in enumerate(chunk)}
                 binds['tox'] = tox_type
@@ -155,7 +155,7 @@ def get_discrepancies():
                 tox_query = text(f"SELECT SETID, Toxicity_Class FROM drug_toxicity WHERE SETID IN ({placeholders}) AND Tox_Type = :tox AND is_historical = 0")
                 t_rows = db.execute(tox_query, binds).fetchall()
                 for tr in t_rows:
-                    rld_tox_map[tr.SETID] = tr.Toxicity_Class
+                    ref_tox_map[tr.SETID] = tr.Toxicity_Class
 
         discrepancies = []
         for raw in discrepancies_raw:
@@ -168,9 +168,17 @@ def get_discrepancies():
             sorted_classes = sorted(list(unique_classes), key=lambda x: tox_map.get(x, 0))
 
             found_rld_sid = rld_map.get(generic_name)
-            rld_info = {"status": "Unknown", "setid": found_rld_sid}
-            if found_rld_sid:
-                rld_info["status"] = rld_tox_map.get(found_rld_sid, "Not evaluated")
+            found_rs_sid = rs_map.get(generic_name)
+            
+            ref_sid = found_rld_sid or found_rs_sid
+            rld_info = {
+                "status": "Unknown", 
+                "setid": ref_sid,
+                "is_rld": bool(found_rld_sid),
+                "is_rs": bool(found_rs_sid)
+            }
+            if ref_sid:
+                rld_info["status"] = ref_tox_map.get(ref_sid, "Not evaluated")
 
             discrepancies.append({
                 "generic_name": generic_name,

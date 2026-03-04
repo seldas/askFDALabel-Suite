@@ -121,6 +121,8 @@ interface DiscrepancyItem {
   rld_info?: {
     status: string;
     setid: string | null;
+    is_rld?: boolean;
+    is_rs?: boolean;
   };
 }
 
@@ -1003,6 +1005,12 @@ export default function DrugToxPage() {
                                 color={item.rld_info?.status === 'Unknown' || !item.rld_info?.status ? 'default' : (getToxColor(item.rld_info?.status) as any)}
                                 sx={{ height: 18, fontSize: '0.65rem', fontWeight: 800 }}
                               />
+                              {item.rld_info?.is_rld && (
+                                <Chip label="RLD" size="small" color="error" sx={{ height: 16, fontSize: '0.55rem', fontWeight: 900 }} />
+                              )}
+                              {item.rld_info?.is_rs && (
+                                <Chip label="RS" size="small" color="success" sx={{ height: 16, fontSize: '0.55rem', fontWeight: 900 }} />
+                              )}
                             </Box>
                           </Box>
                           

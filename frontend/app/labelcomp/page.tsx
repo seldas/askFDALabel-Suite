@@ -734,6 +734,9 @@ function LabelCompContent() {
                   {(meta as any).is_rld && (
                     <div style={{ padding: '4px 8px', backgroundColor: '#fef2f2', color: '#ef4444', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900, border: '1px solid #fee2e2' }}>RLD</div>
                   )}
+                  {(meta as any).is_rs && (
+                    <div style={{ padding: '4px 8px', backgroundColor: '#f0fdf4', color: '#16a34a', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900, border: '1px solid #dcfce7' }}>RS</div>
+                  )}
                   <h3 style={{ color: '#0f172a', margin: 0, fontSize: '1rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{meta.brand_name}</h3>
                 </div>
                 <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.6 }}>

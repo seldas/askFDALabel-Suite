@@ -195,36 +195,29 @@ class LabelDBUpdater:
         buffer_sum_spl, buffer_ingr, buffer_sec_db, buffer_sec_fts, buffer_spl_ids = [], [], [], [], []
 
         num_workers = multiprocessing.cpu_count()
-        # Load RLD application numbers from Orange Book products.txt
+        # Load RLD and RS application numbers from Orange Book products.txt
         rld_appl_nos = set()
+        rs_appl_nos = set()
         ob_file_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'downloads', 'EOB_2026_01', 'products.txt')
         if os.path.exists(ob_file_path):
             try:
                 with open(ob_file_path, 'r', encoding='latin-1') as f:
                     header = f.readline()
-                    # Header: Ingredient~DF;Route~Trade_Name~Applicant~Strength~Appl_Type~Appl_No~Product_No~TE_Code~Approval_Date~RLD~RS~Type~Applicant_Full_Name
-                    # RLD is column index 10 (0-indexed)
-                    # Appl_No is column index 6
+                    # RLD is column index 10, RS is column index 11
                     for line in f:
                         parts = line.split('~')
-                        if len(parts) > 10:
-                            is_rld_val = parts[10].strip().upper()
-                            if is_rld_val == 'YES':
-                                appl_no = parts[6].strip()
-                                # Orange Book Appl_No is often 6 digits, might need normalization
-                                rld_appl_nos.add(appl_no.lstrip('0'))
-                print(f"Loaded {len(rld_appl_nos)} RLD application numbers from Orange Book.")
+                        if len(parts) > 11:
+                            appl_no = parts[6].strip().lstrip('0')
+                            if parts[10].strip().upper() == 'YES':
+                                rld_appl_nos.add(appl_no)
+                            if parts[11].strip().upper() == 'YES':
+                                rs_appl_nos.add(appl_no)
+                print(f"Loaded {len(rld_appl_nos)} RLD and {len(rs_appl_nos)} RS application numbers.")
             except Exception as e:
                 print(f"Error reading Orange Book file: {e}")
         else:
-            print(f"Warning: Orange Book file not found at {ob_file_path}. Defaulting to existing RLD identification.")
-            # Fallback to the old rld_drug_name.txt if available
-            rld_names = set()
-            rld_file_path = os.path.join(os.path.dirname(__file__), '..', 'backend', 'search', 'scripts', 'drug_snippet', 'rld_drug_name.txt')
-            if os.path.exists(rld_file_path):
-                with open(rld_file_path, 'r', encoding='latin-1') as f:
-                    rld_names = {line.strip().upper() for line in f if line.strip() and line.strip() != "Trade Name"}
-            
+            print(f"Warning: Orange Book file not found at {ob_file_path}. RLD/RS will default to 0.")
+
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
             futures = {executor.submit(self.parse_spl_worker, f): f for f in all_zips}
             
@@ -238,35 +231,29 @@ class LabelDBUpdater:
                     spl_id = data['spl_id']
                     buffer_spl_ids.append(spl_id)
 
-                    # Determine is_rld
+                    # Determine is_rld and is_rs
                     is_rld = 0
-                    if rld_appl_nos:
-                        # Match by application number
-                        # data['appr_nums'] can contain multiple values like "NDA0205613; ANDA078337"
-                        if data['appr_nums']:
-                            appr_parts = re.findall(r'\d+', data['appr_nums'])
-                            for ap in appr_parts:
-                                if ap.lstrip('0') in rld_appl_nos:
-                                    is_rld = 1
-                                    break
-                    elif 'rld_names' in locals() and rld_names:
-                        # Fallback to name matching
-                        p_names = data['product_names'].split('; ')
-                        for pn in p_names:
-                            if pn.strip().upper() in rld_names:
+                    is_rs = 0
+                    if data['appr_nums']:
+                        appr_parts = re.findall(r'\d+', data['appr_nums'])
+                        for ap in appr_parts:
+                            ap_norm = ap.lstrip('0')
+                            if ap_norm in rld_appl_nos:
                                 is_rld = 1
-                                break
+                            if ap_norm in rs_appl_nos:
+                                is_rs = 1
+                            if is_rld and is_rs: break
 
-                    # sum_spl has 17 columns: 
+                    # sum_spl has 18 columns: 
                     # 1.spl_id, 2.set_id, 3.product_names, 4.generic_names, 5.manufacturer, 
                     # 6.appr_num, 7.active_ingredients, 8.market_categories, 9.doc_type, 10.routes, 
                     # 11.dosage_forms, 12.epc, 13.ndc_codes, 14.revised_date, 15.initial_approval_year, 
-                    # 16.is_rld, 17.local_path
+                    # 16.is_rld, 17.is_rs, 18.local_path
                     buffer_sum_spl.append((
                         spl_id, data['set_id'], data['product_names'], data['generic_names'], data['manufacturer'],
                         data['appr_nums'], data['active_ingredients'], "", data['doc_type'], data['routes'],
                         data['dosage_forms'], "", data['ndc_codes'], data['revised_date'], data['initial_approval_year'],
-                        is_rld, data['local_rel_path']
+                        is_rld, is_rs, data['local_rel_path']
                     ))
                     if data['ingr_map']: buffer_ingr.extend(data['ingr_map'])
                     if data['sections_db']: buffer_sec_db.extend(data['sections_db'])
@@ -284,7 +271,7 @@ class LabelDBUpdater:
                         cursor.execute(f"DELETE FROM spl_sections_search WHERE spl_id IN ({placeholders})", buffer_spl_ids)
                         cursor.execute(f"DELETE FROM active_ingredients_map WHERE spl_id IN ({placeholders})", buffer_spl_ids)
                         
-                        cursor.executemany("INSERT OR REPLACE INTO sum_spl VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", buffer_sum_spl)
+                        cursor.executemany("INSERT OR REPLACE INTO sum_spl VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", buffer_sum_spl)
                         if buffer_ingr: cursor.executemany("INSERT INTO active_ingredients_map VALUES (?,?,?)", buffer_ingr)
                         if buffer_sec_db: cursor.executemany("INSERT INTO spl_sections (spl_id, loinc_code, title, content_xml) VALUES (?,?,?,?)", buffer_sec_db)
                         if buffer_sec_fts: cursor.executemany("INSERT INTO spl_sections_search (spl_id, loinc_code, title, content_text) VALUES (?,?,?,?)", buffer_sec_fts)
