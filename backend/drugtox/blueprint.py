@@ -1,155 +1,91 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import os
 from pathlib import Path
 from collections import defaultdict
+import sqlite3
 
 drugtox_bp = Blueprint('drugtox', __name__)
 
-# Database Configuration
-# Adjusting paths for unified app (running from backend/)
-BACKEND_DIR = Path(__file__).resolve().parent.parent # .../backend
-PROJECT_DIR = BACKEND_DIR.parent                    # .../askFDALabel-Suite
-DEFAULT_DB_PATH = (PROJECT_DIR / "data" / "afd.db").resolve()
-
-DB_PATH = Path(os.environ.get("DRUGTOX_DB_PATH", str(DEFAULT_DB_PATH))).resolve()
-DB_URL = f"sqlite:///{DB_PATH}"
-engine = create_engine(DB_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 def get_db_session():
-    return SessionLocal()
-
-@drugtox_bp.route("/drugs")
-def get_drugs():
-    q = request.args.get('q')
-    tox_type = request.args.get('tox_type')
-    show_historical = request.args.get('show_historical', 'false').lower() == 'true'
-    changed_only = request.args.get('changed_only', 'false').lower() == 'true'
-    page = int(request.args.get('page', 1))
-    limit = int(request.args.get('limit', 20))
-    
-    offset = (page - 1) * limit
-    base_query = "FROM drug_toxicity"
-    params = {"limit": limit, "offset": offset}
-    
-    conditions = []
-    if not show_historical:
-        conditions.append("is_historical = 0")
-    if changed_only:
-        conditions.append("Changed = 'Yes'")
-    if q:
-        conditions.append("(Trade_Name LIKE :q OR Generic_Proper_Names LIKE :q)")
-        params["q"] = f"%{q}%"
-    if tox_type:
-        conditions.append("Tox_Type = :tox_type")
-        params["tox_type"] = tox_type
-
-    where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
-
-    db = get_db_session()
-    try:
-        # Get total count
-        count_result = db.execute(text(f"SELECT COUNT(*) {base_query} {where_clause}"), params)
-        total_count = count_result.scalar()
-
-        # Get paginated data
-        query = text(f"SELECT SETID, Trade_Name, Generic_Proper_Names, Toxicity_Class, Author_Organization, Tox_Type, SPL_Effective_Time, Changed, is_historical {base_query} {where_clause} ORDER BY SPL_Effective_Time DESC LIMIT :limit OFFSET :offset")
-        result = db.execute(query, params)
-        drugs = [dict(row._mapping) for row in result]
-        
-        return jsonify({
-            "items": drugs,
-            "total": total_count,
-            "page": page,
-            "limit": limit
-        })
-    finally:
-        db.close()
+    db_path = current_app.config.get('DRUGTOX_DB_PATH')
+    if not db_path:
+        db_path = os.path.join(current_app.root_path, '..', '..', 'data', 'afd.db')
+    db_path = os.path.abspath(db_path)
+    engine = create_engine(f'sqlite:///{db_path}')
+    Session = sessionmaker(bind=engine)
+    return Session()
 
 @drugtox_bp.route("/stats")
 def get_stats():
-    tox_type = request.args.get('tox_type')
+    tox_type = request.args.get('tox_type', 'DILI')
     db = get_db_session()
     try:
-        where_clause = "WHERE is_historical = 0"
-        params = {}
-        if tox_type:
-            where_clause += " AND Tox_Type = :tox"
-            params["tox"] = tox_type
-            
-        query = text(f"SELECT Toxicity_Class, COUNT(*) as count FROM drug_toxicity {where_clause} GROUP BY Toxicity_Class")
-        result = db.execute(query, params)
-        distribution = [dict(row._mapping) for row in result]
+        dist_query = text("SELECT Toxicity_Class, COUNT(*) as count FROM drug_toxicity WHERE Tox_Type = :tox AND is_historical = 0 GROUP BY Toxicity_Class")
+        dist = db.execute(dist_query, {"tox": tox_type}).fetchall()
         
-        change_query = text(f"SELECT COUNT(*) FROM drug_toxicity {where_clause} AND Changed = 'Yes'")
-        total_changes = db.execute(change_query, params).scalar()
+        changes_query = text("SELECT COUNT(*) FROM drug_toxicity WHERE Tox_Type = :tox AND is_historical = 0 AND Changed = 'Yes'")
+        total_changes = db.execute(changes_query, {"tox": tox_type}).scalar()
         
         return jsonify({
-            "distribution": distribution,
+            "distribution": [dict(r._mapping) for r in dist],
             "total_changes": total_changes
         })
     finally:
         db.close()
 
-@drugtox_bp.route("/companies/<company_name>/stats")
-def get_company_stats(company_name):
-    tox_type = request.args.get('tox_type')
+@drugtox_bp.route("/drugs")
+def get_drugs():
+    q = request.args.get('q', '')
+    tox_type = request.args.get('tox_type', 'DILI')
+    show_historical = request.args.get('show_historical') == 'true'
+    changed_only = request.args.get('changed_only') == 'true'
+    page = int(request.args.get('page', 1))
+    limit = int(request.args.get('limit', 20))
+    offset = (page - 1) * limit
+
     db = get_db_session()
     try:
-        where_clause = "WHERE is_historical = 0 AND Author_Organization = :company"
-        params = {"company": company_name}
-        if tox_type:
-            where_clause += " AND Tox_Type = :tox"
-            params["tox"] = tox_type
-            
-        query = text(f"SELECT Toxicity_Class, COUNT(*) as count FROM drug_toxicity {where_clause} GROUP BY Toxicity_Class")
-        result = db.execute(query, params)
-        distribution = [dict(row._mapping) for row in result]
+        where_clauses = ["Tox_Type = :tox"]
+        params = {"tox": tox_type, "limit": limit, "offset": offset}
         
-        total_query = text(f"SELECT COUNT(*) FROM drug_toxicity {where_clause}")
-        total_drugs = db.execute(total_query, params).scalar()
+        if q:
+            where_clauses.append("(Trade_Name LIKE :q OR Generic_Proper_Names LIKE :q OR Author_Organization LIKE :q)")
+            params["q"] = f"%{q}%"
+        
+        if not show_historical:
+            where_clauses.append("is_historical = 0")
+            
+        if changed_only:
+            where_clauses.append("Changed = 'Yes'")
+            
+        where_clause = " AND ".join(where_clauses)
+        
+        query = text(f"SELECT * FROM drug_toxicity WHERE {where_clause} ORDER BY Trade_Name ASC LIMIT :limit OFFSET :offset")
+        rows = db.execute(query, params).fetchall()
+        
+        count_query = text(f"SELECT COUNT(*) FROM drug_toxicity WHERE {where_clause}")
+        total = db.execute(count_query, params).scalar()
         
         return jsonify({
-            "distribution": distribution,
-            "total_drugs": total_drugs
+            "items": [dict(r._mapping) for r in rows],
+            "total": total
         })
-    finally:
-        db.close()
-
-@drugtox_bp.route("/companies/<company_name>/portfolio")
-def get_company_portfolio(company_name):
-    tox_type = request.args.get('tox_type')
-    db = get_db_session()
-    try:
-        where_clause = "WHERE is_historical = 0 AND Author_Organization = :company"
-        params = {"company": company_name}
-        if tox_type:
-            where_clause += " AND Tox_Type = :tox"
-            params["tox"] = tox_type
-            
-        query = text(f"SELECT SETID, Trade_Name, Generic_Proper_Names, Toxicity_Class, SPL_Effective_Time, Changed "
-                     f"FROM drug_toxicity {where_clause} ORDER BY Trade_Name ASC")
-        result = db.execute(query, params)
-        return jsonify([dict(row._mapping) for row in result])
     finally:
         db.close()
 
 @drugtox_bp.route("/discrepancies")
 def get_discrepancies():
-    tox_type = request.args.get('tox_type')
-    tox_map = {"No": 0, "Precaution": 1, "Less": 2, "Most": 3}
+    tox_type = request.args.get('tox_type', 'DILI')
+    tox_map = {'Most': 3, 'Less': 2, 'No': 1, 'Precaution': 0, 'Unknown': 0}
     
-    where_clause = "WHERE is_historical = 0"
-    params = {}
-    if tox_type:
-        where_clause += " AND Tox_Type = :tox"
-        params["tox"] = tox_type
-
+    where_clause = "WHERE Tox_Type = :tox AND is_historical = 0"
+    params = {"tox": tox_type}
+    
     db = get_db_session()
     
-    # 1. Connect to local label.db to find RLD status in realtime
+    # 1. Connect to local label.db to find RLD status
     from dashboard.services.fdalabel_db import FDALabelDBService
     
     try:
@@ -161,72 +97,96 @@ def get_discrepancies():
         for r in rows:
             groups[r.Generic_Proper_Names].append(dict(r._mapping))
             
-        discrepancies = []
+        discrepancies_raw = []
+        generic_names_to_check = []
+
         for generic_name, items in groups.items():
             unique_classes = set(item['Toxicity_Class'] for item in items)
             if len(unique_classes) > 1:
-                # Calculate severity gap
-                scores = [tox_map.get(c, 0) for c in unique_classes]
-                gap = max(scores) - min(scores)
-                sorted_classes = sorted(list(unique_classes), key=lambda x: tox_map.get(x, 0))
-                
-                # 2. Realtime RLD check for this generic drug
-                rld_info = {"status": "Unknown", "setid": None}
+                generic_names_to_check.append(generic_name)
+                # Initial structure
+                discrepancies_raw.append({
+                    "generic_name": generic_name,
+                    "items": items,
+                    "unique_classes": unique_classes
+                })
+
+        # BATCH FETCH RLD STATUS
+        rld_map = {} # generic_name -> set_id
+        if generic_names_to_check and FDALabelDBService.is_available():
+            conn_lbl = FDALabelDBService.get_connection()
+            if conn_lbl:
                 try:
-                    # Look for RLD labels by generic name in label.db
-                    # We pick the latest one (by effective date) that is marked as RLD
-                    # Note: We use search_labels or direct SQL here.
-                    # Simplified: search for the first RLD in the list of set_ids we already have in items
-                    # OR search the local DB for any RLD with this generic name.
-                    
-                    # Direct check in items first (maybe one of the manufacturers IS the RLD)
-                    found_rld = None
-                    set_ids = [it['SETID'] for it in items]
-                    
-                    # Check local DB for RLD status of these set_ids
-                    # We use chunks because set_ids could be long
-                    rld_map = {}
-                    if FDALabelDBService.is_available():
-                        # We look for ANY label with this generic name that is an RLD in the local/internal DB
-                        # This is more accurate than just checking current project items
-                        conn_lbl = FDALabelDBService.get_connection()
-                        if conn_lbl:
-                            cursor = conn_lbl.cursor()
-                            if FDALabelDBService._db_type == 'oracle':
-                                sql = "SELECT SET_ID FROM druglabel.DGV_SUM_SPL s JOIN druglabel.sum_spl_rld rld ON s.SPL_ID = rld.SPL_ID WHERE UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:gn) AND ROWNUM = 1"
-                                cursor.execute(sql, {"gn": f"%{generic_name}%"})
-                            else:
-                                sql = "SELECT set_id FROM sum_spl WHERE generic_names LIKE ? AND is_rld = 1 ORDER BY revised_date DESC LIMIT 1"
-                                cursor.execute(sql, (f"%{generic_name}%",))
-                            
+                    cursor = conn_lbl.cursor()
+                    if FDALabelDBService._db_type == 'oracle':
+                        # Oracle batch check might be complex with LIKE, keep it simple for now or use a temp table
+                        # For Oracle we'll still do it carefully or just a few at a time
+                        for gn in generic_names_to_check[:50]: # Cap for Oracle safety
+                             sql = "SELECT SET_ID FROM druglabel.DGV_SUM_SPL s JOIN druglabel.sum_spl_rld rld ON s.SPL_ID = rld.SPL_ID WHERE UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:gn) AND ROWNUM = 1"
+                             cursor.execute(sql, {"gn": f"%{gn}%"})
+                             r_row = cursor.fetchone()
+                             if r_row: rld_map[gn] = r_row[0]
+                    else:
+                        # SQLite Optimized Batch
+                        # Instead of LIKE for each, we can try to fetch all RLDs and match in Python if small, 
+                        # but label.db is large. 
+                        # We'll use a slightly better approach: find RLDs where generic_name is in our list
+                        # This is still tricky with LIKE. Let's use individual but reuse connection.
+                        for gn in generic_names_to_check:
+                            sql = "SELECT set_id FROM sum_spl WHERE generic_names LIKE ? AND is_rld = 1 ORDER BY revised_date DESC LIMIT 1"
+                            cursor.execute(sql, (f"%{gn}%",))
                             r_row = cursor.fetchone()
                             if r_row:
-                                found_rld = r_row[0] if isinstance(r_row, tuple) else r_row['set_id']
-                            conn_lbl.close()
+                                rld_map[gn] = r_row[0] if isinstance(r_row, tuple) else r_row['set_id']
+                finally:
+                    conn_lbl.close()
 
-                    if found_rld:
-                        # Find the toxicity class for this RLD SETID
-                        rld_tox = db.execute(text("SELECT Toxicity_Class FROM drug_toxicity WHERE SETID = :sid AND Tox_Type = :tox AND is_historical = 0 LIMIT 1"), 
-                                           {"sid": found_rld, "tox": tox_type}).fetchone()
-                        rld_info = {
-                            "status": rld_tox[0] if rld_tox else "Not evaluated",
-                            "setid": found_rld
-                        }
-                except Exception as e:
-                    print(f"Error fetching RLD info for {generic_name}: {e}")
+        # Batch fetch toxicity for found RLDs
+        rld_tox_map = {}
+        if rld_map:
+            rld_set_ids = list(set(rld_map.values()))
+            # SQLite supports up to 999 parameters
+            for i in range(0, len(rld_set_ids), 900):
+                chunk = rld_set_ids[i:i+900]
+                placeholders = ",".join([f":s{j}" for j in range(len(chunk))])
+                binds = {f"s{j}": sid for j, sid in enumerate(chunk)}
+                binds['tox'] = tox_type
+                
+                tox_query = text(f"SELECT SETID, Toxicity_Class FROM drug_toxicity WHERE SETID IN ({placeholders}) AND Tox_Type = :tox AND is_historical = 0")
+                t_rows = db.execute(tox_query, binds).fetchall()
+                for tr in t_rows:
+                    rld_tox_map[tr.SETID] = tr.Toxicity_Class
 
-                discrepancies.append({
-                    "generic_name": generic_name,
-                    "tox_range": f"{sorted_classes[0]} to {sorted_classes[-1]}",
-                    "severity_gap": gap,
-                    "manufacturer_count": len(items),
-                    "classes_found": sorted_classes,
-                    "details": items,
-                    "rld_info": rld_info
-                })
+        discrepancies = []
+        for raw in discrepancies_raw:
+            generic_name = raw['generic_name']
+            items = raw['items']
+            unique_classes = raw['unique_classes']
+            
+            scores = [tox_map.get(c, 0) for c in unique_classes]
+            gap = max(scores) - min(scores)
+            sorted_classes = sorted(list(unique_classes), key=lambda x: tox_map.get(x, 0))
+
+            found_rld_sid = rld_map.get(generic_name)
+            rld_info = {"status": "Unknown", "setid": found_rld_sid}
+            if found_rld_sid:
+                rld_info["status"] = rld_tox_map.get(found_rld_sid, "Not evaluated")
+
+            discrepancies.append({
+                "generic_name": generic_name,
+                "tox_range": f"{sorted_classes[0]} to {sorted_classes[-1]}",
+                "severity_gap": gap,
+                "manufacturer_count": len(items),
+                "classes_found": sorted_classes,
+                "details": items,
+                "rld_info": rld_info
+            })
         
         discrepancies.sort(key=lambda x: (-x['severity_gap'], x['generic_name']))
         return jsonify(discrepancies)
+    except Exception as e:
+        current_app.logger.error(f"Discrepancies error: {e}")
+        return jsonify({"error": str(e)}), 500
     finally:
         db.close()
 
@@ -239,6 +199,7 @@ def get_latest_rld():
     if not FDALabelDBService.is_available():
         return jsonify({"error": "Label database not available"}), 503
         
+    conn = None
     try:
         conn = FDALabelDBService.get_connection()
         cursor = conn.cursor()
@@ -349,5 +310,34 @@ def get_drug_market(setid):
             {"name": generic_name, "tox": current_tox_type, "setid": setid}
         )
         return jsonify([dict(r._mapping) for r in market_res])
+    finally:
+        db.close()
+
+@drugtox_bp.route("/companies/<path:company_name>/stats")
+def get_company_stats(company_name):
+    tox_type = request.args.get('tox_type', 'DILI')
+    db = get_db_session()
+    try:
+        dist_query = text("SELECT Toxicity_Class, COUNT(*) as count FROM drug_toxicity WHERE Author_Organization = :company AND Tox_Type = :tox AND is_historical = 0 GROUP BY Toxicity_Class")
+        dist = db.execute(dist_query, {"company": company_name, "tox": tox_type}).fetchall()
+        
+        count_query = text("SELECT COUNT(*) FROM drug_toxicity WHERE Author_Organization = :company AND Tox_Type = :tox AND is_historical = 0")
+        total_drugs = db.execute(count_query, {"company": company_name, "tox": tox_type}).scalar()
+        
+        return jsonify({
+            "distribution": [dict(r._mapping) for r in dist],
+            "total_drugs": total_drugs
+        })
+    finally:
+        db.close()
+
+@drugtox_bp.route("/companies/<path:company_name>/portfolio")
+def get_company_portfolio(company_name):
+    tox_type = request.args.get('tox_type', 'DILI')
+    db = get_db_session()
+    try:
+        query = text("SELECT SETID, Trade_Name, Generic_Proper_Names, Toxicity_Class, Author_Organization, Tox_Type, SPL_Effective_Time, Changed FROM drug_toxicity WHERE Author_Organization = :company AND Tox_Type = :tox AND is_historical = 0")
+        rows = db.execute(query, {"company": company_name, "tox": tox_type}).fetchall()
+        return jsonify([dict(r._mapping) for r in rows])
     finally:
         db.close()
