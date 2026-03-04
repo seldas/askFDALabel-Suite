@@ -41,3 +41,4 @@ frontend/public/webtest/results/
 frontend/public/webtest/history/
 
 database/
+sync_embeddings_multigpu.log
