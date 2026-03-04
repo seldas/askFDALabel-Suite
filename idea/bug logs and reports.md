@@ -85,3 +85,30 @@
 - **Filtering:** Added "Human Prescription Only" and "RLD / RS Only" checkboxes below the search bar.
 - **Backend Logic:** Refactored `local_search`, `get_random_labels`, and `get_autocomplete_suggestions` to respect these filters using `DOCUMENT_TYPE_LOINC_CODE` and `is_rld`/`is_rs` flags.
 - **Consistency:** Filters are applied to Manual Search, Quick Access, and Autocomplete suggestions.
+
+## 🚀 9. PostgreSQL & pgvector Migration (Semantic Search Infrastructure)
+**Problem:** SQLite does not support scalable semantic/vector search.
+**Status:** Ready for Deployment.
+**Implementation:**
+- **Infrastructure:** Added `docker-compose.yml` for a local PostgreSQL container with the `pgvector` extension.
+- **Data Persistence:** Database files are stored locally at `./database/pgdata`.
+- **Consolidation:** Migrated `afd.db` (public schema) and `label.db` (labeling schema) into a unified Postgres instance.
+- **Semantic Ready:** Added `LabelEmbedding` model to `models.py` for future RAG/Semantic features.
+
+### 🛠️ Steps to Migrate to PostgreSQL:
+1.  **Install Docker Desktop** (if not already installed).
+2.  **Start Postgres Container:**
+    ```bash
+    npm run db:start --prefix frontend
+    ```
+3.  **Run Migration Script:**
+    Port your existing SQLite data to Postgres:
+    ```bash
+    python scripts/migrate_to_postgres.py
+    ```
+4.  **Verify .env:**
+    Ensure `DATABASE_URL` is set to `postgresql://afd_user:afd_password@localhost:5432/askfdalabel`.
+5.  **Run System:**
+    ```bash
+    npm run dev:all --prefix frontend
+    ```

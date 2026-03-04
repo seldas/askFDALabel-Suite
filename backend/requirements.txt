@@ -23,6 +23,7 @@ Flask-Migrate
 Flask-Login
 gunicorn
 psycopg2-binary
+pgvector
 flashtext
 waitress
 

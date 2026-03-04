@@ -2,6 +2,7 @@ from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from .extensions import db
+from pgvector.sqlalchemy import Vector
 
 # --- Identity Models ---
 
@@ -340,3 +341,17 @@ class PgxAssessment(db.Model):
     set_id = db.Column(db.String(100), unique=True, nullable=False)
     report_content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+# --- Embedding Models ---
+
+class LabelEmbedding(db.Model):
+    __tablename__ = 'label_embeddings'
+    id = db.Column(db.Integer, primary_key=True)
+    set_id = db.Column(db.String(100), nullable=False, index=True)
+    spl_id = db.Column(db.String(100), nullable=True)
+    section_title = db.Column(db.String(500))
+    loinc_code = db.Column(db.String(50))
+    chunk_index = db.Column(db.Integer)
+    chunk_text = db.Column(db.Text, nullable=False)
+    embedding = db.Column(Vector(768)) # Default for many models, can adjust
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
