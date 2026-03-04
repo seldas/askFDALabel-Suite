@@ -472,7 +472,19 @@ def toggle_favorite():
             market_category=meta.get('market_category', 'n/a'),
             application_number=meta.get('application_number', 'n/a'),
             ndc=meta.get('ndc', 'n/a'),
-            effective_time=meta.get('effective_time', 'n/a')
+            effective_time=meta.get('effective_time', 'n/a'),
+            # New columns
+            active_ingredients=meta.get('active_ingredients', 'n/a'),
+            labeling_type=meta.get('labeling_type', 'n/a'),
+            dosage_forms=meta.get('dosage_forms', 'n/a'),
+            routes=meta.get('routes', 'n/a'),
+            epc=meta.get('epc', 'n/a'),
+            fdalabel_link=f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{set_id}",
+            dailymed_spl_link=f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={set_id}",
+            dailymed_pdf_link=f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={set_id}",
+            product_type=meta.get('product_type', 'n/a'),
+            label_format=meta.get('label_format', 'n/a'),
+            source=meta.get('source', 'n/a')
         )
         db.session.add(new_favorite)
         db.session.commit()
@@ -990,7 +1002,19 @@ def favorite_all():
                 market_category=label.get('market_category', 'n/a'),
                 application_number=label.get('application_number', 'n/a'),
                 ndc=label.get('ndc', 'n/a'),
-                effective_time=label.get('effective_time', 'n/a')
+                effective_time=label.get('effective_time', 'n/a'),
+                # New columns
+                active_ingredients=label.get('active_ingredients', 'n/a'),
+                labeling_type=label.get('labeling_type', 'n/a'),
+                dosage_forms=label.get('dosage_forms', 'n/a'),
+                routes=label.get('routes', 'n/a'),
+                epc=label.get('epc', 'n/a'),
+                fdalabel_link=f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{set_id}",
+                dailymed_spl_link=f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={set_id}",
+                dailymed_pdf_link=f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={set_id}",
+                product_type=label.get('product_type', 'n/a'),
+                label_format=label.get('label_format', 'n/a'),
+                source=label.get('source', 'n/a')
             )
             db.session.add(new_fav)
             added_count += 1

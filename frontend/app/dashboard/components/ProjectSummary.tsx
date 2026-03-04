@@ -46,7 +46,7 @@ export type ProjectStats = {
   cumulative_by_effective_time?: CumulativePoint[];
 
   top_manufacturers?: Array<{ name: string; count: number }>;
-  ingredient_breakdown?: IngredientBreakdown | null;
+  top_ingredients?: IngredientBreakdown[];
 };
 
 type Props = {
@@ -242,153 +242,156 @@ export default function ProjectSummary({
                 </div>
               </div>
 
-              {/* Two-column panels */}
-              <div className={styles.twoCol}>
-                {/* Document type buckets */}
-                <div className={styles.panel}>
-                  <div className={styles.panelHeader}>
-                    <div>
-                      <div className={styles.panelKicker}>Label type distribution</div>
-                    </div>
-
-                    {stats?.document_type?.note ? (
-                      <div className={styles.limitedBadge} title={stats.document_type.note}>
-                        Limited
-                      </div>
-                    ) : null}
+              {/* Document type buckets */}
+              <div className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <div className={styles.panelKicker}>Label type distribution</div>
+                    <div className={styles.panelTitle}>Market census by regulatory category</div>
                   </div>
 
-                  <div className={styles.panelBody}>
-                    <div className={styles.bucketGrid}>
-                      {[
-                        ['Human Rx', buckets.human_rx],
-                        ['Human OTC', buckets.human_otc],
-                        ['Vaccine', buckets.vaccine],
-                        ['Animal Rx', buckets.animal_rx],
-                        ['Animal OTC', buckets.animal_otc],
-                        ['Others', buckets.other + buckets.unknown],
-                      ].map(([label, val]) => (
-                        <div key={String(label)} className={styles.bucketCard}>
-                          <div className={styles.bucketLabel}>{String(label)}</div>
-                          <div className={styles.bucketValue}>{String(val ?? 0)}</div>
-                        </div>
-                      ))}
+                  {stats?.document_type?.note ? (
+                    <div className={styles.limitedBadge} title={stats.document_type.note}>
+                      Limited
                     </div>
+                  ) : null}
+                </div>
+
+                <div className={styles.panelBody}>
+                  <div className={styles.bucketGrid}>
+                    {[
+                      ['Human Rx', buckets.human_rx],
+                      ['Human OTC', buckets.human_otc],
+                      ['Vaccine', buckets.vaccine],
+                      ['Animal Rx', buckets.animal_rx],
+                      ['Animal OTC', buckets.animal_otc],
+                      ['Others', buckets.other + buckets.unknown],
+                    ].map(([label, val]) => (
+                      <div key={String(label)} className={styles.bucketCard}>
+                        <div className={styles.bucketLabel}>{String(label)}</div>
+                        <div className={styles.bucketValue}>{String(val ?? 0)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Top manufacturers */}
+              <div className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <div className={styles.panelKicker}>Industry concentration</div>
+                    <div className={styles.panelTitle}>Top manufacturers in project</div>
                   </div>
                 </div>
 
-                {/* Top manufacturers + ingredient */}
-                <div className={styles.rightCol}>
-                  <div className={styles.panel}>
-                    <div className={styles.panelHeader}>
-                      <div>
-                        <div className={styles.panelKicker}>Top manufacturers</div>
-                      </div>
-                    </div>
+                <div className={styles.panelBody}>
+                  {stats?.top_manufacturers && stats.top_manufacturers.length > 0 ? (
+                    (() => {
+                      const top = stats.top_manufacturers.slice(0, 10);
+                      const top3 = top.slice(0, 3);
+                      const rest = top.slice(3);
 
-                    <div className={styles.panelBody}>
-                      {stats?.top_manufacturers && stats.top_manufacturers.length > 0 ? (
-                        (() => {
-                          const top = stats.top_manufacturers.slice(0, 10);
-                          const top3 = top.slice(0, 3);
-                          const rest = top.slice(3);
+                      const getInitials = (name: string) => {
+                        const s = (name || '').trim();
+                        if (!s) return '—';
+                        const tokens = s.split(/\s+/).filter(Boolean);
+                        // Prefer letters from first 2 tokens; fallback to first 2 chars
+                        const initials =
+                          tokens.length >= 2
+                            ? (tokens[0][0] + tokens[1][0])
+                            : tokens[0].slice(0, 2);
+                        return initials.toUpperCase();
+                      };
 
-                          const getInitials = (name: string) => {
-                            const s = (name || '').trim();
-                            if (!s) return '—';
-                            const tokens = s.split(/\s+/).filter(Boolean);
-                            // Prefer letters from first 2 tokens; fallback to first 2 chars
-                            const initials =
-                              tokens.length >= 2
-                                ? (tokens[0][0] + tokens[1][0])
-                                : tokens[0].slice(0, 2);
-                            return initials.toUpperCase();
-                          };
-
-                          return (
-                            <>
-                              {/* Top 3 detailed */}
-                              <div className={styles.rankList}>
-                                {top3.map((m, idx) => (
-                                  <div key={`${m.name}-${idx}`} className={styles.rankRow}>
-                                    <div className={styles.rankLeft}>
-                                      <div className={styles.rankBadge}>{idx + 1}</div>
-                                      <div className={styles.rankName} title={m.name}>
-                                        {m.name}
-                                      </div>
-                                    </div>
-                                    <div className={styles.rankCount}>{m.count}</div>
-                                  </div>
-                                ))}
-                              </div>
-
-                              {/* Remaining top 10 as compact badges */}
-                              {rest.length > 0 && (
-                                <div className={styles.badgeBlock}>
-                                  <div className={styles.badgeLines}>
-                                    {rest.map((m, j) => {
-                                      const rank = j + 4;
-                                      const initials = getInitials(m.name);
-                                      const tip = `#${rank} — ${m.name} (${m.count})`;
-
-                                      return (
-                                        <span
-                                          key={`${m.name}-badge-${rank}`}
-                                          className={styles.miniBadge}
-                                          title={tip}
-                                          aria-label={tip}
-                                        >
-                                          <span className={styles.miniBadgeRank}>#{rank}</span>
-                                          <span className={styles.miniBadgeInitials}>{initials}</span>
-                                        </span>
-                                      );
-                                    })}
-                                  </div>
-
-                                  <div className={styles.badgeHint}>
-                                    Hover badges to view full manufacturer name and count.
+                      return (
+                        <>
+                          {/* Top 3 detailed */}
+                          <div className={styles.rankList}>
+                            {top3.map((m, idx) => (
+                              <div key={`${m.name}-${idx}`} className={styles.rankRow}>
+                                <div className={styles.rankLeft}>
+                                  <div className={styles.rankBadge}>{idx + 1}</div>
+                                  <div className={styles.rankName} title={m.name}>
+                                    {m.name}
                                   </div>
                                 </div>
-                              )}
-                            </>
-                          );
-                        })()
-                      ) : (
-                        <div className={styles.emptyState}>No manufacturer ranking available.</div>
-                      )}
-                    </div>
-                  </div>
+                                <div className={styles.rankCount}>{m.count}</div>
+                              </div>
+                            ))}
+                          </div>
 
-                  {stats?.ingredient_breakdown ? (
-                    <div className={styles.panel}>
-                      <div className={styles.panelHeader}>
-                        <div>
-                          <div className={styles.panelKicker}>Ingredient role</div>
-                          <div className={styles.panelTitle}>{stats.ingredient_breakdown.query}</div>
-                        </div>
-                      </div>
+                          {/* Remaining top 10 as compact badges */}
+                          {rest.length > 0 && (
+                            <div className={styles.badgeBlock}>
+                              <div className={styles.badgeLines}>
+                                {rest.map((m, j) => {
+                                  const rank = j + 4;
+                                  const initials = getInitials(m.name);
+                                  const tip = `#${rank} — ${m.name} (${m.count})`;
 
-                      <div className={styles.panelBody}>
-                        <div className={styles.bucketGrid2}>
-                          {[
-                            ['Active', stats.ingredient_breakdown.active_count],
-                            ['Inactive', stats.ingredient_breakdown.inactive_count],
-                            ['Both', stats.ingredient_breakdown.both_count],
-                            ['Not found', stats.ingredient_breakdown.not_found_count],
-                          ].map(([label, val]) => (
-                            <div key={String(label)} className={styles.bucketCard}>
-                              <div className={styles.bucketLabel}>{String(label)}</div>
-                              <div className={styles.bucketValue}>{String(val ?? 0)}</div>
+                                  return (
+                                    <span
+                                      key={`${m.name}-badge-${rank}`}
+                                      className={styles.miniBadge}
+                                      title={tip}
+                                      aria-label={tip}
+                                    >
+                                      <span className={styles.miniBadgeRank}>#{rank}</span>
+                                      <span className={styles.miniBadgeInitials}>{initials}</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+
+                              <div className={styles.badgeHint}>
+                                Hover badges to view full manufacturer name and count.
+                              </div>
                             </div>
-                          ))}
-                        </div>
+                          )}
+                        </>
+                      );
+                    })()
+                  ) : (
+                    <div className={styles.emptyState}>No manufacturer ranking available.</div>
+                  )}
+                </div>
+              </div>
 
-                        {stats.ingredient_breakdown.note ? (
-                          <div className={styles.methodsNote}>*{stats.ingredient_breakdown.note}</div>
-                        ) : null}
-                      </div>
+              {/* Top Ingredients Breakdown */}
+              <div className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <div className={styles.panelKicker}>Active ingredient analysis</div>
+                    <div className={styles.panelTitle}>Top 5 ingredients: role breakdown</div>
+                  </div>
+                </div>
+
+                <div className={styles.panelBody}>
+                  {stats?.top_ingredients && stats.top_ingredients.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                      {stats.top_ingredients.map((ingr, idx) => (
+                        <div key={idx} style={{ border: '1px solid #f1f5f9', borderRadius: '12px', padding: '1rem', background: '#fbfdff' }}>
+                          <div className={styles.panelTitle} style={{ fontSize: '0.85rem', marginBottom: '0.75rem', color: '#1e3a8a', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>{ingr.query}</div>
+                          <div className={styles.bucketGrid2}>
+                            {[
+                              ['Active', ingr.active_count],
+                              ['Inactive', ingr.inactive_count],
+                              ['Both', ingr.both_count],
+                              ['Not found', ingr.not_found_count],
+                            ].map(([label, val]) => (
+                              <div key={String(label)} className={styles.bucketCard} style={{ padding: '8px 10px' }}>
+                                <div className={styles.bucketLabel} style={{ fontSize: '0.65rem' }}>{String(label)}</div>
+                                <div className={styles.bucketValue} style={{ fontSize: '1rem', marginTop: '2px' }}>{String(val ?? 0)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className={styles.emptyState}>No ingredient data available for this project.</div>
+                  )}
                 </div>
               </div>
 

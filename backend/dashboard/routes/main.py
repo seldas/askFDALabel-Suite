@@ -816,19 +816,45 @@ def project_stats():
             cum += daily[day]
             cumulative_by_effective_time.append({"date": day.isoformat(), "cumulative_count": cum})
 
-        ingredient_breakdown = None
-        if ingredient and ingredient.strip():
-            q = ingredient.strip()
-            if db_ok and set_ids:
-                ingredient_breakdown = FDALabelDBService.ingredient_role_breakdown_for_set_ids(set_ids=set_ids, substance_name=q)
-            else:
-                ingredient_breakdown = {"query": q, "active_count": 0, "inactive_count": 0, "both_count": 0, "not_found_count": len(set_ids) or len(favs), "matches": {}, "note": "Local/Internal DB not available."}
+        # Calculate Top 5 Active Ingredients across project
+        ingredient_breakdowns = []
+        if db_ok and set_ids:
+            all_active_raw = []
+            for f in favs:
+                ingr_val = getattr(f, 'active_ingredients', None)
+                
+                # If missing or 'n/a', try fetching from DB service
+                if not ingr_val or ingr_val == 'n/a':
+                    meta = FDALabelDBService.get_label_metadata(f.set_id)
+                    if meta and meta.get('active_ingredients'):
+                        ingr_val = meta['active_ingredients']
+                        # Update the favorite object in DB for future use
+                        try:
+                            f.active_ingredients = ingr_val
+                            db.session.add(f)
+                        except: pass
+                
+                if ingr_val and ingr_val != 'n/a':
+                    # Split by semicolon and clean up
+                    parts = [p.strip() for p in str(ingr_val).split(';') if p.strip()]
+                    all_active_raw.extend(parts)
+            
+            if all_active_raw:
+                db.session.commit() # Save any updated active_ingredients
+                
+                # Find top 5
+                top_5_ingr = [item for item, count in Counter(all_active_raw).most_common(5)]
+                
+                for ingr in top_5_ingr:
+                    breakdown = FDALabelDBService.ingredient_role_breakdown_for_set_ids(set_ids=set_ids, substance_name=ingr)
+                    if breakdown:
+                        ingredient_breakdowns.append(breakdown)
 
         return jsonify({
             "success": True, "project_id": project_id, "total_labels": len(favs), "unique_manufacturers": len(manu_set), "unique_brands": len(brand_set),
             "date_min": date_min, "date_max": date_max, "product_type_counts": pt_counts, "top_manufacturers": top_manufacturers, "document_type": document_type,
             "effective_time_summary": {"dated_labels": len(eff_dates), "missing_effective_time": max(len(favs) - len(eff_dates), 0), "filled_from_db": filled_from_db},
-            "cumulative_by_effective_time": cumulative_by_effective_time, "ingredient_breakdown": ingredient_breakdown
+            "cumulative_by_effective_time": cumulative_by_effective_time, "top_ingredients": ingredient_breakdowns
         }), 200
     except Exception as e:
         current_app.logger.exception(f"Error computing project_stats for {project_id}: {e}")

@@ -122,7 +122,8 @@ class FDALabelDBService:
                     SELECT 
                         SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES,
                         AUTHOR_ORG_NORMD_NAME, MARKET_CATEGORIES, APPR_NUM,
-                        NDC_CODES, EFF_TIME
+                        NDC_CODES, EFF_TIME, ACT_INGR_NAMES, LABELING_TYPE,
+                        DOSAGE_FORMS, ROUTES, EPC
                     FROM druglabel.DGV_SUM_SPL
                     WHERE 
                         UPPER(TITLE) LIKE UPPER(:q) OR
@@ -145,18 +146,23 @@ class FDALabelDBService:
                         'label_format': 'FDALabel',
                         'application_number': row[5],
                         'market_category': row[4],
-                        'ndc': row[6]
+                        'ndc': row[6],
+                        'active_ingredients': row[8],
+                        'labeling_type': row[9],
+                        'dosage_forms': row[10],
+                        'routes': row[11],
+                        'epc': row[12]
                     })
                 cursor.close()
             else:
                 # SQLite fallback
                 cursor = conn.cursor()
-                # Use LIKE for simple search, as we are mimicking the basic search here
                 sql = """
                     SELECT 
                         set_id, product_names, generic_names,
                         manufacturer, market_categories, appr_num,
-                        ndc_codes, revised_date
+                        ndc_codes, revised_date, active_ingredients,
+                        doc_type, dosage_forms, routes, epc
                     FROM sum_spl
                     WHERE 
                         product_names LIKE :q OR
@@ -178,7 +184,12 @@ class FDALabelDBService:
                         'label_format': 'FDALabel (Local)',
                         'application_number': row['appr_num'] or "",
                         'market_category': row['market_categories'] or "",
-                        'ndc': row['ndc_codes'] or ""
+                        'ndc': row['ndc_codes'] or "",
+                        'active_ingredients': row['active_ingredients'],
+                        'labeling_type': row['doc_type'],
+                        'dosage_forms': row['dosage_forms'],
+                        'routes': row['routes'],
+                        'epc': row['epc']
                     })
                 cursor.close()
         except Exception as e:
@@ -318,7 +329,8 @@ class FDALabelDBService:
                     SELECT 
                         SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES,
                         AUTHOR_ORG_NORMD_NAME, MARKET_CATEGORIES, APPR_NUM,
-                        NDC_CODES, EFF_TIME
+                        NDC_CODES, EFF_TIME, ACT_INGR_NAMES, LABELING_TYPE,
+                        DOSAGE_FORMS, ROUTES, EPC
                     FROM druglabel.DGV_SUM_SPL
                     WHERE SET_ID = :sid
                 """
@@ -339,7 +351,12 @@ class FDALabelDBService:
                         'label_format': 'FDALabel',
                         'application_number': row[5],
                         'market_category': row[4],
-                        'ndc': row[6]
+                        'ndc': row[6],
+                        'active_ingredients': row[8],
+                        'labeling_type': row[9],
+                        'dosage_forms': row[10],
+                        'routes': row[11],
+                        'epc': row[12]
                     }
                 cursor.close()
             else:
@@ -348,7 +365,8 @@ class FDALabelDBService:
                     SELECT 
                         set_id, product_names, generic_names,
                         manufacturer, market_categories, appr_num,
-                        ndc_codes, revised_date, doc_type
+                        ndc_codes, revised_date, active_ingredients,
+                        doc_type, dosage_forms, routes, epc
                     FROM sum_spl
                     WHERE set_id = ?
                 """
@@ -364,7 +382,12 @@ class FDALabelDBService:
                         'label_format': 'FDALabel (Local)',
                         'application_number': row['appr_num'] or "",
                         'market_category': row['market_categories'] or "",
-                        'ndc': row['ndc_codes'] or ""
+                        'ndc': row['ndc_codes'] or "",
+                        'active_ingredients': row['active_ingredients'],
+                        'labeling_type': row['doc_type'],
+                        'dosage_forms': row['dosage_forms'],
+                        'routes': row['routes'],
+                        'epc': row['epc']
                     }
                 cursor.close()
         except Exception as e:

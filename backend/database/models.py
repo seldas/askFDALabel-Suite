@@ -61,6 +61,20 @@ class Favorite(db.Model):
     application_number = db.Column(db.String(200))
     ndc = db.Column(db.String(500))
     effective_time = db.Column(db.String(100))
+    
+    # Missing columns for full analysis
+    active_ingredients = db.Column(db.Text)
+    labeling_type = db.Column(db.String(200))
+    dosage_forms = db.Column(db.String(500))
+    routes = db.Column(db.String(500))
+    epc = db.Column(db.String(500))
+    fdalabel_link = db.Column(db.String(500))
+    dailymed_spl_link = db.Column(db.String(500))
+    dailymed_pdf_link = db.Column(db.String(500))
+    product_type = db.Column(db.String(50))
+    label_format = db.Column(db.String(50))
+    source = db.Column(db.String(50))
+
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Annotation(db.Model):
@@ -97,7 +111,7 @@ class LabelAnnotation(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     user = db.relationship('User', backref=db.backref('label_annotations', lazy=True))
-    project = db.relationship('Project', backref=db.backref('label_annotations', lazy=True))
+    project = db.relationship('Project', backref=db.backref('label_annotations', lazy=True, cascade="all, delete-orphan"))
 
 class ComparisonSummary(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -170,7 +184,7 @@ class ProjectAeReport(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
 
-    project = db.relationship('Project', backref=db.backref('ae_reports', lazy=True))
+    project = db.relationship('Project', backref=db.backref('ae_reports', lazy=True, cascade="all, delete-orphan"))
     details = db.relationship('ProjectAeReportDetail', backref='report', cascade="all, delete-orphan")
 
 class ProjectAeReportDetail(db.Model):
