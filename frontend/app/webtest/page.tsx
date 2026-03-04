@@ -119,28 +119,40 @@ export default function WebTestingPage() {
 
             if (isGrouped) {
                 // Group by Version and Date for chart
-                // For multi-version chart, we need data like: { Date: '...', VersionA: count, VersionB: count }
+                const CUTOFF_DATE = new Date('2025-06-01T00:00:00');
                 const dateMap = new Map();
                 data.forEach((h: any) => {
+                    const hDate = new Date(h.Date);
                     const date = h.Date.split(' ')[0]; // Group by day for simpler chart
                     if (!dateMap.has(date)) {
-                        dateMap.set(date, { Date: date, DisplayDate: date.replace('2026-', ''), Timestamp: new Date(h.Date).getTime() });
+                        dateMap.set(date, { Date: date, DisplayDate: date.replace('2026-', ''), Timestamp: hDate.getTime() });
                     }
                     const entry = dateMap.get(date);
                     entry[`count_${h.Version}`] = parseInt(h.Count) || 0;
-                    entry[`delay_${h.Version}`] = h.Delay;
+                    // Strict Rule: Delay only comparable after 2026-03-03
+                    if (hDate >= CUTOFF_DATE) {
+                        entry[`delay_${h.Version}`] = h.Delay;
+                    } else {
+                        entry[`delay_${h.Version}`] = null;
+                    }
                 });
                 const formatted = Array.from(dateMap.values()).sort((a, b) => a.Timestamp - b.Timestamp);
                 setTaskHistory(formatted);
             } else {
                 // Convert Count to number for chart and add timestamp
-                const formatted = data.map((h: any) => ({
-                    ...h,
-                    CountNum: parseInt(h.Count) || 0,
-                    Timestamp: new Date(h.Date).getTime(),
-                    DisplayDate: h.Date.split(' ')[0].replace('2026-', ''),
-                    Notes: h.Notes
-                }));
+                const CUTOFF_DATE = new Date('2025-06-01T00:00:00');
+                const formatted = data.map((h: any) => {
+                    const hDate = new Date(h.Date);
+                    return {
+                        ...h,
+                        CountNum: parseInt(h.Count) || 0,
+                        Timestamp: hDate.getTime(),
+                        DisplayDate: h.Date.split(' ')[0].replace('2026-', ''),
+                        // Strict Rule: Delay only comparable after 2026-03-03
+                        Delay: hDate >= CUTOFF_DATE ? h.Delay : null,
+                        Notes: h.Notes
+                    };
+                });
                 setTaskHistory(formatted);
             }
         } catch (err) {
@@ -830,11 +842,21 @@ export default function WebTestingPage() {
                                             tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
                                         />
                                         <YAxis 
+                                            yAxisId="left"
                                             axisLine={false}
                                             tickLine={false}
                                             domain={['auto', 'auto']}
                                             tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
                                             label={{ value: 'Label Count', angle: -90, position: 'insideLeft', style: { fill: '#6366f1', fontWeight: 800, fontSize: 12 } }}
+                                        />
+                                        <YAxis 
+                                            yAxisId="right"
+                                            orientation="right"
+                                            axisLine={false}
+                                            tickLine={false}
+                                            domain={[0, 'auto']}
+                                            tick={{ fill: '#ef4444', fontSize: 11, fontWeight: 600 }}
+                                            label={{ value: 'Delay (s)', angle: 90, position: 'insideRight', style: { fill: '#ef4444', fontWeight: 800, fontSize: 12 } }}
                                         />
                                         <Tooltip 
                                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px' }}
@@ -843,15 +865,23 @@ export default function WebTestingPage() {
                                                     const data = payload[0].payload;
                                                     
                                                     if (isGrouped) {
-                                                        // Group versions by identical count values
-                                                        const valueGroups: Map<number, { versions: string[], color: string }> = new Map();
+                                                        // Group versions by identical count values, but keep track of individual delays
+                                                        const valueGroups: Map<number, { versions: {name: string, delay: number | null}[], color: string }> = new Map();
                                                         chartVersions.forEach((v, idx) => {
                                                             const val = data[`count_${v}`] ?? 0;
-                                                            const color = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][idx % 6];
+                                                            const delay = data[`delay_${v}`];
+                                                            
+                                                            // Match bar colors for consistency
+                                                            let color = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][idx % 6];
+                                                            const vUpper = v.toUpperCase();
+                                                            if (vUpper === 'CDER-CBER') color = '#2563eb';
+                                                            else if (vUpper === 'FDA') color = '#1e3a8a';
+                                                            else if (vUpper === 'PUBLIC') color = '#10b981';
+
                                                             if (!valueGroups.has(val)) {
                                                                 valueGroups.set(val, { versions: [], color });
                                                             }
-                                                            valueGroups.get(val)!.versions.push(v);
+                                                            valueGroups.get(val)!.versions.push({ name: v, delay });
                                                         });
 
                                                         return (
@@ -861,10 +891,14 @@ export default function WebTestingPage() {
                                                                     <div key={val} style={{ margin: '6px 0', display: 'flex', flexDirection: 'column' }}>
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                                             <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color }}></div>
-                                                                            <span style={{ fontWeight: 800, color: '#1e293b', fontSize: '0.8rem' }}>{val}</span>
+                                                                            <span style={{ fontWeight: 800, color: '#1e293b', fontSize: '0.8rem' }}>Count: {val}</span>
                                                                         </div>
-                                                                        <div style={{ marginLeft: '14px', color: '#64748b', fontSize: '0.65rem', fontWeight: 600 }}>
-                                                                            {versions.join(' • ')}
+                                                                        <div style={{ marginLeft: '14px', display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px' }}>
+                                                                            {versions.map((ver, vIdx) => (
+                                                                                <div key={vIdx} style={{ fontSize: '0.65rem', fontWeight: 600, color: '#64748b' }}>
+                                                                                    {ver.name} {ver.delay !== null && <span style={{ color: '#ef4444' }}>(Delay: {ver.delay}s)</span>}
+                                                                                </div>
+                                                                            ))}
                                                                         </div>
                                                                     </div>
                                                                 ))}
@@ -876,6 +910,9 @@ export default function WebTestingPage() {
                                                         <div style={{ backgroundColor: '#fff', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
                                                             <p style={{ margin: '0 0 8px 0', fontWeight: 800, color: '#1e293b', fontSize: '0.85rem' }}>{data.Date}</p>
                                                             <p style={{ margin: '4px 0', color: '#6366f1', fontWeight: 700, fontSize: '0.8rem' }}>Result Count: {data.Count}</p>
+                                                            {data.Delay !== null && (
+                                                                <p style={{ margin: '4px 0', color: '#ef4444', fontWeight: 700, fontSize: '0.8rem' }}>Delay: {data.Delay}s</p>
+                                                            )}
                                                             {data.Notes && <p style={{ margin: '8px 0 0 0', padding: '6px 0 0 0', borderTop: '1px solid #f1f5f9', color: '#64748b', fontSize: '0.75rem', fontStyle: 'italic' }}>{data.Notes}</p>}
                                                         </div>
                                                     );
@@ -885,32 +922,77 @@ export default function WebTestingPage() {
                                         />
                                         <Legend wrapperStyle={{ paddingTop: '20px' }} />
                                         {isGrouped ? (
-                                            chartVersions.map((v, i) => {
-                                                const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-                                                return (
-                                                    <Bar 
-                                                        key={v}
-                                                        dataKey={`count_${v}`} 
-                                                        name={`Version ${v}`} 
-                                                        fill={colors[i % colors.length]} 
-                                                        radius={[4, 4, 0, 0]}
-                                                        barSize={30}
-                                                    />
-                                                );
-                                            })
+                                            <>
+                                                {chartVersions.map((v, i) => {
+                                                    const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+                                                    let color = colors[i % colors.length];
+                                                    
+                                                    // Map specific versions to requested colors
+                                                    const vUpper = v.toUpperCase();
+                                                    if (vUpper === 'CDER-CBER') color = '#2563eb'; // Blue
+                                                    else if (vUpper === 'FDA') color = '#1e3a8a';      // Dark Blue
+                                                    else if (vUpper === 'PUBLIC') color = '#10b981';   // Green
+
+                                                    return (
+                                                        <Bar 
+                                                            yAxisId="left"
+                                                            key={`count_${v}`}
+                                                            dataKey={`count_${v}`} 
+                                                            name={`Version ${v} Count`} 
+                                                            fill={color} 
+                                                            radius={[4, 4, 0, 0]}
+                                                            barSize={30}
+                                                        />
+                                                    );
+                                                })}
+                                                {chartVersions.map((v, i) => {
+                                                    // Enlarged difference between red shades
+                                                    const redShades = ['#ef4444', '#991b1b', '#fca5a5', '#dc2626', '#7f1d1d', '#fee2e2'];
+                                                    const shade = redShades[i % redShades.length];
+                                                    return (
+                                                        <Line
+                                                            yAxisId="right"
+                                                            key={`delay_${v}`}
+                                                            dataKey={`delay_${v}`}
+                                                            name={`Version ${v} Delay`}
+                                                            stroke={shade}
+                                                            strokeWidth={2}
+                                                            dot={{ r: 3, fill: shade }}
+                                                            connectNulls={false}
+                                                        />
+                                                    );
+                                                })}
+                                            </>
                                         ) : (
-                                            <Line 
-                                                type="monotone" 
-                                                dataKey="CountNum" 
-                                                name="Result Count" 
-                                                stroke="#6366f1" 
-                                                strokeWidth={3}
-                                                dot={{ r: 6, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
-                                                activeDot={{ r: 8 }}
-                                            />
+                                            <>
+                                                <Line 
+                                                    yAxisId="left"
+                                                    type="monotone" 
+                                                    dataKey="CountNum" 
+                                                    name="Result Count" 
+                                                    stroke="#6366f1" 
+                                                    strokeWidth={3}
+                                                    dot={{ r: 6, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+                                                    activeDot={{ r: 8 }}
+                                                />
+                                                <Line 
+                                                    yAxisId="right"
+                                                    type="monotone" 
+                                                    dataKey="Delay" 
+                                                    name="Delay (s)" 
+                                                    stroke="#ef4444" 
+                                                    strokeWidth={3}
+                                                    dot={{ r: 6, fill: '#ef4444', strokeWidth: 2, stroke: '#fff' }}
+                                                    activeDot={{ r: 8 }}
+                                                    connectNulls={false}
+                                                />
+                                            </>
                                         )}
                                     </ComposedChart>
                                 </ResponsiveContainer>
+                                <div style={{ marginTop: '10px', fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', textAlign: 'center' }}>
+                                    * Note: Delay values are only recorded and comparable after 06/01/2025 due to technical architecture updates.
+                                </div>
                             </div>
                         ) : (
                             <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', border: '2px dashed #f1f5f9', borderRadius: '12px', backgroundColor: '#fafafa' }}>
