@@ -9,10 +9,6 @@ sys.path.append(str(Path(__file__).resolve().parent.parent / 'backend'))
 # Load env before imports that might use it
 load_dotenv()
 
-# Force local embedding for this test
-os.environ["EMBEDDING_PROVIDER"] = "local"
-os.environ["LOCAL_EMBEDDING_MODEL_ID"] = "all-mpnet-base-v2"
-
 from dashboard.services.ai_handler import call_embedding
 
 def test_local_embedding():
