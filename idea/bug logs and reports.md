@@ -34,10 +34,14 @@
 
 ## 4. Discrepancy Panel Enhancements
 **Request:** Add "RLD available" tag and "FILTER BY SEVERITY GAP".
-**Status:** Pending.
-**Implementation Plan:**
-1.  Update `frontend/app/labelcomp/components/DiscrepancyPanel.tsx` (or similar) to include the new UI elements.
-2.  Ensure the comparison logic in `backend/labelcomp/compare.py` calculates and returns the "severity gap" and "RLD availability" status.
+**Status:** Completed.
+**Implementation:**
+1.  Updated `backend/dashboard/services/fdalabel_db.py` to include `is_rld` in search results.
+2.  Updated `backend/labelcomp/blueprint.py` to calculate `similarity_ratio` for section comparisons and pass `is_rld` in metadata.
+3.  Updated `frontend/app/labelcomp/page.tsx` with:
+    *   "RLD" tag display on label metadata cards.
+    *   "FILTER BY SEVERITY GAP" toggle button in the Discrepancy Panel.
+    *   Dynamic filtering logic using `useMemo` to show only significant changes (similarity < 0.5) when the filter is active.
 
 
 ## 5. AFL agent (search_V2) responding time:

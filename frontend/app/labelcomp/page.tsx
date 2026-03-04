@@ -102,6 +102,7 @@ function LabelCompContent() {
   const [summaryGenerating, setSummaryGenerating] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiSummaryCollapsed, setAiSummaryCollapsed] = useState(false);
+  const [severityFilter, setSeverityFilter] = useState(false);
 
   // Collapse State
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -226,6 +227,17 @@ function LabelCompContent() {
   };
 
   const setIds = useMemo(() => searchParams.getAll('set_ids'), [searchParams]);
+
+  const filteredData = useMemo(() => {
+    if (!data) return [];
+    return data.comparison_data.filter(section => {
+      // If severityFilter is on, only show sections with similarity < 0.5 (significant changes)
+      if (severityFilter) {
+        return !section.is_same && !section.is_empty && ((section as any).similarity_ratio < 0.5 || (section as any).is_major_change);
+      }
+      return true; // Show all sections by default (identical ones are collapsed by style)
+    });
+  }, [data, severityFilter]);
 
   // Dynamic grid template based on label count
   const comparisonGridStyle = {
@@ -717,9 +729,12 @@ function LabelCompContent() {
                 >
                   &times;
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                   <div style={{ padding: '4px 8px', backgroundColor: '#e0f2fe', color: '#0369a1', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 800 }}>{meta.label_format}</div>
-                  <h3 style={{ color: '#0f172a', margin: 0, fontSize: '1rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta.brand_name}</h3>
+                  {(meta as any).is_rld && (
+                    <div style={{ padding: '4px 8px', backgroundColor: '#fef2f2', color: '#ef4444', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900, border: '1px solid #fee2e2' }}>RLD</div>
+                  )}
+                  <h3 style={{ color: '#0f172a', margin: 0, fontSize: '1rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{meta.brand_name}</h3>
                 </div>
                 <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.6 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>
@@ -791,7 +806,33 @@ function LabelCompContent() {
 
         {data && data.comparison_data.length > 0 ? (
           <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-            {data.comparison_data.map((section, idx) => (
+            <div style={{ padding: '1rem 1.5rem', backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Discrepancy Panel ({filteredData.length} sections)
+                </span>
+                <button 
+                    onClick={() => setSeverityFilter(!severityFilter)}
+                    style={{
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        backgroundColor: severityFilter ? '#ef4444' : 'white',
+                        color: severityFilter ? 'white' : '#64748b',
+                        border: '1px solid',
+                        borderColor: severityFilter ? '#ef4444' : '#e2e8f0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                    }}
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                    FILTER BY SEVERITY GAP {severityFilter ? 'ON' : 'OFF'}
+                </button>
+            </div>
+            {filteredData.map((section, idx) => (
               <div key={idx} style={{ 
                 borderBottom: '1px solid #f1f5f9', 
                 backgroundColor: section.is_same ? '#fcfcfd' : 'white'

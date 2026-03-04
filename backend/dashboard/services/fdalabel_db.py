@@ -151,7 +151,8 @@ class FDALabelDBService:
                         'labeling_type': row[9],
                         'dosage_forms': row[10],
                         'routes': row[11],
-                        'epc': row[12]
+                        'epc': row[12],
+                        'is_rld': row[13] if len(row) > 13 else 0
                     })
                 cursor.close()
             else:
@@ -162,7 +163,7 @@ class FDALabelDBService:
                         set_id, product_names, generic_names,
                         manufacturer, market_categories, appr_num,
                         ndc_codes, revised_date, active_ingredients,
-                        doc_type, dosage_forms, routes, epc
+                        doc_type, dosage_forms, routes, epc, is_rld
                     FROM sum_spl
                     WHERE 
                         product_names LIKE :q OR
@@ -189,7 +190,8 @@ class FDALabelDBService:
                         'labeling_type': row['doc_type'],
                         'dosage_forms': row['dosage_forms'],
                         'routes': row['routes'],
-                        'epc': row['epc']
+                        'epc': row['epc'],
+                        'is_rld': row['is_rld']
                     })
                 cursor.close()
         except Exception as e:

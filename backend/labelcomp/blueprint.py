@@ -64,10 +64,20 @@ def index():
             
             meta = extract_metadata_from_xml(label_xml_raw)
             if not meta.get('brand_name') or meta.get('brand_name') == 'N/A':
-                meta = get_label_metadata(set_id) or meta
-            
+                db_meta = get_label_metadata(set_id)
+                if db_meta:
+                    meta.update(db_meta)
+
             if not meta.get('set_id'):
                 meta['set_id'] = set_id
+
+            # Ensure is_rld is present
+            if 'is_rld' not in meta:
+                db_meta = get_label_metadata(set_id)
+                if db_meta:
+                    meta['is_rld'] = db_meta.get('is_rld', False)
+                else:
+                    meta['is_rld'] = False
 
             selected_labels_metadata.append(meta)
             comparison_format = meta.get('label_format', 'PLR')
@@ -77,7 +87,7 @@ def index():
                 if s.get('title'):
                     raw_title = s['title']
                     norm_title = normalize_title_text(raw_title)
-                    
+
                     if comparison_format == 'PLR':
                         key = extract_numeric_section_id(raw_title)
                         if key:
@@ -94,7 +104,7 @@ def index():
                                 all_section_keys[key] = {}
                             if norm_title not in all_section_keys[key]:
                                 all_section_keys[key][norm_title] = raw_title
-            
+
             labels_data.append({
                 'title': doc_title,
                 'sections_by_key': sections_by_key
@@ -145,8 +155,9 @@ def index():
         has_all = all(nc is not None for nc in agg_normalized_contents)
         is_same = has_all and len(set(agg_normalized_contents)) == 1
         is_major_change = False
+        similarity = 1.0 if is_same else 0.0
         nuanced_contents = [None, None]
-        
+
         if not is_same and len(contents) == 2:
             t1 = " ".join(normalized_contents[0]) if normalized_contents[0] else ""
             t2 = " ".join(normalized_contents[1]) if normalized_contents[1] else ""
@@ -160,11 +171,12 @@ def index():
             'title': display_title,
             'key': key,
             'nesting_level': key.count('.') if comparison_format == 'PLR' else 0,
-            'contents': contents, 
+            'contents': contents,
             'nuanced_contents': nuanced_contents,
             'is_same': is_same,
             'is_empty': is_empty,
-            'is_major_change': is_major_change
+            'is_major_change': is_major_change,
+            'similarity_ratio': similarity
         })
 
     existing_summary = None
