@@ -58,7 +58,7 @@ def sync_embeddings_multigpu(batch_size=256, labels_per_batch=50):
 
     # 2. Identify missing labels
     cursor.execute("""
-        SELECT DISTINCT s.set_id, s.spl_id, s.brand_name
+        SELECT DISTINCT s.set_id, s.spl_id, s.product_names
         FROM labeling.sum_spl s
         WHERE NOT EXISTS (
             SELECT 1 FROM label_embeddings e WHERE e.set_id = s.set_id
@@ -81,7 +81,8 @@ def sync_embeddings_multigpu(batch_size=256, labels_per_batch=50):
         all_texts = []
 
         # Extract chunks from this batch of labels
-        for set_id, spl_id, brand_name in label_batch:
+        for set_id, spl_id, product_names in label_batch:
+            # Note: product_names is used instead of brand_name
             cursor.execute("SELECT spl_id, title, loinc_code, content_xml FROM labeling.spl_sections WHERE spl_id = %s", (spl_id,))
             sections = cursor.fetchall()
             
