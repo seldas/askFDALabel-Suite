@@ -29,13 +29,15 @@ def migrate_table(sqlite_conn, pg_conn, table_name, target_schema="public"):
     
     # 2. Create Table in PG if not exists
     # Note: This is a simple mapper, might need adjustment for complex types
+
     col_defs = []
     col_names = []
+    pks = []
     for col in columns:
         name = col[1]
         ctype = col[2].upper()
         nullable = "NOT NULL" if col[3] else ""
-        pk = "PRIMARY KEY" if col[5] else ""
+        pk = col[5]
         
         # Type mapping
         pg_type = ctype
@@ -46,10 +48,20 @@ def migrate_table(sqlite_conn, pg_conn, table_name, target_schema="public"):
         if "BOOLEAN" in ctype: pg_type = "BOOLEAN"
         if "FLOAT" in ctype or "REAL" in ctype: pg_type = "DOUBLE PRECISION"
         
-        col_defs.append(f"\"{name}\" {pg_type} {nullable} {pk}")
+        col_defs.append(f"\"{name}\" {pg_type} {nullable}")
         col_names.append(f"\"{name}\"")
+        if pk:
+            pks.append(f"\"{name}\"")
 
-    create_sql = f"CREATE TABLE IF NOT EXISTS {target_schema}.\"{table_name}\" ({', '.join(col_defs)})"
+    # Handle primary keys
+    if pks:
+        pk_constraint = f", PRIMARY KEY ({', '.join(pks)})"
+    else:
+        pk_constraint = ""
+        
+    col_defs = ", ".join(col_defs) + pk_constraint
+    
+    create_sql = f"CREATE TABLE IF NOT EXISTS {target_schema}.\"{table_name}\" ({col_defs})"
     pg_cursor.execute(create_sql)
 
     # 3. Transfer Data
@@ -57,6 +69,14 @@ def migrate_table(sqlite_conn, pg_conn, table_name, target_schema="public"):
     rows = sl_cursor.fetchall()
     
     if rows:
+        # Convert boolean fields from SQLite (int) to PostgreSQL (bool)
+        bool_cols = [i for i, col in enumerate(columns) if 'BOOLEAN' in col[2].upper()]
+        if bool_cols:
+            rows = [
+                tuple(bool(val) if i in bool_cols else val for i, val in enumerate(row))
+                for row in rows
+            ]
+        
         placeholders = ",".join(["%s"] * len(col_names))
         insert_sql = f"INSERT INTO {target_schema}.\"{table_name}\" ({', '.join(col_names)}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
         pg_cursor.executemany(insert_sql, rows)

@@ -39,3 +39,5 @@ data/
 # FDALabel web testing log and result files
 frontend/public/webtest/results/
 frontend/public/webtest/history/
+
+database/
