@@ -35,22 +35,7 @@
     - Set **"HIGH"** as the default view for immediate risk assessment.
     - Added **"RLD AVAILABLE ONLY"** toggle.
     - Removed redundant badges to resolve UI overlap with the Gap indicator.
-
-update: a 500 server error:
-[0] Failed to proxy http://0.0.0.0:8842/api/drugtox/discrepancies?tox_type=DICT Error: socket hang up
-[0]     at ignore-listed frames {
-[0]   code: 'ECONNRESET'
-[0] }
-[0] Error: socket hang up
-[0]     at ignore-listed frames {
-[0]   code: 'ECONNRESET'
-[0] }
-
-api/drugtox/discrepancies?tox_type=DILI:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
-intercept-console-error.ts:42 AxiosError: Request failed with status code 500
-    at settle (settle.js:19:12)
-    at XMLHttpRequest.onloadend (xhr.js:59:13)
-    at Axios.request (Axios.js:46:41)
+- **Performance Fix (Backend):** Resolved 500 socket hang-up error in `discrepancies` route by implementing batch processing for RLD status and toxicity lookups.
 
 ## ✅ 5. AFL Agent (search_v2) Performance Optimization
 **Problem:** System hung during Evidence Fetcher when processing many results (28+).
@@ -67,7 +52,7 @@ intercept-console-error.ts:42 AxiosError: Request failed with status code 500
 **Implementation:**
 - **Source of Truth:** Integrated official FDA Orange Book data.
 - **Logic:** Updated system to match NDA/ANDA numbers against the Orange Book for distinct RLD and RS flags.
-- **UI:** Added color-coded tags: **RLD (Red)** and **RS (Green)**.
+- **UI:** Added color-coded tags: **RLD (Red)** and **RS (Green)** across Label View, Comparison, and DrugTox.
 
 ### 🛠️ Steps to Update Your Local System:
 1.  **Ensure Data Presence:**
@@ -85,3 +70,18 @@ intercept-console-error.ts:42 AxiosError: Request failed with status code 500
     ```
 4.  **Restart Backend:**
     Restart the Flask backend to clear any cached database metadata and enable the new UI tags.
+
+## ✅ 7. Dynamic FDALabel Version Differentiation
+**Problem:** The system showed public or internal links based solely on DB connection, without verifying if internal URLs were actually reachable by the user/server.
+**Status:** Completed.
+**Implementation:**
+- **Backend Connectivity Check:** Updated `/api/check-fdalabel` to ping internal URLs (`https://fdalabel.fda.gov/...`) and report accessibility.
+- **Header Menu:** Dynamically replaces the "Public FDALabel" link with "FDA version" and "CDER-CBER version" if they are accessible.
+- **Homepage Badge:** Refactored the service card to show internal access points with distinct buttons when reachable, improving regulatory workflow efficiency.
+
+## ✅ 8. LocalQuery Search Enhancements
+**Status:** Completed.
+**Implementation:**
+- **Filtering:** Added "Human Prescription Only" and "RLD / RS Only" checkboxes below the search bar.
+- **Backend Logic:** Refactored `local_search`, `get_random_labels`, and `get_autocomplete_suggestions` to respect these filters using `DOCUMENT_TYPE_LOINC_CODE` and `is_rld`/`is_rs` flags.
+- **Consistency:** Filters are applied to Manual Search, Quick Access, and Autocomplete suggestions.

@@ -52,6 +52,8 @@ export default function Header({
   );
 
   const [isInternal, setIsInternal] = useState(false);
+  const [fdaAccessible, setFdaAccessible] = useState(false);
+  const [cderAccessible, setCderAccessible] = useState(false);
   const [allowLocalQuery, setAllowLocalQuery] = useState(true);
   const [activeDropdown, setActiveDropdown] = useState<DropdownKey | 'tasks'>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -75,9 +77,13 @@ export default function Header({
         const response = await fetch('/api/check-fdalabel', { method: 'POST' });
         const data = await response.json();
         setIsInternal(Boolean(data.isInternal));
+        setFdaAccessible(Boolean(data.fdaAccessible));
+        setCderAccessible(Boolean(data.cderAccessible));
         setAllowLocalQuery(Boolean(data.allowLocalQuery));
       } catch {
         setIsInternal(false);
+        setFdaAccessible(false);
+        setCderAccessible(false);
         setAllowLocalQuery(true);
       }
     };
@@ -261,47 +267,51 @@ export default function Header({
               </Link>
             )}
 
-            {isInternal ? (
+            {(fdaAccessible || cderAccessible) ? (
               <>
-                <a
-                  href="https://fdalabel.fda.gov/fdalabel/ui/search"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hp-dropdown-item"
-                  onClick={closeMobile}
-                >
-                  <span className="hp-dropdown-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 21h18"></path>
-                      <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path>
-                      <path d="M5 21V10.85"></path>
-                      <path d="M19 21V10.85"></path>
-                      <path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path>
-                    </svg>
-                  </span>
-                  <div>
-                    <div className="dropdown-title">FDA version</div>
-                    <div className="dropdown-subtitle">FDA-wide Interface</div>
-                  </div>
-                </a>
+                {fdaAccessible && (
+                  <a
+                    href="https://fdalabel.fda.gov/fdalabel/ui/search"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hp-dropdown-item"
+                    onClick={closeMobile}
+                  >
+                    <span className="hp-dropdown-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 21h18"></path>
+                        <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path>
+                        <path d="M5 21V10.85"></path>
+                        <path d="M19 21V10.85"></path>
+                        <path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path>
+                      </svg>
+                    </span>
+                    <div>
+                      <div className="dropdown-title">FDA version</div>
+                      <div className="dropdown-subtitle">FDA-wide Interface</div>
+                    </div>
+                  </a>
+                )}
 
-                <a
-                  href="https://fdalabel.fda.gov/fdalabel-r/ui/search"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hp-dropdown-item"
-                  onClick={closeMobile}
-                >
-                  <span className="hp-dropdown-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                    </svg>
-                  </span>
-                  <div>
-                    <div className="dropdown-title">CDER-CBER version</div>
-                    <div className="dropdown-subtitle">Specific for PLR Labeling</div>
-                  </div>
-                </a>
+                {cderAccessible && (
+                  <a
+                    href="https://fdalabel.fda.gov/fdalabel-r/ui/search"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hp-dropdown-item"
+                    onClick={closeMobile}
+                  >
+                    <span className="hp-dropdown-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                      </svg>
+                    </span>
+                    <div>
+                      <div className="dropdown-title">CDER-CBER version</div>
+                      <div className="dropdown-subtitle">Specific for PLR Labeling</div>
+                    </div>
+                  </a>
+                )}
               </>
             ) : (
               <a

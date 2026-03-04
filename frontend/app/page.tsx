@@ -9,6 +9,8 @@ import Footer from './components/Footer';
 export default function HomePage() {
   const { session, loading, updateAiProvider, refreshSession, openAuthModal } = useUser();
   const [isInternal, setIsInternal] = useState(false);
+  const [fdaAccessible, setFdaAccessible] = useState(false);
+  const [cderAccessible, setCderAccessible] = useState(false);
   const [simpleView, setSimpleView] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | 'ai' | null>(null);
   const [activeFeature, setActiveFeature] = useState(0);
@@ -70,8 +72,12 @@ export default function HomePage() {
         const response = await fetch("/api/check-fdalabel", { method: 'POST' });
         const data = await response.json();
         setIsInternal(data.isInternal);
+        setFdaAccessible(data.fdaAccessible);
+        setCderAccessible(data.cderAccessible);
       } catch (error) {
         setIsInternal(false);
+        setFdaAccessible(false);
+        setCderAccessible(false);
       }
     };
     checkInternalStatus();
@@ -201,15 +207,19 @@ export default function HomePage() {
             />
           </div>
           <div className="animate-fade-in-up delay-1">
-            {isInternal ? (
+            {(fdaAccessible || cderAccessible) ? (
               <ScientificCard 
                 title="Access FDALabel" 
                 description="Internal FDALabel interface for searching over 150,000 product labeling and 3,000 reference listed drug labeling. "
                 icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>}
               >
-                <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
-                  <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '6px', backgroundColor: '#f1f5f9', color: '#002e5d', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none', border: '1px solid #cbd5e1' }}>FDA version</a>
-                  <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '6px', backgroundColor: '#f1f5f9', color: '#002e5d', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none', border: '1px solid #cbd5e1' }}>CDER-CBER version</a>
+                <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', flexWrap: 'wrap' }}>
+                  {fdaAccessible && (
+                    <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '6px', backgroundColor: '#f1f5f9', color: '#002e5d', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none', border: '1px solid #cbd5e1', minWidth: '100px' }}>FDA version</a>
+                  )}
+                  {cderAccessible && (
+                    <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '6px', backgroundColor: '#f1f5f9', color: '#002e5d', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none', border: '1px solid #cbd5e1', minWidth: '100px' }}>CDER-CBER version</a>
+                  )}
                 </div>
               </ScientificCard>
             ) : (

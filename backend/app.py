@@ -46,10 +46,33 @@ def create_unified_app():
     def check_fdalabel():
         from dashboard.services.fdalabel_db import FDALabelDBService
         from flask import current_app
+        import requests
+        
         is_internal = FDALabelDBService.is_internal()
         allow_local = current_app.config.get('LOCAL_QUERY', True)
+        
+        # Check accessibility of internal versions
+        fda_accessible = False
+        cder_accessible = False
+        
+        try:
+            # FDA version
+            r = requests.head("https://fdalabel.fda.gov/fdalabel/ui/search", timeout=1.5, verify=False)
+            fda_accessible = r.status_code < 400
+        except:
+            fda_accessible = False
+            
+        try:
+            # CDER-CBER version
+            r = requests.head("https://fdalabel.fda.gov/fdalabel-r/ui/search", timeout=1.5, verify=False)
+            cder_accessible = r.status_code < 400
+        except:
+            cder_accessible = False
+
         return jsonify({
-            "isInternal": is_internal,
+            "isInternal": is_internal or fda_accessible or cder_accessible,
+            "fdaAccessible": fda_accessible,
+            "cderAccessible": cder_accessible,
             "allowLocalQuery": allow_local
         })
 
