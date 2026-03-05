@@ -17,23 +17,6 @@ class FDALabelDBService:
     _db_type = None      # 'oracle', 'sqlite', or 'postgres'
 
     @classmethod
-    def get_sqlite_connection(cls):
-        """Establishes a connection to the local SQLite label.db."""
-        try:
-            db_path = current_app.config.get('LOCAL_LABEL_DB_PATH')
-            if not db_path:
-                db_path = os.path.join(current_app.root_path, '..', '..', 'data', 'label.db')
-            db_path = os.path.abspath(db_path)
-            if not os.path.exists(db_path):
-                return None
-            connection = sqlite3.connect(db_path)
-            connection.row_factory = sqlite3.Row
-            return connection
-        except Exception as e:
-            print(f"SQLite Connection Failed: {e}")
-            return None
-
-    @classmethod
     def get_postgres_connection(cls):
         """Establishes a connection to the local PostgreSQL database."""
         try:
@@ -73,10 +56,10 @@ class FDALabelDBService:
                 cls._db_type = 'postgres'
             return conn
 
-        # Default SQLite
-        conn = cls.get_sqlite_connection()
+        # Default to Postgres if LABEL_DB is not set or not 'ORACLE'
+        conn = cls.get_postgres_connection()
         if conn:
-            cls._db_type = 'sqlite'
+            cls._db_type = 'postgres'
         return conn
 
     @classmethod
@@ -134,19 +117,16 @@ class FDALabelDBService:
                         'is_rld': r[13], 'is_rs': r[14] if len(r) > 14 else 0
                     })
             else:
-                # Local Path (Postgres or SQLite)
-                schema = "labeling." if cls._db_type == 'postgres' else ""
+                # Postgres
+                schema = "labeling."
                 sql = f"""
                     SELECT set_id, product_names, generic_names, manufacturer, market_categories, appr_num,
                            ndc_codes, revised_date, active_ingredients, doc_type, dosage_forms, routes, epc, is_rld, is_rs
                     FROM {schema}sum_spl
-                    WHERE product_names LIKE :q OR generic_names LIKE :q OR ndc_codes LIKE :q_exact OR set_id = :q_exact_id
-                    LIMIT :limit OFFSET :skip
+                    WHERE product_names LIKE %(q)s OR generic_names LIKE %(q)s OR ndc_codes LIKE %(q_exact)s OR set_id = %(q_exact_id)s
+                    LIMIT %(limit)s OFFSET %(skip)s
                 """
                 params = {"q": q, "q_exact": query, "q_exact_id": query, "limit": limit, "skip": skip}
-                if cls._db_type == 'postgres':
-                    # Postgres uses %s or named %(name)s
-                    sql = sql.replace(":q_exact_id", "%(q_exact_id)s").replace(":q_exact", "%(q_exact)s").replace(":q", "%(q)s").replace(":limit", "%(limit)s").replace(":skip", "%(skip)s")
                 cursor.execute(sql, params)
                 rows = cursor.fetchall()
                 for r in rows:
