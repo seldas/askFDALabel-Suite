@@ -813,7 +813,7 @@ def project_stats():
         top_manufacturers = [{"name": name, "count": count} for name, count in manu_counts.most_common(10) if name and name != "Unknown"]
 
         if db_ok and set_ids:
-            document_type = FDALabelDBService.document_type_breakdown_for_set_ids(set_ids)
+            document_type = FDALabelDBService.document_type_breakdown_for_set_ids(set_ids=set_ids)
         else:
             document_type = {"raw": {}, "buckets": {"human_rx": 0, "human_otc": 0, "vaccine": 0, "animal_rx": 0, "animal_otc": 0, "other": 0, "unknown": len(set_ids) or len(favs)}, "note": "Local/Internal DB not available."}
 

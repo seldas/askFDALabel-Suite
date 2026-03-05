@@ -33,7 +33,7 @@ class FDALabelDBService:
     @classmethod
     def get_connection(cls):
         """Establishes a connection based on Config.LABEL_DB."""
-        db_choice = current_app.config.get('LABEL_DB', 'LOCAL')
+        db_choice = current_app.config.get('LABEL_DB', 'POSTGRES')
         
         if db_choice == 'ORACLE':
             if not ORACLE_AVAILABLE: return None
@@ -325,8 +325,7 @@ class FDALabelDBService:
                 cursor = conn.cursor()
                 schema = "labeling." if cls._db_type == 'postgres' else ""
                 for chunk in cls._chunk(list(set_ids), n=900):
-                    placeholders = ", ".join(["?"] * len(chunk))
-                    sql = f"SELECT set_id, spl_id, doc_type FROM {schema}sum_spl WHERE set_id IN ({placeholders})"
+                    sql = f"SELECT set_id, spl_id, doc_type FROM {schema}sum_spl WHERE set_id = ANY(%s)"
                     cursor.execute(sql, chunk)
                     for row in cursor.fetchall():
                         out[str(row['set_id'])] = {"spl_id": row['spl_id'], "document_type": row['doc_type'], "document_type_loinc_code": None}
@@ -360,8 +359,7 @@ class FDALabelDBService:
                         out[str(sid)] = eff
             else:
                 for chunk in cls._chunk(list(set_ids), n=900):
-                    placeholders = ", ".join(["?"] * len(chunk))
-                    sql = f"SELECT set_id, revised_date FROM sum_spl WHERE set_id IN ({placeholders})"
+                    sql = f"SELECT set_id, revised_date FROM sum_spl WHERE set_id = ANY(%s)"
                     cursor.execute(sql, chunk)
                     for row in cursor.fetchall():
                         out[str(row['set_id'])] = row['revised_date']
@@ -408,15 +406,14 @@ class FDALabelDBService:
             else:
                 schema = "labeling." if cls._db_type == 'postgres' else ""
                 for chunk in cls._chunk(list(set_ids), n=900):
-                    placeholders = ", ".join(["?"] * len(chunk))
                     sql = f"""
-                        SELECT s.set_id, m.is_active 
+                        SELECT s.set_id, m.is_active
                         FROM {schema}active_ingredients_map m
                         JOIN {schema}sum_spl s ON s.spl_id = m.spl_id
-                        WHERE s.set_id IN ({placeholders})
-                        AND UPPER(m.substance_name) = ?
+                        WHERE s.set_id = ANY(%s)
+                        AND UPPER(m.substance_name) = %s
                     """
-                    cursor.execute(sql, list(chunk) + [search_name])
+                    cursor.execute(sql, (list(chunk), search_name))
                     for row in cursor.fetchall():
                         sid_str = str(row['set_id'])
                         if sid_str not in matches: matches[sid_str] = {"active": False, "inactive": False}
@@ -447,24 +444,22 @@ class FDALabelDBService:
 
     @classmethod
     def document_type_breakdown_for_set_ids(cls, set_ids):
-        """Categorizes labels by document type using LOINC codes."""
-        core = cls.get_label_core_by_set_ids(set_ids)
-        raw = {}
-        for sid in set_ids:
-            info = core.get(str(sid), {})
-            # Fallback to document_type string if LOINC code is missing
-            code = info.get("document_type_loinc_code") or info.get("document_type") or "UNKNOWN"
-            raw[code] = raw.get(code, 0) + 1
+        """Categorizes labels by document type using LOINC codes (DB query version)."""
+        if not set_ids or not cls.check_connectivity():
+            return {"raw": {}, "buckets": {"human_rx": 0, "human_otc": 0, "vaccine": 0, "animal_rx": 0, "animal_otc": 0, "other": 0, "unknown": 0}}
 
-        # LOINC mapping for bucketing
+        conn = cls.get_connection()
+        if not conn:
+            return {"raw": {}, "buckets": {"human_rx": 0, "human_otc": 0, "vaccine": 0, "animal_rx": 0, "animal_otc": 0, "other": 0, "unknown": 0}}
+
+        # Same mappings as your original implementation
         LOINC_MAP = {
             '34391-3': 'human_rx', '48401-4': 'human_rx', '48402-2': 'human_rx',
             '34390-5': 'human_otc', '48405-5': 'human_otc', '48406-3': 'human_otc',
             '34392-1': 'vaccine', '50516-4': 'vaccine',
             '50517-2': 'animal_rx', '50518-0': 'animal_otc',
         }
-        
-        # String mapping fallback for local DB if LOINC is missing
+
         STR_MAP = {
             'HUMAN PRESCRIPTION DRUG LABEL': 'human_rx',
             'HUMAN OTC DRUG LABEL': 'human_otc',
@@ -473,24 +468,96 @@ class FDALabelDBService:
             'ANIMAL OTC DRUG LABEL': 'animal_otc',
         }
 
+        raw = {}
         buckets = {"human_rx": 0, "human_otc": 0, "vaccine": 0, "animal_rx": 0, "animal_otc": 0, "other": 0, "unknown": 0}
+
+        # Track which set_ids we actually saw in DB results (so we can count missing ones as UNKNOWN)
+        seen = set()
+
+        try:
+            cursor = conn.cursor()
+
+            if cls._db_type == 'oracle':
+                # Adjust these column names if needed for Oracle schema
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    binds = {f"sid{i}": v for i, v in enumerate(chunk)}
+                    in_clause = ", ".join([f":sid{i}" for i in range(len(chunk))])
+
+                    sql = f"""
+                        SELECT
+                            s.SET_ID,
+                            s.DOCUMENT_TYPE_LOINC_CODE,
+                            s.DOCUMENT_TYPE
+                        FROM druglabel.DGV_SUM_SPL s
+                        WHERE s.SET_ID IN ({in_clause})
+                    """
+                    cursor.execute(sql, binds)
+
+                    for set_id, loinc_code, doc_type in cursor.fetchall():
+                        sid_str = str(set_id)
+                        seen.add(sid_str)
+
+                        # Match original fallback order
+                        code = loinc_code or doc_type or "UNKNOWN"
+                        code_str = str(code)
+                        raw[code_str] = raw.get(code_str, 0) + 1
+
+            else:
+                schema = "labeling."
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    sql = f"""
+                        SELECT
+                            s.set_id,
+                            s.doc_type
+                        FROM {schema}sum_spl s
+                        WHERE s.set_id = ANY(%s)
+                    """
+                    cursor.execute(sql, (list(chunk),))
+
+                    for row in cursor.fetchall():
+                        set_id = row["set_id"]
+                        doc_type = row["doc_type"]
+                        sid_str = str(set_id)
+                        seen.add(sid_str)
+
+                        code = doc_type or "UNKNOWN"
+                        code_str = str(code)
+                        raw[code_str] = raw.get(code_str, 0) + 1
+            cursor.close()
+
+        except Exception as e:
+            print(f"Error in document_type_breakdown ({cls._db_type}): {e}")
+            # Return empty but well-formed output
+            return {"raw": {}, "buckets": buckets}
+        finally:
+            conn.close()
+
+        # Anything not returned from DB counts as UNKNOWN (matches old behavior when core.get(...) empty)
+        missing = len(set_ids) - len(seen)
+        if missing > 0:
+            raw["UNKNOWN"] = raw.get("UNKNOWN", 0) + missing
+
+        # Bucketize
         for code, count in raw.items():
             mapped = False
-            if code in LOINC_MAP:
-                buckets[LOINC_MAP[code]] += count
+            code_str = str(code)
+
+            if code_str in LOINC_MAP:
+                buckets[LOINC_MAP[code_str]] += count
                 mapped = True
             else:
-                # Try string mapping
-                upper_code = str(code).upper()
+                upper_code = code_str.upper()
                 for key, bucket in STR_MAP.items():
                     if key in upper_code:
                         buckets[bucket] += count
                         mapped = True
                         break
-            
+
             if not mapped:
-                if code == "UNKNOWN": buckets["unknown"] += count
-                else: buckets["other"] += count
+                if code_str == "UNKNOWN":
+                    buckets["unknown"] += count
+                else:
+                    buckets["other"] += count
 
         return {"raw": raw, "buckets": buckets}
 
@@ -711,16 +778,15 @@ class FDALabelDBService:
                             'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row[0]}"
                         })
             else:
-                schema = "labeling." if cls._db_type == 'postgres' else ""
+                schema = "labeling."
                 for chunk in cls._chunk(list(set_ids), n=900):
-                    placeholders = ", ".join(["%s"] * len(chunk)) if cls._db_type == 'postgres' else ", ".join(["?"] * len(chunk))
                     sql = f"""
                         SELECT 
                             set_id, product_names, generic_names, manufacturer, 
                             appr_num, ndc_codes, revised_date, market_categories,
                             doc_type, routes, dosage_forms, epc, active_ingredients
                         FROM {schema}sum_spl
-                        WHERE set_id IN ({placeholders})
+                        WHERE set_id = ANY(%s)
                     """
                     params = chunk
                     if cls._db_type == 'postgres':
