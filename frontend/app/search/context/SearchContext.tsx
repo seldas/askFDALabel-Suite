@@ -76,9 +76,9 @@ interface SearchContextProps {
   loadingStatus: string;
   setLoadingStatus: React.Dispatch<React.SetStateAction<string>>;
 
-  // v1/v2 mode
-  searchMode: 'v1' | 'v2';
-  setSearchMode: (mode: 'v1' | 'v2') => void;
+  // v3/v2 mode (v1 is hidden)
+  searchMode: 'v3' | 'v2' | 'v1';
+  setSearchMode: (mode: 'v3' | 'v2' | 'v1') => void;
 
   // Agent debug panels
   agentFlow: string[];
@@ -111,7 +111,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     labelingSection: [],
   });
 
-  const [searchMode, setSearchMode] = useState<'v1' | 'v2'>('v2');
+  const [searchMode, setSearchMode] = useState<'v3' | 'v2' | 'v1'>('v3');
 
   const [agentFlow, setAgentFlow] = useState<string[]>([]);
   const [reasoning, setReasoning] = useState('');

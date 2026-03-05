@@ -1,335 +1,67 @@
-Yes — if you want scalable semantic search over hundreds of thousands of labeling sections, you **must pre-generate and store embeddings** for them.
+# askFDALabel Embedding Strategy & Implementation
 
-But let’s walk through this properly, because there are architectural decisions here that matter for AskFDALabel.
-
----
-
-# 1️⃣ Short Answer
-
-For production-grade semantic search:
-
-✅ Yes — precompute embeddings
-✅ Store them in a vector index
-✅ Embed only the incoming query at runtime
-✅ Perform similarity search
-
-You **do NOT** embed all documents at query time.
-
-That would be computationally impossible at scale.
+This document tracks the vision, implementation progress, and future roadmap for semantic search within the AskFDALabel-Suite.
 
 ---
 
-# 2️⃣ Why Precomputation Is Necessary
+## ✅ 1. Completed Implementation (March 2026)
 
-You have:
+We have moved from design to a production-ready Semantic RAG pipeline (Search V3).
 
-* Hundreds of thousands of label sections
-* Possibly millions of chunks if split properly
+### 🏗️ Infrastructure
+*   **Vector Database:** Migrated from SQLite to **PostgreSQL** with the **`pgvector`** extension.
+*   **Schema:** Implemented the `label_embeddings` table with 768-dimension vector support, linked to the `labeling.sum_spl` metadata.
+*   **Local Embedding Model:** Integrated `sentence-transformers` using the **`all-mpnet-base-v2`** model (768-dim).
+    *   *Benefit:* Matches `gemini-embedding-001` dimensions, enabling zero-cost, private, and high-speed local processing.
+    *   *Optimization:* Implemented lazy loading and batch processing in `ai_handler.py`.
 
-Embedding cost per document:
+### 🚀 High-Performance Processing
+*   **Multi-GPU Synchronization:** Developed `scripts/ai/sync_label_embeddings.py` optimized for **8x NVIDIA V100 GPUs**.
+*   **Throughput:** Uses `encode_multi_process` to saturate all available VRAM, allowing the entire FDA labeling database to be embedded in hours rather than days.
+*   **Incremental Updates:** The sync script automatically detects new or modified labels and only processes missing embeddings.
 
-* Small but non-zero
-* Must be done once
-
-At query time:
-
-* You embed the user query (cheap)
-* Compare against precomputed vectors (fast with index)
-
-Without precomputing, each query would require:
-
-```
-Embed query
-Embed 500,000 documents
-Compute similarity 500,000 times
-```
-
-That’s not feasible.
+### 🧠 Search V3 Agentic Pipeline
+*   **Smart Planner:** Uses a lightweight LLM call to classify intent (Clinical QA vs. Entity Lookup) and resolve multi-turn conversational context (Query Resolution).
+*   **Semantic Retriever:** Performs high-recall vector similarity searches (`1 - (embedding <=> query_vector)`) in Postgres.
+*   **LLM Reranker:** A precision step where an LLM re-scores the top 20 semantic results to ensure the most relevant clinical evidence is prioritized.
+*   **Grounded Composer:** Generates final answers using ONLY retrieved snippets, with mandatory drug/section citations to prevent hallucination.
 
 ---
 
-# 3️⃣ The Proper Architecture for FDALabel
+## 🛠️ 2. Current Status: Operational Setup
 
-### Step 1: Chunk Your Labels
+To bring the system to full capacity, the following operational tasks are ready for execution:
 
-Do NOT embed entire label documents.
-
-Instead:
-
-* Split by section
-* Or 500–1000 token chunks
-* Keep metadata: drug_name, section_type, version, label_id
-
-Example chunk:
-
-```json
-{
-  "chunk_id": "drugX_warnings_3",
-  "drug_name": "Acetaminophen",
-  "section": "Warnings and Precautions",
-  "text": "...",
-  "label_version": "2024-01"
-}
-```
+1.  **Full Database Sync:** Run `python scripts/ai/sync_label_embeddings.py` in the V100 environment to populate the vector table.
+2.  **Vector Indexing:** Apply HNSW indexing once the table is populated to ensure sub-second search latency:
+    ```sql
+    CREATE INDEX ON label_embeddings USING hnsw (embedding vector_cosine_ops);
+    ```
 
 ---
 
-### Step 2: Generate Embeddings (Offline Job)
+## 🔮 3. Next Steps & Future Roadmap
 
-One-time (or incremental) process:
+### 🔄 Phase 1: Hybrid Search Implementation
+*   **Goal:** Combine the "Exact Match" strengths of SQL/Keyword search with the "Conceptual Match" of Semantic search.
+*   **Technique:** Implement **Reciprocal Rank Fusion (RRF)** to merge results from `KeywordRetriever` and `SemanticRetriever`.
 
-```python
-for chunk in all_label_chunks:
-    embedding = embed_model.embed(chunk["text"])
-    store(chunk_id, embedding, metadata)
-```
+### 📊 Phase 2: Domain-Specific Fine-Tuning
+*   **Goal:** Improve retrieval accuracy for highly technical FDA regulatory terminology.
+*   **Action:** Evaluate if `all-mpnet-base-v2` requires fine-tuning on SPL-specific corpora or if a specialized medical embedding model (like `BioLinkBERT`) provides better separation for drug classes.
 
-Store in:
+### 🎨 Phase 3: Frontend V3 Integration
+*   **Goal:** Expose the power of V3 to the end-user.
+*   **Action:** 
+    *   Add a "Search Mode" toggle (Standard vs. Semantic AI).
+    *   Update the UI to display "Relevance Scores" and "Reasoning Trace" for transparency.
+    *   Implement "Citation Highlighting" where clicking a bracketed citation `[Drug, Section]` scrolls the user to the exact text in the label viewer.
 
-* FAISS (local)
-* pgvector (Postgres)
-* Pinecone
-* Weaviate
-* Qdrant
-* etc.
-
-For FDA internal deployment, pgvector is often simplest.
-
----
-
-### Step 3: Runtime Query Flow
-
-At query time:
-
-```python
-query_embedding = embed_model.embed(user_query)
-results = vector_index.search(query_embedding, top_k=50)
-```
-
-Then:
-
-* LLM reranks
-* LLM synthesizes grounded answer
-
-This is the correct modern design.
+### 📉 Phase 4: Quantization & Optimization
+*   **Goal:** Reduce memory footprint for smaller deployment environments.
+*   **Action:** Explore `Int8` or `Binary` quantization for the vector index if the `label_embeddings` table grows beyond 10GB.
 
 ---
 
-# 4️⃣ Your Concern: “Embedding Models Are Weaker”
-
-Let’s clarify something important.
-
-Embedding models are NOT weaker.
-They are optimized differently.
-
-They’re trained to:
-
-* Map semantically similar text near each other
-* Create useful geometric separation
-
-They are not trained to:
-
-* Reason
-* Generate
-* Follow instructions
-
-They are not competing with GenAI.
-They are infrastructure for retrieval.
-
----
-
-# 5️⃣ Should You Use a Separate Embedding Model?
-
-You have three options:
-
-### Option A — Dedicated Embedding Model (Most Common)
-
-Pros:
-
-* Cheap
-* Fast
-* Stable geometry
-* Good recall
-
-Cons:
-
-* Separate model to manage
-
-This is standard practice.
-
----
-
-### Option B — Use Your GenAI Model for Embeddings
-
-Some modern models support both:
-
-* embedding endpoint
-* generation endpoint
-
-This is actually ideal:
-
-* Shared semantic space
-* No domain mismatch
-
-If your SOTA model supports embedding mode, use that.
-
----
-
-### Option C — No Embeddings (LLM Agent Search)
-
-Let LLM iteratively search DB with tool calls.
-
-This:
-
-* Is slower
-* Less scalable
-* Harder to control recall
-* More expensive
-
-For 500k+ documents, not recommended as primary retrieval.
-
----
-
-# 6️⃣ Important Design Choice for FDALabel
-
-The biggest mistake people make:
-
-They embed entire documents.
-
-Don’t.
-
-You want:
-
-* Section-level or chunk-level embeddings
-* Because users ask about specific risks, warnings, interactions
-
-Granularity determines recall quality.
-
----
-
-# 7️⃣ Storage Strategy for label.db
-
-Since you already have `label.db`, you can:
-
-Option A:
-
-* Add a new table: `label_embeddings`
-* Columns:
-
-  * chunk_id
-  * embedding (vector)
-  * drug_name
-  * section
-  * label_id
-  * text
-
-If using PostgreSQL:
-
-* Install pgvector
-* Create index:
-
-  ```sql
-  CREATE INDEX ON label_embeddings USING ivfflat (embedding vector_cosine_ops);
-  ```
-
-If SQLite:
-
-* You’ll need external FAISS or similar.
-* SQLite alone is not good for large-scale vector search.
-
----
-
-# 8️⃣ When Do You Regenerate Embeddings?
-
-Only when:
-
-* New labels added
-* Label updated
-* You change embedding model
-
-You can do incremental updates:
-
-* Detect new label version
-* Chunk + embed only those
-
----
-
-# 9️⃣ What Actually Matters More Than Model Strength
-
-In your domain, the bigger determinants of performance are:
-
-1. Chunking strategy
-2. Metadata filtering
-3. Hybrid retrieval (vector + keyword)
-4. LLM reranking
-5. Answer grounding constraints
-
-Embedding quality matters —
-but system design matters more.
-
----
-
-# 🔟 The Real Strategic Question for AskFDALabel
-
-You need to decide:
-
-Are you optimizing for:
-
-* Maximum recall of relevant label text?
-* Regulatory defensibility?
-* Speed?
-* Cost?
-
-Because that determines:
-
-* top_k size
-* rerank_k size
-* embedding dimensionality
-* index type
-
----
-
-# 11️⃣ A Practical Recommendation for You
-
-Given your scale and regulatory setting:
-
-I would do:
-
-* Chunk at section/subsection level
-* Use a strong modern embedding model
-* Store in pgvector
-* Retrieve top 50
-* LLM rerank to top 5–10
-* Generate grounded answer with citations
-
-This gives:
-
-* High recall
-* High precision
-* Full GenAI reasoning
-* Regulatory traceability
-
----
-
-# 12️⃣ Final Clarification
-
-You are not “losing AI advantage” by using embeddings.
-
-You are:
-
-* Using AI for indexing
-* Using AI again for reasoning
-* Combining both strengths
-
-The mistake would be:
-Trying to use reasoning models as brute-force search engines.
-
----
-
-If you’d like, I can next show you:
-
-* A concrete schema for `label_embeddings`
-* A batch embedding script
-* And a production-ready semantic_retriever implementation for your V3 pipeline
-
-Just tell me your database backend (SQLite? Postgres?).
+## 📝 Architectural Summary
+The V3 system successfully balances **Scalability** (via pgvector), **Accuracy** (via LLM Reranking), and **Data Sovereignty** (via local embedding models on V100s). It serves as the foundation for the next generation of FDA regulatory intelligence.

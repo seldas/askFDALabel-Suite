@@ -8,38 +8,19 @@ interface ChatPanelProps {
   onSearch: () => void;
 }
 
-const suggestions = [
-  { title: "Indications & Usage", query: "What are the indications for Ozempic?" },
-  { title: "Boxed Warnings", query: "Show me the boxed warning for Fentanyl." },
-  { title: "Adverse Reactions", query: "List all adverse events for Abacavir." },
-  { title: "Drug Interactions", query: "Does Ibuprofen interact with Aspirin?" }
+const semanticSuggestions = [
+  { title: "Safety Comparison", query: "Compare the renal safety profile of Ozempic vs Mounjaro." },
+  { title: "Dosing Strategy", query: "What is the recommended titration schedule for a patient with renal impairment?" },
+  { title: "Clinical Evidence", query: "What were the primary endpoints in the clinical studies for Keytruda?" },
+  { title: "Mechanism of Action", query: "How do SGLT2 inhibitors help in managing heart failure?" }
 ];
 
-const getSnippetCount = (s: any) => {
-  const n =
-    s?.snippets_returned ??
-    s?.snippet_count ??
-    s?.evidence_count ??
-    s?.snippets ??
-    0;
-  const num = Number(n);
-  return Number.isFinite(num) ? num : 0;
-};
-
-const getEvidenceLimited = (s: any, resultsLen: number) => {
-  // Prefer an explicit backend flag if you add it later:
-  if (typeof s?.evidence_limited === 'boolean') return s.evidence_limited;
-
-  // Otherwise infer: if we used snippets but results list is larger than what could be fetched
-  // (works if backend returns any of these counts)
-  const usedLabels = Number(s?.labels_used ?? s?.labels_considered ?? s?.labels_fetched ?? 0) || 0;
-  if (usedLabels > 0 && resultsLen > usedLabels) return true;
-
-  // If you have a “limit hit” flag:
-  if (typeof s?.limit_hit === 'boolean') return s.limit_hit;
-
-  return false;
-};
+const agenticSuggestions = [
+  { title: "NDC Lookup", query: "Search for NDC 0002-1433-01." },
+  { title: "Precision Filter", query: "Show all human prescription labels from Pfizer approved after 2023." },
+  { title: "Ingredient Search", query: "Find all labels containing Metformin as the active ingredient." },
+  { title: "Regulatory IDs", query: "Retrieve data for ANDA 078968." }
+];
 
 const PROGRESS_STEPS = [
   { key: "plan", label: "Planning" },
@@ -129,6 +110,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
     loadingStatus,
     setLoadingStatus,
     searchMode,
+    setSearchMode,
     setAgentFlow,
     setReasoning,
     setDebugIntent,
@@ -155,6 +137,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
         textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [searchTerm]);
+
+  const getSnippetCount = (s: any) => {
+    const n =
+      s?.snippets_returned ??
+      s?.snippet_count ??
+      s?.evidence_count ??
+      s?.snippets ??
+      0;
+    const num = Number(n);
+    return Number.isFinite(num) ? num : 0;
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -183,7 +176,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
     setReasoning('');
     
     // Set initial loading status based on mode
-    setLoadingStatus(searchMode === 'v2' ? "Agent is thinking..." : "Generating SQL...");
+    setLoadingStatus(searchMode === 'v1' ? "Generating SQL..." : "Agent is thinking...");
 
     const payload = {
       query: queryText,
@@ -199,16 +192,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
     onSearch();
 
     try {
-      if (searchMode === 'v2') {
-        // --- V2 AFL Agent Path ---
-        const searchResponse = await fetch("/api/search/search_agentic_stream", {
+      if (searchMode === 'v2' || searchMode === 'v3') {
+        // --- Agentic Path (V2 or V3) ---
+        const endpoint = searchMode === 'v3' ? "/api/search/search_v3" : "/api/search/search_agentic_stream";
+        
+        const searchResponse = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
         });
 
         if (!searchResponse.body) {
-        throw new Error("No streaming body returned from /api/search/search_agentic_stream");
+        throw new Error(`No streaming body returned from ${endpoint}`);
         }
 
         const reader = searchResponse.body.getReader();
@@ -484,9 +479,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
               if (done) break;
               
               const chunk = decoder.decode(value, { stream: true });
-              // The /api/search/chat endpoint might return JSON chunks like {"summary_chunk": "..."}
-              // We need to parse or handle appropriately. 
-              // Looking at backend, it yields json.dumps({"summary_chunk": ...})
               
               const lines = chunk.split('\n');
               for (const line of lines) {
@@ -502,8 +494,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                           });
                       }
                   } catch (e) {
-                      // If not JSON, might be raw text (depending on backend implementation)
-                      // For now assume the backend yields summary_chunk JSON
                   }
               }
           }
@@ -567,8 +557,55 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
       {chatHistory.length === 0 ? (
         // Initial View (Centered)
         <div className="initial-view-container">
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              marginBottom: '2rem',
+              padding: '4px',
+              background: '#f1f5f9',
+              borderRadius: '99px',
+              width: 'fit-content',
+              margin: '0 auto 2rem auto',
+              border: '1px solid #e2e8f0'
+            }}>
+              <button
+                onClick={() => setSearchMode('v3')}
+                style={{
+                  padding: '8px 24px',
+                  borderRadius: '99px',
+                  border: 'none',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  backgroundColor: searchMode === 'v3' ? '#ffffff' : 'transparent',
+                  color: searchMode === 'v3' ? '#0f172a' : '#64748b',
+                  boxShadow: searchMode === 'v3' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Semantic (V3)
+              </button>
+              <button
+                onClick={() => setSearchMode('v2')}
+                style={{
+                  padding: '8px 24px',
+                  borderRadius: '99px',
+                  border: 'none',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  backgroundColor: searchMode === 'v2' ? '#ffffff' : 'transparent',
+                  color: searchMode === 'v2' ? '#0f172a' : '#64748b',
+                  boxShadow: searchMode === 'v2' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Agentic (V2)
+              </button>
+            </div>
+
             <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
-              AFL Agent
+              {searchMode === 'v3' ? 'Semantic Search' : 'Agentic Search'}
             </h1>
             
             <form onSubmit={handleSearch} className="centered-search-form">
@@ -616,7 +653,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
             </div>
 
             <div className="suggestions-grid">
-                {suggestions.map((suggestion, index) => (
+                {(searchMode === 'v3' ? semanticSuggestions : agenticSuggestions).map((suggestion, index) => (
                     <div 
                         key={index} 
                         className="suggestion-card" 
@@ -697,10 +734,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                         {(() => {
                         const isLastMsg = index === chatHistory.length - 1;
                         const snippetCount = getSnippetCount(debugStats);
-                        //const evidenceLimited = getEvidenceLimited(debugStats, results?.length || 0);
-                        //console.log(debugStats);
+                        const isAgenticMode = searchMode === 'v2' || searchMode === 'v3';
                         const shouldShow =
-                            searchMode === 'v2' &&
+                            isAgenticMode &&
                             msg.role === 'assistant' &&
                             isLastMsg &&
                             !isLoading &&
@@ -742,7 +778,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                 ))}
                 {isLoading && (
                 <div className="chat-loading-container afd-progressWrap">
-                    {/* Big visual progress dock (uses the empty space) */}
                     <ProgressDock status={loadingStatus} />
                 </div>
                 )}
@@ -777,4 +812,3 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
 };
 
 export default ChatPanel;
-

@@ -18,6 +18,7 @@ This directory contains categorized scripts for backend management, data synchro
 
 ## 📂 3. AI & Embeddings (`scripts/ai/`)
 *   **`sync_label_embeddings.py`**: **[High Performance]** Multi-GPU (8x V100) script to generate and sync embeddings for new label data.
+*   **`create_vector_index.py`**: **[New]** Applies HNSW indexing to the `label_embeddings` table for sub-second vector search latency.
 *   **`test_local_embedding.py`**: Verifies the `sentence-transformers` installation and local model vector generation.
 *   **`test_embedding.py`**: Generic test for embedding API connectivity (Gemini/Llama).
 *   **`check_pg_vector.py`**: Validates the presence and status of the `pgvector` extension in PostgreSQL.
