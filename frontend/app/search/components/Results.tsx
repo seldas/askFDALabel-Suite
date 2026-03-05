@@ -175,8 +175,8 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
     traceLog,
   } = useSearchContext();
 
-  const isV2 = searchMode === 'v2';
-  const isV1 = searchMode === 'v1';
+  const isAgentic = searchMode === 'v2' || searchMode === 'v3';
+  const isStandard = searchMode === 'v1';
 
   // --- RLD Filtering Logic ---
   const userWantsNonRLD = (query: string): boolean => {
@@ -278,14 +278,14 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
 
   useEffect(() => {
     // Only parse/build conditions for V1 filter editing.
-    if (!isV1) return;
+    if (!isStandard) return;
 
     if (generatedSql) {
       setLocalSql(generatedSql);
       parseSqlToConditions(generatedSql);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generatedSql, isV1]);
+  }, [generatedSql, isStandard]);
 
   const ensureLabelSectionCondition = (conds: any[]) => {
     const has = conds.some(c => c.type === 'simple' && (c.field || '').toUpperCase() === 'S.LOINC_CODE');
@@ -682,60 +682,13 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
           }}
         >
           <div style={{ padding: '24px' }}>
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              marginBottom: '4px',
-              padding: '4px',
-              background: '#f1f5f9',
-              borderRadius: '99px',
-              width: 'fit-content',
-              margin: '0 auto 0 auto',
-              border: '1px solid #e2e8f0'
-            }}>
-              <button
-                onClick={() => setSearchMode('v1')}
-                style={{
-                  padding: '8px 20px',
-                  borderRadius: '99px',
-                  border: 'none',
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  backgroundColor: searchMode === 'v1' ? '#ffffff' : 'transparent',
-                  color: searchMode === 'v1' ? '#0f172a' : '#64748b',
-                  boxShadow: searchMode === 'v1' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                Standard (V1)
-              </button>
-              <button
-                onClick={() => setSearchMode('v2')}
-                style={{
-                  padding: '8px 20px',
-                  borderRadius: '99px',
-                  border: 'none',
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  backgroundColor: searchMode === 'v2' ? '#ffffff' : 'transparent',
-                  color: searchMode === 'v2' ? '#0f172a' : '#64748b',
-                  boxShadow: searchMode === 'v2' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                AFL Agent (V2)
-              </button>
-            </div>
-
             <h2 style={{ 
               fontWeight: 950, 
               fontSize: '1.25rem', 
               marginBottom: '20px',
               textAlign: 'center'
             }}>
-              How our AFL Agent works
+              How our Search Pipeline works
             </h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -748,13 +701,71 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                 }}
               >
                 <div style={{ color: '#334155', lineHeight: 1.6, fontSize: '1rem' }}>
-                  askFDALabel uses a multi-step “agent” pipeline to plan the best strategy, retrieve evidence, and explain what it did:
-                  <ul style={{ margin: '12px 0 0 24px', color: '#334155' }}>
-                    <li style={{ marginBottom: '8px' }}><b>Planner</b> interprets your question using recent chat context and chooses a query strategy.</li>
-                    <li style={{ marginBottom: '8px' }}><b>DB Executor</b> runs the best SQL (metadata search, full-text section search, or aggregate/compare).</li>
-                    <li style={{ marginBottom: '8px' }}><b>Evidence Fetcher</b> pulls only the needed label sections to ground answers in text.</li>
-                    <li style={{ marginBottom: '8px' }}><b>Answer + Reasoning</b> generates a response and shows the plan/trace in the Reasoning panel.</li>
-                  </ul>
+                  {searchMode === 'v3' ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <b>🧠 Semantic Mapping</b><br/>
+                        <small>Finds conceptual matches even without exact keywords.</small>
+                      </div>
+                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <b>⚖️ Expert Reranking</b><br/>
+                        <small>AI "reviews" results to prioritize the best evidence.</small>
+                      </div>
+                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <b>🛡️ Grounded Answers</b><br/>
+                        <small>Zero hallucination: answers only from provided text.</small>
+                      </div>
+                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <b>🔖 Citation Logic</b><br/>
+                        <small>Every claim is linked to a specific label section.</small>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <b>🕵️ Logic Planning</b><br/>
+                        <small>Breaks down your query into a multi-step search plan.</small>
+                      </div>
+                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <b>📊 SQL Precision</b><br/>
+                        <small>Direct database filtering for exact metadata matches.</small>
+                      </div>
+                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <b>📝 Transparent Trace</b><br/>
+                        <small>Follow the "Chain of Thought" in the Reasoning panel.</small>
+                      </div>
+                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <b>📁 Contextual Flow</b><br/>
+                        <small>Uses recent chat history to refine technical lookups.</small>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ 
+                  marginTop: '20px', 
+                  padding: '12px 16px', 
+                  background: '#f1f5f9', 
+                  borderRadius: '10px',
+                  borderLeft: '4px solid #334155'
+                }}>
+                  <div style={{ fontSize: '0.9rem', color: '#475569' }}>
+                    {searchMode === 'v3' ? (
+                      <>
+                        <b>💡 Best for:</b> Complex clinical questions, comparative safety analysis, or when you aren't sure of the exact drug name.
+                        <div style={{ marginTop: '8px', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                          Example: "Compare the renal safety profile of SGLT2 inhibitors versus Metformin."
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <b>💡 Best for:</b> Precise document retrieval, filtering by manufacturer/class, or analyzing specific technical metadata.
+                        <div style={{ marginTop: '8px', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                          Example: "Show me all human prescription labels for Pfizer approved after 2022."
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -778,15 +789,15 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
   };
 
   // -----------------------
-  // Reasoning Panel (V2 only)
+  // Reasoning Panel (Agentic modes)
   // -----------------------
   const ReasoningPanel = () => {
     const intentType =
-      (debugIntent && (debugIntent.type || debugIntent.intent?.type)) ||
+      (debugIntent && (debugIntent.type || debugIntent.intent?.type || debugIntent.intent)) ||
       '—';
 
     const planType =
-      (debugPlan && (debugPlan.plan_type || debugPlan.retrieval?.plan_type)) ||
+      (debugPlan && (debugPlan.plan_type || debugPlan.retrieval?.plan_type || (debugPlan.pipeline ? debugPlan.pipeline.join(' -> ') : null))) ||
       '—';
 
     const templateHint =
@@ -825,18 +836,18 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
               <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: '#fff' }}>
                 <div style={{ fontSize: 12, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Intent</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{intentType}</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{String(intentType)}</div>
               </div>
               <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: '#fff' }}>
                 <div style={{ fontSize: 12, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Evidence fetched</div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{evidenceFetched}</div>
               </div>
               <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: '#fff' }}>
-                <div style={{ fontSize: 12, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Plan type</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{planType}</div>
+                <div style={{ fontSize: 12, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Strategy</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{String(planType)}</div>
               </div>
               <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: '#fff' }}>
-                <div style={{ fontSize: 12, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>SQL template</div>
+                <div style={{ fontSize: 12, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Details</div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{templateHint}</div>
               </div>
             </div>
@@ -909,7 +920,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
   };
 
   // -----------------------
-  // Filter Panel (V1 only)
+  // Filter Panel (Standard only)
   // -----------------------
   const FilterPanel = () => {
     return (
@@ -1202,11 +1213,11 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
 
   return (
     <div className="search-results">
-      {/* ✅ V2: show Reasoning panel ONLY (Filter panel is hidden) */}
-      {isV2 && <ReasoningPanel />}
+      {/* ✅ Agentic modes (V2 & V3): show Reasoning panel ONLY */}
+      {isAgentic && <ReasoningPanel />}
 
-      {/* ✅ V1: show Filter panel ONLY (Reasoning panel is hidden) */}
-      {isV1 && <FilterPanel />}
+      {/* ✅ Standard mode (V1): show Filter panel ONLY */}
+      {isStandard && <FilterPanel />}
 
       {refError && (
         <div
@@ -1709,4 +1720,3 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
 };
 
 export default Results;
-

@@ -213,6 +213,21 @@
     REINDEX INDEX label_embeddings_embedding_idx;
     ```
 
+## ✅ 14. Search V3 (Semantic RAG) Implementation
+**Problem:** V2 Search relied on keyword/SQL matching which misses conceptual synonyms and clinical context.
+**Status:** Completed.
+**Implementation:**
+- **Backend:** Implemented a full Semantic RAG pipeline in `backend/search/scripts/search_v3.py`.
+    - **Vector Retrieval:** High-recall search using `pgvector` and local `all-mpnet-base-v2`.
+    - **Smart Planner:** Lightweight LLM call to classify intent, resolve multi-turn conversational memory, and handle "Out of Scope" or "Clarification" requests.
+    - **Precision Reranking:** LLM-based re-scoring of top 20 candidates.
+    - **Grounded Answer:** Synthesis engine that answers ONLY from retrieved snippets with mandatory citations.
+- **Frontend:** Updated the AI Assistant page:
+    - **Default Mode:** Set **Semantic (V3)** as the primary search strategy.
+    - **UI Renaming:** Renamed modes to "Semantic (V3)" and "Agentic (V2)".
+    - **Hidden V1:** Legacy Standard Search (V1) is hidden from the UI but remains active in the backend.
+    - **Intro View:** Added a dedicated "How our Search Pipeline works" section that explains the difference between V3 (Vector Mapping) and V2 (Structured Pipeline).
+
 ### 🛠️ Steps to Update Your Local System:
 1.  **Ensure Data Presence:**
     Place the latest FDA Orange Book `products.txt` file at:
