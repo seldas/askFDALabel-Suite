@@ -140,6 +140,52 @@ class SQLManager:
                     ORDER BY RLD_SORT ASC, r.REVISED_DATE DESC NULLS LAST
                 )
                 WHERE ROWNUM <= :limit
+            """,
+            "aggregate_overview": f"""
+                SELECT
+                    COUNT(DISTINCT r.SET_ID) AS LABEL_COUNT,
+                    COUNT(DISTINCT r.PRODUCT_NORMD_GENERIC_NAMES) AS GENERIC_STR_COUNT,
+                    COUNT(DISTINCT r.PRODUCT_NAMES) AS PRODUCT_STR_COUNT,
+                    COUNT(DISTINCT r.AUTHOR_ORG_NORMD_NAME) AS COMPANY_COUNT
+                FROM {self.t_sum} r
+                JOIN {self.t_sec} s ON r.SPL_ID = s.SPL_ID
+                WHERE 1=1
+                  {{name_clause}}
+                  {{filters}}
+                  AND CONTAINS(s.CONTENT_XML, :content_query, 1) > 0
+                  {{section_clause}}
+            """,
+            "aggregate_top_generics": f"""
+                SELECT * FROM (
+                    SELECT
+                        r.PRODUCT_NORMD_GENERIC_NAMES AS GENERIC_NAME,
+                        COUNT(DISTINCT r.SET_ID) AS LABEL_COUNT
+                    FROM {self.t_sum} r
+                    JOIN {self.t_sec} s ON r.SPL_ID = s.SPL_ID
+                    WHERE 1=1
+                      {{name_clause}}
+                      {{filters}}
+                      AND CONTAINS(s.CONTENT_XML, :content_query, 1) > 0
+                      {{section_clause}}
+                    GROUP BY r.PRODUCT_NORMD_GENERIC_NAMES
+                    ORDER BY LABEL_COUNT DESC
+                ) WHERE ROWNUM <= :limit
+            """,
+            "aggregate_top_companies": f"""
+                SELECT * FROM (
+                    SELECT
+                        r.AUTHOR_ORG_NORMD_NAME AS COMPANY,
+                        COUNT(DISTINCT r.SET_ID) AS LABEL_COUNT
+                    FROM {self.t_sum} r
+                    JOIN {self.t_sec} s ON r.SPL_ID = s.SPL_ID
+                    WHERE 1=1
+                      {{name_clause}}
+                      {{filters}}
+                      AND CONTAINS(s.CONTENT_XML, :content_query, 1) > 0
+                      {{section_clause}}
+                    GROUP BY r.AUTHOR_ORG_NORMD_NAME
+                    ORDER BY LABEL_COUNT DESC
+                ) WHERE ROWNUM <= :limit
             """
         }
 
@@ -203,6 +249,50 @@ class SQLManager:
                       {{filters}}
                     ORDER BY RLD_SORT ASC, r.revised_date DESC
                 )
+                LIMIT :limit
+            """,
+            "aggregate_overview": f"""
+                SELECT
+                    COUNT(DISTINCT r.set_id) AS LABEL_COUNT,
+                    COUNT(DISTINCT r.generic_names) AS GENERIC_STR_COUNT,
+                    COUNT(DISTINCT r.product_names) AS PRODUCT_STR_COUNT,
+                    COUNT(DISTINCT r.manufacturer) AS COMPANY_COUNT
+                FROM {self.t_sum} r
+                JOIN spl_sections s ON r.spl_id = s.spl_id
+                WHERE 1=1
+                  {{name_clause}}
+                  {{filters}}
+                  AND s.content_text LIKE '%' || :content_query || '%'
+                  {{section_clause}}
+            """,
+            "aggregate_top_generics": f"""
+                SELECT
+                    r.generic_names AS GENERIC_NAME,
+                    COUNT(DISTINCT r.set_id) AS LABEL_COUNT
+                FROM {self.t_sum} r
+                JOIN spl_sections s ON r.spl_id = s.spl_id
+                WHERE 1=1
+                  {{name_clause}}
+                  {{filters}}
+                  AND s.content_text LIKE '%' || :content_query || '%'
+                  {{section_clause}}
+                GROUP BY r.generic_names
+                ORDER BY LABEL_COUNT DESC
+                LIMIT :limit
+            """,
+            "aggregate_top_companies": f"""
+                SELECT
+                    r.manufacturer AS COMPANY,
+                    COUNT(DISTINCT r.set_id) AS LABEL_COUNT
+                FROM {self.t_sum} r
+                JOIN spl_sections s ON r.spl_id = s.spl_id
+                WHERE 1=1
+                  {{name_clause}}
+                  {{filters}}
+                  AND s.content_text LIKE '%' || :content_query || '%'
+                  {{section_clause}}
+                GROUP BY r.manufacturer
+                ORDER BY LABEL_COUNT DESC
                 LIMIT :limit
             """
         }
