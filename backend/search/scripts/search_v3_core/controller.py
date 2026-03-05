@@ -3,6 +3,7 @@ from .log import logger
 
 from .agents.planner import run_planner
 from .agents.semantic_retriever import run_semantic_retriever
+from .agents.keyword_retriever import run_keyword_retriever
 from .agents.reranker import run_reranker
 from .agents.postprocess import run_postprocess
 from .agents.evidence_fetcher import run_evidence_fetcher
@@ -27,6 +28,9 @@ def run_controller(state, stop_before=None):
         try:
             if current_step == "planner":
                 run_planner(state)
+
+            elif current_step == "keyword_retriever":
+                run_keyword_retriever(state)
 
             elif current_step == "semantic_retriever":
                 run_semantic_retriever(state)

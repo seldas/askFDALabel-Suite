@@ -28,6 +28,7 @@ from search.scripts.search_v1 import (
     lob_to_string,
 )
 from search.scripts.search_v2 import search_v2 as search_v2_func
+from search.scripts.search_v3 import search_v3 as search_v3_func
 
 from search.scripts.search_v2 import (
     AgentState,
@@ -78,6 +79,16 @@ def search():
     if user_obj and ai_provider:
         user_obj.ai_provider = ai_provider
     resp, status = search_v1_func(payload, user=user_obj)
+    return jsonify(resp), status
+
+@search_bp.route("/search_v3", methods=["POST"])
+def search_v3_route():
+    payload = request.json or {}
+    ai_provider = payload.get("ai_provider")
+    user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+    if user_obj and ai_provider:
+        user_obj.ai_provider = ai_provider
+    resp, status = search_v3_func(payload, user=user_obj)
     return jsonify(resp), status
 
 @search_bp.route("/generate_answer", methods=["POST"])
