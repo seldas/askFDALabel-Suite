@@ -1,5 +1,4 @@
 import os
-import sqlite3
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from flask import current_app
@@ -23,7 +22,6 @@ class FDALabelDBService:
             dsn = current_app.config.get('DATABASE_URL')
             if not dsn:
                 return None
-            # Use RealDictCursor to mimic SQLite Row behavior
             connection = psycopg2.connect(dsn, cursor_factory=RealDictCursor)
             return connection
         except Exception as e:

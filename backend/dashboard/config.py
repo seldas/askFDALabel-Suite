@@ -47,7 +47,7 @@ class Config:
     # Internal FDALabel DB Configuration
     # Modes: 'LOCAL' (SQLite), 'POSTGRES' (Local Postgres), 'ORACLE' (Internal)
     LABEL_DB = os.getenv('LABEL_DB', 'LOCAL').upper() 
-    if DATABASE_URL and LABEL_DB == 'LOCAL':
+    if DATABASE_URL:
         # Auto-upgrade to POSTGRES if URL is present
         LABEL_DB = 'POSTGRES'
 
