@@ -20,7 +20,7 @@
 **Problem:** `sqlite3.OperationalError: no such column: favorite.active_ingredients`.
 **Status:** Resolved (Automation).
 **Solution:** 
-- Verified `scripts/fix_favorite_columns.py`.
+- Verified `scripts/database/fix_favorite_columns.py`.
 - Instructions added to run this script to patch existing `afd.db` instances with new metadata columns required by the Dashboard.
 
 ## ✅ 4. Discrepancy Panel Enhancements (labelcomp & drugtox)
@@ -66,7 +66,7 @@
 3.  **Synchronize Reference Status:**
     Run the migration script to populate the RLD/RS flags based on the Orange Book data:
     ```bash
-    python scripts/fix_rld_status.py
+    python scripts/labels/fix_rld_status.py
     ```
 4.  **Restart Backend:**
     Restart the Flask backend to clear any cached database metadata and enable the new UI tags.
@@ -104,7 +104,7 @@
 3.  **Run Migration Script:**
     Port your existing SQLite data to Postgres:
     ```bash
-    python scripts/migrate_to_postgres.py
+    python scripts/archive/migrate_to_postgres.py
     ```
 4.  **Verify .env:**
     Ensure `DATABASE_URL` is set to `postgresql://afd_user:afd_password@localhost:5432/askfdalabel`.
@@ -114,7 +114,7 @@
     ```
 
 ## ✅ 10. Database Migration Optimization (SQLite to PostgreSQL)
-**Problem:** `scripts/migrate_to_postgres.py` was too slow on large tables (`meddra_llt`, `meddra_smq_content`, `spl_sections`), leading to a `KeyboardInterrupt` as the process appeared hung.
+**Problem:** `scripts/archive/migrate_to_postgres.py` was too slow on large tables (`meddra_llt`, `meddra_smq_content`, `spl_sections`), leading to a `KeyboardInterrupt` as the process appeared hung.
 **Status:** Resolved (Performance Optimization).
 **Solution:**
 - **Bulk Insert:** Replaced standard `executemany` with `psycopg2.extras.execute_values`.
@@ -147,7 +147,7 @@
 3.  **Verify Setup:**
     Run the dedicated test script to ensure the model downloads and generates valid vectors:
     ```powershell
-    python scripts/test_local_embedding.py
+    python scripts/ai/test_local_embedding.py
     ```
     *Note: The first run will download the model files (~420MB) to your local cache.*
 
@@ -155,7 +155,7 @@
 **Problem:** Single-GPU or CPU processing is too slow for the entire FDA labeling database (tens of thousands of labels).
 **Status:** Optimized for 8x NVIDIA V100 Environment.
 **Implementation:**
-- **Sync Script:** Enhanced `scripts/sync_label_embeddings.py` with multi-process GPU support.
+- **Sync Script:** Enhanced `scripts/ai/sync_label_embeddings.py` with multi-process GPU support.
 - **Parallelism:** Utilizes `SentenceTransformer.encode_multi_process` to distribute workload across all detected CUDA devices (e.g., all 8 V100s).
 - **Throughput:** Processes data in large batches (512 chunks per GPU call) to maximize utilization of Tensor Cores.
 - **Reliability:** Includes atomic database commits per label-batch and full logging of synchronization progress.
@@ -169,7 +169,7 @@
 2.  **Run High-Performance Sync:**
     Execute the sync script. It will automatically detect all 8 GPUs and start a worker pool:
     ```powershell
-    python scripts/sync_label_embeddings.py
+    python scripts/ai/sync_label_embeddings.py
     ```
 3.  **Monitor GPU Utilization:**
     In a separate terminal, watch the GPUs load balancing:
@@ -178,6 +178,40 @@
     ```
 4.  **Logging:**
     Check `sync_embeddings_multigpu.log` for a record of processed batches and any skipped sections.
+
+## ✅ 13. Monthly Dataset Update Workflow
+**Problem:** Need a consistent, repeatable process to synchronize the entire system with new DailyMed monthly releases.
+**Status:** Workflow Designed & Documented.
+**Implementation:**
+- **Pipeline:** A 5-step sequential workflow to update raw data, regulatory flags, AI embeddings, and UI metadata.
+- **Automation:** Recommended to run these steps once a month following the DailyMed "Monthly Update" ZIP release.
+
+### 🛠️ Steps for Monthly Update:
+1.  **Ingest New SPL Data:**
+    Process the new DailyMed monthly ZIP into the DB (handles updates/inserts):
+    ```powershell
+    python scripts/labels/update_labeldb_from_dailymed.py
+    ```
+2.  **Synchronize Orange Book (RLD/RS):**
+    Re-match reference status against the latest Orange Book `products.txt`:
+    ```powershell
+    python scripts/labels/fix_rld_status.py
+    ```
+3.  **Sync AI Embeddings (8x V100):**
+    Generate vectors for all new/modified sections using the local GPU cluster:
+    ```powershell
+    python scripts/ai/sync_label_embeddings.py
+    ```
+4.  **Regenerate UI Snippets:**
+    Update the frontend "Trie" search highlights with any new drug names:
+    ```powershell
+    python scripts/utils/gen_drugsnippet.py
+    ```
+5.  **Re-Index Database (Optional):**
+    Ensure optimal semantic search performance after a large batch update:
+    ```sql
+    REINDEX INDEX label_embeddings_embedding_idx;
+    ```
 
 ### 🛠️ Steps to Update Your Local System:
 1.  **Ensure Data Presence:**
@@ -191,7 +225,7 @@
 3.  **Synchronize Reference Status:**
     Run the migration script to populate the RLD/RS flags based on the Orange Book data:
     ```bash
-    python scripts/fix_rld_status.py
+    python scripts/labels/fix_rld_status.py
     ```
 4.  **Restart Backend:**
     Restart the Flask backend to clear any cached database metadata and enable the new UI tags.
