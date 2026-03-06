@@ -4,7 +4,6 @@ import os
 import re
 import json
 import logging
-import sqlite3
 from collections import defaultdict
 from html import unescape
 from typing import Any, Dict, List, Optional, Tuple, Generator
@@ -35,8 +34,8 @@ llm_model_name = os.getenv("LLM_MODEL", "")
 client = OpenAI(api_key=openai_api_key, base_url=openai_api_base)
 
 def get_db_connection():
-    """Create a new SQLite DB connection."""
-    return FDALabelDBService.get_sqlite_connection()
+    """Create a new database connection (Postgres/Oracle)."""
+    return FDALabelDBService.get_connection()
 
 # -----------------------------
 # Safety / Utilities
@@ -69,7 +68,7 @@ def search_v1(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
     current_sql = (payload or {}).get("current_sql", "") or ""
     chat_history = (payload or {}).get("chat_history", []) or []
 
-    logger.info(f"Search Request (V1 - Local DB): {user_query}")
+    logger.info(f"Search Request (V1 - DB): {user_query}")
 
     con = None
     cursor = None
@@ -137,17 +136,20 @@ def search_v1(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
 
         con = get_db_connection()
         if not con:
-            return {"error": "Local Database connection failed"}, 500
+            return {"error": "Database connection failed"}, 500
             
         cursor = con.cursor()
         cursor.execute(generated_query)
         rows = cursor.fetchall()
         
-        # In SQLiteRow mode, we can get keys
-        column_names = [d[0] for d in cursor.description]
-        results_list = [dict(row) for row in rows]
+        # Consistent with RealDictCursor or tuple-based access
+        if hasattr(cursor, 'description') and cursor.description:
+            column_names = [d[0] for d in cursor.description]
+            results_list = [dict(row) if isinstance(row, dict) else dict(zip(column_names, row)) for row in rows]
+        else:
+            results_list = []
 
-        processed_result = convert_sqlite_to_filtered_results(results_list)
+        processed_result = convert_db_to_filtered_results(results_list)
         return {
             "input_type": "T1",
             "med_answer": med_answer,
@@ -255,11 +257,11 @@ def get_metadata(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
 # -----------------------------
 # Result shaping
 # -----------------------------
-def convert_sqlite_to_filtered_results(sqlite_results: List[Dict[str, Any]], keywords: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+def convert_db_to_filtered_results(db_results: List[Dict[str, Any]], keywords: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
     filtered_results: Dict[str, Dict[str, Any]] = defaultdict(dict)
     visited = set()
 
-    for result in sqlite_results:
+    for result in db_results:
         # Standardize keys to uppercase for compatibility with frontend if needed, 
         # or keep consistent with prompt mandatory columns
         res_upper = {k.upper(): v for k, v in result.items()}
@@ -270,17 +272,17 @@ def convert_sqlite_to_filtered_results(sqlite_results: List[Dict[str, Any]], key
         filtered_results[set_id] = {
             "set_id": set_id,
             "PRODUCT_NAMES": res_upper.get("PRODUCT_NAMES"),
-            "GENERIC_NAMES": res_upper.get("GENERIC_NAMES"),
-            "COMPANY": res_upper.get("MANUFACTURER"),
+            "GENERIC_NAMES": res_upper.get("GENERIC_NAMES") or res_upper.get("PRODUCT_NORMD_GENERIC_NAMES"),
+            "COMPANY": res_upper.get("MANUFACTURER") or res_upper.get("AUTHOR_ORG_NORMD_NAME"),
             "APPR_NUM": res_upper.get("APPR_NUM"),
-            "ACT_INGR_NAMES": res_upper.get("ACTIVE_INGREDIENTS"),
+            "ACT_INGR_NAMES": res_upper.get("ACTIVE_INGREDIENTS") or res_upper.get("ACT_INGR_NAMES"),
             "MARKET_CATEGORIES": res_upper.get("MARKET_CATEGORIES"),
-            "DOCUMENT_TYPE": res_upper.get("DOC_TYPE"),
+            "DOCUMENT_TYPE": res_upper.get("DOC_TYPE") or res_upper.get("DOCUMENT_TYPE"),
             "Routes": res_upper.get("ROUTES"),
             "DOSAGE_FORMS": res_upper.get("DOSAGE_FORMS"),
             "EPC": res_upper.get("EPC"),
             "NDC_CODES": res_upper.get("NDC_CODES"),
-            "REVISED_DATE": res_upper.get("REVISED_DATE"),
+            "REVISED_DATE": res_upper.get("REVISED_DATE") or res_upper.get("EFF_TIME"),
             "section_content": "Metadata Search Only. Use AFL Agent for content analysis.",
             "is_metadata_only": True
         }

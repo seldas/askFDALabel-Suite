@@ -1,16 +1,21 @@
 # scripts/search_v2_core/config.py
 import os
 import oracledb
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 from openai import OpenAI
+from pathlib import Path
 
-load_dotenv()
+# Load environment variables from the root .env
+root_dir = Path(__file__).resolve().parent.parent.parent.parent.parent
+env_path = root_dir / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # LLM
 openai_api_key = os.getenv("LLM_KEY", "")
 openai_api_base = os.getenv("LLM_URL", "")
-llm_model_name = os.getenv("LLM_MODEL", "gpt-4")
+llm_model_name = os.getenv("LLM_MODEL", "gpt-4o")
 
 _client_kwargs = {"api_key": openai_api_key}
 if openai_api_base:
@@ -24,24 +29,13 @@ FDALabel_APP = os.getenv("FDALabel_APP")
 FDALabel_USER = os.getenv("FDALabel_USER")
 FDALabel_PSW = os.getenv("FDALabel_PSW")
 
-# --- Absolute Path Logic ---
-# This file is at: project_root/backend/search/scripts/search_v2_core/config.py
-# We want: project_root/data/label.db
-CURRENT_FILE_PATH = os.path.abspath(__file__)
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_FILE_PATH, "..", "..", "..", "..", ".."))
-DEFAULT_SQLITE_PATH = os.path.join(PROJECT_ROOT, "data", "label.db")
-
-LOCAL_LABEL_DB_PATH = os.getenv("LOCAL_LABEL_DB_PATH", DEFAULT_SQLITE_PATH)
-print(f"[DEBUG] Search Agent looking for SQLite at: {LOCAL_LABEL_DB_PATH}")
-
-LABEL_DB_CHOICE = os.getenv("LABEL_DB", "LOCAL").upper()
+DATABASE_URL = os.getenv("DATABASE_URL")
+LABEL_DB_CHOICE = os.getenv("LABEL_DB", "POSTGRES").upper()
 
 def get_db_type():
     if LABEL_DB_CHOICE == "ORACLE" and all([FDALabel_SERV, FDALabel_PORT, FDALabel_APP, FDALabel_PSW]):
         return "oracle"
-    if os.path.exists(LOCAL_LABEL_DB_PATH):
-        return "sqlite"
-    return "oracle"
+    return "postgres"
 
 DB_TYPE = get_db_type()
 
@@ -56,30 +50,28 @@ def get_db_connection():
             DB_TYPE = "oracle"
             return conn
         except Exception as e:
-            print(f"!!! [ERROR] Oracle connection failed: {e}. Falling back to SQLite if available.")
+            print(f"!!! [ERROR] Oracle connection failed: {e}. Falling back to Postgres.")
             
-    # 2. Local SQLite Path (Default/Fallback)
-    if os.path.exists(LOCAL_LABEL_DB_PATH):
-        DB_TYPE = "sqlite"
-        conn = sqlite3.connect(LOCAL_LABEL_DB_PATH)
-        # Ensure row factory for dictionary access
-        conn.row_factory = sqlite3.Row
+    # 2. Postgres Path (Default/Fallback)
+    if DATABASE_URL:
+        DB_TYPE = "postgres"
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
         return conn
     
-    raise ConnectionError(f"No database available. Checked Oracle and SQLite at: {LOCAL_LABEL_DB_PATH}")
+    raise ConnectionError("No database available. Checked Oracle and Postgres (DATABASE_URL).")
 
-# For SQLite, we use different table names and no schema prefix.
-if DB_TYPE == "sqlite":
-    DB_SCHEMA = ""
-    PREFIX = ""
-    T_DGV_SUM_SPL = "sum_spl"
-    T_SPL_SEC = "spl_sections"
-    T_SECTION_TYPE = "section_type" # assuming these exist or aren't used in sqlite
-    T_DOCUMENT_TYPE = "document_type"
-    T_DGV_SUM_SPL_ACT_INGR = "active_ingredients_map"
-    T_DGV_SUM_SPL_EPC = "dgv_sum_spl_epc"
-    T_SPL_SEC_MEDDRA_LLT_OCC = "spl_sec_meddra_llt_occ"
-    T_SUM_SPL_RLD = "sum_spl" # is_rld column in sum_spl
+# Dialect-specific Table Mappings
+if DB_TYPE == "postgres":
+    DB_SCHEMA = "labeling"
+    PREFIX = f"{DB_SCHEMA}."
+    T_DGV_SUM_SPL = f"{PREFIX}sum_spl"
+    T_SPL_SEC = f"{PREFIX}spl_sections"
+    T_SECTION_TYPE = f"{PREFIX}section_type" 
+    T_DOCUMENT_TYPE = f"{PREFIX}document_type"
+    T_DGV_SUM_SPL_ACT_INGR = f"{PREFIX}active_ingredients_map"
+    T_DGV_SUM_SPL_EPC = f"{PREFIX}epc_map"
+    T_SPL_SEC_MEDDRA_LLT_OCC = f"{PREFIX}spl_sec_meddra_llt_occ"
+    T_SUM_SPL_RLD = f"{PREFIX}sum_spl" # is_rld column is in sum_spl in Postgres
 else:
     DB_SCHEMA = os.getenv("FDALABEL_SCHEMA", "DRUGLABEL")
     PREFIX = f"{DB_SCHEMA}." if DB_SCHEMA else ""

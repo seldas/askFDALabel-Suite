@@ -25,16 +25,18 @@ class Config:
     ELSA_MODEL_NAME=os.getenv('ELSA_MODEL_NAME','')
 
     # Production Database Configuration
-    # Example: postgresql://afd_user:afd_password@localhost:5432/askfdalabel
     DATABASE_URL = os.getenv("DATABASE_URL")
-    if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL must be set in .env for PostgreSQL")
+    
+    if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
     # Paths - Use project root as base
     PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
     DATA_DIR = PROJECT_ROOT / 'data'
     
-    SQLALCHEMY_DATABASE_URI = DATABASE_URL or f"sqlite:///{DATA_DIR / 'afd.db'}"
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
@@ -45,17 +47,13 @@ class Config:
     ANNOTATIONS_FILE = os.path.join(DATA_DIR, 'annotations.json')
 
     # Internal FDALabel DB Configuration
-    # Modes: 'LOCAL' (SQLite), 'POSTGRES' (Local Postgres), 'ORACLE' (Internal)
-    LABEL_DB = os.getenv('LABEL_DB', 'LOCAL').upper() 
-    if DATABASE_URL:
-        # Auto-upgrade to POSTGRES if URL is present
-        LABEL_DB = 'POSTGRES'
-
+    # Modes: 'POSTGRES' (Local/Production Postgres), 'ORACLE' (Internal)
+    LABEL_DB = os.getenv('LABEL_DB', 'POSTGRES').upper() 
+    
     LOCAL_QUERY = os.getenv('LOCAL_QUERY', 'True').lower() == 'true'
     
     # Path/DSN for Labeling DB
-    LOCAL_LABEL_DB_PATH = os.path.join(DATA_DIR, 'label.db') # For SQLite mode
-    POSTGRES_LABEL_DSN = DATABASE_URL # For POSTGRES mode (shared DB, different schema)
+    POSTGRES_LABEL_DSN = DATABASE_URL # Shared DB, different schema ('labeling')
     
     SPL_STORAGE_DIR = os.path.join(DATA_DIR, 'spl_storage')
     

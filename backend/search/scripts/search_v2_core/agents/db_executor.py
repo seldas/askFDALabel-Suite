@@ -51,11 +51,10 @@ def _build_name_clause(search_terms: List[str], binds: Dict[str, Any], db_type: 
                 f"(UPPER(r.PRODUCT_NAMES) LIKE UPPER(:{k}) ESCAPE '\\' "
                 f" OR UPPER(r.PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:{k}) ESCAPE '\\')"
             )
-        else:
-            # SQLite (lowercase columns in sum_spl)
+        else: # postgres
             or_blocks.append(
-                f"(UPPER(r.product_names) LIKE UPPER(:{k}) "
-                f" OR UPPER(r.generic_names) LIKE UPPER(:{k}))"
+                f"(r.product_names ILIKE %({k})s "
+                f" OR r.generic_names ILIKE %({k})s)"
             )
 
     if not or_blocks: return ""
@@ -77,9 +76,7 @@ def run_db_executor(state):
     con = None
     try:
         con = get_db_connection()
-        # Once connected, config.DB_TYPE is updated or we can infer from type(con)
-        import sqlite3
-        active_db_type = "sqlite" if isinstance(con, sqlite3.Connection) else "oracle"
+        active_db_type = get_db_type()
         logger.info(f"Using database dialect: {active_db_type}")
         
         # Initialize SQL manager for this dialect
@@ -117,12 +114,14 @@ def run_db_executor(state):
         binds: Dict[str, Any] = {"limit": limit}
 
         name_clause = _build_name_clause(search_terms, binds, active_db_type)
-        from ..sql import build_filters_clause, build_contains_section_clause # Use dynamic imports to ensure correct DB_TYPE check
+        # Re-import to ensure they use updated DB_TYPE context if necessary, 
+        # but better yet, our updated functions in sql.py handle it.
+        from ..sql import build_filters_clause, build_contains_section_clause 
         filters_clause = build_filters_clause(filters, binds)
         section_clause = build_contains_section_clause(section_loinc_codes, binds)
 
-        if ":content_query" in sql_template:
-            binds["content_query"] = content_query or ""
+        if ":content_query" in sql_template or "%(content_query)s" in sql_template:
+            binds["content_query"] = f"%{escape_like(content_query)}%" if active_db_type == "postgres" else (content_query or "")
 
         # Identifier binds
         if template_key == "search_by_set_id":
@@ -134,7 +133,7 @@ def run_db_executor(state):
 
         if template_key in ("search_by_active_ingredient", "content_search_by_active_ingredient"):
             term = (plan.get("substance_name") or (search_terms[0] if search_terms else "") or "").strip()
-            binds["substance"] = f"%{term}%"
+            binds["substance"] = f"%{escape_like(term)}%"
 
         formatted_sql = _format_sql(template_key, sql_template, name_clause, filters_clause, section_clause)
         binds = prune_unused_binds(formatted_sql, binds)
