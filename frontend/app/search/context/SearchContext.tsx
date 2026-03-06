@@ -76,9 +76,8 @@ interface SearchContextProps {
   loadingStatus: string;
   setLoadingStatus: React.Dispatch<React.SetStateAction<string>>;
 
-  // Search Mode: 'semantic' (standard) or 'study' (counts/aggregation)
-  searchMode: 'semantic' | 'study';
-  setSearchMode: (mode: 'semantic' | 'study') => void;
+  // Fixed Mode: 'semantic'
+  searchMode: string;
 
   // Agent debug panels
   agentFlow: string[];
@@ -111,7 +110,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     labelingSection: [],
   });
 
-  const [searchMode, setSearchMode] = useState<'semantic' | 'study'>('semantic');
+  const searchMode = 'semantic';
 
   const [agentFlow, setAgentFlow] = useState<string[]>([]);
   const [reasoning, setReasoning] = useState('');
@@ -194,8 +193,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         totalResults,
         setTotalResults,
 
-        currentPage,
-        setCurrentPage,
+        currentPage,        setCurrentPage,
 
         resultsPerPage,
 
@@ -212,7 +210,6 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setLoadingStatus,
 
         searchMode,
-        setSearchMode,
 
         agentFlow,
         setAgentFlow,

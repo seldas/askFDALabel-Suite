@@ -15,13 +15,6 @@ const semanticSuggestions = [
   { title: "Mechanism of Action", query: "How do SGLT2 inhibitors help in managing heart failure?" }
 ];
 
-const studySuggestions = [
-  { title: "Study Analysis", query: "Design a study protocol for comparing liver toxicity across all SGLT2 inhibitors." },
-  { title: "Population Study", query: "Analyze labeling differences for pediatric populations in recent biologics." },
-  { title: "Adverse Event Study", query: "Generate a summary of cardiovascular safety signals across GLP-1 agonists." },
-  { title: "Compliance Review", query: "Study the consistency of Black Box warnings for NSAIDs." }
-];
-
 const PROGRESS_STEPS = [
   { key: "plan", label: "Planning" },
   { key: "db", label: "Searching labels" },
@@ -95,12 +88,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
     loadingStatus,
     setLoadingStatus,
     searchMode,
-    setSearchMode,
     setAgentFlow,
     setReasoning,
     setDebugIntent,
     setDebugPlan,
-    debugStats,
     setDebugStats,
     setTraceLog,
   } = useSearchContext();
@@ -154,7 +145,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
     onSearch();
 
     try {
-      // All searches now use the agentic stream endpoint
       const endpoint = "/api/search/search_agentic_stream";
       
       const response = await fetch(endpoint, {
@@ -258,23 +248,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
     <div className="chat-panel">
       {chatHistory.length === 0 ? (
         <div className="initial-view-container">
-            <div className="search-mode-selector">
-              <button
-                onClick={() => setSearchMode('semantic')}
-                className={`mode-btn ${searchMode === 'semantic' ? 'active' : ''}`}
-              >
-                Semantic Search
-              </button>
-              <button
-                onClick={() => setSearchMode('study')}
-                className={`mode-btn ${searchMode === 'study' ? 'active' : ''}`}
-              >
-                Study & Counts
-              </button>
-            </div>
-
             <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: 800, marginBottom: '1rem' }}>
-              {searchMode === 'semantic' ? 'Semantic Search' : 'Aggregation Study'}
+              Semantic Search
             </h1>
             
             <form onSubmit={handleSearch} className="centered-search-form">
@@ -285,7 +260,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder={searchMode === 'semantic' ? "Ask about clinical data, safety, or dosing..." : "Ask for trends, counts, or comparative studies..."}
+                        placeholder="Ask about clinical data, safety, or dosing..."
                         disabled={isLoading}
                         autoFocus
                     />
@@ -296,7 +271,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
             </form>
 
             <div className="suggestions-grid">
-                {(searchMode === 'semantic' ? semanticSuggestions : studySuggestions).map((suggestion, index) => (
+                {semanticSuggestions.map((suggestion, index) => (
                     <div 
                         key={index} 
                         className="suggestion-card" 

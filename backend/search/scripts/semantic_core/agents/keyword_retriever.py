@@ -1,4 +1,4 @@
-# scripts/search_v3_core/agents/keyword_retriever.py
+# scripts/semantic_core/agents/keyword_retriever.py
 import os
 import psycopg2
 
