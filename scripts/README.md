@@ -3,11 +3,13 @@
 This directory contains categorized scripts for backend management, data synchronization, AI maintenance, and debugging.
 
 ## 📂 1. Database Management (`scripts/database/`)
+*   **`pg_utils.py`**: **[Core]** Centralized utility for PostgreSQL connections and bulk operations using `execute_values`.
+*   **`pg_init_labeldb.py`**: Initializes the `labeling` schema and associated tables (sum_spl, spl_sections, etc.) in PostgreSQL.
+*   **`pg_import_labels.py`**: Directly synchronizes SPL XML files from `data/uploads/` into the PostgreSQL `labeling` schema.
+*   **`pg_import_csv.py`**: **[Generic]** Versatile tool for importing any CSV data into a specified PostgreSQL table/schema.
+*   **`pg_fix_identity.py`**: Converts standard `INTEGER` primary keys to PostgreSQL `IDENTITY` columns and synchronizes sequences.
+*   **`list_tables_pg.py`**: Lists all tables and row counts across both `public` and `labeling` schemas in PostgreSQL.
 *   **`check_schema.py`**: Validates current PostgreSQL table definitions and dimensions.
-*   **`check_sum_spl_cols.py`**: Quick utility to check column availability in the labeling schema.
-*   **`fix_db_columns.py`**: Patches database schemas with missing operational columns.
-*   **`fix_favorite_columns.py`**: Specifically updates the `favorites` table for new dashboard features.
-*   **`list_tables.py`**: Lists all available tables in the connected database.
 
 ## 📂 2. Label Data Pipeline (`scripts/labels/`)
 *   **`download_dailymed.py`**: Bulk downloads drug labeling SPL files from DailyMed.

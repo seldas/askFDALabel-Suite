@@ -33,7 +33,7 @@ dashboard_old/
 # Database
 logs/
 GEMINI.md
-database/
+/database/
 
 # FDALabel web testing log and result files
 frontend/public/webtest/results/
