@@ -1,74 +1,386 @@
-# 🔍 askFDALabel-Suite: Semantic Search Strategy Review
+# 🔍 askFDALabel-Suite: Semantic Search Strategy Review (2026 Enhanced Architecture)
 
-This document provides a comprehensive map of the current search strategy logic following the 2026 re-architecture (formerly V3).
-
-## 🏗️ Architectural Pattern: Multi-Agent Orchestration
-The system uses a **Controller-Agent** pattern. A central controller manages a state machine (`AgentState`) that transitions through specialized worker agents based on intent and data requirements.
+This document provides a comprehensive map of the current search and reasoning strategy following the 2026 multi-agent re-architecture (formerly V3), including precision, diversity, and grounding improvements.
 
 ---
 
-## 🚦 Phase 1: Planning & Intent Resolution
+# 🏗️ Architectural Pattern: Multi-Agent Orchestration
+
+The system follows a **Controller-Orchestrated Agent State Machine** pattern.
+
+A central `run_controller()` loop manages an `AgentState` object and transitions through specialized agents:
+
+```
+Planner → (Keyword | Semantic) → Reranker → Postprocess → Evidence → Composer → Reasoning
+```
+
+### Key Properties
+
+* Deterministic state transitions via `state.flags["next_step"]`
+* Guardrails prevent infinite loops and missing transitions
+* Shared structured retrieval schema across keyword + semantic paths
+* Explicit grounding enforcement in generation phase
+* Retrieval metadata preserved for explainability
+
+---
+
+# 🚦 Phase 1: Planning & Intent Resolution
+
 **Agent:** `planner.py`
-- **Context Awareness**: Uses LLM to analyze the current query + conversation history.
-- **Query Resolution**: If the user uses pronouns ("its dose", "that drug"), the planner rewrites the query into a standalone search term.
-- **Intent Classification**:
-    - `IDENTIFIER`: Routes to Fast-Path (Keyword) for Set-ID, NDC, or NDA lookups.
-    - `ENTITY_LOOKUP`: Routes to Fast-Path (Keyword) for specific drug name matching.
-    - `CLINICAL_QA`: Routes to Semantic-Path (pgvector) for complex medical questions.
-    - `OUT_OF_SCOPE / CLARIFICATION`: Routes directly to Answer Composer.
+
+### Responsibilities
+
+* Classifies user intent:
+
+  * `IDENTIFIER`
+  * `ENTITY_LOOKUP`
+  * `CLINICAL_QA`
+  * `CLARIFICATION`
+  * `OUT_OF_SCOPE`
+* Rewrites follow-up queries into standalone resolved queries
+* Extracts potential drug entities
+* Detects continuation/coreference patterns
+
+### Guardrails Added
+
+* Deterministic identifier detection (UUID, NDC, NDA/BLA/ANDA regex)
+* Strict JSON schema normalization
+* Intent validation against allowed categories
+* Clarification fallback if ambiguous continuation
+
+### Routing Strategy
+
+| Intent                       | Retrieval Path                                                     |
+| ---------------------------- | ------------------------------------------------------------------ |
+| IDENTIFIER                   | Keyword-only                                                       |
+| ENTITY_LOOKUP                | Keyword-first (may escalate to semantic if clinical cues detected) |
+| CLINICAL_QA                  | Semantic path                                                      |
+| CLARIFICATION / OUT_OF_SCOPE | Direct to composer                                                 |
+
+**Important Shift:**
+`ENTITY_LOOKUP` is treated as a retrieval strategy rather than a rigid intent class. If the query includes clinical cues, the system escalates to semantic retrieval constrained by keyword results.
 
 ---
 
-## 🏎️ Phase 2A: Fast-Path Retrieval (Keyword)
+# 🏎️ Phase 2A: Fast-Path Retrieval (Keyword)
+
 **Agent:** `keyword_retriever.py`
-- **Mechanism**: Standard SQL execution on `labeling.sum_spl`.
-- **Logic**:
-    - **Identifiers**: Exact match on `set_id`, partial match on `ndc_codes` or `appr_num`.
-    - **Entities**: `ILIKE` substring match on `product_names` or `generic_names`.
-- **Transition**: Skips reranking and moves directly to `answer_composer` for speed.
+
+### Mechanism
+
+Standard SQL against `labeling.sum_spl`.
+
+### Logic
+
+* IDENTIFIER:
+
+  * Exact `set_id`
+  * Pattern-aware NDC matching
+  * Approval number lookup
+* ENTITY_LOOKUP:
+
+  * `ILIKE` on `product_names` / `generic_names`
+  * RLD prioritization
+  * Simple relevance ordering
+
+### Clinical Cue Escalation
+
+If:
+
+* Query contains clinical terms (dose, hepatotoxicity, contraindication, etc.)
+* AND keyword returns candidate labels
+
+Then:
+
+* Semantic retrieval is invoked
+* `filter_set_ids` applied to restrict search to candidate labels
+
+This produces a **hybrid constrained retrieval** pattern.
 
 ---
 
-## 🧠 Phase 2B: Semantic-Path Retrieval (Vector)
+# 🧠 Phase 2B: Semantic Retrieval (Vector)
+
 **Agent:** `semantic_retriever.py`
-- **Mechanism**: `pgvector` Cosine Similarity search.
-- **Process**:
-    1.  Generates embedding for the *Resolved Query*.
-    2.  Executes vector search against `label_embeddings` table.
-    3.  Joins with `labeling.sum_spl` to attach drug metadata (Brand Name).
-- **Default**: Top 50 candidate chunks retrieved.
+
+### Mechanism
+
+pgvector cosine similarity search over `label_embeddings`.
+
+### Core Improvements
+
+1. **Single Distance Computation**
+
+   * Compute `<=>` once as `dist`
+   * Score = `1 - dist`, clamped to `[0,1]`
+
+2. **Per-Label Diversity Constraint**
+
+   * `ROW_NUMBER() OVER (PARTITION BY set_id ORDER BY dist)`
+   * Enforce `per_label_k` cap (default 3)
+   * Prevents single-label domination
+
+3. **Optional Constrained Search**
+
+   * `filter_set_ids` from keyword stage
+   * Enables precise "drug + clinical question" behavior
+
+4. **Chunk Quality Filters**
+
+   * Minimum chunk length
+   * Optional section include/exclude filtering
+
+### Default Parameters
+
+* `top_k`: 50
+* `per_label_k`: 3
 
 ---
 
-## 🎯 Phase 3: Precision & Filtering
+# 🎯 Phase 3: Precision & Filtering
+
+## 🔎 Reranking
+
 **Agent:** `reranker.py`
-- **Logic**: Take the top 20 semantic results and use a "Cheap" LLM call to score relevance (0-10) against the original question.
-- **Scoring**: Weighted average (30% Vector Score + 70% LLM Relevance Score).
-- **Result**: Truncates to the top `rerank_k` (default 10) high-confidence passages.
+
+### Process
+
+* Top 20 semantic results reranked
+* Structured LLM output:
+
+```
+[
+  {"score": 0-10, "answerable": true/false, "reason": "..."}
+]
+```
+
+### Final Scoring
+
+```
+final_score =
+  (0.3 × vector_score)
++ (0.7 × LLM_score)
+× answerable_factor
+```
+
+* `answerable=false` reduces final score
+* Prevents "topical but non-answering" passages
+
+### Improvements
+
+* Temperature = 0 for stability
+* Robust JSON parsing
+* Per-label cap before reranking
+* Structured rubric reduces "vibes scoring"
+
+---
+
+## 🧹 Postprocessing
 
 **Agent:** `postprocess.py`
-- **Logic**: Dedupes results by text content and enforces a `min_score` threshold.
+
+### Enhancements
+
+1. **Near-Duplicate Removal**
+
+   * Normalize text
+   * Strip punctuation
+   * Collapse whitespace
+   * SHA1 fingerprint of first ~400 chars
+
+2. **Per-Label Cap (Secondary Safety Net)**
+
+   * `max_per_set_id`
+
+3. **Global Cap**
+
+   * `max_total_results`
+
+4. **Min Score Enforcement**
+
+   * Configurable threshold
+
+5. **Field Normalization**
+
+   * Guarantees required fields exist
+
+This significantly reduces:
+
+* Repeated paragraphs
+* One-label overrepresentation
+* Low-quality tail passages
 
 ---
 
-## 📖 Phase 4: Evidence & Synthesis
+# 📖 Phase 4: Evidence & Grounded Synthesis
+
+## 📌 Evidence Extraction
+
 **Agent:** `evidence_fetcher.py`
-- **Logic**: Formats the selected chunks into structured snippets (Drug Name | Section | Text) for the LLM prompt.
+
+### Enhancements
+
+* Stable citation keys (`S1`, `S2`, etc.)
+* Header enrichment:
+
+  * Drug name
+  * Section title
+  * set_id
+* Structured snippet schema
+* Bound snippet length (~1400 chars)
+
+---
+
+## 🧠 Grounded Answer Generation
 
 **Agent:** `answer_composer.py`
-- **Mechanism**: Grounded Generation.
-- **Rule**: Instructs the LLM to only answer using provided snippets. If the answer isn't there, it must state "I don't know based on the provided labels."
-- **Output**: Markdown with citations linking back to result items.
+
+### Strict Grounding Policy
+
+* Must use only provided excerpts
+* Must cite using `[S#]`
+* Must not combine across different `set_id`s
+* Must explicitly state if answer not found:
+
+> "The provided label documents do not contain information to answer this question."
+
+### Anti-Blending Protection
+
+* Explicit rule: no cross-label merging
+* Multi-drug answers structured by product
+* Conflict detection allowed
+
+### Output
+
+* Concise markdown
+* Stable citation mapping
 
 ---
 
-## 🛠️ Performance & Scalability Design
-1.  **pgvector GIN/IVFFlat Indexing**: Ensures vector searches remain sub-100ms even with 1M+ chunks.
-2.  **Tri-state Connectivity**: `FDALabelDBService` handles Oracle vs. Postgres fallbacks automatically.
-3.  **Streaming**: The `search_agentic_stream` route in `blueprint.py` allows the UI to show agent progress (Planning -> Searching -> Composing) in real-time.
+# 🔎 Phase 5: Retrieval Transparency
+
+**Agent:** `reasoning_generator.py`
+
+Produces lightweight retrieval summary:
+
+* Pipeline used (keyword / semantic / hybrid)
+* Intent classification
+* top_k and rerank_k
+* Number of labels used
+* Top drugs and sections represented
+* Whether semantic filtering applied
+
+This provides auditability without revealing chain-of-thought.
 
 ---
 
-## 📝 Planned Improvements (Pending)
-- **Study Mode**: Re-implementing aggregate counts and trend analysis via specialized SQL templates.
-- **Hybrid Search**: Combining Keyword + Semantic scores at the database level using Reciprocal Rank Fusion (RRF).
+# 🛠️ Performance & Scalability Design
+
+1. **pgvector Indexing**
+
+   * IVFFlat or HNSW (depending on deployment)
+   * Sub-100ms similarity search at scale
+
+2. **Diversity in SQL (not post-hoc)**
+
+   * Window functions for per-label caps
+   * Efficient pruning before LLM rerank
+
+3. **Controller Hardening**
+
+   * Default config initialization
+   * Max-step guard to prevent infinite loops
+   * Guaranteed `plan` structure
+   * Error-safe finalization
+
+4. **Streaming UI Support**
+
+   * Real-time agent stage updates
+   * Transparent progress visualization
+
+---
+
+# 🎯 Major Quality Levers (Post-Upgrade Reality)
+
+## A) Intent Routing Remains the Primary Lever
+
+Misrouting still affects:
+
+* ENTITY_LOOKUP wrongly sent to semantic
+* CLINICAL_QA incorrectly limited to keyword
+* Coreference failure
+
+Mitigation now includes:
+
+* Deterministic identifier regex
+* Clinical cue escalation
+* Constrained semantic retrieval
+
+---
+
+## B) Vector Retrieval Bias Mitigated
+
+Previously:
+
+* One label could dominate top 50
+* Brand-heavy embeddings skewed results
+
+Now mitigated by:
+
+* SQL-level per-label diversity
+* Secondary postprocess caps
+* Section filtering support
+
+---
+
+## C) Reranker Stability Improved
+
+Previously:
+
+* LLM score dominated
+* Off-topic passages scored high
+
+Now:
+
+* Structured rubric
+* Answerability weighting
+* Hard filters before rerank
+* Temperature = 0
+* JSON schema enforcement
+
+---
+
+## D) Near-Duplicate Chunks Eliminated
+
+Previously:
+
+* Slight formatting differences bypassed dedupe
+
+Now:
+
+* Normalization + hashing
+* Aggressive fuzzy filtering
+* Multi-layer dedupe (SQL + postprocess)
+
+---
+
+# 🧪 Current Retrieval Pattern Summary
+
+The system now behaves as:
+
+* Deterministic when possible (identifier lookup)
+* Hybrid when beneficial (drug + clinical question)
+* Diversified at retrieval stage
+* Precision-tuned at reranking stage
+* Strictly grounded at answer stage
+* Transparent at reasoning stage
+
+---
+
+# 🚀 Future Enhancements
+
+* Reciprocal Rank Fusion (true hybrid fusion scoring)
+* MMR re-ranking option (non-LLM diversity)
+* Section-aware retrieval weighting (e.g., prioritize Contraindications, Warnings)
+* Cross-label comparison mode
+* Study Mode (aggregate statistics)

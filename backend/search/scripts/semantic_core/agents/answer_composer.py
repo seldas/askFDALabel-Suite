@@ -1,76 +1,109 @@
 # scripts/search_v3_core/agents/answer_composer.py
 from dashboard.services.ai_handler import call_llm
 
-ANSWER_COMPOSER_PROMPT = """
-You are a highly specialized FDA AI Assistant. Your task is to provide an accurate, grounded answer to the user's question based ONLY on the provided drug labeling excerpts.
+ANSWER_COMPOSER_SYSTEM_PROMPT = """
+You are a highly specialized FDA drug labeling assistant.
 
-**Ground Rules:**
-1.  **Strict Grounding:** Use only the provided excerpts. If the information is not there, state "The provided label documents do not contain information to answer this question."
-2.  **Citations:** You MUST cite the drug name and section for every claim (e.g., "[Aspirin, Section 5.1]").
-3.  **Conciseness:** Be direct. Avoid preambles.
-4.  **Format:** Use clear paragraphs.
+You must answer the user's question using ONLY the provided label excerpts.
+Do NOT use outside knowledge. Do NOT guess.
 
-**Label Excerpts:**
-{snippets_text}
-
-**User Question:**
-{query}
+Rules:
+- If the excerpts do not contain the information needed to answer, say:
+  "The provided label documents do not contain information to answer this question."
+- Every factual claim must be followed by at least one citation in the form [S#] (example: [S2]).
+- Do not combine facts across different products/labels unless the user explicitly asks for a comparison.
+  Treat different set_id values as different labels.
+- If multiple drugs are present, structure the answer by drug (separate sections per drug).
+- If excerpts conflict, explicitly note the conflict and cite both sides.
+- Be concise. No preamble.
 """
 
 def run_answer_composer(state):
-    """
-    Grounded answer generation using an LLM.
-    Handles standard QA, Out-of-Scope refusals, and Clarifications.
-    """
     state.agent_flow.append("answer_composer")
-    intent_type = state.intent.get("intent")
+    intent_type = (state.intent.get("intent") or "").upper()
 
-    # 1. Handle Out of Scope
+    # 1) Out of Scope
     if intent_type == "OUT_OF_SCOPE":
         state.answer["response_text"] = (
-            "I am a specialized FDA Drug Labeling assistant. I can only answer questions related to "
-            "medication labeling, clinical data, and regulatory information. How can I help you with a drug-related query?"
+            "I can only help with questions that can be answered from FDA drug labeling excerpts. "
+            "Ask about indications, dosing, contraindications, warnings/precautions, adverse reactions, interactions, or similar label content."
         )
         state.answer["is_final"] = True
         state.flags["next_step"] = "reasoning_generator"
         return
 
-    # 2. Handle Clarification
+    # 2) Clarification
     if intent_type == "CLARIFICATION":
         state.answer["response_text"] = state.intent.get(
-            "clarification_question", 
-            "Could you please provide more details or the name of the drug you are asking about?"
+            "clarification_question",
+            "Which drug (brand/generic) are you asking about?"
         )
         state.answer["is_final"] = True
         state.flags["next_step"] = "reasoning_generator"
         return
 
-    # 3. Standard RAG Answering
-    query = state.conversation.get("user_query", "")
-    snippets = state.evidence.get("snippets", [])
+    query = (state.conversation.get("user_query") or "").strip()
+    snippets = state.evidence.get("snippets", []) or []
 
     if not snippets:
         state.answer["response_text"] = (
-            "I couldn’t find relevant label excerpts for your question in the current retrieval results. "
-            "Please try rephrasing your search or specifying a different product."
+            "The provided label documents do not contain information to answer this question."
         )
         state.answer["is_final"] = True
         state.flags["next_step"] = "reasoning_generator"
         return
 
-    # Prepare excerpts text
-    snippets_text = ""
+    # Build excerpts payload with stable citation keys.
+    # Prefer cite_key if present; fallback to Excerpt index.
+    excerpts_text = []
     for i, s in enumerate(snippets):
-        snippets_text += f"--- Excerpt {i+1} ---\nDrug: {s['drug_name']}\nSection: {s['section']}\nText: {s['snippet']}\n\n"
+        cite_key = s.get("cite_key") or f"S{i+1}"
+        drug = (s.get("drug_name") or "").strip()
+        section = (s.get("section") or "").strip()
+        set_id = (s.get("set_id") or (s.get("source") or {}).get("set_id") or "").strip()
+        text = (s.get("snippet") or "").strip()
 
-    system_prompt = ANSWER_COMPOSER_PROMPT.format(snippets_text=snippets_text, query=query)
-    
+        # Skip ultra-low-info metadata snippets if present (optional heuristic)
+        if (section.lower() == "label metadata") and ("found label" in text.lower()) and len(text) < 250:
+            continue
+
+        header_bits = [f"Source {cite_key}"]
+        if drug: header_bits.append(f"Drug: {drug}")
+        if section: header_bits.append(f"Section: {section}")
+        if set_id: header_bits.append(f"set_id: {set_id}")
+
+        excerpts_text.append(
+            " | ".join(header_bits) + "\n" + text
+        )
+
+    # If we filtered everything out, fall back to original snippets
+    if not excerpts_text:
+        for i, s in enumerate(snippets):
+            cite_key = s.get("cite_key") or f"S{i+1}"
+            drug = (s.get("drug_name") or "").strip()
+            section = (s.get("section") or "").strip()
+            set_id = (s.get("set_id") or (s.get("source") or {}).get("set_id") or "").strip()
+            text = (s.get("snippet") or "").strip()
+
+            header_bits = [f"Source {cite_key}"]
+            if drug: header_bits.append(f"Drug: {drug}")
+            if section: header_bits.append(f"Section: {section}")
+            if set_id: header_bits.append(f"set_id: {set_id}")
+
+            excerpts_text.append(" | ".join(header_bits) + "\n" + text)
+
+    user_message = (
+        f"User Question:\n{query}\n\n"
+        f"Label Excerpts:\n\n" +
+        "\n\n---\n\n".join(excerpts_text)
+    )
+
     try:
         response_text = call_llm(
             user=state.user,
-            system_prompt=system_prompt,
-            user_message="Please generate the grounded answer based on the label excerpts.",
-            temperature=0.1
+            system_prompt=ANSWER_COMPOSER_SYSTEM_PROMPT,
+            user_message=user_message,
+            temperature=0.0
         )
         state.answer["response_text"] = response_text
         state.trace_log.append("AnswerComposer: Generated grounded answer.")
