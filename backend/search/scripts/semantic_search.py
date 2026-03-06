@@ -1,4 +1,4 @@
-# scripts/search_v3.py
+# scripts/semantic_search.py
 import os
 import sys
 from typing import Any, Dict, Tuple
@@ -6,22 +6,22 @@ from typing import Any, Dict, Tuple
 # Keep your original sys.path behavior so backend.* imports work in submodules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from search.scripts.search_v3_core.log import logger
-from search.scripts.search_v3_core.state import AgentState
-from search.scripts.search_v3_core.controller import run_controller
-from search.scripts.search_v3_core.helpers import (
+from search.scripts.semantic_core.log import logger
+from search.scripts.semantic_core.state import AgentState
+from search.scripts.semantic_core.controller import run_controller
+from search.scripts.semantic_core.helpers import (
     convert_oracle_to_filtered_results,
     build_debug_stats,
 )
 
 
-def search_v3(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
+def semantic_search(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
     """
-    Entry point for the V3 Search API.
+    Entry point for the Semantic Search API.
 
-    V3 design:
+    Design:
       - Keep the V2 schema/contract identical (state fields + response keys)
-      - Replace retrieval core with: semantic retrieval -> LLM rerank -> grounded answer
+      - Core: semantic retrieval -> LLM rerank -> grounded answer
     """
     try:
         state = AgentState(payload, user=user)
@@ -37,9 +37,9 @@ def search_v3(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
             "med_answer": state.answer.get("response_text", ""),
             "debug_intent": state.intent,
             "results": final_results,
-            "is_answerable": True,  # keep behavior same as v2; you can refine later
+            "is_answerable": True,
             "input_type": "T1",
-            "generated_sql": state.retrieval.get("generated_sql", ""),  # usually empty in v3
+            "generated_sql": state.retrieval.get("generated_sql", ""),
             "total_counts": len(final_results),
             "suggestions": [],
             "agent_flow": state.agent_flow,
@@ -51,5 +51,5 @@ def search_v3(payload: Dict[str, Any], user=None) -> Tuple[Dict[str, Any], int]:
         return response, 200
 
     except Exception as e:
-        logger.error(f"Critical error in search_v3: {e}", exc_info=True)
+        logger.error(f"Critical error in semantic_search: {e}", exc_info=True)
         return {"error": str(e)}, 500

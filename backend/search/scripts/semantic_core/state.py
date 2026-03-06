@@ -1,4 +1,4 @@
-# scripts/search_v3_core/state.py
+# scripts/semantic_core/state.py
 import datetime
 import uuid
 from typing import Any, Dict
@@ -6,8 +6,7 @@ from typing import Any, Dict
 
 class AgentState:
     """
-    Keep the SAME public fields as V2 so search_v3 can replace search_v2 seamlessly.
-    Add extra V3-only keys inside existing dicts (e.g., retrieval["plan"]["v3"]) if needed.
+    Keep the SAME public fields as V2 so semantic_search can replace search_v2 seamlessly.
     """
 
     def __init__(self, payload: Dict[str, Any], user=None):
@@ -26,7 +25,7 @@ class AgentState:
         self.retrieval = {
             "plan": {},
             "results": [],
-            "generated_sql": "",  # kept for compatibility; normally unused in v3
+            "generated_sql": "",  # kept for compatibility
         }
         self.evidence = {"snippets": []}
         self.answer = {"response_text": "", "is_final": False}
@@ -39,13 +38,12 @@ class AgentState:
             "terminate": False,
         }
 
-        # Optional: stash raw payload config for V3 (no breaking changes)
+        # Configuration and mode
         self.config = {
-            # retrieval knobs (safe defaults)
+            "search_mode": payload.get("search_mode", "semantic"),
             "top_k": int(payload.get("top_k", 50) or 50),
             "rerank_k": int(payload.get("rerank_k", 10) or 10),
             "min_score": float(payload.get("min_score", 0.0) or 0.0),
-            # you can add collection, label_version, product filters, etc.
         }
 
     def to_dict(self):

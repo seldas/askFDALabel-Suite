@@ -1,4 +1,4 @@
-# scripts/search_v3_core/agents/reasoning_generator.py
+# scripts/semantic_core/agents/reasoning_generator.py
 def run_reasoning_generator(state):
     """
     Optional: produce a short explanation of why selected passages were used.

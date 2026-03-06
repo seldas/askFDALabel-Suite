@@ -1,4 +1,4 @@
-# scripts/search_v3_core/controller.py
+# scripts/semantic_core/controller.py
 from .log import logger
 
 from .agents.planner import run_planner

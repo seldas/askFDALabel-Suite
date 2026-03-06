@@ -1,4 +1,4 @@
-# scripts/search_v3_core/agents/semantic_retriever.py
+# scripts/semantic_core/agents/semantic_retriever.py
 import os
 import psycopg2
 from dashboard.services.ai_handler import call_embedding
@@ -73,8 +73,8 @@ def run_semantic_retriever(state):
         state.trace_log.append(f"SemanticRetriever: DB error: {str(e)}")
         if 'conn' in locals(): conn.close()
 
-    state.retrieval["plan"]["v3_semantic_query"] = query
-    state.retrieval["plan"]["v3_top_k"] = top_k
+    state.retrieval["plan"]["semantic_query"] = query
+    state.retrieval["plan"]["semantic_top_k"] = top_k
     state.retrieval["results"] = candidates
 
     state.flags["next_step"] = "reranker"

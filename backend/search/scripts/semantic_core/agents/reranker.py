@@ -1,4 +1,4 @@
-# scripts/search_v3_core/agents/reranker.py
+# scripts/semantic_core/agents/reranker.py
 import json
 from dashboard.services.ai_handler import call_llm
 
@@ -68,5 +68,5 @@ def run_reranker(state):
         # Fallback: just truncate
         state.retrieval["results"] = candidates[:rerank_k]
 
-    state.retrieval["plan"]["v3_rerank_k"] = rerank_k
+    state.retrieval["plan"]["semantic_rerank_k"] = rerank_k
     state.flags["next_step"] = "postprocess"

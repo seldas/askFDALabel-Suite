@@ -1,4 +1,4 @@
-# scripts/search_v3_core/helpers.py
+# scripts/semantic_core/helpers.py
 from typing import Any, Dict, List
 
 

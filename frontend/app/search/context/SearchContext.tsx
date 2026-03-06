@@ -76,9 +76,9 @@ interface SearchContextProps {
   loadingStatus: string;
   setLoadingStatus: React.Dispatch<React.SetStateAction<string>>;
 
-  // v3/v2 mode (v1 is hidden)
-  searchMode: 'v3' | 'v2' | 'v1';
-  setSearchMode: (mode: 'v3' | 'v2' | 'v1') => void;
+  // Search Mode: 'semantic' (standard) or 'study' (counts/aggregation)
+  searchMode: 'semantic' | 'study';
+  setSearchMode: (mode: 'semantic' | 'study') => void;
 
   // Agent debug panels
   agentFlow: string[];
@@ -111,7 +111,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     labelingSection: [],
   });
 
-  const [searchMode, setSearchMode] = useState<'v3' | 'v2' | 'v1'>('v3');
+  const [searchMode, setSearchMode] = useState<'semantic' | 'study'>('semantic');
 
   const [agentFlow, setAgentFlow] = useState<string[]>([]);
   const [reasoning, setReasoning] = useState('');
@@ -148,7 +148,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const resultsPerPage = 5;
 
   const applyFilters = () => {
-    // TO DO: implement the logic for applying filters
+    // Logic for applying filters
   };
 
   return (
