@@ -347,47 +347,141 @@ class FDALabelDBService:
     @classmethod
     def ingredient_role_breakdown_for_set_ids(cls, set_ids, substance_name):
         if not set_ids or not substance_name or not cls.check_connectivity():
-            return {"query": substance_name, "active_count": 0, "inactive_count": 0, "both_count": 0, "not_found_count": len(set_ids or []), "matches": {}}
+            return {
+                "query": substance_name,
+                "ingredients": [],
+                "active_count": 0,
+                "inactive_count": 0,
+                "both_count": 0,
+                "not_found_count": len(set_ids or []),
+                "matches": {}
+            }
+
+        # Split "ACETAMINOPHEN, PHENYLEPHRINE..." into ["ACETAMINOPHEN", "PHENYLEPHRINE", ...]
+        ingredients = [
+            part.strip().upper()
+            for part in substance_name.split(",")
+            if part and part.strip()
+        ]
+
+        if not ingredients:
+            return {
+                "query": substance_name,
+                "ingredients": [],
+                "active_count": 0,
+                "inactive_count": 0,
+                "both_count": 0,
+                "not_found_count": len(set_ids or []),
+                "matches": {}
+            }
 
         conn = cls.get_connection()
-        if not conn: return {}
-        matches = {} 
+        if not conn:
+            return {}
+
+        matches = {}
         try:
             cursor = conn.cursor()
-            search_name = substance_name.strip().upper()
-            if cls._db_type == 'oracle':
+
+            if cls._db_type == "oracle":
                 for chunk in cls._chunk(list(set_ids), n=900):
                     binds = {f"sid{i}": v for i, v in enumerate(chunk)}
-                    binds['q'] = search_name
-                    in_clause = ", ".join([f":sid{i}" for i in range(len(chunk))])
-                    sql = f"SELECT s.SET_ID, m.IS_ACTIVE FROM druglabel.active_ingredients_map m JOIN druglabel.DGV_SUM_SPL s ON s.SPL_ID = m.SPL_ID WHERE s.SET_ID IN ({in_clause}) AND UPPER(m.SUBSTANCE_NAME) = :q"
+                    sid_in_clause = ", ".join([f":sid{i}" for i in range(len(chunk))])
+
+                    # bind ingredient list as :q0,:q1,... for IN (...)
+                    q_binds = {}
+                    q_placeholders = []
+                    for i, ing in enumerate(ingredients):
+                        key = f"q{i}"
+                        q_binds[key] = ing
+                        q_placeholders.append(f":{key}")
+                    binds.update(q_binds)
+                    q_in_clause = ", ".join(q_placeholders)
+
+                    sql = f"""
+                        SELECT
+                            s.SET_ID,
+                            m.IS_ACTIVE,
+                            UPPER(m.SUBSTANCE_NAME) AS SUBSTANCE_NAME
+                        FROM druglabel.active_ingredients_map m
+                        JOIN druglabel.DGV_SUM_SPL s
+                        ON s.SPL_ID = m.SPL_ID
+                        WHERE s.SET_ID IN ({sid_in_clause})
+                        AND UPPER(m.SUBSTANCE_NAME) IN ({q_in_clause})
+                    """
                     cursor.execute(sql, binds)
-                    for sid, is_act in cursor.fetchall():
+
+                    for sid, is_act, matched_name in cursor.fetchall():
                         sid_str = str(sid)
-                        if sid_str not in matches: matches[sid_str] = {"active": False, "inactive": False}
-                        if is_act == 'Y' or is_act == 1: matches[sid_str]["active"] = True
-                        else: matches[sid_str]["inactive"] = True
+                        if sid_str not in matches:
+                            matches[sid_str] = {"active": False, "inactive": False, "matched_ingredients": set()}
+
+                        matches[sid_str]["matched_ingredients"].add(matched_name)
+
+                        if is_act == "Y" or is_act == 1:
+                            matches[sid_str]["active"] = True
+                        else:
+                            matches[sid_str]["inactive"] = True
+
             else:
                 schema = "labeling."
                 for chunk in cls._chunk(list(set_ids), n=900):
-                    sql = f"SELECT s.set_id, m.is_active FROM {schema}active_ingredients_map m JOIN {schema}sum_spl s ON s.spl_id = m.spl_id WHERE s.set_id = ANY(%s) AND UPPER(m.substance_name) = %s"
-                    cursor.execute(sql, (list(chunk), search_name))
-                    for row in cursor.fetchall():
-                        sid_str = str(row['set_id'])
-                        if sid_str not in matches: matches[sid_str] = {"active": False, "inactive": False}
-                        if row['is_active'] == 1: matches[sid_str]["active"] = True
-                        else: matches[sid_str]["inactive"] = True
-            cursor.close()
-        except Exception as e: print(f"Error in ingredient_role_breakdown ({cls._db_type}): {e}")
-        finally: conn.close()
+                    sql = f"""
+                        SELECT
+                            s.set_id,
+                            m.is_active,
+                            UPPER(m.substance_name) AS substance_name
+                        FROM {schema}active_ingredients_map m
+                        JOIN {schema}sum_spl s
+                        ON s.spl_id = m.spl_id
+                        WHERE s.set_id = ANY(%s)
+                        AND UPPER(m.substance_name) = ANY(%s)
+                    """
+                    cursor.execute(sql, (list(chunk), ingredients))
 
-        active_c, inactive_c, both_c = 0, 0, 0
-        found_set_ids = set(matches.keys())
+                    for row in cursor.fetchall():
+                        sid_str = str(row["set_id"])
+                        if sid_str not in matches:
+                            matches[sid_str] = {"active": False, "inactive": False, "matched_ingredients": set()}
+
+                        matches[sid_str]["matched_ingredients"].add(row["substance_name"])
+
+                        if row["is_active"] == 1:
+                            matches[sid_str]["active"] = True
+                        else:
+                            matches[sid_str]["inactive"] = True
+
+            cursor.close()
+
+        except Exception as e:
+            print(f"Error in ingredient_role_breakdown ({cls._db_type}): {e}")
+        finally:
+            conn.close()
+
+        # Convert sets to lists for JSON serialization + compute counts
+        active_c = inactive_c = both_c = 0
         for sid, roles in matches.items():
-            if roles["active"] and roles["inactive"]: both_c += 1
-            elif roles["active"]: active_c += 1
-            else: inactive_c += 1
-        return {"query": substance_name, "active_count": active_c, "inactive_count": inactive_c, "both_count": both_c, "not_found_count": len(set_ids) - len(found_set_ids), "matches": matches}
+            # JSON friendly
+            if isinstance(roles.get("matched_ingredients"), set):
+                roles["matched_ingredients"] = sorted(list(roles["matched_ingredients"]))
+
+            if roles["active"] and roles["inactive"]:
+                both_c += 1
+            elif roles["active"]:
+                active_c += 1
+            else:
+                inactive_c += 1
+
+        found_set_ids = set(matches.keys())
+        return {
+            "query": substance_name,
+            "ingredients": ingredients,
+            "active_count": active_c,
+            "inactive_count": inactive_c,
+            "both_count": both_c,
+            "not_found_count": len(set_ids) - len(found_set_ids),
+            "matches": matches
+        }
 
     @classmethod
     def document_type_breakdown_for_set_ids(cls, set_ids):
