@@ -43,4 +43,5 @@ data/rxnorm/
 data/spl_storage/
 data/downloads/
 data/uploads/
+backend/data/uploads/
 *.db
