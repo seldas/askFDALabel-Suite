@@ -813,7 +813,7 @@ def project_stats():
         top_manufacturers = [{"name": name, "count": count} for name, count in manu_counts.most_common(10) if name and name != "Unknown"]
 
         if db_ok and set_ids:
-            document_type = FDALabelDBService.document_type_breakdown_for_set_ids(set_ids)
+            document_type = FDALabelDBService.document_type_breakdown_for_set_ids(set_ids=set_ids)
         else:
             document_type = {"raw": {}, "buckets": {"human_rx": 0, "human_otc": 0, "vaccine": 0, "animal_rx": 0, "animal_otc": 0, "other": 0, "unknown": len(set_ids) or len(favs)}, "note": "Local/Internal DB not available."}
 
@@ -827,33 +827,44 @@ def project_stats():
         ingredient_breakdowns = []
         if db_ok and set_ids:
             all_active_raw = []
+
             for f in favs:
-                ingr_val = getattr(f, 'active_ingredients', None)
-                
+                ingr_val = getattr(f, "active_ingredients", None)
+
                 # If missing or 'n/a', try fetching from DB service
-                if not ingr_val or ingr_val == 'n/a':
+                if not ingr_val or ingr_val == "n/a":
                     meta = FDALabelDBService.get_label_metadata(f.set_id)
-                    if meta and meta.get('active_ingredients'):
-                        ingr_val = meta['active_ingredients']
+                    if meta and meta.get("active_ingredients"):
+                        ingr_val = meta["active_ingredients"]
                         # Update the favorite object in DB for future use
                         try:
                             f.active_ingredients = ingr_val
                             db.session.add(f)
-                        except: pass
-                
-                if ingr_val and ingr_val != 'n/a':
-                    # Split by semicolon and clean up
-                    parts = [p.strip() for p in str(ingr_val).split(';') if p.strip()]
-                    all_active_raw.extend(parts)
-            
+                        except:
+                            pass
+
+                if ingr_val and ingr_val != "n/a":
+                    tokens = [
+                        t.strip()
+                        for t in re.split(r"[;,]", str(ingr_val))
+                        if t and t.strip()
+                    ]
+                    tokens = [t.upper() for t in tokens]
+                    tokens = list(dict.fromkeys(tokens))  # preserves order
+
+                    all_active_raw.extend(tokens)
+
             if all_active_raw:
-                db.session.commit() # Save any updated active_ingredients
-                
-                # Find top 5
-                top_5_ingr = [item for item, count in Counter(all_active_raw).most_common(5)]
-                
+                db.session.commit()  # Save any updated active_ingredients
+
+                # Find top 5 atomic ingredients (not combo strings)
+                top_5_ingr = [item for item, _count in Counter(all_active_raw).most_common(5)]
+
                 for ingr in top_5_ingr:
-                    breakdown = FDALabelDBService.ingredient_role_breakdown_for_set_ids(set_ids=set_ids, substance_name=ingr)
+                    breakdown = FDALabelDBService.ingredient_role_breakdown_for_set_ids(
+                        set_ids=set_ids,
+                        substance_name=ingr
+                    )
                     if breakdown:
                         ingredient_breakdowns.append(breakdown)
 

@@ -12,7 +12,7 @@ if (fs.existsSync(envPath)) {
 }
 
 const host = process.env.HOST || '0.0.0.0';
-const port = parseInt(process.env.FRONTEND_PORT || 8841);
+const port = parseInt(process.env.FRONTEND_PORT || 8848);
 const isProd = process.env.NODE_ENV === 'production';
 
 // 2. Automatic HTTPS Detection

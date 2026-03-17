@@ -23,22 +23,24 @@ dist/
 .DS_Store
 Thumbs.db
 nohup.out
+sync_embeddings_multigpu.log
 
 # archive_folder
 OLD_VER_2025/
 tmp/
-downloads/
-uploads/
 dashboard_old/
 
 # Database
 logs/
 GEMINI.md
-data/
+/database/
 
 # FDALabel web testing log and result files
 frontend/public/webtest/results/
 frontend/public/webtest/history/
 
-database/
-sync_embeddings_multigpu.log
+data/rxnorm/
+data/spl_storage/
+data/downloads/
+data/uploads/
+*.db

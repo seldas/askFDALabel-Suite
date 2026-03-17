@@ -3,7 +3,7 @@
 
 **Date:** March 2, 2026  
 **Status:** Technical Manuscript / System Introduction  
-**Core Technologies:** Python (Flask), Next.js (React/TypeScript), SQLite/Oracle, LLM (Gemini/Llama/Elsa)
+**Core Technologies:** Python (Flask), Next.js (React/TypeScript), PostgreSQL/Oracle, LLM (Gemini/Llama/Elsa)
 
 ---
 
@@ -28,7 +28,7 @@ The suite is built on a modular, decoupled architecture consisting of a unified 
 
 ### 2.1 Core Infrastructure
 - **Unified App Entry:** The system integrates multiple specialized modules (Blueprints) into a single API surface, handling everything from authentication to background task orchestration.
-- **Database Layer:** Supports both local SQLite for rapid prototyping and persistent project storage, and internal FDA Oracle databases for high-fidelity production data.
+- **Database Layer:** Supports both local PostgreSQL for rapid prototyping and persistent project storage, and internal FDA Oracle databases for high-fidelity production data.
 
 ### 2.2 Trivial but Critical Functions
 - **LocalQuery:** A high-speed interface for searching local SPL metadata. It allows users to query by Brand Name, Generic Name, SetID, or Application Number and export results directly into Excel formats compatible with the primary Dashboard.

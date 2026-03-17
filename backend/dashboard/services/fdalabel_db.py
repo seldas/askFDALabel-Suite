@@ -1,5 +1,4 @@
 import os
-import sqlite3
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from flask import current_app
@@ -14,33 +13,15 @@ except ImportError:
 
 class FDALabelDBService:
     _is_connected = None  # Tri-state: None (unknown), True (connected), False (failed)
-    _db_type = None      # 'oracle', 'sqlite', or 'postgres'
-
-    @classmethod
-    def get_sqlite_connection(cls):
-        """Establishes a connection to the local SQLite label.db."""
-        try:
-            db_path = current_app.config.get('LOCAL_LABEL_DB_PATH')
-            if not db_path:
-                db_path = os.path.join(current_app.root_path, '..', '..', 'data', 'label.db')
-            db_path = os.path.abspath(db_path)
-            if not os.path.exists(db_path):
-                return None
-            connection = sqlite3.connect(db_path)
-            connection.row_factory = sqlite3.Row
-            return connection
-        except Exception as e:
-            print(f"SQLite Connection Failed: {e}")
-            return None
+    _db_type = None      # 'oracle' or 'postgres'
 
     @classmethod
     def get_postgres_connection(cls):
-        """Establishes a connection to the local PostgreSQL database."""
+        """Establishes a connection to the PostgreSQL database."""
         try:
             dsn = current_app.config.get('DATABASE_URL')
             if not dsn:
                 return None
-            # Use RealDictCursor to mimic SQLite Row behavior
             connection = psycopg2.connect(dsn, cursor_factory=RealDictCursor)
             return connection
         except Exception as e:
@@ -50,7 +31,7 @@ class FDALabelDBService:
     @classmethod
     def get_connection(cls):
         """Establishes a connection based on Config.LABEL_DB."""
-        db_choice = current_app.config.get('LABEL_DB', 'LOCAL')
+        db_choice = current_app.config.get('LABEL_DB', 'POSTGRES')
         
         if db_choice == 'ORACLE':
             if not ORACLE_AVAILABLE: return None
@@ -67,16 +48,10 @@ class FDALabelDBService:
                     return connection
             except Exception: return None
 
-        if db_choice == 'POSTGRES':
-            conn = cls.get_postgres_connection()
-            if conn:
-                cls._db_type = 'postgres'
-            return conn
-
-        # Default SQLite
-        conn = cls.get_sqlite_connection()
+        # Default to Postgres
+        conn = cls.get_postgres_connection()
         if conn:
-            cls._db_type = 'sqlite'
+            cls._db_type = 'postgres'
         return conn
 
     @classmethod
@@ -97,7 +72,7 @@ class FDALabelDBService:
 
     @classmethod
     def is_local(cls):
-        return cls.is_available() and cls._db_type in ('sqlite', 'postgres')
+        return cls.is_available() and cls._db_type == 'postgres'
 
     @classmethod
     def check_connectivity(cls):
@@ -134,19 +109,15 @@ class FDALabelDBService:
                         'is_rld': r[13], 'is_rs': r[14] if len(r) > 14 else 0
                     })
             else:
-                # Local Path (Postgres or SQLite)
-                schema = "labeling." if cls._db_type == 'postgres' else ""
+                schema = "labeling."
                 sql = f"""
                     SELECT set_id, product_names, generic_names, manufacturer, market_categories, appr_num,
                            ndc_codes, revised_date, active_ingredients, doc_type, dosage_forms, routes, epc, is_rld, is_rs
                     FROM {schema}sum_spl
-                    WHERE product_names LIKE :q OR generic_names LIKE :q OR ndc_codes LIKE :q_exact OR set_id = :q_exact_id
-                    LIMIT :limit OFFSET :skip
+                    WHERE product_names ILIKE %(q)s OR generic_names ILIKE %(q)s OR ndc_codes LIKE %(q_exact)s OR set_id = %(q_exact_id)s
+                    LIMIT %(limit)s OFFSET %(skip)s
                 """
                 params = {"q": q, "q_exact": query, "q_exact_id": query, "limit": limit, "skip": skip}
-                if cls._db_type == 'postgres':
-                    # Postgres uses %s or named %(name)s
-                    sql = sql.replace(":q_exact_id", "%(q_exact_id)s").replace(":q_exact", "%(q_exact)s").replace(":q", "%(q)s").replace(":limit", "%(limit)s").replace(":skip", "%(skip)s")
                 cursor.execute(sql, params)
                 rows = cursor.fetchall()
                 for r in rows:
@@ -178,8 +149,8 @@ class FDALabelDBService:
                 if r:
                     return {'set_id': r[0], 'brand_name': (r[1] or "").replace(';', ', '), 'generic_name': (r[2] or "").replace(';', ', '), 'manufacturer_name': r[3], 'effective_time': r[7], 'label_format': 'FDALabel', 'application_number': r[5], 'market_category': r[4], 'ndc': r[6], 'active_ingredients': r[8], 'labeling_type': r[9], 'dosage_forms': r[10], 'routes': r[11], 'epc': r[12], 'is_rld': bool(r[13]), 'is_rs': False}
             else:
-                schema = "labeling." if cls._db_type == 'postgres' else ""
-                sql = f"SELECT * FROM {schema}sum_spl WHERE set_id = %s LIMIT 1" if cls._db_type == 'postgres' else f"SELECT * FROM sum_spl WHERE set_id = ? LIMIT 1"
+                schema = "labeling."
+                sql = f"SELECT * FROM {schema}sum_spl WHERE set_id = %s LIMIT 1"
                 cursor.execute(sql, (set_id,))
                 r = cursor.fetchone()
                 if r:
@@ -195,12 +166,12 @@ class FDALabelDBService:
         if not conn: return None
         try:
             cursor = conn.cursor()
-            schema = "labeling." if cls._db_type == 'postgres' else ""
-            sql = f"SELECT local_path FROM {schema}sum_spl WHERE set_id = %s" if cls._db_type == 'postgres' else f"SELECT local_path FROM sum_spl WHERE set_id = ?"
+            schema = "labeling."
+            sql = f"SELECT local_path FROM {schema}sum_spl WHERE set_id = %s"
             cursor.execute(sql, (set_id,))
             r = cursor.fetchone()
             if r and r['local_path']:
-                storage_dir = current_app.config.get('SPL_STORAGE_DIR', os.path.join(current_app.root_path, '..', 'data', 'spl_storage'))
+                storage_dir = current_app.config.get('SPL_STORAGE_DIR')
                 zip_path = os.path.abspath(os.path.join(storage_dir, r['local_path']))
                 if os.path.exists(zip_path):
                     import zipfile
@@ -226,22 +197,21 @@ class FDALabelDBService:
                 sql = f"SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME, MARKET_CATEGORIES, DOCUMENT_TYPE FROM druglabel.DGV_SUM_SPL WHERE {' AND '.join(where)} ORDER BY EFF_TIME DESC"
                 cursor.execute(sql, params)
             else:
-                schema = "labeling." if cls._db_type == 'postgres' else ""
-                where = ["(product_names LIKE :q OR generic_names LIKE :q OR set_id = :sid OR appr_num LIKE :q)"]
+                schema = "labeling."
+                where = ["(product_names ILIKE %(q)s OR generic_names ILIKE %(q)s OR set_id = %(sid)s OR appr_num ILIKE %(q)s)"]
                 params = {"q": q, "sid": query_term, "limit": limit, "offset": skip}
-                if human_rx_only: where.append("(doc_type LIKE '%HUMAN PRESCRIPTION%' OR doc_type IN ('34391-3', '48401-4', '48402-2'))")
+                if human_rx_only: where.append("(doc_type ILIKE '%%HUMAN PRESCRIPTION%%' OR doc_type IN ('34391-3', '48401-4', '48402-2'))")
                 if rld_only: where.append("(is_rld = 1 OR is_rs = 1)")
-                sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, local_path FROM {schema}sum_spl WHERE {' AND '.join(where)} ORDER BY revised_date DESC LIMIT :limit OFFSET :offset"
-                if cls._db_type == 'postgres':
-                    sql = sql.replace(":limit", "%(limit)s").replace(":offset", "%(offset)s").replace(":sid", "%(sid)s").replace(":q", "%(q)s")
+                sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, local_path FROM {schema}sum_spl WHERE {' AND '.join(where)} ORDER BY revised_date DESC LIMIT %(limit)s OFFSET %(offset)s"
                 cursor.execute(sql, params)
+            
             rows = cursor.fetchall()
             results = []
             for r in rows:
                 if cls._db_type == 'oracle':
                     results.append({'set_id': r[0], 'brand_name': (r[1] or "").replace(';', ', '), 'generic_name': (r[2] or "").replace(';', ', '), 'manufacturer': r[3], 'appr_num': r[4], 'ndc': r[5], 'revised_date': r[6], 'market_category': r[7], 'doc_type': r[8], 'source': 'Oracle'})
                 else:
-                    results.append({'set_id': r['set_id'], 'brand_name': (r['product_names'] or "").replace(';', ', '), 'generic_name': (r['generic_names'] or "").replace(';', ', '), 'manufacturer': r['manufacturer'], 'appr_num': r['appr_num'], 'ndc': r['ndc_codes'], 'revised_date': r['revised_date'], 'market_category': r['market_categories'], 'doc_type': r['doc_type'], 'local_path': r['local_path'], 'source': f'Local {cls._db_type.capitalize()}'})
+                    results.append({'set_id': r['set_id'], 'brand_name': (r['product_names'] or "").replace(';', ', '), 'generic_name': (r['generic_names'] or "").replace(';', ', '), 'manufacturer': r['manufacturer'], 'appr_num': r['appr_num'], 'ndc': r['ndc_codes'], 'revised_date': r['revised_date'], 'market_category': r['market_categories'], 'doc_type': r['doc_type'], 'local_path': r['local_path'], 'source': 'Local Postgres'})
             return results
         finally: conn.close()
 
@@ -260,12 +230,11 @@ class FDALabelDBService:
                 sql = f"SELECT DISTINCT PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES FROM druglabel.DGV_SUM_SPL WHERE {' AND '.join(where)} FETCH NEXT 50 ROWS ONLY"
                 cursor.execute(sql, {"q": q})
             else:
-                schema = "labeling." if cls._db_type == 'postgres' else ""
-                where = ["(product_names LIKE :q OR generic_names LIKE :q)"]
-                if human_rx_only: where.append("(doc_type LIKE '%HUMAN PRESCRIPTION%' OR doc_type IN ('34391-3', '48401-4', '48402-2'))")
+                schema = "labeling."
+                where = ["(product_names ILIKE %(q)s OR generic_names ILIKE %(q)s)"]
+                if human_rx_only: where.append("(doc_type ILIKE '%%HUMAN PRESCRIPTION%%' OR doc_type IN ('34391-3', '48401-4', '48402-2'))")
                 if rld_only: where.append("(is_rld = 1 OR is_rs = 1)")
                 sql = f"SELECT DISTINCT product_names, generic_names FROM {schema}sum_spl WHERE {' AND '.join(where)} LIMIT 50"
-                if cls._db_type == 'postgres': sql = sql.replace(":q", "%(q)s")
                 cursor.execute(sql, {"q": q})
             rows = cursor.fetchall()
             suggestions = set()
@@ -297,13 +266,12 @@ class FDALabelDBService:
                 sql = f"SELECT * FROM (SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME, MARKET_CATEGORIES, DOCUMENT_TYPE FROM druglabel.DGV_SUM_SPL {w_stmt} ORDER BY DBMS_RANDOM.VALUE) WHERE ROWNUM <= :limit"
                 cursor.execute(sql, {"limit": limit})
             else:
-                schema = "labeling." if cls._db_type == 'postgres' else ""
+                schema = "labeling."
                 where = []
-                if human_rx_only: where.append("(doc_type LIKE '%HUMAN PRESCRIPTION%' OR doc_type IN ('34391-3', '48401-4', '48402-2'))")
+                if human_rx_only: where.append("(doc_type ILIKE '%%HUMAN PRESCRIPTION%%' OR doc_type IN ('34391-3', '48401-4', '48402-2'))")
                 if rld_only: where.append("(is_rld = 1 OR is_rs = 1)")
                 w_stmt = f"WHERE {' AND '.join(where)}" if where else ""
-                sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, local_path FROM {schema}sum_spl {w_stmt} ORDER BY {'RANDOM()' if cls._db_type == 'postgres' else 'RANDOM()'} LIMIT :limit"
-                if cls._db_type == 'postgres': sql = sql.replace(":limit", "%(limit)s")
+                sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, local_path FROM {schema}sum_spl {w_stmt} ORDER BY RANDOM() LIMIT %(limit)s"
                 cursor.execute(sql, {"limit": limit})
             rows = cursor.fetchall()
             results = []
@@ -311,117 +279,343 @@ class FDALabelDBService:
                 if cls._db_type == 'oracle':
                     results.append({'set_id': r[0], 'brand_name': (r[1] or "").replace(';', ', '), 'generic_name': (r[2] or "").replace(';', ', '), 'manufacturer': r[3], 'appr_num': r[4], 'ndc': r[5], 'revised_date': r[6], 'market_category': r[7], 'doc_type': r[8], 'source': 'Oracle'})
                 else:
-                    results.append({'set_id': r['set_id'], 'brand_name': (r['product_names'] or "").replace(';', ', '), 'generic_name': (r['generic_names'] or "").replace(';', ', '), 'manufacturer': r['manufacturer'], 'appr_num': r['appr_num'], 'ndc': r['ndc_codes'], 'revised_date': r['revised_date'], 'market_category': r['market_categories'], 'doc_type': r['doc_type'], 'local_path': r['local_path'], 'source': f'Local {cls._db_type.capitalize()}'})
+                    results.append({'set_id': r['set_id'], 'brand_name': (r['product_names'] or "").replace(';', ', '), 'generic_name': (r['generic_names'] or "").replace(';', ', '), 'manufacturer': r['manufacturer'], 'appr_num': r['appr_num'], 'ndc': r['ndc_codes'], 'revised_date': r['revised_date'], 'market_category': r['market_categories'], 'doc_type': r['doc_type'], 'local_path': r['local_path'], 'source': 'Local Postgres'})
             return results
         finally: conn.close()
 
     @classmethod
     def _chunk(cls, items, n=900):
-        for i in range(0, len(items), n): yield items[i:i+n]
+        for i in range(0, len(items), n):
+            yield items[i:i+n]
 
     @classmethod
-    def get_drug_info(cls, drug_name):
-        """
-        Returns basic info (NDA, Set ID, etc.) for a given drug name.
-        Matches against PRODUCT_NAMES or PRODUCT_NORMD_GENERIC_NAMES.
-        Sorts by EFFECTIVE_TIME DESC and returns the top 1.
-        """
-        if not cls.check_connectivity():
-            return None
+    def get_label_core_by_set_ids(cls, set_ids):
+        if not set_ids or not cls.check_connectivity(): return {}
+        conn = cls.get_connection()
+        if not conn: return {}
+        out = {}
+        try:
+            cursor = conn.cursor()
+            if cls._db_type == 'oracle':
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    binds = {f"sid{i}": v for i, v in enumerate(chunk)}
+                    in_clause = ", ".join([f":sid{i}" for i in range(len(chunk))])
+                    sql = f"SELECT SET_ID, SPL_ID, DOCUMENT_TYPE, DOCUMENT_TYPE_LOINC_CODE FROM druglabel.DGV_SUM_SPL WHERE SET_ID IN ({in_clause})"
+                    cursor.execute(sql, binds)
+                    for set_id, spl_id, doc_type, doc_loinc in cursor.fetchall():
+                        out[str(set_id)] = {"spl_id": spl_id, "document_type": doc_type, "document_type_loinc_code": doc_loinc}
+            else:
+                schema = "labeling."
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    sql = f"SELECT set_id, spl_id, doc_type FROM {schema}sum_spl WHERE set_id = ANY(%s)"
+                    cursor.execute(sql, (list(chunk),))
+                    for row in cursor.fetchall():
+                        out[str(row['set_id'])] = {"spl_id": row['spl_id'], "document_type": row['doc_type'], "document_type_loinc_code": None}
+            cursor.close()
+        except Exception as e: print(f"Error in get_label_core_by_set_ids ({cls._db_type}): {e}")
+        finally: conn.close()
+        return out
+
+    @classmethod
+    def effective_time_map_for_set_ids(cls, set_ids):
+        if not set_ids or not cls.check_connectivity(): return {}
+        conn = cls.get_connection()
+        if not conn: return {}
+        out = {}
+        try:
+            cursor = conn.cursor()
+            if cls._db_type == 'oracle':
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    binds = {f"sid{i}": v for i, v in enumerate(chunk)}
+                    in_clause = ", ".join([f":sid{i}" for i in range(len(chunk))])
+                    sql = f"SELECT SET_ID, EFF_TIME FROM druglabel.DGV_SUM_SPL WHERE SET_ID IN ({in_clause})"
+                    cursor.execute(sql, binds)
+                    for sid, eff in cursor.fetchall():
+                        out[str(sid)] = eff
+            else:
+                schema = "labeling."
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    sql = f"SELECT set_id, revised_date FROM {schema}sum_spl WHERE set_id = ANY(%s)"
+                    cursor.execute(sql, (list(chunk),))
+                    for row in cursor.fetchall():
+                        out[str(row['set_id'])] = row['revised_date']
+            cursor.close()
+        except Exception as e: print(f"Error in effective_time_map_for_set_ids ({cls._db_type}): {e}")
+        finally: conn.close()
+        return out
+
+    @classmethod
+    def ingredient_role_breakdown_for_set_ids(cls, set_ids, substance_name):
+        if not set_ids or not substance_name or not cls.check_connectivity():
+            return {
+                "query": substance_name,
+                "ingredients": [],
+                "active_count": 0,
+                "inactive_count": 0,
+                "both_count": 0,
+                "not_found_count": len(set_ids or []),
+                "matches": {}
+            }
+
+        # Split "ACETAMINOPHEN, PHENYLEPHRINE..." into ["ACETAMINOPHEN", "PHENYLEPHRINE", ...]
+        ingredients = [
+            part.strip().upper()
+            for part in substance_name.split(",")
+            if part and part.strip()
+        ]
+
+        if not ingredients:
+            return {
+                "query": substance_name,
+                "ingredients": [],
+                "active_count": 0,
+                "inactive_count": 0,
+                "both_count": 0,
+                "not_found_count": len(set_ids or []),
+                "matches": {}
+            }
 
         conn = cls.get_connection()
         if not conn:
-            return None
+            return {}
 
-        cursor = conn.cursor()
+        matches = {}
         try:
-            if cls._db_type == 'oracle':
-                query = """
-                    SELECT 
-                        s.SET_ID, 
-                        s.APPR_NUM, 
-                        s.PRODUCT_NAMES, 
-                        s.PRODUCT_NORMD_GENERIC_NAMES, 
-                        s.ACT_INGR_NAMES,
-                        rld.RLD,
-                        s.EFF_TIME
-                    FROM druglabel.DGV_SUM_SPL s
-                    LEFT JOIN druglabel.sum_spl_rld rld on rld.spl_id = s.spl_id
-                    WHERE (UPPER(s.PRODUCT_NAMES) LIKE UPPER(:dn) OR 
-                           UPPER(s.PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:dn) OR 
-                           UPPER(s.ACT_INGR_NAMES) LIKE UPPER(:dn))
-                    ORDER BY rld.RLD DESC, s.EFF_TIME DESC
-                    FETCH FIRST 1 ROWS ONLY
-                """
-                bind_val = f"{drug_name}"
-                cursor.execute(query, {"dn": bind_val})
-                row = cursor.fetchone()
-                
-                if not row: # try vague match
-                    bind_val = f"%{drug_name}%"
-                    cursor.execute(query, {"dn": bind_val})
-                    row = cursor.fetchone()    
-                    if not row: # if still no match, return False
-                        return None
+            cursor = conn.cursor()
 
-                # Map results
-                data = {
-                    "set_id": row[0],
-                    "appr_num": row[1],
-                    "product_name": row[2],
-                    "generic_name": row[3],
-                    "active_ingredients": row[4],
-                    "is_RLD": row[5],
-                    "effective_date": row[6]
-                }
-                return data
+            if cls._db_type == "oracle":
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    binds = {f"sid{i}": v for i, v in enumerate(chunk)}
+                    sid_in_clause = ", ".join([f":sid{i}" for i in range(len(chunk))])
+
+                    # bind ingredient list as :q0,:q1,... for IN (...)
+                    q_binds = {}
+                    q_placeholders = []
+                    for i, ing in enumerate(ingredients):
+                        key = f"q{i}"
+                        q_binds[key] = ing
+                        q_placeholders.append(f":{key}")
+                    binds.update(q_binds)
+                    q_in_clause = ", ".join(q_placeholders)
+
+                    sql = f"""
+                        SELECT
+                            s.SET_ID,
+                            m.IS_ACTIVE,
+                            UPPER(m.SUBSTANCE_NAME) AS SUBSTANCE_NAME
+                        FROM druglabel.active_ingredients_map m
+                        JOIN druglabel.DGV_SUM_SPL s
+                        ON s.SPL_ID = m.SPL_ID
+                        WHERE s.SET_ID IN ({sid_in_clause})
+                        AND UPPER(m.SUBSTANCE_NAME) IN ({q_in_clause})
+                    """
+                    cursor.execute(sql, binds)
+
+                    for sid, is_act, matched_name in cursor.fetchall():
+                        sid_str = str(sid)
+                        if sid_str not in matches:
+                            matches[sid_str] = {"active": False, "inactive": False, "matched_ingredients": set()}
+
+                        matches[sid_str]["matched_ingredients"].add(matched_name)
+
+                        if is_act == "Y" or is_act == 1:
+                            matches[sid_str]["active"] = True
+                        else:
+                            matches[sid_str]["inactive"] = True
+
             else:
-                # PostgreSQL or SQLite implementation
-                schema = "labeling." if cls._db_type == 'postgres' else ""
-                query = f"""
-                    SELECT 
-                        set_id, 
-                        appr_num, 
-                        product_names, 
-                        generic_names, 
-                        active_ingredients,
-                        is_rld,
-                        revised_date
-                    FROM {schema}sum_spl
-                    WHERE (product_names ILIKE %s OR 
-                           generic_names ILIKE %s OR 
-                           active_ingredients ILIKE %s)
-                    ORDER BY is_rld DESC, revised_date DESC
-                    LIMIT 1
-                """
-                bind_val = f"{drug_name}"
-                cursor.execute(query, (bind_val, bind_val, bind_val))
-                row = cursor.fetchone()
-                
-                if not row: # try vague match
-                    bind_val = f"%{drug_name}%"
-                    cursor.execute(query, (bind_val, bind_val, bind_val))
-                    row = cursor.fetchone()
-                    if not row: # if still no match, return False
-                        return None
+                schema = "labeling."
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    sql = f"""
+                        SELECT
+                            s.set_id,
+                            m.is_active,
+                            UPPER(m.substance_name) AS substance_name
+                        FROM {schema}active_ingredients_map m
+                        JOIN {schema}sum_spl s
+                        ON s.spl_id = m.spl_id
+                        WHERE s.set_id = ANY(%s)
+                        AND UPPER(m.substance_name) = ANY(%s)
+                    """
+                    cursor.execute(sql, (list(chunk), ingredients))
 
-                # Map results
-                data = {
-                    "set_id": row['set_id'],
-                    "appr_num": row['appr_num'],
-                    "product_name": row['product_names'],
-                    "generic_name": row['generic_names'],
-                    "active_ingredients": row['active_ingredients'],
-                    "is_RLD": row['is_rld'],
-                    "effective_date": row['revised_date']
-                }
-                return data
+                    for row in cursor.fetchall():
+                        sid_str = str(row["set_id"])
+                        if sid_str not in matches:
+                            matches[sid_str] = {"active": False, "inactive": False, "matched_ingredients": set()}
+
+                        matches[sid_str]["matched_ingredients"].add(row["substance_name"])
+
+                        if row["is_active"] == 1:
+                            matches[sid_str]["active"] = True
+                        else:
+                            matches[sid_str]["inactive"] = True
+
+            cursor.close()
 
         except Exception as e:
-            print(f"Error in get_drug_info: {e}")
-            return None
+            print(f"Error in ingredient_role_breakdown ({cls._db_type}): {e}")
         finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+            conn.close()
+
+        # Convert sets to lists for JSON serialization + compute counts
+        active_c = inactive_c = both_c = 0
+        for sid, roles in matches.items():
+            # JSON friendly
+            if isinstance(roles.get("matched_ingredients"), set):
+                roles["matched_ingredients"] = sorted(list(roles["matched_ingredients"]))
+
+            if roles["active"] and roles["inactive"]:
+                both_c += 1
+            elif roles["active"]:
+                active_c += 1
+            else:
+                inactive_c += 1
+
+        found_set_ids = set(matches.keys())
+        return {
+            "query": substance_name,
+            "ingredients": ingredients,
+            "active_count": active_c,
+            "inactive_count": inactive_c,
+            "both_count": both_c,
+            "not_found_count": len(set_ids) - len(found_set_ids),
+            "matches": matches
+        }
+
+    @classmethod
+    def document_type_breakdown_for_set_ids(cls, set_ids):
+        if not set_ids or not cls.check_connectivity():
+            return {"raw": {}, "buckets": {"human_rx": 0, "human_otc": 0, "vaccine": 0, "animal_rx": 0, "animal_otc": 0, "other": 0, "unknown": 0}}
+        conn = cls.get_connection()
+        if not conn: return {"raw": {}, "buckets": {"human_rx": 0, "human_otc": 0, "vaccine": 0, "animal_rx": 0, "animal_otc": 0, "other": 0, "unknown": 0}}
+
+        LOINC_MAP = {'34391-3': 'human_rx', '48401-4': 'human_rx', '48402-2': 'human_rx', '34390-5': 'human_otc', '48405-5': 'human_otc', '48406-3': 'human_otc', '34392-1': 'vaccine', '50516-4': 'vaccine', '50517-2': 'animal_rx', '50518-0': 'animal_otc'}
+        STR_MAP = {'HUMAN PRESCRIPTION DRUG LABEL': 'human_rx', 'HUMAN OTC DRUG LABEL': 'human_otc', 'VACCINE LABEL': 'vaccine', 'ANIMAL PRESCRIPTION DRUG LABEL': 'animal_rx', 'ANIMAL OTC DRUG LABEL': 'animal_otc'}
+        raw, buckets, seen = {}, {"human_rx": 0, "human_otc": 0, "vaccine": 0, "animal_rx": 0, "animal_otc": 0, "other": 0, "unknown": 0}, set()
+
+        try:
+            cursor = conn.cursor()
+            if cls._db_type == 'oracle':
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    binds = {f"sid{i}": v for i, v in enumerate(chunk)}
+                    in_clause = ", ".join([f":sid{i}" for i in range(len(chunk))])
+                    sql = f"SELECT s.SET_ID, s.DOCUMENT_TYPE_LOINC_CODE, s.DOCUMENT_TYPE FROM druglabel.DGV_SUM_SPL s WHERE s.SET_ID IN ({in_clause})"
+                    cursor.execute(sql, binds)
+                    for set_id, loinc_code, doc_type in cursor.fetchall():
+                        seen.add(str(set_id))
+                        code = loinc_code or doc_type or "UNKNOWN"
+                        raw[str(code)] = raw.get(str(code), 0) + 1
+            else:
+                schema = "labeling."
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    sql = f"SELECT s.set_id, s.doc_type FROM {schema}sum_spl s WHERE s.set_id = ANY(%s)"
+                    cursor.execute(sql, (list(chunk),))
+                    for row in cursor.fetchall():
+                        seen.add(str(row["set_id"]))
+                        code = row["doc_type"] or "UNKNOWN"
+                        raw[str(code)] = raw.get(str(code), 0) + 1
+            cursor.close()
+        except Exception as e: print(f"Error in document_type_breakdown ({cls._db_type}): {e}")
+        finally: conn.close()
+
+        missing = len(set_ids) - len(seen)
+        if missing > 0: raw["UNKNOWN"] = raw.get("UNKNOWN", 0) + missing
+        for code, count in raw.items():
+            mapped = False
+            if str(code) in LOINC_MAP:
+                buckets[LOINC_MAP[str(code)]] += count
+                mapped = True
+            else:
+                for key, bucket in STR_MAP.items():
+                    if key in str(code).upper():
+                        buckets[bucket] += count
+                        mapped = True
+                        break
+            if not mapped:
+                if str(code) == "UNKNOWN": buckets["unknown"] += count
+                else: buckets["other"] += count
+        return {"raw": raw, "buckets": buckets}
+
+    @classmethod
+    def get_drug_info(cls, drug_name):
+        if not cls.check_connectivity(): return None
+        conn = cls.get_connection()
+        if not conn: return None
+        try:
+            cursor = conn.cursor()
+            if cls._db_type == 'oracle':
+                query = "SELECT s.SET_ID, s.APPR_NUM, s.PRODUCT_NAMES, s.PRODUCT_NORMD_GENERIC_NAMES, s.ACT_INGR_NAMES, rld.RLD, s.EFF_TIME FROM druglabel.DGV_SUM_SPL s LEFT JOIN druglabel.sum_spl_rld rld on rld.spl_id = s.spl_id WHERE (UPPER(s.PRODUCT_NAMES) LIKE UPPER(:dn) OR UPPER(s.PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:dn) OR UPPER(s.ACT_INGR_NAMES) LIKE UPPER(:dn)) ORDER BY rld.RLD DESC, s.EFF_TIME DESC FETCH FIRST 1 ROWS ONLY"
+                cursor.execute(query, {"dn": drug_name})
+                row = cursor.fetchone()
+                if not row: cursor.execute(query, {"dn": f"%{drug_name}%"}); row = cursor.fetchone()
+                if row: return {"set_id": row[0], "appr_num": row[1], "product_name": row[2], "generic_name": row[3], "active_ingredients": row[4], "is_RLD": row[5], "effective_date": row[6]}
+            else:
+                schema = "labeling."
+                query = f"SELECT set_id, appr_num, product_names, generic_names, active_ingredients, is_rld, is_rs, revised_date FROM {schema}sum_spl WHERE product_names ILIKE %(dn)s OR generic_names ILIKE %(dn)s OR active_ingredients ILIKE %(dn)s ORDER BY is_rld DESC, is_rs DESC, revised_date DESC LIMIT 1"
+                cursor.execute(query, {"dn": drug_name})
+                row = cursor.fetchone()
+                if not row: cursor.execute(query, {"dn": f"%{drug_name}%"}); row = cursor.fetchone()
+                if row: return {"set_id": row['set_id'], "appr_num": row['appr_num'], "product_name": row['product_names'], "generic_name": row['generic_names'], "active_ingredients": row['active_ingredients'], "is_RLD": "Yes" if row['is_rld'] else "No", "is_RS": "Yes" if row['is_rs'] else "No", "effective_date": row['revised_date']}
+            cursor.close()
+        except Exception as e: print(f"Error in get_drug_info ({cls._db_type}): {e}")
+        finally: conn.close()
+        return None
+
+    @classmethod
+    def get_labels_by_set_ids_for_export(cls, set_ids):
+        if not set_ids or not cls.check_connectivity(): return []
+        conn = cls.get_connection()
+        if not conn: return []
+        try:
+            cursor = conn.cursor()
+            results = []
+            if cls._db_type == 'oracle':
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    binds = {f"sid{i}": v for i, v in enumerate(chunk)}
+                    in_clause = ", ".join([f":sid{i}" for i in range(len(chunk))])
+                    sql = f"SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME, MARKET_CATEGORIES, DOCUMENT_TYPE, ROUTES, DOSAGE_FORMS, EPC, ACT_INGR_NAMES FROM druglabel.DGV_SUM_SPL WHERE SET_ID IN ({in_clause})"
+                    cursor.execute(sql, binds)
+                    for row in cursor.fetchall():
+                        results.append({'SET ID': row[0], 'Trade Name': (row[1] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row[2] or "").replace(';', ', '), 'Company': row[3], 'Application Number(s)': row[4], 'NDC(s)': row[5], 'SPL Effective Date (YYYY/MM/DD)': row[6], 'Marketing Category': row[7], 'Labeling Type': row[8], 'Route(s) of Administration': row[9], 'Dosage Form(s)': row[10], 'Established Pharmacologic Class(es)': row[11], 'Active Ingredient(s)': (row[12] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row[0]}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row[0]}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row[0]}"})
+            else:
+                schema = "labeling."
+                for chunk in cls._chunk(list(set_ids), n=900):
+                    sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, routes, dosage_forms, epc, active_ingredients FROM {schema}sum_spl WHERE set_id = ANY(%s)"
+                    cursor.execute(sql, (list(chunk),))
+                    for row in cursor.fetchall():
+                        rev_date = row['revised_date'] or ""
+                        if len(rev_date) == 8 and rev_date.isdigit(): rev_date = f"{rev_date[0:4]}/{rev_date[4:6]}/{rev_date[6:8]}"
+                        results.append({'SET ID': row['set_id'], 'Trade Name': (row['product_names'] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row['generic_names'] or "").replace(';', ', '), 'Company': row['manufacturer'], 'Application Number(s)': row['appr_num'], 'NDC(s)': row['ndc_codes'], 'SPL Effective Date (YYYY/MM/DD)': rev_date, 'Marketing Category': row['market_categories'], 'Labeling Type': row['doc_type'], 'Route(s) of Administration': row['routes'], 'Dosage Form(s)': row['dosage_forms'], 'Established Pharmacologic Class(es)': row['epc'], 'Active Ingredient(s)': (row['active_ingredients'] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row['set_id']}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row['set_id']}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row['set_id']}"})
+            return results
+        except Exception as e: print(f"Error in export: {e}"); return []
+        finally: conn.close()
+
+    @classmethod
+    def get_labels_for_export(cls, query_term):
+        if not cls.check_connectivity(): return []
+        conn = cls.get_connection()
+        if not conn: return []
+        try:
+            cursor = conn.cursor()
+            q = f"%{query_term}%"
+            if cls._db_type == 'oracle':
+                sql = "SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME, MARKET_CATEGORIES, DOCUMENT_TYPE, ROUTES, DOSAGE_FORMS, EPC, ACT_INGR_NAMES FROM druglabel.DGV_SUM_SPL WHERE UPPER(PRODUCT_NAMES) LIKE UPPER(:q) OR UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q) OR UPPER(SET_ID) = UPPER(:sid) OR UPPER(APPR_NUM) LIKE UPPER(:q) ORDER BY EFF_TIME DESC"
+                cursor.execute(sql, {"q": q, "sid": query_term})
+                rows = cursor.fetchall()
+                results = []
+                for row in rows:
+                    results.append({'SET ID': row[0], 'Trade Name': (row[1] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row[2] or "").replace(';', ', '), 'Company': row[3], 'Application Number(s)': row[4], 'NDC(s)': row[5], 'SPL Effective Date (YYYY/MM/DD)': row[6], 'Marketing Category': row[7], 'Labeling Type': row[8], 'Route(s) of Administration': row[9], 'Dosage Form(s)': row[10], 'Established Pharmacologic Class(es)': row[11], 'Active Ingredient(s)': (row[12] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row[0]}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row[0]}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row[0]}"})
+            else:
+                schema = "labeling."
+                sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, routes, dosage_forms, epc, active_ingredients FROM {schema}sum_spl WHERE product_names ILIKE %(q)s OR generic_names ILIKE %(q)s OR set_id = %(sid)s OR appr_num ILIKE %(q)s ORDER BY revised_date DESC"
+                cursor.execute(sql, {"q": q, "sid": query_term})
+                rows = cursor.fetchall()
+                results = []
+                for row in rows:
+                    rev_date = row['revised_date'] or ""
+                    if len(rev_date) == 8 and rev_date.isdigit(): rev_date = f"{rev_date[0:4]}/{rev_date[4:6]}/{rev_date[6:8]}"
+                    results.append({'SET ID': row['set_id'], 'Trade Name': (row['product_names'] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row['generic_names'] or "").replace(';', ', '), 'Company': row['manufacturer'], 'Application Number(s)': row['appr_num'], 'NDC(s)': row['ndc_codes'], 'SPL Effective Date (YYYY/MM/DD)': rev_date, 'Marketing Category': row['market_categories'], 'Labeling Type': row['doc_type'], 'Route(s) of Administration': row['routes'], 'Dosage Form(s)': row['dosage_forms'], 'Established Pharmacologic Class(es)': row['epc'], 'Active Ingredient(s)': (row['active_ingredients'] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row['set_id']}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row['set_id']}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row['set_id']}"})
+            return results
+        except Exception as e: print(f"Error in export: {e}"); return []
+        finally: conn.close()

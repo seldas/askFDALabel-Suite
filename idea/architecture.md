@@ -18,7 +18,7 @@ This document is designed for high-speed indexing by AI agents. It maps technica
 ---
 
 ## 🛠️ Technical Stack Summary
-- **Backend:** Flask (Python 3.11+), SQLAlchemy (SQLite/Oracle), Flask-Login.
+- **Backend:** Flask (Python 3.11+), SQLAlchemy (PostgreSQL/Oracle), Flask-Login.
 - **Frontend:** Next.js 15 (App Router), TypeScript, Tailwind-ready (Vanilla CSS preferred), Recharts.
 - **AI Infrastructure:** Google Gemini (SDK), Meta Llama (vLLM / OpenAI API), Elsa (FDA Internal Pixel API).
 - **Data Sources:** openFDA API, DailyMed (NIH), Internal FDALabel Oracle DB.

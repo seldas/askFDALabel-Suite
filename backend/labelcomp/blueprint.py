@@ -99,7 +99,7 @@ def index():
                     else:
                         key = norm_title
                         if key:
-                            sections_by_key[key] = s['content']
+                            sections_by_key[key] = s.get('content', '')
                             if key not in all_section_keys:
                                 all_section_keys[key] = {}
                             if norm_title not in all_section_keys[key]:

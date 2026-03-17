@@ -39,8 +39,8 @@ class AIClientFactory:
             is_internal_env = FDALabelDBService.is_internal()
         except RuntimeError:
             # Fallback if outside of app context
-            is_internal_env = os.getenv('LABEL_DB') == 'ORACLE'
-
+            is_internal_env = False
+            
         # Determine if we SHOULD use llama (internal LLM)
         # 1. If explicitly requested by user
         # 2. If in an internal environment and no user/provider specified, we might want llama

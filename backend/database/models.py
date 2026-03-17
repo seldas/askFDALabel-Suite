@@ -139,18 +139,21 @@ class DrugToxicity(db.Model):
     AI_Summary = db.Column(db.Text)
 
 class DiliAssessment(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    set_id = db.Column(db.String(100), unique=True, nullable=False)
+    __tablename__ = "dili_assessment"
+    id = db.Column(db.Integer, primary_key=True)  # autoincrement/identity handled by PG
+    set_id = db.Column(db.String, nullable=False, index=True)  # or UUID type
     report_content = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime(timezone=True), server_default=db.func.now(), nullable=False)
 
 class DictAssessment(db.Model):
+    __tablename__ = "dict_assessment"
     id = db.Column(db.Integer, primary_key=True)
     set_id = db.Column(db.String(100), unique=True, nullable=False)
     report_content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 class DiriAssessment(db.Model):
+    __tablename__ = "diri_assessment"
     id = db.Column(db.Integer, primary_key=True)
     set_id = db.Column(db.String(100), unique=True, nullable=False)
     report_content = db.Column(db.Text, nullable=False)
