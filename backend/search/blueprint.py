@@ -58,7 +58,7 @@ def stream_answer_tokens(state):
     # Here we simulate the stream via unified_call_llm if possible, 
     # but the simplest is to follow the v2 pattern.
     
-    from search.scripts.semantic_core.agents.answer_composer import ANSWER_COMPOSER_PROMPT
+    from search.scripts.semantic_core.agents.answer_composer import ANSWER_COMPOSER_SYSTEM_PROMPT
     query = state.conversation.get("user_query", "")
     snippets = state.evidence.get("snippets", [])
     
@@ -70,7 +70,7 @@ def stream_answer_tokens(state):
     for i, s in enumerate(snippets):
         snippets_text += f"--- Excerpt {i+1} ---\nDrug: {s['drug_name']}\nSection: {s['section']}\nText: {s['snippet']}\n\n"
 
-    system_prompt = ANSWER_COMPOSER_PROMPT.format(snippets_text=snippets_text, query=query)
+    system_prompt = ANSWER_COMPOSER_SYSTEM_PROMPT.format(snippets_text=snippets_text, query=query)
     
     stream = unified_call_llm(
         user=state.user,
