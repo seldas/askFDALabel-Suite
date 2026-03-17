@@ -145,82 +145,21 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
     onSearch();
 
     try {
-      const endpoint = "/api/search/search_agentic_stream";
+const endpoint = "/api/search/search";
       
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+const response = await fetch(endpoint, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload),
+});
 
-      if (!response.body) throw new Error("No response stream");
+const result = await response.json();
+const answerText = result.response_text;
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
-      let finalPayload: any = null;
-      let answerText = "";
-      let answerMsgIndex = -1;
+setChatHistory(prev => [...prev, { role: "assistant" as const, content: answerText }]);
 
-      while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-              if (!line.trim()) continue;
-              try {
-                  const evt = JSON.parse(line);
-                  if (evt.type === "status") {
-                      setLoadingStatus(evt.text || "Working…");
-                  } else if (evt.type === "answer_start") {
-                      setChatHistory(prev => {
-                          answerMsgIndex = prev.length;
-                          return [...prev, { role: "assistant" as const, content: "" }];
-                      });
-                  } else if (evt.type === "chunk") {
-                      answerText += (evt.text || "");
-                      setChatHistory(prev => {
-                          const next = [...prev];
-                          const idx = answerMsgIndex >= 0 ? answerMsgIndex : next.length - 1;
-                          if (idx >= 0 && next[idx]) next[idx] = { role: "assistant", content: answerText };
-                          return next;
-                      });
-                  } else if (evt.type === "error") {
-                      setChatHistory(prev => [...prev, { role: "assistant", content: `Error: ${evt.error}` }]);
-                      setIsLoading(false);
-                      return;
-                  } else if (evt.type === "final") {
-                      finalPayload = evt.payload;
-                  }
-              } catch (e) {
-                  console.error("Parse error in stream:", e);
-              }
-          }
-      }
-
-      if (finalPayload) {
-          setDebugIntent(finalPayload.debug_intent || null);
-          setDebugPlan(finalPayload.debug_plan || null);
-          setDebugStats(finalPayload.debug_stats || null);
-          setTraceLog(finalPayload.trace_log || []);
-          
-          if (Array.isArray(finalPayload.results)) {
-              setResults(finalPayload.results);
-              setTotalResults(finalPayload.total_counts ?? finalPayload.results.length);
-              const extractedIds = finalPayload.results.map((r: any) => r?.SET_ID || r?.set_id || "").filter(Boolean);
-              setSetIds(extractedIds);
-          }
-          
-          if (finalPayload.agent_flow) setAgentFlow(finalPayload.agent_flow);
-          if (finalPayload.reasoning) setReasoning(finalPayload.reasoning);
-      }
-
-      setIsLoading(false);
-      setLoadingStatus("");
+setIsLoading(false);
+setLoadingStatus("");
 
     } catch (error) {
       console.error("Search error:", error);
@@ -249,7 +188,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
       {chatHistory.length === 0 ? (
         <div className="initial-view-container">
             <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: 800, marginBottom: '1rem' }}>
-              Semantic Search
+              Ask Elsa
             </h1>
             
             <form onSubmit={handleSearch} className="centered-search-form">

@@ -21,6 +21,7 @@ from search.scripts.semantic_core.helpers import (
 )
 from search.scripts.semantic_core.agents.answer_composer import run_answer_composer
 from search.scripts.semantic_core.agents.reasoning_generator import run_reasoning_generator
+from search.scripts.general_search import search_general
 
 search_bp = Blueprint('search', __name__)
 logger = logging.getLogger(__name__)
@@ -38,8 +39,10 @@ def search():
     if user_obj and ai_provider:
         user_obj.ai_provider = ai_provider
     
-    resp, status = semantic_search_func(payload, user=user_obj)
-    return jsonify(resp), status
+    user_input = payload.get("query")
+    print(user_input)
+    resp = search_general(user_input, user=user_obj)
+    return jsonify({"response_text": resp}), 200
 
 # --- Streaming Agentic Search (Semantic) ---
 def _humanize_trace(line: str) -> str:
