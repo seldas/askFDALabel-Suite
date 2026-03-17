@@ -11,7 +11,8 @@
         style.id = styleId;
         style.textContent = `
             .highlight-drug { background-color: #dbeafe; color: #1e40af; padding: 0 4px; border-radius: 4px; cursor: pointer; border-bottom: 2px solid #1e40af; font-weight: 600; }
-            .highlight-adverse_events { background-color: #fee2e2; color: #991b1b; padding: 0 4px; border-radius: 4px; border-bottom: 2px solid #991b1b; }
+            .highlight-ndc { background-color: #f1f5f9; color: #0f172a; padding: 0 4px; border-radius: 4px; cursor: pointer; border-bottom: 2px solid #0f172a; font-family: monospace; font-weight: 600; }
+            .highlight-adverse_events { background-color: #fee2e2; color: #991b1b; padding: 0 4px; border-radius: 4px; border-bottom: 2px solid #991b1b; cursor: pointer; }
             .highlight-temporal { background-color: #fef9c3; color: #854d0e; padding: 0 4px; border-radius: 4px; }
             .highlight-company { background-color: #f1f5f9; color: #475569; padding: 0 4px; border-radius: 4px; }
             
@@ -70,10 +71,11 @@
 Categories to tag:
 1. <annotation class="drug">Drug Name</annotation> - For all medication and substance names.
 2. <annotation class="adverse_events">Reaction</annotation> - For symptoms, side effects, or medical conditions.
-3. <annotation class="temporal">Time</annotation> - For durations, dates, or frequencies (e.g., "5 days", "daily").
-4. <annotation class="company">Manufacturer</annotation> - For pharmaceutical companies.
+3. <annotation class="ndc">NDC Code</annotation> - For National Drug Codes.
+4. <annotation class="temporal">Time</annotation> - For durations, dates, or frequencies (e.g., "5 days", "daily").
+5. <annotation class="company">Manufacturer</annotation> - For pharmaceutical companies.
 
-Example: "<annotation class="drug">Aspirin</annotation> was manufactured by <annotation class="company">Bayer</annotation>."
+Example: "<annotation class="drug">Aspirin</annotation> (NDC: <annotation class="ndc">0024-0335-01</annotation>) was manufactured by <annotation class="company">Bayer</annotation>."
 Do not explain these tags to the user.]`;
 
     let highlighterEnabled = true;
@@ -161,8 +163,17 @@ Do not explain these tags to the user.]`;
             html = html.replace(annotationPattern, (match, cls, content) => {
                 changed = true;
                 const cleanContent = content.trim();
+                const baseUrl = 'https://ncshpcgpu01:8848';
+                
                 if (cls === 'drug') {
-                    return `<span class="highlight-drug" data-drug="${cleanContent}" onclick="window.open('https://ncshpcgpu01:8848/dashboard/results?drug_name=' + encodeURIComponent('${cleanContent}'), '_blank')">${content}</span>`;
+                    return `<span class="highlight-drug" data-drug="${cleanContent}" onclick="window.open('${baseUrl}/dashboard/results?drug_name=' + encodeURIComponent('${cleanContent}'), '_blank')">${content}</span>`;
+                }
+                if (cls === 'ndc') {
+                    return `<span class="highlight-ndc" data-ndc="${cleanContent}" onclick="window.open('${baseUrl}/dashboard/results?query=' + encodeURIComponent('${cleanContent}'), '_blank')">${content}</span>`;
+                }
+                if (cls === 'adverse_events') {
+                    // Logic for AE reporting or safety lookup
+                    return `<span class="highlight-adverse_events" data-ae="${cleanContent}" onclick="window.open('${baseUrl}/dashboard?analyze_ae=' + encodeURIComponent('${cleanContent}'), '_blank')">${content}</span>`;
                 }
                 return `<span class="highlight-${cls}">${content}</span>`;
             });

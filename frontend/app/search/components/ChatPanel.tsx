@@ -3,6 +3,7 @@ import { useSearchContext } from '../context/SearchContext';
 import { useUser } from '../../context/UserContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 
 interface ChatPanelProps {
   onSearch: () => void;
@@ -231,7 +232,33 @@ setLoadingStatus("");
                     {msg.role === 'assistant' ? (
                         <ReactMarkdown 
                             remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeRaw]}
                             components={{
+                                // @ts-ignore - custom tag
+                                annotation: ({node, className, children}) => {
+                                    const cls = className || "";
+                                    const content = children?.toString() || "";
+                                    const baseUrl = window.location.origin;
+
+                                    let onClick = undefined;
+                                    if (cls === 'drug') {
+                                        onClick = () => window.open(`${baseUrl}/dashboard/results?drug_name=${encodeURIComponent(content)}`, '_blank');
+                                    } else if (cls === 'ndc') {
+                                        onClick = () => window.open(`${baseUrl}/dashboard/results?query=${encodeURIComponent(content)}`, '_blank');
+                                    } else if (cls === 'adverse_events') {
+                                        onClick = () => window.open(`${baseUrl}/dashboard?analyze_ae=${encodeURIComponent(content)}`, '_blank');
+                                    }
+
+                                    return (
+                                        <span 
+                                            className={`highlight-${cls}`} 
+                                            onClick={onClick}
+                                            style={onClick ? { cursor: 'pointer' } : {}}
+                                        >
+                                          {children}
+                                        </span>
+                                    );
+                                },
                                 a: ({node, href, children, ...props}) => {
                                     if (href?.startsWith('#cite-')) {
                                         const setId = href.replace('#cite-', '');

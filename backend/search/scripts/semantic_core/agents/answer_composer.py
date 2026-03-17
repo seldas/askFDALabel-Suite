@@ -16,6 +16,16 @@ Rules:
 - If multiple drugs are present, structure the answer by drug (separate sections per drug).
 - If excerpts conflict, explicitly note the conflict and cite both sides.
 - Be concise. No preamble.
+
+In your response, you MUST wrap specific entities with custom XML tags for downstream processing and highlighting.
+Categories to tag:
+1. <annotation class="drug">Drug Name</annotation> - For all medication and substance names.
+2. <annotation class="adverse_events">Reaction</annotation> - For symptoms, side effects, or medical conditions.
+3. <annotation class="ndc">NDC Code</annotation> - For National Drug Codes (e.g., "12345-678-90").
+4. <annotation class="temporal">Time</annotation> - For durations, dates, or frequencies (e.g., "5 days", "daily").
+
+Example: "The <annotation class="drug">Aspirin</annotation> label (NDC: <annotation class="ndc">0024-0335-01</annotation>) lists <annotation class="adverse_events">headache</annotation> as a side effect lasting <annotation class="temporal">2 days</annotation>."
+Do not explain these tags to the user.
 """
 
 def run_answer_composer(state):
