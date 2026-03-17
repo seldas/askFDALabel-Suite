@@ -318,3 +318,110 @@ class FDALabelDBService:
     @classmethod
     def _chunk(cls, items, n=900):
         for i in range(0, len(items), n): yield items[i:i+n]
+
+    @classmethod
+    def get_drug_info(cls, drug_name):
+        """
+        Returns basic info (NDA, Set ID, etc.) for a given drug name.
+        Matches against PRODUCT_NAMES or PRODUCT_NORMD_GENERIC_NAMES.
+        Sorts by EFFECTIVE_TIME DESC and returns the top 1.
+        """
+        if not cls.check_connectivity():
+            return None
+
+        conn = cls.get_connection()
+        if not conn:
+            return None
+
+        cursor = conn.cursor()
+        try:
+            if cls._db_type == 'oracle':
+                query = """
+                    SELECT 
+                        s.SET_ID, 
+                        s.APPR_NUM, 
+                        s.PRODUCT_NAMES, 
+                        s.PRODUCT_NORMD_GENERIC_NAMES, 
+                        s.ACT_INGR_NAMES,
+                        rld.RLD,
+                        s.EFF_TIME
+                    FROM druglabel.DGV_SUM_SPL s
+                    LEFT JOIN druglabel.sum_spl_rld rld on rld.spl_id = s.spl_id
+                    WHERE (UPPER(s.PRODUCT_NAMES) LIKE UPPER(:dn) OR 
+                           UPPER(s.PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:dn) OR 
+                           UPPER(s.ACT_INGR_NAMES) LIKE UPPER(:dn))
+                    ORDER BY rld.RLD DESC, s.EFF_TIME DESC
+                    FETCH FIRST 1 ROWS ONLY
+                """
+                bind_val = f"{drug_name}"
+                cursor.execute(query, {"dn": bind_val})
+                row = cursor.fetchone()
+                
+                if not row: # try vague match
+                    bind_val = f"%{drug_name}%"
+                    cursor.execute(query, {"dn": bind_val})
+                    row = cursor.fetchone()    
+                    if not row: # if still no match, return False
+                        return None
+
+                # Map results
+                data = {
+                    "set_id": row[0],
+                    "appr_num": row[1],
+                    "product_name": row[2],
+                    "generic_name": row[3],
+                    "active_ingredients": row[4],
+                    "is_RLD": row[5],
+                    "effective_date": row[6]
+                }
+                return data
+            else:
+                # PostgreSQL or SQLite implementation
+                schema = "labeling." if cls._db_type == 'postgres' else ""
+                query = f"""
+                    SELECT 
+                        set_id, 
+                        appr_num, 
+                        product_names, 
+                        generic_names, 
+                        active_ingredients,
+                        is_rld,
+                        revised_date
+                    FROM {schema}sum_spl
+                    WHERE (product_names ILIKE %s OR 
+                           generic_names ILIKE %s OR 
+                           active_ingredients ILIKE %s)
+                    ORDER BY is_rld DESC, revised_date DESC
+                    LIMIT 1
+                """
+                bind_val = f"{drug_name}"
+                cursor.execute(query, (bind_val, bind_val, bind_val))
+                row = cursor.fetchone()
+                
+                if not row: # try vague match
+                    bind_val = f"%{drug_name}%"
+                    cursor.execute(query, (bind_val, bind_val, bind_val))
+                    row = cursor.fetchone()
+                    if not row: # if still no match, return False
+                        return None
+
+                # Map results
+                data = {
+                    "set_id": row['set_id'],
+                    "appr_num": row['appr_num'],
+                    "product_name": row['product_names'],
+                    "generic_name": row['generic_names'],
+                    "active_ingredients": row['active_ingredients'],
+                    "is_RLD": row['is_rld'],
+                    "effective_date": row['revised_date']
+                }
+                return data
+
+        except Exception as e:
+            print(f"Error in get_drug_info: {e}")
+            return None
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
