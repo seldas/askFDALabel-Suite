@@ -8,6 +8,7 @@ services:
       POSTGRES_DB: askfdalabel
       POSTGRES_USER: afd_user
       POSTGRES_PASSWORD: afd_password
+    shm_size: '1gb'
     volumes:
       - ./database/pgdata:/var/lib/postgresql/data
     healthcheck:
