@@ -118,6 +118,44 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
   } = useSearchContext();
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isComparisonModalOpen, setIsComparisonModalOpen] = useState(false);
+  const [comparisonOriginal, setComparisonOriginal] = useState('');
+  const [comparisonRefined, setComparisonRefined] = useState('');
+
+  const ComparisonModal = () => {
+    if (!isComparisonModalOpen) return null;
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 2000, backdropFilter: 'blur(4px)'
+      }}>
+        <div style={{
+          background: 'white', padding: '30px', borderRadius: '16px', width: '90%', maxWidth: '1200px', maxHeight: '85vh',
+          display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900 }}>Response Comparison</h2>
+            <button onClick={() => setIsComparisonModalOpen(false)} style={{ border: 'none', background: '#f1f5f9', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>Close ✕</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', flex: 1, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontWeight: 800, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', marginBottom: '10px' }}>Original Response</div>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                {comparisonOriginal}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontWeight: 800, color: '#16a34a', textTransform: 'uppercase', fontSize: '0.75rem', marginBottom: '10px' }}>Refined with References</div>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px', background: '#f0fdf4', borderRadius: '12px', border: '1px solid #bbf7d0', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                <DiffHighlight original={comparisonOriginal} refined={comparisonRefined} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -271,8 +309,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                                 },
                                 p: ({children}) => {
                                     const original = (msg as any).originalContent;
-                                    const current = children?.toString() || "";
-                                    if (original) {
+                                    // Ensure children is processed as string if it's an array or object
+                                    const current = React.Children.toArray(children)
+                                        .map(child => (typeof child === 'string' || typeof child === 'number') ? child : '')
+                                        .join('');
+                                    
+                                    if (original && current) {
                                         return <p><DiffHighlight original={original} refined={current} /></p>;
                                     }
                                     return <p>{children}</p>;
@@ -299,8 +341,23 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                         
                         {(msg as any).relatedSections && (
                             <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
-                                <div style={{ fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
-                                    Refinement Source: {(msg as any).refLabel}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <div style={{ fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                                        Refinement Source: {(msg as any).refLabel}
+                                    </div>
+                                    <button 
+                                        onClick={() => {
+                                            setComparisonOriginal((msg as any).originalContent || "");
+                                            setComparisonRefined(msg.content);
+                                            setIsComparisonModalOpen(true);
+                                        }}
+                                        style={{ 
+                                            background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '2px 8px', 
+                                            borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 
+                                        }}
+                                    >
+                                        ⚖️ View Comparison
+                                    </button>
                                 </div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                     {((msg as any).relatedSections || []).map((sec: string, si: number) => (
@@ -325,6 +382,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                 )}
                 <div ref={chatEndRef} />
             </div>
+
+            <ComparisonModal />
 
             <div className="chat-input-area">
                 <form onSubmit={handleSearch} className="chat-form">
