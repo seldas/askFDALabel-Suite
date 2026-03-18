@@ -47,6 +47,22 @@ def init_labeling_schema():
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_spl_sections_spl_id ON labeling.spl_sections(spl_id);")
             
+            # --- Ensure search_vector exists on existing tables ---
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_schema = 'labeling' 
+                AND table_name = 'spl_sections' 
+                AND column_name = 'search_vector'
+            """)
+            if not cursor.fetchone():
+                print("Adding 'search_vector' column to existing 'spl_sections' table...")
+                cursor.execute("""
+                    ALTER TABLE labeling.spl_sections 
+                    ADD COLUMN search_vector TSVECTOR 
+                    GENERATED ALWAYS AS (to_tsvector('english', coalesce(content_xml, ''))) STORED;
+                """)
+
             # Full-Text Search Index on the STORED column
             print("Creating GIN index on pre-computed search_vector...")
             cursor.execute("""
