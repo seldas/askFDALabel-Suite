@@ -44,29 +44,15 @@ const StepIcon = ({ state }: { state: "todo" | "active" | "done" }) => {
   return <span className="afd-progress__icon afd-progress__icon--todo" />;
 };
 
-const ProgressDock = ({ status }: { status: string }) => {
-  const stage = inferStage(status);
+const SimpleProgress = ({ status }: { status: string }) => {
   return (
-    <div className="afd-progress">
+    <div className="afd-progress afd-progress--simple">
       <div className="afd-progress__card">
         <div className="afd-progress__header">
-          <div className="afd-progress__orb" aria-hidden />
+          <Spinner />
           <div className="afd-progress__headText">
-            <div className="afd-progress__title">Working on your question</div>
-            <div className="afd-progress__subtitle">{status || "Starting…"}</div>
+            <div className="afd-progress__title">{status || "AI is thinking..."}</div>
           </div>
-        </div>
-        <div className="afd-progress__steps">
-          {PROGRESS_STEPS.map((st, idx) => {
-            const state: "todo" | "active" | "done" =
-              idx < stage ? "done" : idx === stage ? "active" : "todo";
-            return (
-              <div key={st.key} className={`afd-progress__step afd-progress__step--${state}`}>
-                <StepIcon state={state} />
-                <div className="afd-progress__label">{st.label}</div>
-              </div>
-            );
-          })}
         </div>
       </div>
     </div>
@@ -277,7 +263,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                 ))}
                 {isLoading && (
                 <div className="chat-loading-container afd-progressWrap">
-                    <ProgressDock status={loadingStatus} />
+                    <SimpleProgress status={loadingStatus} />
                 </div>
                 )}
                 <div ref={chatEndRef} />
