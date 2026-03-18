@@ -170,6 +170,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
 
     filters,
     toggleFilterTerm,
+    toggleFilterFlag,
     resultsLimit,
     setResultsLimit,
     resultsMessage,
@@ -392,6 +393,28 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
           </div>
         ))}
 
+        {/* Hard-coded Flags Row */}
+        <div style={{ width: '100%', borderTop: '1px solid #e2e8f0', margin: '4px 0', paddingTop: '8px', display: 'flex', gap: '16px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: 700, color: '#334155', cursor: 'pointer' }}>
+            <input 
+              type="checkbox" 
+              checked={filters.isRx} 
+              onChange={() => toggleFilterFlag('isRx')} 
+              style={{ cursor: 'pointer' }}
+            />
+            Rx Only
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: 700, color: '#334155', cursor: 'pointer' }}>
+            <input 
+              type="checkbox" 
+              checked={filters.isRLD} 
+              onChange={() => toggleFilterFlag('isRLD')} 
+              style={{ cursor: 'pointer' }}
+            />
+            RLD Only
+          </label>
+        </div>
+
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center' }}>
           <button 
             onClick={() => setIsAddModalOpen(true)}
@@ -412,7 +435,14 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
           <button 
             onClick={() => {
               // @ts-ignore
-              setFilters(prev => ({ ...prev, drugNames: [], adverseEvents: [], ndcs: [] }));
+              setFilters(prev => ({ 
+                ...prev, 
+                drugNames: [], 
+                adverseEvents: [], 
+                ndcs: [],
+                isRx: false,
+                isRLD: false
+              }));
             }}
             style={{
               background: 'none',
@@ -1479,7 +1509,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
           }}
         >
           <div className="result-count" style={{ fontWeight: 'bold', textAlign: 'center' }}>
-            No results found for your active filters. Try adjusting the conditions above.
+            Relevant labeling will be displayed here.
           </div>
         </div>
       ) : (

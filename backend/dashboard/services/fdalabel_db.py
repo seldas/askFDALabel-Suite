@@ -150,6 +150,19 @@ class FDALabelDBService:
                         placeholders.append(f":{k}")
                     where_clauses.append(f"{c_type} IN ({', '.join(placeholders)})")
 
+            if filters.get("isRx"):
+                if is_pg:
+                    where_clauses.append(f"({c_type} ILIKE '%%PRESCRIPTION%%' AND {c_type} NOT ILIKE '%%OVER-THE-COUNTER%%')")
+                else:
+                    where_clauses.append(f"(UPPER({c_type}) LIKE '%%PRESCRIPTION%%' AND UPPER({c_type}) NOT LIKE '%%OVER-THE-COUNTER%%')")
+
+            if filters.get("isRLD"):
+                if is_pg:
+                    where_clauses.append("is_rld = 1")
+                else:
+                    # RLD check for Oracle (using subquery check as seen in select logic)
+                    where_clauses.append(f"EXISTS (SELECT 1 FROM druglabel.sum_spl_rld rld WHERE rld.SPL_ID = {schema}{table}.SPL_ID)")
+
             # Count first
             count_where = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
             count_sql = f"SELECT COUNT(*) FROM {schema}{table} {count_where}"

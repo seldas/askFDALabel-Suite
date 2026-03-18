@@ -20,6 +20,7 @@ interface SearchContextProps {
   filters: Filters;
   setFilters: React.Dispatch<React.SetStateAction<Filters>>;
   toggleFilterTerm: (category: keyof Filters, term: string) => void;
+  toggleFilterFlag: (flag: 'isRx' | 'isRLD') => void;
   applyFilters: () => void;
 
   // Summary / answer
@@ -118,17 +119,26 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     drugNames: [],
     adverseEvents: [],
     ndcs: [],
+    isRx: false,
+    isRLD: false,
   });
 
   const toggleFilterTerm = (category: keyof Filters, term: string) => {
     setFilters(prev => {
-      const current = prev[category] as string[];
-      if (current.includes(term)) {
-        return { ...prev, [category]: current.filter(t => t !== term) };
-      } else {
-        return { ...prev, [category]: [...current, term] };
+      const current = prev[category];
+      if (Array.isArray(current)) {
+        if (current.includes(term)) {
+          return { ...prev, [category]: current.filter(t => t !== term) };
+        } else {
+          return { ...prev, [category]: [...current, term] };
+        }
       }
+      return prev;
     });
+  };
+
+  const toggleFilterFlag = (flag: 'isRx' | 'isRLD') => {
+    setFilters(prev => ({ ...prev, [flag]: !prev[flag] }));
   };
 
   const searchMode = 'semantic';
@@ -208,6 +218,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         filters,
         setFilters,
         toggleFilterTerm,
+        toggleFilterFlag,
         applyFilters,
 
         summary,

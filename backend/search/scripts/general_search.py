@@ -29,6 +29,13 @@ def search_general(user_input: str, user: Optional[Any] = None, filters: Optiona
                 filter_context += f"\nActive Adverse Event Filters: {', '.join(filters['adverseEvents'])}"
             if filters.get("ndcs"):
                 filter_context += f"\nActive NDC Filters: {', '.join(filters['ndcs'])}"
+            
+            # Focus instructions for Rx/RLD
+            if filters.get("isRx") or filters.get("isRLD"):
+                focus_parts = []
+                if filters.get("isRx"): focus_parts.append("Human Prescription drugs")
+                if filters.get("isRLD"): focus_parts.append("Reference Listed Drugs (RLD)")
+                filter_context += f"\nNote: Your response should focus on {' and '.join(focus_parts)} if available."
 
         user_message = user_input
         if filter_context:

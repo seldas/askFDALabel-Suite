@@ -5,6 +5,8 @@ export interface Filters {
   drugNames: string[];
   adverseEvents: string[];
   ndcs: string[];
+  isRx: boolean;
+  isRLD: boolean;
 }
 
 export interface ResultItem {
