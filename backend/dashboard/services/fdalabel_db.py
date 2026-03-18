@@ -129,9 +129,9 @@ class FDALabelDBService:
                 for i, ae in enumerate(filters["adverseEvents"]):
                     key = f"ae_{i}"
                     if is_pg:
-                        params[key] = f"%{ae}%"
-                        # Use spl_sections content_xml for deep text match in Postgres
-                        ae_subquery = f"EXISTS (SELECT 1 FROM labeling.spl_sections s WHERE s.spl_id = {schema}{table}.spl_id AND s.content_xml ILIKE %(ae_{i})s)"
+                        params[key] = ae
+                        # Use optimized full-text search in Postgres
+                        ae_subquery = f"EXISTS (SELECT 1 FROM labeling.spl_sections s WHERE s.spl_id = {schema}{table}.spl_id AND to_tsvector('english', s.content_xml) @@ plainto_tsquery('english', %(ae_{i})s))"
                     else:
                         params[key] = ae # Oracle CONTAINS doesn't use %
                         ae_subquery = f"EXISTS (SELECT 1 FROM druglabel.SPL_SEC s JOIN druglabel.DGV_SUM_SPL r ON s.SPL_ID = r.SPL_ID WHERE r.SET_ID = druglabel.DGV_SUM_SPL.SET_ID AND CONTAINS(s.CONTENT_XML, %(ae_{i})s) > 0)"
