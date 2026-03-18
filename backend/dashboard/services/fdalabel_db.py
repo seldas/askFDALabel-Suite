@@ -130,10 +130,10 @@ class FDALabelDBService:
                     key = f"ae_{i}"
                     if is_pg:
                         params[key] = ae
-                        # Use optimized full-text search in Postgres
-                        ae_subquery = f"EXISTS (SELECT 1 FROM labeling.spl_sections s WHERE s.spl_id = {schema}{table}.spl_id AND to_tsvector('english', s.content_xml) @@ plainto_tsquery('english', %(ae_{i})s))"
+                        # Label-level AND: each term must exist in at least one section of the label
+                        ae_subquery = f"EXISTS (SELECT 1 FROM labeling.spl_sections s WHERE s.spl_id = {schema}{table}.spl_id AND s.search_vector @@ plainto_tsquery('english', %(ae_{i})s))"
                     else:
-                        params[key] = ae # Oracle CONTAINS doesn't use %
+                        params[key] = ae
                         ae_subquery = f"EXISTS (SELECT 1 FROM druglabel.SPL_SEC s JOIN druglabel.DGV_SUM_SPL r ON s.SPL_ID = r.SPL_ID WHERE r.SET_ID = druglabel.DGV_SUM_SPL.SET_ID AND CONTAINS(s.CONTENT_XML, %(ae_{i})s) > 0)"
                     where_clauses.append(ae_subquery)
 

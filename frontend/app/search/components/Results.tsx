@@ -1376,34 +1376,6 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
         </div>
       ) : (
         <>
-        {hitResultLimit && (
-          <div
-            style={{
-              background: '#fffbe6',
-              border: '1px solid #ffe58f',
-              color: '#664d03',
-              borderRadius: 10,
-              padding: '10px 12px',
-              marginBottom: 10,
-              display: 'flex',
-              gap: 10,
-              alignItems: 'flex-start',
-              lineHeight: 1.35
-            }}
-            role="note"
-          >
-            <div style={{ fontSize: 18, marginTop: 1 }}>⚠️</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 900 }}>
-                Result limit reached (showing the first {inferredLimit} matches).
-              </div>
-              <div style={{ fontSize: 13, marginTop: 2 }}>
-                Refine your query or add filters (section, company, doc type, etc.) to narrow results.
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="result-count">Displaying {paginatedResults.length} of {totalResults} results</div>
 
           <div className="pagination-toolbar">

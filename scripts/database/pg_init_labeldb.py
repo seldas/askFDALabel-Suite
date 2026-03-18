@@ -41,16 +41,16 @@ def init_labeling_schema():
                 loinc_code TEXT,
                 title TEXT,
                 content_xml TEXT,
+                search_vector TSVECTOR GENERATED ALWAYS AS (to_tsvector('english', coalesce(content_xml, ''))) STORED,
                 FOREIGN KEY(spl_id) REFERENCES labeling.sum_spl(spl_id) ON DELETE CASCADE
             )
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_spl_sections_spl_id ON labeling.spl_sections(spl_id);")
             
-            # Full-Text Search Index for content_xml
-            print("Creating GIN index for full-text search on spl_sections (this may take time)...")
+            # Full-Text Search Index on the STORED column
+            print("Creating GIN index on pre-computed search_vector...")
             cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_spl_sections_fts ON labeling.spl_sections 
-            USING GIN (to_tsvector('english', content_xml));
+            CREATE INDEX IF NOT EXISTS idx_spl_sections_fts ON labeling.spl_sections USING GIN (search_vector);
             """)
 
             # 3. Mapping Tables
