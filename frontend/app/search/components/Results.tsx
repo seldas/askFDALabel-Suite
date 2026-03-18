@@ -238,6 +238,97 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [refError, setRefError] = useState<string | null>(null);
 
+  // Manual Filter Modal State
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newTerm, setNewTerm] = useState('');
+  const [newType, setNewType] = useState<'drugNames' | 'adverseEvents' | 'ndcs'>('drugNames');
+
+  const AddFilterModal = () => {
+    if (!isAddModalOpen) return null;
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        backdropFilter: 'blur(2px)'
+      }}>
+        <div style={{
+          background: 'white',
+          padding: '24px',
+          borderRadius: '12px',
+          width: '350px',
+          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+          border: '1px solid #e2e8f0'
+        }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: 900, color: '#0f172a' }}>Add Manual Filter</h3>
+          
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>Filter Type</label>
+            <select 
+              value={newType} 
+              onChange={(e) => setNewType(e.target.value as any)}
+              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+            >
+              <option value="drugNames">💊 Drug Name</option>
+              <option value="adverseEvents">⚠️ Adverse Event</option>
+              <option value="ndcs">🔢 NDC Code</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>Search Term</label>
+            <input 
+              type="text"
+              autoFocus
+              value={newTerm}
+              onChange={(e) => setNewTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (newTerm.trim()) {
+                    toggleFilterTerm(newType, newTerm.trim());
+                    setIsAddModalOpen(false);
+                    setNewTerm('');
+                  }
+                }
+              }}
+              placeholder="Enter keyword..."
+              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <button 
+              onClick={() => { setIsAddModalOpen(false); setNewTerm(''); }}
+              style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 700, cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={() => {
+                if (newTerm.trim()) {
+                  toggleFilterTerm(newType, newTerm.trim());
+                  setIsAddModalOpen(false);
+                  setNewTerm('');
+                }
+              }}
+              style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontWeight: 700, cursor: 'pointer' }}
+            >
+              Add Filter
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const LimitControl = () => {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#64748b' }}>
@@ -301,24 +392,41 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
           </div>
         ))}
 
-        <button 
-          onClick={() => {
-            // @ts-ignore
-            setFilters(prev => ({ ...prev, drugNames: [], adverseEvents: [], ndcs: [] }));
-          }}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#dc2626',
-            fontSize: '0.85rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            marginLeft: 'auto',
-            textDecoration: 'underline'
-          }}
-        >
-          Clear All
-        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button 
+            onClick={() => setIsAddModalOpen(true)}
+            style={{
+              background: '#334155',
+              border: 'none',
+              color: 'white',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              padding: '4px 12px',
+              borderRadius: '6px'
+            }}
+          >
+            + Add Filter
+          </button>
+
+          <button 
+            onClick={() => {
+              // @ts-ignore
+              setFilters(prev => ({ ...prev, drugNames: [], adverseEvents: [], ndcs: [] }));
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#dc2626',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              textDecoration: 'underline'
+            }}
+          >
+            Clear All
+          </button>
+        </div>
       </div>
     );
   };
@@ -1802,6 +1910,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
           )}
         </>
       )}
+      <AddFilterModal />
     </div>
   );
 };
