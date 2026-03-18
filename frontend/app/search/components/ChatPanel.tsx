@@ -59,39 +59,6 @@ const SimpleProgress = ({ status }: { status: string }) => {
   );
 };
 
-const DiffHighlight = ({ original, refined }: { original: string, refined: string }) => {
-  if (!original) return <>{refined}</>;
-  
-  // Word-level diffing logic with punctuation handling
-  const splitWords = (text: string) => text.split(/(\s+)/);
-  const getWordsOnly = (text: string) => text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean);
-
-  const originalSet = new Set(getWordsOnly(original));
-  const refinedParts = splitWords(refined);
-
-  return (
-    <>
-      {refinedParts.map((part, i) => {
-        const wordMatch = part.match(/\w+/);
-        const isNew = wordMatch && !originalSet.has(wordMatch[0].toLowerCase());
-        
-        if (isNew) {
-          return (
-            <span 
-              key={i} 
-              className="refined-addition"
-              style={{ backgroundColor: '#dcfce7', borderBottom: '2px solid #16a34a', padding: '0 2px', borderRadius: '2px' }}
-            >
-              {part}
-            </span>
-          );
-        }
-        return <React.Fragment key={i}>{part}</React.Fragment>;
-      })}
-    </>
-  );
-};
-
 const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
   const { session } = useUser();
   const {
@@ -308,15 +275,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                                     );
                                 },
                                 p: ({children}) => {
-                                    const original = (msg as any).originalContent;
-                                    // Ensure children is processed as string if it's an array or object
-                                    const current = React.Children.toArray(children)
-                                        .map(child => (typeof child === 'string' || typeof child === 'number') ? child : '')
-                                        .join('');
-                                    
-                                    if (original && current) {
-                                        return <p><DiffHighlight original={original} refined={current} /></p>;
-                                    }
                                     return <p>{children}</p>;
                                 },
                                 a: ({node, href, children, ...props}) => {
@@ -339,25 +297,21 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                             {msg.content}
                         </ReactMarkdown>
                         
+                        {(msg as any).originalContent && (
+                            <details style={{ marginTop: '10px', fontSize: '0.85rem', color: '#64748b', background: '#f8fafc', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                <summary style={{ cursor: 'pointer', fontWeight: 700, userSelect: 'none' }}>
+                                    📄 Show Original Response
+                                </summary>
+                                <div style={{ marginTop: '8px', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                                    {(msg as any).originalContent}
+                                </div>
+                            </details>
+                        )}
+
                         {(msg as any).relatedSections && (
                             <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                    <div style={{ fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
-                                        Refinement Source: {(msg as any).refLabel}
-                                    </div>
-                                    <button 
-                                        onClick={() => {
-                                            setComparisonOriginal((msg as any).originalContent || "");
-                                            setComparisonRefined(msg.content);
-                                            setIsComparisonModalOpen(true);
-                                        }}
-                                        style={{ 
-                                            background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '2px 8px', 
-                                            borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 
-                                        }}
-                                    >
-                                        ⚖️ View Comparison
-                                    </button>
+                                <div style={{ fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>
+                                    Refinement Source: {(msg as any).refLabel}
                                 </div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                     {((msg as any).relatedSections || []).map((sec: string, si: number) => (
@@ -382,8 +336,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                 )}
                 <div ref={chatEndRef} />
             </div>
-
-            <ComparisonModal />
 
             <div className="chat-input-area">
                 <form onSubmit={handleSearch} className="chat-form">

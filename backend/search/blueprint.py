@@ -117,12 +117,13 @@ def refine_chat():
         
         TASK:
         Based on the given labeling document content, try to refine and add references into the current last response, if possible.
-        If no references/evidences are related, do not change the content.
-        
+
         IMPORTANT:
-        1. Preserve any existing <annotation class="...">...</annotation> tags from the original response.
-        2. Add NEW <annotation> tags for any new clinical entities discovered in the reference document.
-        3. Ensure the output is valid Markdown within the JSON text field.
+        1. Keep as much of the ORIGINAL RESPONSE as possible. 
+        2. Only modify or add sentences if the reference document provides new evidence or requires a correction.
+        3. Preserve any existing <annotation class=\"...\">...</annotation> tags from the original response.
+        4. Add NEW <annotation> tags for any new clinical entities discovered in the reference document.
+
         
         OUTPUT FORMAT:
         The content needs to be prepared in JSON format with an explicit wrap like ```json ... ```.
