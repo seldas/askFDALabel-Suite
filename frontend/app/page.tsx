@@ -11,7 +11,7 @@ export default function HomePage() {
   const [isInternal, setIsInternal] = useState(false);
   const [fdaAccessible, setFdaAccessible] = useState(false);
   const [cderAccessible, setCderAccessible] = useState(false);
-  const [simpleView, setSimpleView] = useState(false);
+  const [simpleView, setSimpleView] = useState(true);
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | 'ai' | null>(null);
   const [activeFeature, setActiveFeature] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

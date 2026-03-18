@@ -912,91 +912,34 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
         >
           <div style={{ padding: '24px' }}>
             <h2 style={{ 
-              fontWeight: 950, 
+              fontWeight: 900, 
               fontSize: '1.25rem', 
-              marginBottom: '20px',
-              textAlign: 'center'
+              marginBottom: '16px',
+              color: '#0f172a',
+              borderBottom: '2px solid #e2e8f0',
+              paddingBottom: '8px'
             }}>
-              How our Search Pipeline works
+              Search Pipeline Overview
             </h2>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div
-                style={{
-                  padding: '16px 20px',
-                  borderRadius: 12,
-                  border: '1px solid #e2e8f0',
-                  background: '#f8fafc',
-                }}
-              >
-                <div style={{ color: '#334155', lineHeight: 1.6, fontSize: '1rem' }}>
-                  {searchMode === 'v3' ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <b>🧠 Semantic Mapping</b><br/>
-                        <small>Finds conceptual matches even without exact keywords.</small>
-                      </div>
-                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <b>⚖️ Expert Reranking</b><br/>
-                        <small>AI "reviews" results to prioritize the best evidence.</small>
-                      </div>
-                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <b>🛡️ Grounded Answers</b><br/>
-                        <small>Zero hallucination: answers only from provided text.</small>
-                      </div>
-                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <b>🔖 Citation Logic</b><br/>
-                        <small>Every claim is linked to a specific label section.</small>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <b>🕵️ Logic Planning</b><br/>
-                        <small>Breaks down your query into a multi-step search plan.</small>
-                      </div>
-                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <b>📊 SQL Precision</b><br/>
-                        <small>Direct database filtering for exact metadata matches.</small>
-                      </div>
-                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <b>📝 Transparent Trace</b><br/>
-                        <small>Follow the "Chain of Thought" in the Reasoning panel.</small>
-                      </div>
-                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <b>📁 Contextual Flow</b><br/>
-                        <small>Uses recent chat history to refine technical lookups.</small>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ 
-                  marginTop: '20px', 
-                  padding: '12px 16px', 
-                  background: '#f1f5f9', 
-                  borderRadius: '10px',
-                  borderLeft: '4px solid #334155'
-                }}>
-                  <div style={{ fontSize: '0.9rem', color: '#475569' }}>
-                    {searchMode === 'v3' ? (
-                      <>
-                        <b>💡 Best for:</b> Complex clinical questions, comparative safety analysis, or when you aren't sure of the exact drug name.
-                        <div style={{ marginTop: '8px', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                          Example: "Compare the renal safety profile of SGLT2 inhibitors versus Metformin."
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <b>💡 Best for:</b> Precise document retrieval, filtering by manufacturer/class, or analyzing specific technical metadata.
-                        <div style={{ marginTop: '8px', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                          Example: "Show me all human prescription labels for Pfizer approved after 2022."
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
+            <div style={{ color: '#334155', lineHeight: '1.7', fontSize: '0.95rem' }}>
+              <ul style={{ paddingLeft: '20px', margin: 0 }}>
+                <li style={{ marginBottom: '12px' }}>
+                  <strong>Conversational Query Analysis:</strong> Use the chat interface to perform comparative safety analysis or explore regulatory trends within FDA drug labeling.
+                </li>
+                <li style={{ marginBottom: '12px' }}>
+                  <strong>Interactive Clinical Annotations:</strong> Clinical entities (drugs, adverse events, NDC codes) are automatically detected in responses. Clicking a term applies it as a real-time database filter.
+                </li>
+                <li style={{ marginBottom: '12px' }}>
+                  <strong>Real-Time Data Grounding:</strong> The results panel dynamically synchronizes with active filters, performing indexed full-text searches across 140,000+ labeling documents.
+                </li>
+                <li style={{ marginBottom: '12px' }}>
+                  <strong>Regulatory Focus Controls:</strong> Toggle <em>Rx Only</em> or <em>RLD Only</em> to restrict both the database retrieval and the AI analysis to specific product categories.
+                </li>
+                <li style={{ marginBottom: '12px' }}>
+                  <strong>Manual Filter Management:</strong> Utilize the <em>Add Filter</em> button to manually define search parameters for precise cohort building and metadata analysis.
+                </li>
+              </ul>
             </div>
           </div>
         </div>
