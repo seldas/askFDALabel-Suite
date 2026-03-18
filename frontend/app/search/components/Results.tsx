@@ -1641,7 +1641,17 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                 />
 
                 <div className="result-header mb-2">
-                  <h3 className="text-xl font-semibold text-blue-700 hover:underline">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#1e40af', fontWeight: 700, cursor: 'pointer', background: '#eff6ff', padding: '2px 8px', borderRadius: '4px', border: '1px solid #dbeafe' }}>
+                      <input 
+                        type="checkbox"
+                        checked={false}
+                        disabled={isRefining || chatHistory.length === 0}
+                        onChange={() => refineResponseWithLabel(result.set_id, result.PRODUCT_NAMES)}
+                      />
+                      Refine Chat
+                    </label>
+                    <h3 className="text-xl font-semibold text-blue-700 hover:underline">
                     <a
                       href={`https://fdalabel.fda.gov:8443/fdalabel/services/spl/set-ids/${result.set_id}/spl-doc?hl=${result.keywords}`}
                       target="_blank"
@@ -1756,6 +1766,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                       />
                     </th>
                     <th>#</th>
+                    <th>Refine</th>
                     <th>Product Name</th>
                     <th>Generic Name</th>
                     <th>Company</th>
@@ -1819,6 +1830,15 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                           />
                         </td>
                         <td>{actualResultNumber}</td>
+                        <td>
+                          <input 
+                            type="checkbox"
+                            checked={false} // Always unchecked after one-shot refinement
+                            disabled={isRefining || chatHistory.length === 0}
+                            onChange={() => refineResponseWithLabel(result.set_id, result.PRODUCT_NAMES)}
+                            title={chatHistory.length === 0 ? "Send a message first to refine" : "Refine last AI response with this reference"}
+                          />
+                        </td>
                         <td>
                           <a
                             href={`https://fdalabel.fda.gov:8443/fdalabel/services/spl/set-ids/${result.set_id}/spl-doc?hl=${result.keywords}`}

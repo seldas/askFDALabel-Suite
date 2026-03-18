@@ -54,6 +54,9 @@ interface SearchContextProps {
   resultsMessage: string;
   setResultsMessage: (val: string) => void;
   applyDataFilters: () => void;
+  
+  isRefining: boolean;
+  refineResponseWithLabel: (setId: string, productName: string) => Promise<void>;
 
   // Pagination
   currentPage: number;
@@ -177,6 +180,51 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [debugStats, setDebugStats] = useState<DebugObject>(null);
   const [traceLog, setTraceLog] = useState<string[]>([]);
 
+  const [isRefining, setIsRefining] = useState(false);
+
+  const refineResponseWithLabel = async (setId: string, productName: string) => {
+    if (chatHistory.length === 0) return;
+    setIsRefining(true);
+    setLoadingStatus(`Refining last response with ${productName} labeling...`);
+
+    try {
+      const response = await fetch('/api/search/refine_chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          set_id: setId,
+          product_name: productName,
+          chat_history: chatHistory,
+          filters: filters
+        }),
+      });
+
+      const data = await response.json();
+      if (data.error) {
+        alert(data.error);
+      } else if (data.refined_json) {
+        // Update the last message in history
+        setChatHistory(prev => {
+          const newHistory = [...prev];
+          const lastMsg = newHistory[newHistory.length - 1];
+          if (lastMsg.role === 'assistant') {
+            lastMsg.content = data.refined_json.text;
+            // Optionally store metadata like related sections if needed for rendering
+            (lastMsg as any).relatedSections = data.refined_json['related sections'];
+            (lastMsg as any).refLabel = `${productName} [${setId}]`;
+            (lastMsg as any).originalContent = data.original_text; // For diffing
+          }
+          return newHistory;
+        });
+      }
+    } catch (err) {
+      console.error("Refinement failed:", err);
+    } finally {
+      setIsRefining(false);
+      setLoadingStatus('');
+    }
+  };
+
   const resultsPerPage = 5;
 
   const applyDataFilters = React.useCallback(async () => {
@@ -259,6 +307,9 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         resultsMessage,
         setResultsMessage,
         applyDataFilters,
+
+        isRefining,
+        refineResponseWithLabel,
 
         currentPage,
         setCurrentPage,

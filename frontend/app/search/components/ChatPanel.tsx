@@ -59,6 +59,32 @@ const SimpleProgress = ({ status }: { status: string }) => {
   );
 };
 
+const DiffHighlight = ({ original, refined }: { original: string, refined: string }) => {
+  if (!original) return <>{refined}</>;
+  
+  // Simple word-level diffing logic
+  const originalWords = original.split(/\s+/);
+  const refinedWords = refined.split(/\s+/);
+  const originalSet = new Set(originalWords);
+
+  return (
+    <>
+      {refinedWords.map((word, i) => {
+        const isNew = !originalSet.has(word);
+        return (
+          <span 
+            key={i} 
+            className={isNew ? "refined-addition" : ""}
+            style={isNew ? { backgroundColor: '#dcfce7', borderBottom: '2px solid #16a34a', padding: '0 2px', borderRadius: '2px' } : {}}
+          >
+            {word}{' '}
+          </span>
+        );
+      })}
+    </>
+  );
+};
+
 const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
   const { session } = useUser();
   const {
@@ -207,6 +233,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                 <div key={index} className={`chat-message ${msg.role}`}>
                     <div className="message-content">
                     {msg.role === 'assistant' ? (
+                        <>
                         <ReactMarkdown 
                             remarkPlugins={[remarkGfm]}
                             rehypePlugins={[rehypeRaw]}
@@ -215,8 +242,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                                 annotation: ({node, className, children}) => {
                                     const cls = className || "";
                                     const content = children?.toString() || "";
-                                    const baseUrl = window.location.origin;
-
+                                    
                                     let onClick = undefined;
                                     if (cls === 'drug') {
                                         onClick = () => toggleFilterTerm('drugNames', content);
@@ -235,6 +261,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                                           {children}
                                         </span>
                                     );
+                                },
+                                p: ({children}) => {
+                                    const original = (msg as any).originalContent;
+                                    const current = children?.toString() || "";
+                                    if (original) {
+                                        return <p><DiffHighlight original={original} refined={current} /></p>;
+                                    }
+                                    return <p>{children}</p>;
                                 },
                                 a: ({node, href, children, ...props}) => {
                                     if (href?.startsWith('#cite-')) {
@@ -255,6 +289,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                         >
                             {msg.content}
                         </ReactMarkdown>
+                        
+                        {(msg as any).relatedSections && (
+                            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
+                                <div style={{ fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                    Refinement Source: {(msg as any).refLabel}
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                    {((msg as any).relatedSections || []).map((sec: string, si: number) => (
+                                        <span key={si} style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                                            {sec}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        </>
                     ) : (
                         msg.content
                     )}

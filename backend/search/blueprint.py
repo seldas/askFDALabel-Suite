@@ -71,7 +71,93 @@ def chat_with_ai():
     resp = search_general(user_input, user=user_obj, filters=payload, history=final_history)
     return jsonify({"response_text": resp}), 200
 
-# --- Database Filtering (Right Panel) ---
+@search_bp.route("/refine_chat", methods=["POST"])
+def refine_chat():
+    \"\"\"
+    Refines the last AI response using the content of a specific labeling document.
+    Expects: set_id, product_name, chat_history, filters
+    Returns: JSON with refined text and related sections.
+    \"\"\"
+    from dashboard.services.fdalabel_db import FDALabelDBService
+    from dashboard.services.ai_handler import call_llm
+    
+    payload = request.json or {}
+    set_id = payload.get("set_id")
+    product_name = payload.get("product_name")
+    history = payload.get("chat_history", [])
+    filters = payload.get("filters", {})
+    
+    if not history:
+        return jsonify({"error": "No chat history to refine."}), 400
+    
+    last_msg = history[-1]
+    if last_msg.get("role") != "assistant":
+        return jsonify({"error": "Last message must be from AI to refine it."}), 400
+    
+    original_text = last_msg.get("content", "")
+    
+    try:
+        # 1. Fetch XML
+        xml_content = FDALabelDBService.get_full_xml(set_id)
+        if not xml_content:
+            return jsonify({"error": f"Could not fetch content for labeling {set_id}"}), 404
+        
+        # 2. Prepare Prompt
+        # Truncate XML if too large for context (clinical LLMs usually handle 32k-128k, but let's be safe)
+        xml_snippet = xml_content[:100000] # 100k chars limit for reference
+        
+        refine_prompt = f\"\"\"
+        You are a clinical data specialist. 
+        
+        REFERENCE DOCUMENT CONTENT ({product_name} [set_id: {set_id}]):
+        {xml_snippet}
+        
+        ORIGINAL RESPONSE TO REFINE:
+        {original_text}
+        
+        TASK:
+        Based on the given labeling document content, try to refine and add references into the current last response, if possible.
+        If no references/evidences are related, do not change the content.
+        
+        OUTPUT FORMAT:
+        The content needs to be prepared in JSON format with an explicit wrap like ```json ... ```.
+        The JSON should include attributes:
+        1. \"text\": The refined clinical text.
+        2. \"related sections\": A list of specific section titles or headers from the reference document used for refinement.
+        \"\"\"
+        
+        # 3. Call LLM
+        # Use a high-capacity model for full XML reasoning
+        ai_provider = payload.get("ai_provider")
+        user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+        
+        response = call_llm(
+            user=user_obj,
+            system_prompt=\"You are a precise FDA labeling analyst. Return ONLY valid JSON.\",
+            user_message=refine_prompt,
+            temperature=0.0
+        )
+        
+        # 4. Extract JSON
+        import re
+        json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            json_str = response # Fallback
+            
+        try:
+            refined_data = json.loads(json_str)
+            return jsonify({
+                "refined_json": refined_data,
+                "original_text": original_text,
+                "set_id": set_id
+            }), 200
+        except Exception as json_err:
+            return jsonify({"error": f"AI returned invalid JSON: {str(json_err)}", "raw_response": response}), 500
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 @search_bp.route("/filter_data", methods=["POST"])
 def filter_data():
     """
