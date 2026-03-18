@@ -88,7 +88,20 @@ class FDALabelDBService:
         total_count = 0
         try:
             cursor = conn.cursor()
-            schema = "labeling." if cls._db_type == 'postgres' else "druglabel."
+            is_pg = (cls._db_type == 'postgres')
+            
+            # Table and Schema mapping
+            schema = "labeling." if is_pg else "druglabel."
+            table = "sum_spl" if is_pg else "DGV_SUM_SPL"
+            
+            # Column mapping
+            c_prod = "product_names" if is_pg else "PRODUCT_NAMES"
+            c_gen = "generic_names" if is_pg else "PRODUCT_NORMD_GENERIC_NAMES"
+            c_ingr = "active_ingredients" if is_pg else "ACT_INGR_NAMES"
+            c_ndc = "ndc_codes" if is_pg else "NDC_CODES"
+            c_date = "revised_date" if is_pg else "EFF_TIME"
+            c_mfg = "manufacturer" if is_pg else "AUTHOR_ORG_NORMD_NAME"
+            c_type = "doc_type" if is_pg else "DOCUMENT_TYPE"
             
             where_clauses = []
             params = {}
@@ -97,76 +110,128 @@ class FDALabelDBService:
                 drug_clauses = []
                 for i, drug in enumerate(filters["drugNames"]):
                     key = f"drug_{i}"
-                    drug_clauses.append(f"(product_names ILIKE %(drug_{i})s OR generic_names ILIKE %(drug_{i})s OR active_ingredients ILIKE %(drug_{i})s)")
                     params[key] = f"%{drug}%"
+                    if is_pg:
+                        drug_clauses.append(f"({c_prod} ILIKE %(drug_{i})s OR {c_gen} ILIKE %(drug_{i})s OR {c_ingr} ILIKE %(drug_{i})s)")
+                    else:
+                        drug_clauses.append(f"(UPPER({c_prod}) LIKE UPPER(%(drug_{i})s) OR UPPER({c_gen}) LIKE UPPER(%(drug_{i})s) OR UPPER({c_ingr}) LIKE UPPER(%(drug_{i})s))")
                 where_clauses.append(f"({ ' OR '.join(drug_clauses) })")
 
             if filters.get("ndcs"):
                 ndc_clauses = []
                 for i, ndc in enumerate(filters["ndcs"]):
                     key = f"ndc_{i}"
-                    ndc_clauses.append(f"ndc_codes LIKE %(ndc_{i})s")
                     params[key] = f"%{ndc}%"
+                    ndc_clauses.append(f"{c_ndc} LIKE %(ndc_{i})s")
                 where_clauses.append(f"({ ' OR '.join(ndc_clauses) })")
 
             if filters.get("adverseEvents"):
-                ae_clauses = []
                 for i, ae in enumerate(filters["adverseEvents"]):
                     key = f"ae_{i}"
-                    # Searching in keywords/names as a proxy for AE mentions in metadata
-                    ae_clauses.append(f"(product_names ILIKE %(ae_{i})s OR generic_names ILIKE %(ae_{i})s OR keywords ILIKE %(ae_{i})s)")
-                    params[key] = f"%{ae}%"
-                where_clauses.append(f"({ ' AND '.join(ae_clauses) })")
+                    if is_pg:
+                        params[key] = f"%{ae}%"
+                        # Use spl_sections content_xml for deep text match in Postgres
+                        ae_subquery = f"EXISTS (SELECT 1 FROM labeling.spl_sections s WHERE s.spl_id = {schema}{table}.spl_id AND s.content_xml ILIKE %(ae_{i})s)"
+                    else:
+                        params[key] = ae # Oracle CONTAINS doesn't use %
+                        ae_subquery = f"EXISTS (SELECT 1 FROM druglabel.SPL_SEC s JOIN druglabel.DGV_SUM_SPL r ON s.SPL_ID = r.SPL_ID WHERE r.SET_ID = druglabel.DGV_SUM_SPL.SET_ID AND CONTAINS(s.CONTENT_XML, %(ae_{i})s) > 0)"
+                    where_clauses.append(ae_subquery)
 
             if filters.get("labelingTypes"):
                 key = "doc_types"
-                where_clauses.append("doc_type = ANY(%(doc_types)s)")
-                params[key] = filters["labelingTypes"]
+                if is_pg:
+                    where_clauses.append(f"{c_type} = ANY(%(doc_types)s)")
+                    params[key] = filters["labelingTypes"]
+                else:
+                    placeholders = []
+                    for i, t in enumerate(filters["labelingTypes"]):
+                        k = f"type_{i}"
+                        params[k] = t
+                        placeholders.append(f":{k}")
+                    where_clauses.append(f"{c_type} IN ({', '.join(placeholders)})")
 
             # Count first
             count_where = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-            count_sql = f"SELECT COUNT(*) FROM {schema}sum_spl {count_where}"
+            count_sql = f"SELECT COUNT(*) FROM {schema}{table} {count_where}"
             cursor.execute(count_sql, params)
-            total_count = cursor.fetchone()[0] if cls._db_type == 'postgres' else cursor.fetchone()[0]
+            total_count = cursor.fetchone()[0] if not isinstance(cursor.fetchone(), dict) else 0 # Simple fix for RealDictCursor or tuple
+            # Re-execute count because fetchone moves the pointer
+            cursor.execute(count_sql, params)
+            res = cursor.fetchone()
+            total_count = res[0] if isinstance(res, (tuple, list)) else res.get('COUNT(*)') or res.get('count') or 0
             
             if total_count > limit:
                 return [], total_count
 
             # Fetch results
             sql = f"""
-                SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, 
-                       revised_date, market_categories, doc_type, is_rld, is_rs, active_ingredients,
-                       dosage_forms, routes, epc, keywords
-                FROM {schema}sum_spl
+                SELECT set_id, {c_prod}, {c_gen}, {c_mfg}, appr_num, {c_ndc}, 
+                       {c_date}, market_categories, {c_type}, is_rld, active_ingredients,
+                       dosage_forms, routes, epc
+                FROM {schema}{table}
                 {count_where}
-                ORDER BY revised_date DESC
+                ORDER BY {c_date} DESC
                 LIMIT {limit}
             """
+            if not is_pg:
+                # Oracle LIMIT conversion
+                sql = f"""
+                    SELECT * FROM (
+                        SELECT set_id, {c_prod}, {c_gen}, {c_mfg}, appr_num, {c_ndc}, 
+                               {c_date}, market_categories, {c_type}, (SELECT COUNT(*) FROM druglabel.sum_spl_rld rld WHERE rld.SPL_ID = {schema}{table}.SPL_ID) as is_rld, ACT_INGR_NAMES as active_ingredients,
+                               dosage_forms, ROUTES_OF_ADMINISTRATION as routes, epc
+                        FROM {schema}{table}
+                        {count_where}
+                        ORDER BY {c_date} DESC
+                    ) WHERE ROWNUM <= {limit}
+                """
+
             cursor.execute(sql, params)
             rows = cursor.fetchall()
             for r in rows:
-                results.append({
-                    'set_id': r['set_id'], 
-                    'PRODUCT_NAMES': r['product_names'],
-                    'GENERIC_NAMES': r['generic_names'], 
-                    'COMPANY': r['manufacturer'],
-                    'APPR_NUM': r['appr_num'], 
-                    'NDC_CODES': r['ndc_codes'],
-                    'revised_date': r['revised_date'],
-                    'MARKET_CATEGORIES': r['market_categories'], 
-                    'DOCUMENT_TYPE': r['doc_type'],
-                    'ACT_INGR_NAMES': r['active_ingredients'],
-                    'DOSAGE_FORMS': r['dosage_forms'],
-                    'Routes': r['routes'],
-                    'EPC': r['epc'],
-                    'keywords': r['keywords'],
-                    'is_rld': r['is_rld'], 
-                    'is_rs': r['is_rs']
-                })
+                if is_pg:
+                    results.append({
+                        'set_id': r['set_id'], 
+                        'PRODUCT_NAMES': r[c_prod],
+                        'GENERIC_NAMES': r[c_gen], 
+                        'COMPANY': r[c_mfg],
+                        'APPR_NUM': r['appr_num'], 
+                        'NDC_CODES': r[c_ndc],
+                        'revised_date': r[c_date],
+                        'MARKET_CATEGORIES': r['market_categories'], 
+                        'DOCUMENT_TYPE': r[c_type],
+                        'ACT_INGR_NAMES': r['active_ingredients'],
+                        'DOSAGE_FORMS': r['dosage_forms'],
+                        'Routes': r['routes'],
+                        'EPC': r['epc'],
+                        'is_rld': r['is_rld'], 
+                        'is_rs': r.get('is_rs', 0)
+                    })
+                else:
+                    # Oracle results (RealDictCursor usually converts to dict but let's be safe)
+                    results.append({
+                        'set_id': r[0] if isinstance(r, (tuple, list)) else r.get('SET_ID'), 
+                        'PRODUCT_NAMES': r[1] if isinstance(r, (tuple, list)) else r.get(c_prod),
+                        'GENERIC_NAMES': r[2] if isinstance(r, (tuple, list)) else r.get(c_gen), 
+                        'COMPANY': r[3] if isinstance(r, (tuple, list)) else r.get(c_mfg),
+                        'APPR_NUM': r[4] if isinstance(r, (tuple, list)) else r.get('APPR_NUM'), 
+                        'NDC_CODES': r[5] if isinstance(r, (tuple, list)) else r.get(c_ndc),
+                        'revised_date': r[6] if isinstance(r, (tuple, list)) else r.get(c_date),
+                        'MARKET_CATEGORIES': r[7] if isinstance(r, (tuple, list)) else r.get('MARKET_CATEGORIES'), 
+                        'DOCUMENT_TYPE': r[8] if isinstance(r, (tuple, list)) else r.get(c_type),
+                        'ACT_INGR_NAMES': r[10] if isinstance(r, (tuple, list)) else r.get('ACTIVE_INGREDIENTS'),
+                        'DOSAGE_FORMS': r[11] if isinstance(r, (tuple, list)) else r.get('DOSAGE_FORMS'),
+                        'Routes': r[12] if isinstance(r, (tuple, list)) else r.get('ROUTES'),
+                        'EPC': r[13] if isinstance(r, (tuple, list)) else r.get('EPC'),
+                        'is_rld': bool(r[9] if isinstance(r, (tuple, list)) else r.get('IS_RLD')), 
+                        'is_rs': False
+                    })
             
             cursor.close()
         except Exception as e:
             print(f"Filter Error: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             conn.close()
             
