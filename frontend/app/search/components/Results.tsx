@@ -176,8 +176,10 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
     resultsLimit,
     setResultsLimit,
     resultsMessage,
+    loadingStatus,
 
     isRefining,
+    lastRefId,
     refineResponseWithLabel,
 
     // optional richer debug payloads (won’t break if not populated)
@@ -243,6 +245,34 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [refError, setRefError] = useState<string | null>(null);
+
+  const RefineButton = ({ setId, productName }: { setId: string, productName: string }) => {
+    const isThisRefining = isRefining && loadingStatus.includes(productName);
+    
+    return (
+      <button
+        onClick={() => refineResponseWithLabel(setId, productName)}
+        disabled={isRefining || chatHistory.length === 0}
+        title={chatHistory.length === 0 ? "Send a message first to refine" : "Refine last response using this reference"}
+        style={{
+          background: isThisRefining ? '#fef3c7' : 'none',
+          border: 'none',
+          cursor: (isRefining || chatHistory.length === 0) ? 'not-allowed' : 'pointer',
+          fontSize: '1.2rem',
+          padding: '4px',
+          borderRadius: '6px',
+          transition: 'all 0.2s ease',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: (isRefining && !isThisRefining) ? 0.3 : 1
+        }}
+        className={isThisRefining ? "sparkle-animate" : ""}
+      >
+        {isThisRefining ? '⏳' : '🔍📄'}
+      </button>
+    );
+  };
 
   // Manual Filter Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -1596,18 +1626,22 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
           {viewStyle === 'panel' && paginatedResults.map((result, index) => {
             const actualResultNumber = (currentPage - 1) * localResultsPerPage + index + 1;
             const isHighlighted = result.set_id === highlightedSetId;
+            const isLastRef = result.set_id === lastRefId;
 
             return (
               <div
                 key={index}
                 id={`result-${result.set_id}`}
-                className={`result-item p-4 border-b border-gray-200 ${isHighlighted ? 'highlighted-result' : ''}`}
+                className={`result-item p-4 border-b border-gray-200 ${isHighlighted ? 'highlighted-result' : ''} ${isLastRef ? 'reference-popout' : ''}`}
                 style={{
                   position: 'relative',
                   cursor: 'default',     // ✅ allow normal cursor + selection
                   userSelect: 'text',    // ✅ ensure selectable
-                  border: isHighlighted ? '2px solid #0077cc' : '1px solid #e5e7eb',
-                  backgroundColor: isHighlighted ? '#f0f9ff' : '#ffffff',
+                  border: isHighlighted ? '2px solid #0077cc' : (isLastRef ? '2px solid #16a34a' : '1px solid #e5e7eb'),
+                  backgroundColor: isHighlighted ? '#f0f9ff' : (isLastRef ? '#f0fdf4' : '#ffffff'),
+                  boxShadow: isLastRef ? '0 10px 15px -3px rgba(22, 163, 74, 0.1), 0 4px 6px -2px rgba(22, 163, 74, 0.05)' : 'none',
+                  transform: isLastRef ? 'scale(1.01)' : 'scale(1)',
+                  zIndex: isLastRef ? 10 : 1,
                   transition: 'all 0.3s ease'
                 }}
               >
@@ -1791,14 +1825,17 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                   {paginatedResults.map((result, index) => {
                     const actualResultNumber = (currentPage - 1) * localResultsPerPage + index + 1;
                     const isHighlighted = result.set_id === highlightedSetId;
+                    const isLastRef = result.set_id === lastRefId;
 
                     return (
                       <tr
                         key={index}
                         id={`result-${result.set_id}`}
                         style={{
-                          backgroundColor: isHighlighted ? '#e6f7ff' : 'inherit',
-                          fontWeight: isHighlighted ? '600' : 'normal'
+                          backgroundColor: isHighlighted ? '#e6f7ff' : (isLastRef ? '#f0fdf4' : 'inherit'),
+                          fontWeight: (isHighlighted || isLastRef) ? '600' : 'normal',
+                          border: isLastRef ? '2px solid #16a34a' : 'inherit',
+                          boxShadow: isLastRef ? 'inset 0 0 0 1px #16a34a' : 'none'
                         }}
                       >
                         <td style={{ whiteSpace: 'nowrap' }}>
@@ -1837,13 +1874,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                         </td>
                         <td>{actualResultNumber}</td>
                         <td>
-                          <input 
-                            type="checkbox"
-                            checked={false} // Always unchecked after one-shot refinement
-                            disabled={isRefining || chatHistory.length === 0}
-                            onChange={() => refineResponseWithLabel(result.set_id, result.PRODUCT_NAMES)}
-                            title={chatHistory.length === 0 ? "Send a message first to refine" : "Refine last AI response with this reference"}
-                          />
+                          <RefineButton setId={result.set_id} productName={result.PRODUCT_NAMES} />
                         </td>
                         <td>
                           <a
@@ -1907,6 +1938,23 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
               </table>
             </div>
           )}
+
+          {/* Refinement Hint */}
+          <div style={{
+            marginTop: '20px',
+            padding: '12px 16px',
+            background: '#f0f9ff',
+            borderRadius: '10px',
+            border: '1px solid #bae6fd',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}>
+            <span style={{ fontSize: '1.2rem' }}>💡</span>
+            <div style={{ fontSize: '0.85rem', color: '#0369a1', lineHeight: 1.4 }}>
+              <strong>Pro Tip:</strong> Click the <strong>🔍📄 Document Refinement</strong> icon on any result to refine the AI's last response using that specific labeling as a primary reference.
+            </div>
+          </div>
         </>
       )}
       <AddFilterModal />

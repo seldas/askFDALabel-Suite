@@ -56,6 +56,7 @@ interface SearchContextProps {
   applyDataFilters: () => void;
   
   isRefining: boolean;
+  lastRefId: string | null;
   refineResponseWithLabel: (setId: string, productName: string) => Promise<void>;
 
   // Pagination
@@ -181,6 +182,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [traceLog, setTraceLog] = useState<string[]>([]);
 
   const [isRefining, setIsRefining] = useState(false);
+  const [lastRefId, setLastRefId] = useState<string | null>(null);
 
   const refineResponseWithLabel = async (setId: string, productName: string) => {
     if (chatHistory.length === 0) return;
@@ -203,6 +205,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (data.error) {
         alert(data.error);
       } else if (data.refined_json) {
+        setLastRefId(setId);
         // Update the last message in history
         setChatHistory(prev => {
           const newHistory = [...prev];
@@ -309,6 +312,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         applyDataFilters,
 
         isRefining,
+        lastRefId,
         refineResponseWithLabel,
 
         currentPage,
