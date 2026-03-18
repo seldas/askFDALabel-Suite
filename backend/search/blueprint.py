@@ -73,11 +73,11 @@ def chat_with_ai():
 
 @search_bp.route("/refine_chat", methods=["POST"])
 def refine_chat():
-    \"\"\"
+    """
     Refines the last AI response using the content of a specific labeling document.
     Expects: set_id, product_name, chat_history, filters
     Returns: JSON with refined text and related sections.
-    \"\"\"
+    """
     from dashboard.services.fdalabel_db import FDALabelDBService
     from dashboard.services.ai_handler import call_llm
     
@@ -106,7 +106,7 @@ def refine_chat():
         # Truncate XML if too large for context (clinical LLMs usually handle 32k-128k, but let's be safe)
         xml_snippet = xml_content[:100000] # 100k chars limit for reference
         
-        refine_prompt = f\"\"\"
+        refine_prompt = f"""
         You are a clinical data specialist. 
         
         REFERENCE DOCUMENT CONTENT ({product_name} [set_id: {set_id}]):
@@ -120,16 +120,16 @@ def refine_chat():
         If no references/evidences are related, do not change the content.
         
         IMPORTANT:
-        1. Preserve any existing <annotation class=\"...\">...</annotation> tags from the original response.
+        1. Preserve any existing <annotation class="...">...</annotation> tags from the original response.
         2. Add NEW <annotation> tags for any new clinical entities discovered in the reference document.
         3. Ensure the output is valid Markdown within the JSON text field.
         
         OUTPUT FORMAT:
         The content needs to be prepared in JSON format with an explicit wrap like ```json ... ```.
         The JSON should include attributes:
-        1. \"text\": The refined clinical text.
-        2. \"related sections\": A list of specific section titles or headers from the reference document used for refinement.
-        \"\"\"
+        1. "text": The refined clinical text.
+        2. "related sections": A list of specific section titles or headers from the reference document used for refinement.
+        """
         
         # 3. Call LLM
         # Use a high-capacity model for full XML reasoning
@@ -138,7 +138,7 @@ def refine_chat():
         
         response = call_llm(
             user=user_obj,
-            system_prompt=\"You are a precise FDA labeling analyst. Return ONLY valid JSON.\",
+            system_prompt="You are a precise FDA labeling analyst. Return ONLY valid JSON.",
             user_message=refine_prompt,
             temperature=0.0
         )
