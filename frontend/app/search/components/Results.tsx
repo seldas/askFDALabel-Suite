@@ -159,6 +159,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
     currentPage,
     setCurrentPage,
     searchTerm,
+    chatHistory,
     generatedSql,
     setGeneratedSql,
     setMedAnswer,
@@ -169,11 +170,15 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
     reasoning,
 
     filters,
+    setFilters,
     toggleFilterTerm,
     toggleFilterFlag,
     resultsLimit,
     setResultsLimit,
     resultsMessage,
+
+    isRefining,
+    refineResponseWithLabel,
 
     // optional richer debug payloads (won’t break if not populated)
     debugIntent,
@@ -1660,6 +1665,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                       {actualResultNumber}. {result.PRODUCT_NAMES}
                     </a> - {result.GENERIC_NAMES}
                   </h3>
+                  </div>
                 </div>
 
                 <div className="result-metadata-fancy">

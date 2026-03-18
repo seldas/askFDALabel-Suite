@@ -62,24 +62,31 @@ const SimpleProgress = ({ status }: { status: string }) => {
 const DiffHighlight = ({ original, refined }: { original: string, refined: string }) => {
   if (!original) return <>{refined}</>;
   
-  // Simple word-level diffing logic
-  const originalWords = original.split(/\s+/);
-  const refinedWords = refined.split(/\s+/);
-  const originalSet = new Set(originalWords);
+  // Word-level diffing logic with punctuation handling
+  const splitWords = (text: string) => text.split(/(\s+)/);
+  const getWordsOnly = (text: string) => text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean);
+
+  const originalSet = new Set(getWordsOnly(original));
+  const refinedParts = splitWords(refined);
 
   return (
     <>
-      {refinedWords.map((word, i) => {
-        const isNew = !originalSet.has(word);
-        return (
-          <span 
-            key={i} 
-            className={isNew ? "refined-addition" : ""}
-            style={isNew ? { backgroundColor: '#dcfce7', borderBottom: '2px solid #16a34a', padding: '0 2px', borderRadius: '2px' } : {}}
-          >
-            {word}{' '}
-          </span>
-        );
+      {refinedParts.map((part, i) => {
+        const wordMatch = part.match(/\w+/);
+        const isNew = wordMatch && !originalSet.has(wordMatch[0].toLowerCase());
+        
+        if (isNew) {
+          return (
+            <span 
+              key={i} 
+              className="refined-addition"
+              style={{ backgroundColor: '#dcfce7', borderBottom: '2px solid #16a34a', padding: '0 2px', borderRadius: '2px' }}
+            >
+              {part}
+            </span>
+          );
+        }
+        return <React.Fragment key={i}>{part}</React.Fragment>;
       })}
     </>
   );
