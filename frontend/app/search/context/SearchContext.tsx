@@ -19,6 +19,7 @@ interface SearchContextProps {
 
   filters: Filters;
   setFilters: React.Dispatch<React.SetStateAction<Filters>>;
+  toggleFilterTerm: (category: keyof Filters, term: string) => void;
   applyFilters: () => void;
 
   // Summary / answer
@@ -46,6 +47,12 @@ interface SearchContextProps {
 
   totalResults: number;
   setTotalResults: React.Dispatch<React.SetStateAction<number>>;
+
+  resultsLimit: number;
+  setResultsLimit: (val: number) => void;
+  resultsMessage: string;
+  setResultsMessage: (val: string) => void;
+  applyDataFilters: () => void;
 
   // Pagination
   currentPage: number;
@@ -108,7 +115,21 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     labelingType: [],
     applicationType: [],
     labelingSection: [],
+    drugNames: [],
+    adverseEvents: [],
+    ndcs: [],
   });
+
+  const toggleFilterTerm = (category: keyof Filters, term: string) => {
+    setFilters(prev => {
+      const current = prev[category] as string[];
+      if (current.includes(term)) {
+        return { ...prev, [category]: current.filter(t => t !== term) };
+      } else {
+        return { ...prev, [category]: [...current, term] };
+      }
+    });
+  };
 
   const searchMode = 'semantic';
 
@@ -134,6 +155,8 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [totalResults, setTotalResults] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [resultsLimit, setResultsLimit] = useState(5000);
+  const [resultsMessage, setResultsMessage] = useState('');
 
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [generatedSql, setGeneratedSql] = useState('');
@@ -145,6 +168,32 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [traceLog, setTraceLog] = useState<string[]>([]);
 
   const resultsPerPage = 5;
+
+  const applyDataFilters = React.useCallback(async () => {
+    try {
+      setLoadingStatus('Filtering data...');
+      const response = await fetch('/api/search/filter_data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters, limit: resultsLimit }),
+      });
+      const data = await response.json();
+      setResults(data.results || []);
+      setTotalResults(data.total_counts || 0);
+      setResultsMessage(data.message || '');
+      setCurrentPage(1);
+    } catch (err) {
+      console.error("Failed to filter data:", err);
+    } finally {
+      setLoadingStatus('');
+    }
+  }, [filters, resultsLimit]);
+
+  // Real-time update when filters change
+  React.useEffect(() => {
+    // Only auto-apply if there's at least one filter or we want to show all initially
+    applyDataFilters();
+  }, [filters, resultsLimit, applyDataFilters]);
 
   const applyFilters = () => {
     // Logic for applying filters
@@ -158,6 +207,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         filters,
         setFilters,
+        toggleFilterTerm,
         applyFilters,
 
         summary,
@@ -193,7 +243,14 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         totalResults,
         setTotalResults,
 
-        currentPage,        setCurrentPage,
+        resultsLimit,
+        setResultsLimit,
+        resultsMessage,
+        setResultsMessage,
+        applyDataFilters,
+
+        currentPage,
+        setCurrentPage,
 
         resultsPerPage,
 

@@ -93,6 +93,28 @@ def run_planner(state):
         state.flags["terminate"] = True
         return
 
+    # NEW: Check if we have active filter terms that force a specific path
+    has_active_filters = any([
+        state.filters.get("drugNames"),
+        state.filters.get("adverseEvents"),
+        state.filters.get("ndcs"),
+        state.filters.get("labelingTypes"),
+        state.filters.get("applicationTypes"),
+        state.filters.get("labelingSections")
+    ])
+
+    if has_active_filters:
+        state.intent = {
+            "intent": "ENTITY_LOOKUP", # Or IDENTIFIER if NDC
+            "resolved_query": raw_query,
+            "entities": state.filters.get("drugNames", []),
+            "clarification_question": "",
+            "is_continuation": False
+        }
+        state.flags["next_step"] = "keyword_retriever"
+        state.trace_log.append("Planner: Active search filters detected; routing to keyword_retriever for precise matching.")
+        return
+
     # Deterministic guardrail: identifiers always go keyword path
     if _looks_like_identifier(raw_query):
         state.intent = {

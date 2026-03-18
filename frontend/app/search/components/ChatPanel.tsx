@@ -95,6 +95,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
     setDebugPlan,
     setDebugStats,
     setTraceLog,
+    toggleFilterTerm,
   } = useSearchContext();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -128,42 +129,32 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
     setChatHistory(updatedHistory);
     setSearchTerm('');
     setIsLoading(true);
-    setCurrentPage(1);
-    setAgentFlow([]);
-    setReasoning('');
-    setLoadingStatus("Initializing Agent...");
+    setLoadingStatus("Thinking...");
 
     const payload = {
       query: queryText,
       chat_history: updatedHistory,
-      search_mode: searchMode,
-      labelingTypes: filters.labelingType,
-      applicationTypes: filters.applicationType,
-      labelingSections: filters.labelingSection,
       ai_provider: session?.ai_provider,
     };
 
     onSearch();
 
     try {
-const endpoint = "/api/search/search";
-      
-const response = await fetch(endpoint, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(payload),
-});
+      const endpoint = "/api/search/chat";
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-const result = await response.json();
-const answerText = result.response_text;
+      const result = await response.json();
+      const answerText = result.response_text;
 
-setChatHistory(prev => [...prev, { role: "assistant" as const, content: answerText }]);
-
-setIsLoading(false);
-setLoadingStatus("");
-
+      setChatHistory(prev => [...prev, { role: "assistant" as const, content: answerText }]);
+      setIsLoading(false);
+      setLoadingStatus("");
     } catch (error) {
-      console.error("Search error:", error);
+      console.error("Chat error:", error);
       setChatHistory(prev => [...prev, { role: 'assistant', content: "An unexpected error occurred." }]);
       setIsLoading(false);
       setLoadingStatus("");
@@ -242,11 +233,11 @@ setLoadingStatus("");
 
                                     let onClick = undefined;
                                     if (cls === 'drug') {
-                                        onClick = () => window.open(`${baseUrl}/dashboard/results?drug_name=${encodeURIComponent(content)}`, '_blank');
+                                        onClick = () => toggleFilterTerm('drugNames', content);
                                     } else if (cls === 'ndc') {
-                                        onClick = () => window.open(`${baseUrl}/dashboard/results?query=${encodeURIComponent(content)}`, '_blank');
+                                        onClick = () => toggleFilterTerm('ndcs', content);
                                     } else if (cls === 'adverse_events') {
-                                        onClick = () => window.open(`${baseUrl}/dashboard?analyze_ae=${encodeURIComponent(content)}`, '_blank');
+                                        onClick = () => toggleFilterTerm('adverseEvents', content);
                                     }
 
                                     return (

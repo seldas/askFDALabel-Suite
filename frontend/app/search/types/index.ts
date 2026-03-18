@@ -2,6 +2,9 @@ export interface Filters {
   labelingType: string[];
   applicationType: string[];
   labelingSection: string[];
+  drugNames: string[];
+  adverseEvents: string[];
+  ndcs: string[];
 }
 
 export interface ResultItem {

@@ -38,6 +38,15 @@ class AgentState:
             "terminate": False,
         }
 
+        self.filters = {
+            "labelingTypes": payload.get("labelingTypes", []),
+            "applicationTypes": payload.get("applicationTypes", []),
+            "labelingSections": payload.get("labelingSections", []),
+            "drugNames": payload.get("drugNames", []),
+            "adverseEvents": payload.get("adverseEvents", []),
+            "ndcs": payload.get("ndcs", []),
+        }
+
         # Configuration and mode
         self.config = {
             "search_mode": payload.get("search_mode", "semantic"),

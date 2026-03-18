@@ -37,8 +37,46 @@ def run_keyword_retriever(state):
         with psycopg2.connect(database_url) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
 
+                # NEW: Handle structured filters if present
+                if any([state.filters.get("ndcs"), state.filters.get("drugNames"), state.filters.get("adverseEvents")]):
+                    where_clauses = []
+                    params = []
+                    
+                    if state.filters.get("ndcs"):
+                        ndc_clauses = []
+                        for ndc in state.filters["ndcs"]:
+                            ndc_clauses.append("ndc_codes LIKE %s")
+                            params.append(f"%{ndc}%")
+                        where_clauses.append(f"({ ' OR '.join(ndc_clauses) })")
+                    
+                    if state.filters.get("drugNames"):
+                        drug_clauses = []
+                        for drug in state.filters["drugNames"]:
+                            drug_clauses.append("(product_names ILIKE %s OR generic_names ILIKE %s OR active_ingredients ILIKE %s)")
+                            params.extend([f"%{drug}%", f"%{drug}%", f"%{drug}%"])
+                        where_clauses.append(f"({ ' OR '.join(drug_clauses) })")
+
+                    # Note: adverseEvents in metadata search is limited to keywords/content if indexed there.
+                    # For now, we'll use them as additional keyword filters if they exist.
+                    if state.filters.get("adverseEvents"):
+                        ae_clauses = []
+                        for ae in state.filters["adverseEvents"]:
+                            # Full text search placeholder - assuming content_xml or keywords column
+                            ae_clauses.append("(product_names ILIKE %s OR generic_names ILIKE %s OR keywords ILIKE %s)")
+                            params.extend([f"%{ae}%", f"%{ae}%", f"%{ae}%"])
+                        where_clauses.append(f"({ ' AND '.join(ae_clauses) })") # Intersection for AE as requested
+
+                    sql = f"""
+                        SELECT set_id, spl_id, product_names, generic_names, is_rld
+                        FROM labeling.sum_spl
+                        WHERE { ' AND '.join(where_clauses) }
+                        ORDER BY is_rld DESC
+                        LIMIT 20
+                    """
+                    cursor.execute(sql, tuple(params))
+
                 # IDENTIFIER: prefer exact-ish matches depending on pattern
-                if intent_type == "IDENTIFIER":
+                elif intent_type == "IDENTIFIER":
                     if UUID_RE.search(query):
                         sql = """
                             SELECT set_id, spl_id, product_names, generic_names, is_rld

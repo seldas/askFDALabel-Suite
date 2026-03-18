@@ -26,12 +26,12 @@ from search.scripts.general_search import search_general
 search_bp = Blueprint('search', __name__)
 logger = logging.getLogger(__name__)
 
-# --- Primary Search Entry (Semantic) ---
-@search_bp.route("/search", methods=["POST"])
-def search():
+@search_bp.route("/chat", methods=["POST"])
+def chat_with_ai():
     """
-    Unified search entry point. 
-    Now defaults to Semantic Search (formerly v3).
+    AI Chat entry point. 
+    Handles conversational responses based on labeling data.
+    Includes history capping (20 msgs) and length truncation (300k chars).
     """
     payload = request.json or {}
     ai_provider = payload.get("ai_provider")
@@ -40,9 +40,62 @@ def search():
         user_obj.ai_provider = ai_provider
     
     user_input = payload.get("query")
-    print(user_input)
-    resp = search_general(user_input, user=user_obj)
+    raw_history = payload.get("chat_history", [])
+
+    # 1. Cap to last 20 messages
+    capped_history = raw_history[-20:] if len(raw_history) > 20 else list(raw_history)
+
+    # 2. Length truncation (300,000 characters)
+    # We measure total character length of the history content
+    total_chars = sum(len(str(m.get("content", ""))) for m in capped_history)
+    
+    final_history = capped_history
+    omitted = len(raw_history) > 20
+
+    if total_chars > 300000:
+        current_len = total_chars
+        while final_history and current_len > 300000:
+            removed = final_history.pop(0)
+            current_len -= len(str(removed.get("content", "")))
+            omitted = True
+        
+    # Add the omitted marker to the first remaining message if we actually removed something
+    if omitted and final_history:
+        # Create a new dict to avoid mutating shared objects
+        first_msg = dict(final_history[0])
+        original_content = first_msg.get("content", "")
+        first_msg["content"] = f"[..prev message omitted..] {original_content}"
+        final_history[0] = first_msg
+
+    # Pass everything to search_general
+    resp = search_general(user_input, user=user_obj, filters=payload, history=final_history)
     return jsonify({"response_text": resp}), 200
+
+# --- Database Filtering (Right Panel) ---
+@search_bp.route("/filter_data", methods=["POST"])
+def filter_data():
+    """
+    Data-only filtering for the Results panel.
+    """
+    from dashboard.services.fdalabel_db import FDALabelDBService
+    payload = request.json or {}
+    filters = payload.get("filters", {})
+    limit = int(payload.get("limit", 5000))
+    
+    results, total_count = FDALabelDBService.filter_labels(filters, limit=limit)
+    
+    if total_count > limit:
+        return jsonify({
+            "results": [],
+            "total_counts": total_count,
+            "message": f"Too many results ({total_count}) meet the criteria, please add more conditions."
+        }), 200
+        
+    return jsonify({
+        "results": results,
+        "total_counts": total_count,
+        "message": ""
+    }), 200
 
 # --- Streaming Agentic Search (Semantic) ---
 def _humanize_trace(line: str) -> str:

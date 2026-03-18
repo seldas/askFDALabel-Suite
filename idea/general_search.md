@@ -36,8 +36,10 @@ Transform `general_search.py` into a smart "Unified Entry Point" that can intell
 
 ---
 
-## 🛠️ Implementation Steps (Draft)
-1. [ ] Modify `SYSTEM_PROMPT` in `general_search.py` to include routing instructions.
-2. [ ] Add logic to `search_general` to parse the LLM's "intent" decision.
-3. [ ] If intent is `LABEL_SEARCH`, call a simplified retrieval function from `semantic_core`.
-4. [ ] Update `backend/search/blueprint.py` to handle the new structured response if necessary.
+## 🛠️ Implementation Steps
+1. [x] Modify `SYSTEM_PROMPT` in `general_search.py` to include clinical annotation instructions.
+2. [x] Update `ChatPanel.tsx` and `Results.tsx` to handle clinical filters and highlighting.
+3. [x] Add filter support to `AgentState` in `semantic_core`.
+4. [x] Update `Planner` to route queries with filters to the precise search path.
+5. [x] Update `KeywordRetriever` to use `drugNames`, `ndcs`, and `adverseEvents` in SQL queries.
+6. [x] Update `blueprint.py` to route filtered requests to the semantic agent.

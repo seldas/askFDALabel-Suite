@@ -168,6 +168,12 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
     agentFlow,
     reasoning,
 
+    filters,
+    toggleFilterTerm,
+    resultsLimit,
+    setResultsLimit,
+    resultsMessage,
+
     // optional richer debug payloads (won’t break if not populated)
     debugIntent,
     debugPlan,
@@ -231,6 +237,91 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [refError, setRefError] = useState<string | null>(null);
+
+  const LimitControl = () => {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#64748b' }}>
+        <span>Max results:</span>
+        <select 
+          value={resultsLimit} 
+          onChange={(e) => setResultsLimit(parseInt(e.target.value))}
+          style={{ padding: '2px 4px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+        >
+          <option value={100}>100</option>
+          <option value={1000}>1000</option>
+          <option value={5000}>5000</option>
+          <option value={10000}>10000</option>
+        </select>
+      </div>
+    );
+  };
+
+  const FilterChips = () => {
+    const activeDrugNames = filters.drugNames || [];
+    const activeAEs = filters.adverseEvents || [];
+    const activeNDCs = filters.ndcs || [];
+
+    const hasFilters = activeDrugNames.length > 0 || activeAEs.length > 0 || activeNDCs.length > 0;
+
+    if (!hasFilters) return null;
+
+    return (
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '8px',
+        marginBottom: '16px',
+        padding: '12px',
+        background: '#f8fafc',
+        borderRadius: '10px',
+        border: '1px solid #e2e8f0'
+      }}>
+        <div style={{ width: '100%', fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
+          Active Search Filters
+        </div>
+        
+        {activeDrugNames.map(term => (
+          <div key={`drug-${term}`} className="filter-chip highlight-drug" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', padding: '4px 10px' }}>
+            <span>💊 {term}</span>
+            <button onClick={() => toggleFilterTerm('drugNames', term)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1 }}>×</button>
+          </div>
+        ))}
+
+        {activeAEs.map(term => (
+          <div key={`ae-${term}`} className="filter-chip highlight-adverse_events" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', padding: '4px 10px' }}>
+            <span>⚠️ {term}</span>
+            <button onClick={() => toggleFilterTerm('adverseEvents', term)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1 }}>×</button>
+          </div>
+        ))}
+
+        {activeNDCs.map(term => (
+          <div key={`ndc-${term}`} className="filter-chip highlight-ndc" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', padding: '4px 10px' }}>
+            <span>🔢 {term}</span>
+            <button onClick={() => toggleFilterTerm('ndcs', term)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1 }}>×</button>
+          </div>
+        ))}
+
+        <button 
+          onClick={() => {
+            // @ts-ignore
+            setFilters(prev => ({ ...prev, drugNames: [], adverseEvents: [], ndcs: [] }));
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#dc2626',
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            marginLeft: 'auto',
+            textDecoration: 'underline'
+          }}
+        >
+          Clear All
+        </button>
+      </div>
+    );
+  };
 
   
   // Highlighting with pagination support
@@ -1219,6 +1310,28 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
       {/* ✅ Standard mode (V1): show Filter panel ONLY */}
       {isStandard && <FilterPanel />}
 
+      <FilterChips />
+
+      {resultsMessage && (
+        <div
+          style={{
+            background: '#fffbe6',
+            border: '1px solid #ffe58f',
+            color: '#664d03',
+            borderRadius: 10,
+            padding: '12px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            gap: 12,
+            alignItems: 'center',
+            fontWeight: 700
+          }}
+        >
+          <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+          <span>{resultsMessage}</span>
+        </div>
+      )}
+
       {refError && (
         <div
           className="med-answer-container"
@@ -1306,6 +1419,8 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                 </button>
               ))}
             </div>
+
+            <LimitControl />
 
             <div className="controls-wrapper">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 10 }}>

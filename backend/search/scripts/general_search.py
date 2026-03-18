@@ -18,12 +18,27 @@ Example: "The <annotation class="drug">Aspirin</annotation> label (NDC: <annotat
 Do not explain these tags to the user.
 """
 
-def search_general(user_input: str, user: Optional[Any] = None) -> str:
+def search_general(user_input: str, user: Optional[Any] = None, filters: Optional[dict] = None, history: Optional[list] = None) -> str:
     try:
+        # Construct the context from filters if available
+        filter_context = ""
+        if filters:
+            if filters.get("drugNames"):
+                filter_context += f"\nActive Drug Filters: {', '.join(filters['drugNames'])}"
+            if filters.get("adverseEvents"):
+                filter_context += f"\nActive Adverse Event Filters: {', '.join(filters['adverseEvents'])}"
+            if filters.get("ndcs"):
+                filter_context += f"\nActive NDC Filters: {', '.join(filters['ndcs'])}"
+
+        user_message = user_input
+        if filter_context:
+            user_message = f"User Query: {user_input}\nContext from Active Filters: {filter_context}"
+
         response_text = call_llm(
             user=user,
             system_prompt=SYSTEM_PROMPT,
-            user_message=user_input,
+            user_message=user_message,
+            history=history,
             temperature=0.0
         )
         return response_text

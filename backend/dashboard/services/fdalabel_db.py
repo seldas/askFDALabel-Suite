@@ -79,6 +79,100 @@ class FDALabelDBService:
         return cls.is_available()
 
     @classmethod
+    def filter_labels(cls, filters, limit=5000):
+        if not cls.check_connectivity(): return [], 0
+        conn = cls.get_connection()
+        if not conn: return [], 0
+        
+        results = []
+        total_count = 0
+        try:
+            cursor = conn.cursor()
+            schema = "labeling." if cls._db_type == 'postgres' else "druglabel."
+            
+            where_clauses = []
+            params = {}
+
+            if filters.get("drugNames"):
+                drug_clauses = []
+                for i, drug in enumerate(filters["drugNames"]):
+                    key = f"drug_{i}"
+                    drug_clauses.append(f"(product_names ILIKE %(drug_{i})s OR generic_names ILIKE %(drug_{i})s OR active_ingredients ILIKE %(drug_{i})s)")
+                    params[key] = f"%{drug}%"
+                where_clauses.append(f"({ ' OR '.join(drug_clauses) })")
+
+            if filters.get("ndcs"):
+                ndc_clauses = []
+                for i, ndc in enumerate(filters["ndcs"]):
+                    key = f"ndc_{i}"
+                    ndc_clauses.append(f"ndc_codes LIKE %(ndc_{i})s")
+                    params[key] = f"%{ndc}%"
+                where_clauses.append(f"({ ' OR '.join(ndc_clauses) })")
+
+            if filters.get("adverseEvents"):
+                ae_clauses = []
+                for i, ae in enumerate(filters["adverseEvents"]):
+                    key = f"ae_{i}"
+                    # Searching in keywords/names as a proxy for AE mentions in metadata
+                    ae_clauses.append(f"(product_names ILIKE %(ae_{i})s OR generic_names ILIKE %(ae_{i})s OR keywords ILIKE %(ae_{i})s)")
+                    params[key] = f"%{ae}%"
+                where_clauses.append(f"({ ' AND '.join(ae_clauses) })")
+
+            if filters.get("labelingTypes"):
+                key = "doc_types"
+                where_clauses.append("doc_type = ANY(%(doc_types)s)")
+                params[key] = filters["labelingTypes"]
+
+            # Count first
+            count_where = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+            count_sql = f"SELECT COUNT(*) FROM {schema}sum_spl {count_where}"
+            cursor.execute(count_sql, params)
+            total_count = cursor.fetchone()[0] if cls._db_type == 'postgres' else cursor.fetchone()[0]
+            
+            if total_count > limit:
+                return [], total_count
+
+            # Fetch results
+            sql = f"""
+                SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, 
+                       revised_date, market_categories, doc_type, is_rld, is_rs, active_ingredients,
+                       dosage_forms, routes, epc, keywords
+                FROM {schema}sum_spl
+                {count_where}
+                ORDER BY revised_date DESC
+                LIMIT {limit}
+            """
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            for r in rows:
+                results.append({
+                    'set_id': r['set_id'], 
+                    'PRODUCT_NAMES': r['product_names'],
+                    'GENERIC_NAMES': r['generic_names'], 
+                    'COMPANY': r['manufacturer'],
+                    'APPR_NUM': r['appr_num'], 
+                    'NDC_CODES': r['ndc_codes'],
+                    'revised_date': r['revised_date'],
+                    'MARKET_CATEGORIES': r['market_categories'], 
+                    'DOCUMENT_TYPE': r['doc_type'],
+                    'ACT_INGR_NAMES': r['active_ingredients'],
+                    'DOSAGE_FORMS': r['dosage_forms'],
+                    'Routes': r['routes'],
+                    'EPC': r['epc'],
+                    'keywords': r['keywords'],
+                    'is_rld': r['is_rld'], 
+                    'is_rs': r['is_rs']
+                })
+            
+            cursor.close()
+        except Exception as e:
+            print(f"Filter Error: {e}")
+        finally:
+            conn.close()
+            
+        return results, total_count
+
+    @classmethod
     def search_labels(cls, query, skip=0, limit=100000):
         if not cls.check_connectivity(): return []
         conn = cls.get_connection()
