@@ -84,7 +84,10 @@ def filter_data():
     
     results, total_count = FDALabelDBService.filter_labels(filters, limit=limit)
     
-    if total_count > limit:
+    # NEW: only show the "too many results" warning if at least one filter is active
+    has_active_filters = any(filters.values()) if filters else False
+    
+    if has_active_filters and total_count > limit:
         return jsonify({
             "results": [],
             "total_counts": total_count,
