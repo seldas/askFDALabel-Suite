@@ -17,6 +17,42 @@ logger = logging.getLogger(__name__)
 # Global cache for local embedding model
 _local_embedding_model = None
 
+_is_internal_env_cached = None
+
+def _check_is_internal():
+    global _is_internal_env_cached
+    if _is_internal_env_cached is not None:
+        return _is_internal_env_cached
+    
+    try:
+        from dashboard.services.fdalabel_db import FDALabelDBService
+        if FDALabelDBService.is_internal():
+            _is_internal_env_cached = True
+            return True
+    except Exception:
+        pass
+        
+    try:
+        import requests
+        r = requests.head("https://fdalabel.fda.gov/fdalabel/ui/search", timeout=1.5, verify=False)
+        if r.status_code < 400:
+            _is_internal_env_cached = True
+            return True
+    except Exception:
+        pass
+        
+    try:
+        import requests
+        r = requests.head("https://fdalabel.fda.gov/fdalabel-r/ui/search", timeout=1.5, verify=False)
+        if r.status_code < 400:
+            _is_internal_env_cached = True
+            return True
+    except Exception:
+        pass
+        
+    _is_internal_env_cached = False
+    return False
+
 class AIClientFactory:
     _clients = {} # Cache for clients: (provider, api_key) -> client
 
@@ -35,11 +71,7 @@ class AIClientFactory:
 
         # Determine if we are in an "Internal" environment (FDA/Oracle)
         # or a "Local" environment (SQLite)
-        try:
-            is_internal_env = FDALabelDBService.is_internal()
-        except RuntimeError:
-            # Fallback if outside of app context
-            is_internal_env = False
+        is_internal_env = _check_is_internal()
             
         # Determine if we SHOULD use llama (internal LLM)
         # 1. If explicitly requested by user
