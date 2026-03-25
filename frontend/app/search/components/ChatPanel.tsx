@@ -10,10 +10,10 @@ interface ChatPanelProps {
 }
 
 const semanticSuggestions = [
-  { title: "Safety Comparison", query: "Compare the renal safety profile of Ozempic vs Mounjaro." },
-  { title: "Dosing Strategy", query: "What is the recommended titration schedule for a patient with renal impairment?" },
-  { title: "Clinical Evidence", query: "What were the primary endpoints in the clinical studies for Keytruda?" },
-  { title: "Mechanism of Action", query: "How do SGLT2 inhibitors help in managing heart failure?" }
+  { title: "Adverse Events", query: "What are the most common adverse events reported in the labeling for Humira?" },
+  { title: "Indications", query: "What are the approved indications and usage for Keytruda?" },
+  { title: "Boxed Warning", query: "Does the labeling for Ozempic contain a boxed warning? If so, what does it state?" },
+  { title: "Contraindications", query: "What are the specific contraindications listed in the labeling for Mounjaro?" }
 ];
 
 const PROGRESS_STEPS = [

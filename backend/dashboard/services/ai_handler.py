@@ -47,10 +47,10 @@ class AIClientFactory:
         use_llama = (provider == "llama")
 
         # Special logic for internal environment defaults:
-        # If internal and no provider specified, we default to llama if configured
-        if is_internal_env and (not user or not user.is_authenticated) and os.getenv("LLM_URL"):
-            provider = "llama"
-            use_llama = True
+        # If internal and no provider specified, we default to elsa
+        if is_internal_env and (not user or not user.is_authenticated):
+            provider = "elsa"
+            use_llama = False
 
         # If llama requested/defaulted, but not configured, fallback to gemini
         if use_llama and not os.getenv("LLM_URL"):
