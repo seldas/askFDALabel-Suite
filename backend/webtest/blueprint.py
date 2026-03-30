@@ -78,9 +78,9 @@ def get_api_url(ui_url, version=""):
 
 @webtest_bp.route('/templates', methods=['GET'])
 def list_templates():
-    template_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest')
+    template_dir = os.path.join(current_app.root_path, 'webtest')
     if not os.path.exists(template_dir):
-         template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest'))
+         template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'webtest'))
     if not os.path.exists(template_dir): return jsonify([])
     files = sorted([f for f in os.listdir(template_dir) if f.lower().endswith('.xlsx')])
     return jsonify(files)
@@ -89,9 +89,9 @@ def list_templates():
 def get_template_info():
     template_name = request.args.get('template_name')
     if not template_name: return jsonify({"error": "No name"}), 400
-    template_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest')
+    template_dir = os.path.join(current_app.root_path, 'webtest')
     if not os.path.exists(template_dir):
-         template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest'))
+         template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'webtest'))
     path = os.path.join(template_dir, template_name)
     if not os.path.exists(path): return jsonify({"error": "Not found"}), 404
     
@@ -276,9 +276,9 @@ def save_results():
     template_name = data.get('template_name', 'unknown')
     if not results: return jsonify({"error": "No results"}), 400
     
-    results_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest', 'results')
+    results_dir = os.path.join(current_app.root_path, 'webtest', 'results')
     if not os.path.exists(results_dir):
-        results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest', 'results'))
+        results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'results'))
         os.makedirs(results_dir, exist_ok=True)
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -307,9 +307,9 @@ def record_history(template_name, url, count, delay, username="Anonymous"):
     if not template_name or template_name == "unknown":
         return
     
-    history_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest', 'history')
+    history_dir = os.path.join(current_app.root_path, 'webtest', 'history')
     if not os.path.exists(history_dir):
-        history_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest', 'history'))
+        history_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'history'))
         os.makedirs(history_dir, exist_ok=True)
     
     safe_name = "".join([c for c in template_name if c.isalnum() or c in (' ', '.', '_')]).rstrip()
@@ -363,9 +363,9 @@ def get_task_history():
         return jsonify({"error": "Missing template_name or url"}), 400
     cutoff = get_cutoff_from_range(range_key)
 
-    history_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest', 'history')
+    history_dir = os.path.join(current_app.root_path, 'webtest', 'history')
     if not os.path.exists(history_dir):
-        history_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest', 'history'))
+        history_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'history'))
         
     safe_name = "".join([c for c in template_name if c.isalnum() or c in (' ', '.', '_')]).rstrip()
     if safe_name.lower().endswith('.xlsx'):
@@ -443,10 +443,10 @@ def get_group_history():
 
     cutoff = get_cutoff_from_range(range_key)
 
-    history_dir = os.path.join(current_app.root_path, '..', 'frontend', 'public', 'webtest', 'history')
+    history_dir = os.path.join(current_app.root_path, 'webtest', 'history')
     if not os.path.exists(history_dir):
         history_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'webtest', 'history')
+            os.path.join(os.path.dirname(__file__), '..', 'webtest', 'history')
         )
 
     safe_name = "".join([c for c in template_name if c.isalnum() or c in (' ', '.', '_')]).rstrip()

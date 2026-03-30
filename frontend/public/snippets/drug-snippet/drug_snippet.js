@@ -10,8 +10,8 @@ var DRUG_SNIPPET_DATA = {"rld": {"d": {"a": {"w": {"n": {"z": {"e": {"r": {"a": 
         window.ASKFDALABEL_SNIPPET_HOST ||
         window.ASKFDALABEL_BASE_URL ||
         `${window.location.protocol}//${window.location.host}`;
-    const SNIPPET_APP_BASE = window.ASKFDALABEL_APP_BASE || '/askfdalabel';
-    const SNIPPET_API_BASE = window.ASKFDALABEL_API_BASE || '/askfdalabel_api';
+    const SNIPPET_APP_BASE = 'https://ncshpcgpu01/askfdalabel';
+    const SNIPPET_API_BASE = 'https://ncshpcgpu01/askfdalabel_api';
 
     const normalizedHost = SNIPPET_HOST.replace(/\/$/, '');
     const normalizedAppBase =
