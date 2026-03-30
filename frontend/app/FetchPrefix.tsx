@@ -2,8 +2,7 @@
 
 import { useEffect } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "/askfdalabel_api";
-const DASHBOARD_BASE = process.env.NEXT_PUBLIC_DASHBOARD_BASE ?? "/askfdalabel";
+import { API_BASE, DASHBOARD_BASE } from "./utils/appPaths";
 
 const prefixString = (value: string) => {
   if (!value.startsWith("/")) return value;

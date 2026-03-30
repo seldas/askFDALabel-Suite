@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import { saveAs } from 'file-saver';
+import { withAppBase } from '../../utils/appPaths';
 
 const section: { [code: string]: string } = {
   "34066-1": "BOXED WARNING",
@@ -1912,11 +1913,11 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                         </td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <a
-                              href={`/dashboard/label/${result.set_id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
+                    <a
+                      href={withAppBase(`/dashboard/label/${result.set_id}`)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                               View Analysis
                             </a>
                             {result.is_combination && (
