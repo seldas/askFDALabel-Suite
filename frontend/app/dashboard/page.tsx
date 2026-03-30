@@ -1301,7 +1301,7 @@ export default function DashboardPage() {
                                     </div>
 
                                     <a
-                                      href={`/labelcomp?${c.set_ids.map(id => `set_ids=${id}`).join('&')}`}
+                                      href={`/askfdalabel/labelcomp?${c.set_ids.map(id => `set_ids=${id}`).join('&')}`}
                                       target="_blank"
                                       rel="noreferrer"
                                       style={{

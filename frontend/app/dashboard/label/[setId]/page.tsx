@@ -1452,16 +1452,16 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       </Script>
 
       {/* Legacy Scripts */}
-      <Script src="/dashboard/js/Chart.js" strategy="afterInteractive" />
-      <Script src="/dashboard/js/marked.min.js" strategy="afterInteractive" />
-      <Script src="/dashboard/js/utils.js" strategy="afterInteractive" />
-      <Script src="/dashboard/js/ui.js" strategy="afterInteractive" />
-      <Script src="/dashboard/js/favorites.js" strategy="afterInteractive" />
-      <Script src="/dashboard/js/session_manager.js" strategy="afterInteractive" />
-      <Script src="/dashboard/js/chat.js?v=20260218_1" strategy="afterInteractive" />
-      <Script src="/dashboard/js/annotations.js" strategy="afterInteractive" />
-      <Script src="/dashboard/js/faers.js" strategy="afterInteractive" />
-      <Script src="/dashboard/js/tox.js" strategy="afterInteractive" />
+      <Script src="/askfdalabel/dashboard/js/Chart.js" strategy="afterInteractive" />
+      <Script src="/askfdalabel/dashboard/js/marked.min.js" strategy="afterInteractive" />
+      <Script src="/askfdalabel/dashboard/js/utils.js" strategy="afterInteractive" />
+      <Script src="/askfdalabel/dashboard/js/ui.js" strategy="afterInteractive" />
+      <Script src="/askfdalabel/dashboard/js/favorites.js" strategy="afterInteractive" />
+      <Script src="/askfdalabel/dashboard/js/session_manager.js" strategy="afterInteractive" />
+      <Script src="/askfdalabel/dashboard/js/chat.js?v=20260218_1" strategy="afterInteractive" />
+      <Script src="/askfdalabel/dashboard/js/annotations.js" strategy="afterInteractive" />
+      <Script src="/askfdalabel/dashboard/js/faers.js" strategy="afterInteractive" />
+      <Script src="/askfdalabel/dashboard/js/tox.js" strategy="afterInteractive" />
 
       {/* Modals placeholders for ui.js */}
       <div id="user-notes-modal" className="custom-modal" style={{ display: 'none' }}>
