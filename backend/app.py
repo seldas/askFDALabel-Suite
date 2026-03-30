@@ -76,6 +76,10 @@ def create_unified_app():
             "allowLocalQuery": allow_local
         })
 
+    @app.route('/health', methods=['GET'])
+    def health():
+        return jsonify({"status": "ok"})
+
     return app
 
 app = create_unified_app()
