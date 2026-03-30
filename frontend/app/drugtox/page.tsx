@@ -68,6 +68,7 @@ import GavelIcon from '@mui/icons-material/Gavel';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import LaunchIcon from '@mui/icons-material/Launch';
 import { useUser } from '../context/UserContext';
+import { withDashboardBase } from '../utils/appPaths';
 import Link from 'next/link';
 import debounce from 'lodash/debounce';
 
@@ -1023,12 +1024,21 @@ export default function DrugToxPage() {
                             sx={{ fontWeight: 700, textTransform: 'none', fontSize: '0.7rem' }}
                             onClick={() => {
                               if (item.rld_info?.setid) {
-                                window.open(`/dashboard/label/${item.rld_info.setid}`, '_blank');
+                                window.open(
+                                  withDashboardBase(`/dashboard/label/${item.rld_info.setid}`),
+                                  '_blank',
+                                );
                               } else {
-                                axios.get(`/api/drugtox/latest_rld?generic_name=${item.generic_name}`)
-                                  .then(res => {
+                                axios
+                                  .get(`/api/drugtox/latest_rld?generic_name=${item.generic_name}`)
+                                  .then((res) => {
                                     if (res.data.set_id) {
-                                      window.open(`/dashboard/label/${res.data.set_id}`, '_blank');
+                                      window.open(
+                                        withDashboardBase(
+                                          `/dashboard/label/${res.data.set_id}`,
+                                        ),
+                                        '_blank',
+                                      );
                                     } else {
                                       alert('No labeling found for this drug in the database.');
                                     }
@@ -1192,7 +1202,12 @@ export default function DrugToxPage() {
                         icon={<DashboardIcon fontSize="small" />}
                         label="Analysis"
                         value="View in Dashboard"
-                        onClick={() => window.open(`/dashboard/label/${detail.SETID}`, '_blank')}
+                        onClick={() =>
+                          window.open(
+                            withDashboardBase(`/dashboard/label/${detail.SETID}`),
+                            '_blank',
+                          )
+                        }
                       />
                     </Grid>
                     <Grid xs={12} sm={6}>
