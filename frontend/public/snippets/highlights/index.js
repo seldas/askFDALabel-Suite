@@ -4,6 +4,25 @@
 
     console.log("Highlights Snippet: Initializing...");
 
+    const SNIPPET_HOST =
+        window.ASKFDALABEL_SNIPPET_HOST ||
+        window.ASKFDALABEL_BASE_URL ||
+        `${window.location.protocol}//${window.location.host}`;
+    const SNIPPET_APP_BASE = window.ASKFDALABEL_APP_BASE || '/askfdalabel';
+
+    const normalizedHost = SNIPPET_HOST.replace(/\/$/, '');
+    const normalizedAppBase =
+        SNIPPET_APP_BASE === '/' ? '' : SNIPPET_APP_BASE.replace(/\/$/, '');
+
+    const withAppPath = (path = '') => {
+        const normalizedPath = path
+            ? path.startsWith('/') ? path : `/${path}`
+            : '';
+        return `${normalizedHost}${normalizedAppBase}${normalizedPath}`;
+    };
+
+    const highlightBaseUrl = withAppPath('');
+
     // 1. Inject Styles
     const styleId = 'highlights-snippet-styles';
     if (!document.getElementById(styleId)) {
@@ -163,7 +182,7 @@ Do not explain these tags to the user.]`;
             html = html.replace(annotationPattern, (match, cls, content) => {
                 changed = true;
                 const cleanContent = content.trim();
-                const baseUrl = 'https://ncshpcgpu01:8848';
+                const baseUrl = highlightBaseUrl;
                 
                 if (cls === 'drug') {
                     return `<span class="highlight-drug" data-drug="${cleanContent}" onclick="window.open('${baseUrl}/dashboard/results?drug_name=' + encodeURIComponent('${cleanContent}'), '_blank')">${content}</span>`;

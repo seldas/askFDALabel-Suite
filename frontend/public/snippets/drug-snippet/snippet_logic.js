@@ -4,6 +4,37 @@
 
     console.log("Drug Snippet: Initializing...");
 
+    const SNIPPET_HOST =
+        window.ASKFDALABEL_SNIPPET_HOST ||
+        window.ASKFDALABEL_BASE_URL ||
+        `${window.location.protocol}//${window.location.host}`;
+    const SNIPPET_APP_BASE = window.ASKFDALABEL_APP_BASE || '/askfdalabel';
+    const SNIPPET_API_BASE = window.ASKFDALABEL_API_BASE || '/askfdalabel_api';
+
+    const normalizedHost = SNIPPET_HOST.replace(/\/$/, '');
+    const normalizedAppBase =
+        SNIPPET_APP_BASE === '/' ? '' : SNIPPET_APP_BASE.replace(/\/$/, '');
+    const normalizedApiBase = SNIPPET_API_BASE.replace(/\/$/, '');
+
+    const withAppBase = (path = '') => {
+        const normalizedPath = path
+            ? path.startsWith('/') ? path : `/${path}`
+            : '';
+        return `${normalizedHost}${normalizedAppBase}${normalizedPath}`;
+    };
+
+    const withApiBase = (path) => {
+        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+        return `${normalizedHost}${normalizedApiBase}${normalizedPath}`;
+    };
+
+    const snippetPreviewUrl = (text) =>
+        withApiBase(`/api/dashboard/snippet-preview?drug_name=${encodeURIComponent(text)}`);
+    const snippetDashboardLabel = (setId) =>
+        withAppBase(`/dashboard/label/${encodeURIComponent(setId)}`);
+    const snippetDashboardResults = (query) =>
+        withAppBase(`/dashboard/results?drug_name=${encodeURIComponent(query)}`);
+
     let isEnabled = true;
     let currentOption = 3;
 
@@ -120,7 +151,7 @@
         }
 
         // Fetch info
-        fetch(`https://ncshpcgpu01:8848/api/dashboard/snippet-preview?drug_name=${encodeURIComponent(text)}`)
+        fetch(snippetPreviewUrl(text))
             .then(res => res.json())
             .then(data => {
                 if (data.found) {
@@ -129,11 +160,11 @@
                     renderTooltip(data);
                     let baseUrl = '';
                     if (currentOption === 1 ) {
-                        baseUrl = `https://ncshpcgpu01:8848/dashboard/label/${data.set_id}`;
+                        baseUrl = snippetDashboardLabel(data.set_id);
                     } else if (currentOption === 2 ) {
                         baseUrl = `https://fdalabel.fda.gov:8443/fdalabel/services/spl/set-ids/${data.set_id}/spl-doc`;
                     } else {
-                        baseUrl = `https://ncshpcgpu01:8848/dashboard/results?drug_name=${encodeURIComponent(text)}`;
+                        baseUrl = snippetDashboardResults(text);
                     }
                     linkElement.href = baseUrl;
                 } else {
@@ -190,11 +221,11 @@
             const link = document.createElement('a');
             let baseUrl = '';
             if (currentOption === 1 && link.dataset.setId) {
-                baseUrl = `https://ncshpcgpu01:8848/dashboard/label/${link.dataset.setId}`;
+                baseUrl = snippetDashboardLabel(link.dataset.setId);
             } else if (currentOption === 2 && link.dataset.setId) {
                 baseUrl = `https://fdalabel.fda.gov:8443/fdalabel/services/spl/set-ids/${link.dataset.setId}/spl-doc`;
             } else {
-                baseUrl = `https://ncshpcgpu01:8848/dashboard/results?drug_name=${encodeURIComponent(match.original)}`;
+                baseUrl = snippetDashboardResults(match.original);
             }
             link.href = baseUrl;
             link.target = '_blank';
@@ -513,7 +544,7 @@
             popup.style.display = 'block';
             popup.onmousedown = (pe) => {
                 pe.preventDefault(); pe.stopPropagation();
-                let baseUrl = `https://ncshpcgpu01:8848/dashboard/results?drug_name=${encodeURIComponent(selectedText)}`;
+                const baseUrl = snippetDashboardResults(selectedText);
                 if (currentOption === 1 || currentOption === 2) {
                     // We don't have set_id here, so we can't append it
                     // For now, we'll open the base URL
