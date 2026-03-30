@@ -2,7 +2,7 @@ FROM node:22-bullseye-slim
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
-ENV FRONTEND_PORT=3000
+ENV FRONTEND_PORT=8841
 
 WORKDIR /app
 
@@ -17,6 +17,6 @@ COPY . .
 
 RUN npm run build
 
-EXPOSE 3000
+EXPOSE 8841
 
 CMD ["npm", "run", "start"]

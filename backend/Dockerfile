@@ -3,7 +3,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV HOST=0.0.0.0
-ENV BACKEND_PORT=8000
+ENV BACKEND_PORT=8842
 
 WORKDIR /app
 
@@ -17,6 +17,6 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY . .
 
-EXPOSE 8000
+EXPOSE 8842
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8842", "app:app"]

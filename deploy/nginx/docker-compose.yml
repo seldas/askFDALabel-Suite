@@ -1,0 +1,22 @@
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: askfdalabel-nginx
+    ports:
+      - "80:80"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/askfdalabel/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: always
+    networks:
+      - apps-network
+
+networks:
+  apps-network:
+    name: apps-network
+    external: true
