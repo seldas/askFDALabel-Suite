@@ -2,7 +2,6 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
-const https = require('https');
 const next = require('next');
 
 // 1. Load .env from project root
@@ -16,10 +15,7 @@ const port = parseInt(process.env.FRONTEND_PORT || 8848);
 const isProd = process.env.NODE_ENV === 'production';
 
 // 2. Automatic HTTPS Detection
-const certPath = path.resolve(__dirname, '../cert.pem');
-const keyPath = path.resolve(__dirname, '../key.pem');
-const useHttps = fs.existsSync(certPath) && fs.existsSync(keyPath);
-const protocol = useHttps ? 'https' : 'http';
+const protocol = 'http';
 
 console.log(`> Starting Next.js in ${isProd ? 'production' : 'development'} on ${protocol}://${host}:${port}`);
 
@@ -29,13 +25,11 @@ if (isProd) {
   const handle = app.getRequestHandler();
 
   app.prepare().then(() => {
-    const serverCreator = useHttps ? 
-      (handler) => https.createServer({ key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) }, handler) :
-      (handler) => http.createServer(handler);
-
-    serverCreator((req, res) => {
+    const server = http.createServer((req, res) => {
       handle(req, res);
-    }).listen(port, host, (err) => {
+    });
+
+    server.listen(port, host, (err) => {
       if (err) throw err;
       console.log(`> Production server ready on ${protocol}://${host}:${port}`);
     });
@@ -43,11 +37,6 @@ if (isProd) {
 } else {
   // DEVELOPMENT LOGIC (using Next.js CLI for HMR support)
   const args = ['next', 'dev', '-p', String(port), '-H', String(host)];
-  if (useHttps) {
-    args.push('--experimental-https');
-    args.push('--experimental-https-key', keyPath);
-    args.push('--experimental-https-cert', certPath);
-  }
 
   const nextProcess = spawn('npx', args, {
     stdio: 'inherit',
