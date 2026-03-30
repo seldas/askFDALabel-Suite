@@ -13,6 +13,18 @@ const prefixString = (value: string) => {
   if (value.startsWith("/dashboard")) {
     return `${DASHBOARD_BASE}${value}`;
   }
+  if (value.startsWith("/labelcomp")) {
+    return `${DASHBOARD_BASE}${value}`;
+  }
+  if (value.startsWith("/webtest")) {
+    return `${DASHBOARD_BASE}${value}`;
+  }
+  if (value.startsWith("/search")) {
+    return `${DASHBOARD_BASE}${value}`;
+  }
+  if (value.startsWith("/drugtox")) {
+    return `${DASHBOARD_BASE}${value}`;
+  }
   return value;
 };
 
