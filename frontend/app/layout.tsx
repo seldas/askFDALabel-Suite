@@ -3,6 +3,7 @@ import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "./context/UserContext";
 import AuthModals from "./components/AuthModals";
+import FetchPrefix from "./FetchPrefix";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -36,6 +37,7 @@ export default function RootLayout({
         fontFamily: 'var(--font-inter), system-ui, sans-serif'
       }}>
         <UserProvider>
+          <FetchPrefix />
           {children}
           <AuthModals />
         </UserProvider>
