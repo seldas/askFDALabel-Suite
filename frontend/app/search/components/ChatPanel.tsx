@@ -59,6 +59,42 @@ const SimpleProgress = ({ status }: { status: string }) => {
   );
 };
 
+const DiffHighlight: React.FC<{ original: string; refined: string }> = ({ original, refined }) => {
+  const normalizeWord = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/gi, "");
+  const originalWords = new Set(
+    original
+      .split(/\s+/)
+      .map(normalizeWord)
+      .filter(Boolean)
+  );
+
+  const tokens = refined.split(/(\s+)/).map((token, index) => {
+    if (!token.trim()) {
+      return <span key={index}>{token}</span>;
+    }
+    const normalized = normalizeWord(token);
+    const isNew = normalized && !originalWords.has(normalized);
+    return (
+      <span
+        key={index}
+        style={{
+          backgroundColor: isNew ? '#fde68a' : 'transparent',
+          borderRadius: 3,
+          padding: isNew ? '0 2px' : undefined,
+        }}
+      >
+        {token}
+      </span>
+    );
+  });
+
+  return (
+    <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '0.95rem' }}>
+      {tokens}
+    </div>
+  );
+};
+
 const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
   const { session } = useUser();
   const {

@@ -90,6 +90,7 @@ interface SearchContextProps {
 
   // Fixed Mode: 'semantic'
   searchMode: string;
+  setSearchMode: React.Dispatch<React.SetStateAction<string>>;
 
   // Agent debug panels
   agentFlow: string[];
@@ -145,7 +146,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setFilters(prev => ({ ...prev, [flag]: !prev[flag] }));
   };
 
-  const searchMode = 'semantic';
+  const [searchMode, setSearchMode] = useState('semantic');
 
   const [agentFlow, setAgentFlow] = useState<string[]>([]);
   const [reasoning, setReasoning] = useState('');
@@ -333,6 +334,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setLoadingStatus,
 
         searchMode,
+        setSearchMode,
 
         agentFlow,
         setAgentFlow,
