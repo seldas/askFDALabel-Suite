@@ -8,6 +8,7 @@ import {
     BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, 
     Tooltip, Legend, ResponsiveContainer, ComposedChart 
 } from 'recharts';
+import { API_BASE } from '../utils/appPaths';
 
 interface TestResult {
     task_num: number;
@@ -34,6 +35,10 @@ type SortConfig = {
     key: 'time_to_ready' | null;
     direction: 'asc' | 'desc' | null;
 };
+
+const BACKEND_API_PREFIX = `${API_BASE}/api`;
+const WEBTEST_API_PREFIX = `${BACKEND_API_PREFIX}/webtest`;
+const webtestEndpoint = (suffix: string) => `${WEBTEST_API_PREFIX}${suffix}`;
 
 export default function WebTestingPage() {
     const { session, openAuthModal } = useUser();
@@ -79,7 +84,7 @@ export default function WebTestingPage() {
     const fetchTemplates = async () => {
         setIsRefreshing(true);
         try {
-            const response = await fetch('/api/webtest/templates');
+        const response = await fetch(webtestEndpoint('/templates'));
             const data = await response.json();
             setTemplates(data || []);
             if (data.length > 0 && !selectedTemplate) {
@@ -96,7 +101,7 @@ export default function WebTestingPage() {
         if (!selectedTemplate) return;
         setIsHistoryLoading(true);
         try {
-            const endpoint = isGrouped ? '/api/webtest/group_history' : '/api/webtest/task_history';
+        const endpoint = isGrouped ? webtestEndpoint('/group_history') : webtestEndpoint('/task_history');
 
             const params = isGrouped
             ? `template_name=${encodeURIComponent(selectedTemplate)}&query_details=${encodeURIComponent(task.query_details)}&range=${historyRange}`
@@ -203,7 +208,7 @@ export default function WebTestingPage() {
         if (selectedTemplate && status === 'idle') {
             const fetchInfo = async () => {
                 try {
-                    const res = await fetch(`/api/webtest/template_info?template_name=${encodeURIComponent(selectedTemplate)}`);
+                const res = await fetch(`${webtestEndpoint('/template_info')}?template_name=${encodeURIComponent(selectedTemplate)}`);
                     const data = await res.json();
                     if (data.tasks) {
                         setTotalTasks(data.total_tasks);
@@ -252,7 +257,7 @@ export default function WebTestingPage() {
             if (results[i].status !== 'pending' && results[i].status !== 'Inaccessible') continue;
 
             try {
-                const response = await fetch('/api/webtest/probe_single', {
+                const response = await fetch(webtestEndpoint('/probe_single'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -293,7 +298,7 @@ export default function WebTestingPage() {
 
         // AUTO-SAVE logic: Trigger after full completion
         try {
-            const saveResp = await fetch('/api/webtest/save_results', {
+            const saveResp = await fetch(webtestEndpoint('/save_results'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -316,7 +321,7 @@ export default function WebTestingPage() {
 
 
     const downloadReport = async () => {
-        const res = await fetch('/api/webtest/report_from_data', {
+        const res = await fetch(webtestEndpoint('/report_from_data'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ results })

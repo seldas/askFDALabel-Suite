@@ -68,7 +68,7 @@ import GavelIcon from '@mui/icons-material/Gavel';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import LaunchIcon from '@mui/icons-material/Launch';
 import { useUser } from '../context/UserContext';
-import { withDashboardBase } from '../utils/appPaths';
+import { API_BASE, withDashboardBase } from '../utils/appPaths';
 import Link from 'next/link';
 import debounce from 'lodash/debounce';
 
@@ -145,7 +145,8 @@ const TOX_ORDER: Record<string, number> = {
   'Unknown': 5,
 };
 
-const API_BASE = '/api/drugtox';
+const BACKEND_API_PREFIX = `${API_BASE}/api`;
+const DRUGTOX_API_PREFIX = `${BACKEND_API_PREFIX}/drugtox`;
 
 export default function DrugToxPage() {
   const theme = useTheme();
@@ -163,7 +164,7 @@ export default function DrugToxPage() {
   useEffect(() => {
     const checkInternalStatus = async () => {
       try {
-        const response = await fetch("/api/check-fdalabel", { method: 'POST' });
+        const response = await fetch(`${BACKEND_API_PREFIX}/check-fdalabel`, { method: 'POST' });
         const data = await response.json();
         setIsInternal(data.isInternal);
       } catch (error) {
@@ -259,7 +260,7 @@ export default function DrugToxPage() {
   const fetchStats = useCallback((currentTox: string | null) => {
     setStatsLoading(true);
     axios
-      .get(`${API_BASE}/stats`, { params: { tox_type: currentTox } })
+      .get(`${DRUGTOX_API_PREFIX}/stats`, { params: { tox_type: currentTox } })
       .then((res) => {
         setStats({
           ...res.data,
@@ -273,7 +274,7 @@ export default function DrugToxPage() {
   const fetchDiscrepancies = useCallback((currentTox: string | null) => {
     setDiscrepancyLoading(true);
     axios
-      .get(`${API_BASE}/discrepancies`, { params: { tox_type: currentTox } })
+      .get(`${DRUGTOX_API_PREFIX}/discrepancies`, { params: { tox_type: currentTox } })
       .then((res) => {
         setDiscrepancies(res.data);
         setDiscrepancyLoading(false);
@@ -307,7 +308,7 @@ export default function DrugToxPage() {
         return;
       }
       axios
-        .get(`${API_BASE}/autocomplete?q=${encodeURIComponent(input)}`)
+      .get(`${DRUGTOX_API_PREFIX}/autocomplete?q=${encodeURIComponent(input)}`)
         .then((response) => setOptions(response.data))
         .catch((err) => console.error(err));
     }, 300),
@@ -329,7 +330,7 @@ export default function DrugToxPage() {
     setLoading(true);
     setHasSearched(true);
     axios
-      .get(`${API_BASE}/drugs`, {
+      .get(`${DRUGTOX_API_PREFIX}/drugs`, {
         params: {
           q: searchQuery || undefined,
           tox_type: currentToxType || undefined,
@@ -403,9 +404,9 @@ export default function DrugToxPage() {
       setMarketCategoryFilter(null);
       setMetaExpanded(true);
       Promise.all([
-        axios.get(`${API_BASE}/drugs/${selectedSetid}`, { params: { tox_type: toxType } }),
-        axios.get(`${API_BASE}/drugs/${selectedSetid}/history`, { params: { tox_type: toxType } }),
-        axios.get(`${API_BASE}/drugs/${selectedSetid}/market`, { params: { tox_type: toxType } }),
+        axios.get(`${DRUGTOX_API_PREFIX}/drugs/${selectedSetid}`, { params: { tox_type: toxType } }),
+        axios.get(`${DRUGTOX_API_PREFIX}/drugs/${selectedSetid}/history`, { params: { tox_type: toxType } }),
+        axios.get(`${DRUGTOX_API_PREFIX}/drugs/${selectedSetid}/market`, { params: { tox_type: toxType } }),
       ])
         .then(([detailRes, historyRes, marketRes]) => {
           setDetail(detailRes.data);
@@ -429,8 +430,8 @@ export default function DrugToxPage() {
       setCompanyLoading(true);
       setCompanyFilter(null); // Reset filter when company changes
       Promise.all([
-        axios.get(`${API_BASE}/companies/${encodeURIComponent(selectedCompany)}/stats`, { params: { tox_type: toxType } }),
-        axios.get(`${API_BASE}/companies/${encodeURIComponent(selectedCompany)}/portfolio`, { params: { tox_type: toxType } }),
+        axios.get(`${DRUGTOX_API_PREFIX}/companies/${encodeURIComponent(selectedCompany)}/stats`, { params: { tox_type: toxType } }),
+        axios.get(`${DRUGTOX_API_PREFIX}/companies/${encodeURIComponent(selectedCompany)}/portfolio`, { params: { tox_type: toxType } }),
       ])
         .then(([statsRes, portfolioRes]) => {
           setCompanyStats(statsRes.data);
@@ -1030,7 +1031,7 @@ export default function DrugToxPage() {
                                 );
                               } else {
                                 axios
-                                  .get(`/api/drugtox/latest_rld?generic_name=${item.generic_name}`)
+                                  .get(`${DRUGTOX_API_PREFIX}/latest_rld?generic_name=${item.generic_name}`)
                                   .then((res) => {
                                     if (res.data.set_id) {
                                       window.open(
