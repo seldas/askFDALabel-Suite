@@ -23,6 +23,7 @@ dist/
 .DS_Store
 Thumbs.db
 nohup.out
+nohup.out.log
 sync_embeddings_multigpu.log
 
 # archive_folder
