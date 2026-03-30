@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { API_BASE, DASHBOARD_BASE } from "./utils/appPaths";
+import { API_BASE, DASHBOARD_BASE, withAppBase } from "./utils/appPaths";
 
 const DASHBOARD_PREFIXES = [
   "/dashboard",
@@ -71,6 +71,60 @@ const rewriteAnchors = () => {
     });
 };
 
+const shouldRewriteAsset = (value: string) => {
+  if (!value.startsWith("/")) return false;
+  if (value.startsWith("//")) return false;
+  return !value.startsWith("http://") && !value.startsWith("https://") && !value.startsWith("mailto:") && !value.startsWith("tel:");
+};
+
+const rewriteAssetValue = (value: string) => {
+  if (!shouldRewriteAsset(value)) return value;
+  return withAppBase(value);
+};
+
+const rewriteSrcSet = (value: string) =>
+  value
+    .split(",")
+    .map((segment) => {
+      const trimmed = segment.trim();
+      if (!trimmed) return "";
+      const tokens = trimmed.split(/\s+/);
+      const rewritten = rewriteAssetValue(tokens[0]);
+      return [rewritten, ...tokens.slice(1)].join(" ").trim();
+    })
+    .filter(Boolean)
+    .join(", ");
+
+const rewriteMediaSources = () => {
+  if (!document.body) return;
+  const selector = "img, video, audio, source";
+  document.body.querySelectorAll<HTMLImageElement | HTMLVideoElement | HTMLAudioElement | HTMLSourceElement>(selector).forEach((element) => {
+    if (element.hasAttribute("src")) {
+      const src = element.getAttribute("src") || "";
+      const rewritten = rewriteAssetValue(src);
+      if (rewritten !== src) {
+        element.setAttribute("src", rewritten);
+      }
+    }
+
+    if (element.hasAttribute("srcset")) {
+      const srcset = element.getAttribute("srcset") || "";
+      const rewritten = rewriteSrcSet(srcset);
+      if (rewritten !== srcset) {
+        element.setAttribute("srcset", rewritten);
+      }
+    }
+
+    if (element instanceof HTMLImageElement && element.hasAttribute("data-src")) {
+      const dataSrc = element.getAttribute("data-src") || "";
+      const rewritten = rewriteAssetValue(dataSrc);
+      if (rewritten !== dataSrc) {
+        element.setAttribute("data-src", rewritten);
+      }
+    }
+  });
+};
+
 const rewriteInput = (input: RequestInfo | URL) => {
   if (typeof input === "string") {
     return prefixString(input);
@@ -103,10 +157,15 @@ const FetchPrefix = () => {
     };
     window.fetch = overrideFetch;
 
-    rewriteAnchors();
+    const refresh = () => {
+      rewriteAnchors();
+      rewriteMediaSources();
+    };
+
+    refresh();
     const observer =
       typeof MutationObserver !== "undefined"
-        ? new MutationObserver(rewriteAnchors)
+        ? new MutationObserver(refresh)
         : null;
     if (observer && document.body) {
       observer.observe(document.body, { childList: true, subtree: true });
