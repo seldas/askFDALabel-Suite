@@ -39,6 +39,8 @@ GEMINI.md
 # FDALabel web testing log and result files
 frontend/public/webtest/results/
 frontend/public/webtest/history/
+backend/webtest/results/
+backend/webtest/history/
 
 data/rxnorm/
 data/spl_storage/

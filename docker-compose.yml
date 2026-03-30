@@ -32,6 +32,9 @@ services:
       DATABASE_URL: postgresql://afd_user:afd_password@db:5432/askfdalabel
       BACKEND_PORT: 8842
       HOST: 0.0.0.0
+    volumes:
+      - ./backend/webtest/results:/app/webtest/results
+      - ./backend/webtest/history:/app/webtest/history
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8842/health || exit 1"]
       interval: 30s
