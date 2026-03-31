@@ -1877,7 +1877,7 @@ def run_assessment_logic(set_id, assessment_model, prompt):
         ns = {'v3': 'urn:hl7-org:v3'}
         xml_string_cleaned = xml_content.encode('ascii', 'ignore').decode('ascii')
         root = ET.fromstring(xml_string_cleaned)
-        
+
         target_code_map = {
             '34066-1': 'Boxed Warning',
             '34070-3': 'Contraindications',
@@ -1887,23 +1887,31 @@ def run_assessment_logic(set_id, assessment_model, prompt):
             '34073-7': 'Drug Interactions',
             '43684-0': 'Use in Specific Populations'
         }
-        
-        aggregated_text = ""
+
+        aggregated_parts = []
         processed_ids = set()
 
         for section in root.findall(".//v3:section", ns):
             code_el = section.find("v3:code", ns)
-            if code_el is not None:
-                code_val = code_el.get('code')
-                if code_val in target_code_map:
-                    sec_id = section.get('ID', str(uuid.uuid4()))
-                    if sec_id in processed_ids: continue
-                    processed_ids.add(sec_id)
-                    
-                    section_name = target_code_map[code_val]
-                    text_content = "".join(section.itertext()).strip()
-                    if len(text_content) > 10:
-                        aggregated_text += f"\n\n### {section_name}\n{text_content}"
+            if code_el is None:
+                continue
+
+            code_val = code_el.get('code')
+            if code_val not in target_code_map:
+                continue
+
+            sec_id = section.get('ID', str(uuid.uuid4()))
+            if sec_id in processed_ids:
+                continue
+            processed_ids.add(sec_id)
+
+            section_name = target_code_map[code_val]
+            text_content = " ".join("".join(section.itertext()).split()).strip()
+
+            if len(text_content) > 10:
+                aggregated_parts.append(f"### {section_name}\n{text_content}")
+
+        aggregated_text = "\n\n".join(aggregated_parts)
 
         if not aggregated_text:
             return jsonify({'assessment_report': "No relevant sections found."})
@@ -1912,13 +1920,15 @@ def run_assessment_logic(set_id, assessment_model, prompt):
             user_obj = current_user._get_current_object() if current_user.is_authenticated else None
             response_text = generate_assessment(user_obj, prompt, aggregated_text)
 
-            html_matches = re.findall(r'(<div class="label-section">[\s\S]*?</div>)', response_text, re.DOTALL)
-    
+            html_matches = re.findall(
+                r'(<div class="label-section">[\s\S]*?</div>)',
+                response_text,
+                re.DOTALL
+            )
+
             if html_matches:
-                # If one or more blocks are found, join them together. This is the clean report.
                 clean_report = "\n".join(html_matches)
             else:
-                # Check for "no evidence" comments specifically for each type
                 if '<!-- No DILI evidence found' in response_text or 'No DILI Concern' in response_text:
                     clean_report = '<div class="label-section"><!-- No DILI evidence found in label --><p><strong>Conclusion:</strong> No DILI Concern</p></div>'
                 elif '<!-- No DICT evidence found' in response_text or 'No DICT Concern' in response_text:
@@ -1926,8 +1936,7 @@ def run_assessment_logic(set_id, assessment_model, prompt):
                 elif '<!-- No DIRI evidence found' in response_text or 'No DIRI Concern' in response_text:
                     clean_report = '<div class="label-section"><!-- No DIRI evidence found in label --><p><strong>Conclusion:</strong> No DIRI Concern</p></div>'
                 else:
-                    # Fallback for unexpected responses
-                    clean_report = '<!-- AI response did not contain valid HTML report. -->'
+                    clean_report = '<div class="label-section"><p class="error">AI response did not contain valid HTML report.</p></div>'
 
             assessment = assessment_model.query.filter_by(set_id=set_id).first()
             if assessment:
@@ -1936,21 +1945,17 @@ def run_assessment_logic(set_id, assessment_model, prompt):
             else:
                 assessment = assessment_model(set_id=set_id, report_content=clean_report)
                 db.session.add(assessment)
-            
-            # Update ToxAgent Table
+
             try:
                 meta = extract_metadata_from_xml(xml_content) or {}
                 new_eff_time = meta.get('effective_time')
-                
-                tox_agent = ToxAgent.query.filter_by(set_id=set_id, current='Yes').first()
-                
-                # Version Change Logic: If the EFF_TIME is different, we need a new record
-                if tox_agent and tox_agent.spl_effective_time != new_eff_time:
-                    # Mark all existing for this set_id as not current
-                    ToxAgent.query.filter_by(set_id=set_id).update({"current": "No"})
-                    tox_agent = None # Force creation of a new 'Yes' record below
 
-                # Metadata for ToxAgent if new or version changed
+                tox_agent = ToxAgent.query.filter_by(set_id=set_id, current='Yes').first()
+
+                if tox_agent and tox_agent.spl_effective_time != new_eff_time:
+                    ToxAgent.query.filter_by(set_id=set_id).update({"current": "No"})
+                    tox_agent = None
+
                 if not tox_agent:
                     tox_agent = ToxAgent(
                         set_id=set_id,
@@ -1972,18 +1977,20 @@ def run_assessment_logic(set_id, assessment_model, prompt):
                 field_name = report_field_map.get(assessment_model)
                 if field_name:
                     setattr(tox_agent, field_name, clean_report)
-                
-                # Update general fields if they are missing
-                if not tox_agent.brand_name: tox_agent.brand_name = meta.get('brand_name')
-                if not tox_agent.generic_name: tox_agent.generic_name = meta.get('generic_name')
-                
+
+                if not tox_agent.brand_name:
+                    tox_agent.brand_name = meta.get('brand_name')
+                if not tox_agent.generic_name:
+                    tox_agent.generic_name = meta.get('generic_name')
+
                 tox_agent.last_updated = datetime.utcnow()
                 tox_agent.status = 'completed'
+
             except Exception as tox_err:
                 logger.error(f"Failed to update ToxAgent during manual assessment: {tox_err}")
 
             db.session.commit()
-            return jsonify({'assessment_report': response_text})
+            return jsonify({'assessment_report': clean_report})
 
         except Exception as e:
             db.session.rollback()

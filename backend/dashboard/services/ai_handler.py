@@ -278,14 +278,48 @@ def call_llm(user, system_prompt, user_message, history=None, model_override=Non
 
         try:
             command = f'''LLM(engine = "{model}", command = "<encode>{full_prompt}</encode>", paramValues = [{{"max_completion_tokens": {max_tokens}, "temperature": {temperature}}}])'''
-            response = requests.post(client['base_url'], headers={"Content-Type": "application/x-www-form-urlencoded"}, data=f'expression={quote_plus(command)}', auth=(client['username'], client['password']), verify=False)
-            if response.status_code == 200:
-                result = json.loads(response.text)
-                return result['pixelReturn'][0]['output']['response']
-            else:
-                raise Exception(f"Elsa API error: Status {response.status_code}")
+            response = requests.post(client['base_url'], 
+                                     headers={"Content-Type": "application/x-www-form-urlencoded"}, 
+                                     data=f'expression={quote_plus(command)}', 
+                                     auth=(client['username'], client['password']), 
+                                     verify=False,
+                                     timeout=(120, 600))
+            if response.status_code != 200:
+                raise Exception(f"Elsa API error: status={response.status_code}, body={response.text[:500]}")
+
+            result = json.loads(response.text)
+
+            pixel_return = result.get("pixelReturn")
+            if not isinstance(pixel_return, list) or not pixel_return:
+                raise Exception(f"Invalid Elsa response: {result}")
+
+            pixel = pixel_return[0]
+            if not isinstance(pixel, dict):
+                raise Exception(f"Invalid Elsa pixelReturn item: {pixel!r}")
+
+            operation_type = pixel.get("operationType", [])
+            output = pixel.get("output")
+
+            if isinstance(operation_type, list) and "ERROR" in operation_type:
+                raise Exception(f"Elsa error: {output}")
+
+            if isinstance(output, dict):
+                response_text = output.get("response")
+                if isinstance(response_text, str):
+                    return response_text
+                raise Exception(f"Unexpected Elsa output dict: {output!r}")
+
+            if isinstance(output, str):
+                return output
+
+            raise Exception(f"Unexpected Elsa output type: {type(output).__name__}, value={output!r}")
+
+        except requests.exceptions.Timeout:
+            logger.error("Elsa request timed out")
+            raise Exception("Elsa request timed out")
         except Exception as e:
-            logger.error(f"Elsa error: {e}"); raise e
+            logger.error(f"Elsa error: {e}")
+            raise
 
     elif provider == "gemini":
         config = types.GenerateContentConfig(

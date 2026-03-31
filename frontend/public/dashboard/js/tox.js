@@ -162,7 +162,7 @@ window.initToxAgents = function() {
         if (errorEl) errorEl.style.display = 'none';
 
         try {
-            const response = await fetch(`/api/dashboard/dili/faers/${currentSetId}`);
+            const response = await fetch(`/askfdalabel/api/dashboard/dili/faers/${currentSetId}`);
             const data = await response.json();
             
             if (loadingEl) loadingEl.style.display = 'none';
@@ -200,7 +200,7 @@ window.initToxAgents = function() {
         updateDiliRiskPanel(null);
         signalsContainer.innerHTML = `<div style="text-align: center; padding: 30px;"><div class="loader" style="margin: 0 auto 15px auto;"></div><p>Consulting AI Agent to analyze label sections...</p></div>`;
         try {
-            const response = await fetch(`/api/dashboard/dili/assess/${currentSetId}`);
+            const response = await fetch(`/askfdalabel/api/dashboard/dili/assess/${currentSetId}`);
             const data = await response.json();
             if (data.error) throw new Error(data.error);
             renderDiliSignals(data.assessment_report);
@@ -259,7 +259,7 @@ window.initToxAgents = function() {
         if (errorEl) errorEl.style.display = 'none';
 
         try {
-            const response = await fetch(`/api/dashboard/dict/faers/${currentSetId}`);
+            const response = await fetch(`/askfdalabel/api/dashboard/dict/faers/${currentSetId}`);
             const data = await response.json();
             if (loadingEl) loadingEl.style.display = 'none';
             if (contentEl) contentEl.style.display = 'grid';
@@ -294,7 +294,7 @@ window.initToxAgents = function() {
         updateDictRiskPanel(null);
         signalsContainer.innerHTML = `<div style="text-align: center; padding: 30px;"><div class="loader" style="margin: 0 auto 15px auto; border-top-color: #dc3545;"></div><p>Consulting AI Agent...</p></div>`;
         try {
-            const response = await fetch(`/api/dashboard/dict/assess/${currentSetId}`);
+            const response = await fetch(`/askfdalabel/api/dashboard/dict/assess/${currentSetId}`);
             const data = await response.json();
             renderDictSignals(data.assessment_report);
             const controlsDiv = document.createElement('div');
@@ -349,7 +349,7 @@ window.initToxAgents = function() {
         if (errorEl) errorEl.style.display = 'none';
 
         try {
-            const response = await fetch(`/api/dashboard/diri/faers/${currentSetId}`);
+            const response = await fetch(`/askfdalabel/api/dashboard/diri/faers/${currentSetId}`);
             const data = await response.json();
             if (loadingEl) loadingEl.style.display = 'none';
             if (contentEl) contentEl.style.display = 'grid';
@@ -384,7 +384,7 @@ window.initToxAgents = function() {
         updateDiriRiskPanel(null);
         signalsContainer.innerHTML = `<div style="text-align: center; padding: 30px;"><div class="loader" style="margin: 0 auto 15px auto; border-top-color: #ffc107;"></div><p>Consulting AI Agent...</p></div>`;
         try {
-            const response = await fetch(`/api/dashboard/diri/assess/${currentSetId}`);
+            const response = await fetch(`/askfdalabel/api/dashboard/diri/assess/${currentSetId}`);
             const data = await response.json();
             renderDiriSignals(data.assessment_report);
             const controlsDiv = document.createElement('div');
@@ -436,7 +436,7 @@ window.initToxAgents = function() {
         if (contentEl) contentEl.style.display = 'none';
         if (errorEl) errorEl.style.display = 'none';
         try {
-            const response = await fetch(`/api/dashboard/pgx/assess/${currentSetId}?refresh=${forceRefresh}`);
+            const response = await fetch(`/askfdalabel/api/dashboard/pgx/assess/${currentSetId}?refresh=${forceRefresh}`);
             const data = await response.json();
             if (loadingEl) loadingEl.style.display = 'none';
             if (data.error) {

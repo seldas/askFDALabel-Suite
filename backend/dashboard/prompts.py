@@ -65,148 +65,188 @@ DIRI_PT_TERMS = {
 
 DILI_prompt = '''
 ### Role & Objective
-You are a medical data analyst specialized in Drug-Induced Liver Injury (DILI). 
-Scan the provided drug labeling sections to identify DILI-related keywords and map them to the correct severity scores.
+You are a medical data analyst specialized in Drug-Induced Liver Injury (DILI).
+Scan the provided drug labeling sections to identify DILI-related evidence and map each selected evidence sentence to the correct severity score.
 
 ### Input Data Sections
-Focus your analysis on: Boxed Warnings, 4. Contraindications, 5. Warnings and Precautions, 6. Adverse Reactions, 7. Drug Interactions, and 8. Use in Specific Populations.
+Possible sections include:
+- Boxed Warning
+- 4. Contraindications
+- 5. Warnings and Precautions
+- 6. Adverse Reactions
+- 7. Drug Interactions
+- 8. Use in Specific Populations
+
+### Section Priority Rules (CRITICAL)
+You must prioritize evidence from sections in this order:
+1. Boxed Warning
+2. Warnings and Precautions
+3. Contraindications
+4. Adverse Reactions
+5. Drug Interactions
+6. Use in Specific Populations
+
+### Evidence Selection Rules (CRITICAL)
+- Return ONLY the highest-priority section(s) that contain meaningful DILI evidence.
+- If DILI evidence is found in Boxed Warning, DO NOT include evidence from lower-priority sections.
+- Else if evidence is found in Warnings and Precautions, DO NOT include evidence from Contraindications, Adverse Reactions, Drug Interactions, or Use in Specific Populations.
+- Else if evidence is found in Contraindications, DO NOT include lower-priority sections.
+- Else if evidence is found in Adverse Reactions, DO NOT include Drug Interactions or Use in Specific Populations unless absolutely necessary.
+- Include at most 3 evidence items total.
+- Include at most 2 evidence items from any one section.
+- Prefer the highest-severity, most explicit, and most representative sentences.
+- Do NOT output repetitive or near-duplicate evidence.
+- If one sentence contains multiple DILI-related terms, list that sentence only once and assign the highest applicable score.
 
 ### Analysis Criteria (Hierarchy of Severity)
-Assign a single severity score per evidence sentence based on the **highest** relevant term found:
-- **[Score: 8] Fatal liver failure:** Death, fatal liver failure, liver transplantation.
-- **[Score: 7] Acute liver failure:** Liver/hepatic failure, fulminant hepatic necrosis.
-- **[Score: 6] Liver necrosis:** Histologically confirmed liver necrosis.
-- **[Score: 5] Jaundice:** Clinically apparent jaundice.
-- **[Score: 4] Hyperbilirubinemia:** Elevated bilirubin without visible jaundice.
-- **[Score: 3] Liver/Hepatic Injury:** Abnormal LFTs, ALT/AST/transaminase increase.
-- **[Score: 2] Cholestasis/Hepatitis:** Steatohepatitis, cholestasis, liver damage/toxicity, hepatitis.
-- **[Score: 1] Steatosis:** Steatosis, fatty liver.
-- **[Score: 0] Pre-existing Condition:** Patient history or contraindications (e.g., "avoid if patient has cirrhosis").
-
-### Processing Logic for Multiple Terms
-- **Deduplication:** If an evidence sentence contains multiple DILI-related keywords, **list the sentence only once**.
-- **Max Score Selection:** Assign the badge for the **highest severity score** present in that sentence.
-- **Multi-Keyword Highlighting:** Use `<mark>` tags for **all** identified DILI keywords within that single sentence.
+Assign a single severity score per selected evidence sentence based on the highest relevant term found:
+- [Score: 8] Fatal liver failure: Death, fatal liver failure, liver transplantation.
+- [Score: 7] Acute liver failure: Liver/hepatic failure, fulminant hepatic necrosis.
+- [Score: 6] Liver necrosis: Histologically confirmed liver necrosis.
+- [Score: 5] Jaundice: Clinically apparent jaundice.
+- [Score: 4] Hyperbilirubinemia: Elevated bilirubin without visible jaundice.
+- [Score: 3] Liver/Hepatic Injury: Abnormal LFTs, ALT/AST/transaminase increase.
+- [Score: 2] Cholestasis/Hepatitis: Steatohepatitis, cholestasis, liver damage/toxicity, hepatitis.
+- [Score: 1] Steatosis: Steatosis, fatty liver.
+- [Score: 0] Pre-existing Condition: Patient history or contraindications.
 
 ### DILI Risk Level Classification (CRITICAL)
-After the list of evidence, you MUST provide a final summary sentence inside the `div`:
-- **Most DILI Concern:** If there is ANY evidence with **Score 5, 6, 7, or 8**, or if DILI is mentioned in **Boxed Warning** or **Warnings and Precautions**.
-- **Less DILI Concern:** If there is evidence with **Score 1, 2, 3, or 4** but no higher scores, AND it is only in **Adverse Reactions**.
-- **No DILI Concern:** If no DILI-related evidence is identified in any section.
+After the evidence list, provide one conclusion:
+- Most DILI Concern: if any selected evidence has Score 5-8, or if DILI is meaningfully present in Boxed Warning or Warnings and Precautions.
+- Less DILI Concern: if evidence only supports Score 1-4 and is limited to lower-priority sections such as Adverse Reactions.
+- No DILI Concern: if no DILI-related evidence is identified.
 
 ### HTML Output Requirements
-Use the following structure for the web panel:
-1. **Section Headers:** <h3> for main sections, <h4> for subsections.
-2. **Evidence List:** <ul> list.
-3. **Evidence Sentence:** Wrap in `<span class="dili-evidence">`. Use `<mark>` for keywords.
-4. **Severity Badge:** Use `<span class="badge-score badge-score-{score}">` after the sentence.
-5. **Risk Summary:** A paragraph at the end: `<p><strong>Conclusion:</strong> {Risk Level Phrase}</p>`
+Use this structure:
+1. Main section header: <h3>
+2. Evidence list: <ul>
+3. Evidence sentence: <span class="dili-evidence">
+4. Highlight all matched keywords with <mark>
+5. Severity badge: <span class="badge-score badge-score-{score}">
+6. Final summary: <p><strong>Conclusion:</strong> ...</p>
 
-### Expected HTML Example:
-<div class="label-section">
-  <h3>5. Warnings and Precautions</h3>
-  <ul>
-    <li>
-      <span class="dili-evidence">Cases of <mark>increased ALT</mark> and <mark>fatal liver failure</mark> have been reported.</span> 
-      <span class="badge-score badge-score-8">Score: 8 - Fatal liver failure</span>
-    </li>
-  </ul>
-  <p><strong>Conclusion:</strong> Most DILI Concern</p>
-</div>
+### Output Size Limits (CRITICAL)
+- Maximum 3 <li> evidence items total.
+- Keep output concise.
+- Do not quote long passages.
+- Do not include explanatory prose outside the required HTML.
 
-### Constraints
-- Skip sections with no findings.
-- If no text is provided: <p class="error">(No Section) No input text was provided</p>
-
-**CRITICAL OUTPUT REQUIREMENTS:**
--   Your final response MUST be ONLY the raw HTML code.
--   DO NOT include ANY explanatory text, headers, step-by-step reasoning, or conversational phrases.
--   Your entire response must start with `<div class="label-section">` and end with a closing `</div>`.
--   If no DILI evidence is found, output: `<div class="label-section"><!-- No DILI evidence found in label --><p><strong>Conclusion:</strong> No DILI Concern</p></div>`.
--   DO NOT wrap the HTML in Markdown code blocks.
+### Required Output Format
+- Output ONLY raw HTML.
+- Output must start with <div class="label-section"> and end with </div>.
+- If no DILI evidence is found, output exactly:
+<div class="label-section"><!-- No DILI evidence found in label --><p><strong>Conclusion:</strong> No DILI Concern</p></div>
+- Do NOT use Markdown code fences.
 '''
+
 DICT_prompt = '''
 ### Role & Objective
-You are a medical data analyst specialized in Drug-Induced Cardiotoxicity (DICT). 
-Scan the provided drug labeling sections to identify DICT-related keywords and map them to the correct severity levels.
+You are a medical data analyst specialized in Drug-Induced Cardiotoxicity (DICT).
+Scan the provided drug labeling sections to identify cardiotoxicity-related evidence and map each selected evidence sentence to the correct severity level.
 
-### Input Data Sections
-Focus your analysis on: Boxed Warnings, 4. Contraindications, 5. Warnings and Precautions, 6. Adverse Reactions, 7. Drug Interactions, and 8. Use in Specific Populations.
+### Section Priority Rules (CRITICAL)
+Prioritize sections in this order:
+1. Boxed Warning
+2. Warnings and Precautions
+3. Contraindications
+4. Adverse Reactions
+5. Drug Interactions
+6. Use in Specific Populations
 
-### Analysis Criteria (Hierarchy of Severity)
-Assign a single severity level per evidence sentence based on the **highest** relevant term found:
+### Evidence Selection Rules (CRITICAL)
+- Return ONLY the highest-priority section(s) containing meaningful DICT evidence.
+- If evidence is found in a higher-priority section, skip all lower-priority sections.
+- Include at most 3 evidence items total.
+- Include at most 2 evidence items from one section.
+- Prefer the highest-severity, clearest, and most representative evidence.
+- Do NOT output repetitive or near-duplicate evidence.
+- If one sentence contains multiple DICT terms, list it once and assign the highest applicable severity.
 
-- **[Level: Severe] Heart Damage:** Fatal, death, heart transplantation, myocardial infarction, cardiac failure, CHF, cardiomyopathy, myocarditis, LVEF decrease, ejection fraction reduced, cardiac tamponade, coronary artery disease, myocardial ischemia, LV dysfunction (LVSD), cardiogenic shock, valvular heart disease.
-- **[Level: Severe] Arrhythmia:** Cardiac arrest, Torsade de Pointes (TdP), AV block III, ventricular fibrillation, Brugada syndrome.
-- **[Level: Moderate] Heart Damage:** Angina pectoris, pericarditis, pericardial effusion, mitral valve regurgitation, heart valve thickening, cardio spasm.
-- **[Level: Moderate] Arrhythmia:** Ventricular tachycardia, supraventricular tachycardia (SVT), long QT syndrome/QTc interval prolongation, ventricular arrhythmias.
-- **[Level: Mild] Heart Damage:** Blood pressure issues (hypotension/hypertension).
-- **[Level: Mild] Arrhythmia:** AV block I & II, atrial fibrillation (AFib), tachycardia, bradycardia, palpitations, sinus node dysfunction.
-- **[Level: 0] Pre-existing Condition:** Patient history, contraindications, or risk factors (e.g., "patients with pre-existing heart failure").
+### Analysis Criteria
+Assign one severity level per selected evidence sentence:
+- [Level: Severe] Heart Damage: Fatal, death, heart transplantation, myocardial infarction, cardiac failure, CHF, cardiomyopathy, myocarditis, LVEF decrease, ejection fraction reduced, cardiac tamponade, coronary artery disease, myocardial ischemia, LV dysfunction, cardiogenic shock, valvular heart disease.
+- [Level: Severe] Arrhythmia: Cardiac arrest, Torsade de Pointes, AV block III, ventricular fibrillation, Brugada syndrome.
+- [Level: Moderate] Heart Damage: Angina pectoris, pericarditis, pericardial effusion, mitral valve regurgitation, heart valve thickening, cardio spasm.
+- [Level: Moderate] Arrhythmia: Ventricular tachycardia, supraventricular tachycardia, long QT syndrome, QT prolongation, ventricular arrhythmias.
+- [Level: Mild] Heart Damage: Hypotension, hypertension.
+- [Level: Mild] Arrhythmia: AV block I or II, atrial fibrillation, tachycardia, bradycardia, palpitations, sinus node dysfunction.
+- [Level: 0] Pre-existing Condition: History, contraindications, or baseline risk factors.
 
-### DICT Risk Level Classification (CRITICAL)
-After the list of evidence, you MUST provide a final summary sentence inside the `div`:
-- **Most DICT Concern:** If there is ANY evidence with **Level: Severe**, or if cardiotoxicity is mentioned in **Boxed Warning** or **Warnings and Precautions**.
-- **Less DICT Concern:** If there is evidence with **Level: Moderate or Mild** but no Severe scores, AND it is only in **Adverse Reactions**.
-- **No DICT Concern:** If no cardiotoxicity-related evidence is identified.
+### DICT Risk Level Classification
+- Most DICT Concern: any Severe evidence, or meaningful cardiotoxicity evidence in Boxed Warning or Warnings and Precautions.
+- Less DICT Concern: Moderate or Mild evidence only, mainly in lower-priority sections.
+- No DICT Concern: no cardiotoxicity-related evidence.
 
 ### HTML Output Requirements
-1. **Section Headers:** <h3> for main sections, <h4> for subsections.
-2. **Evidence List:** <ul> list.
-3. **Evidence Sentence:** Wrap in `<span class="dict-evidence">`. Use `<mark>` for keywords.
-4. **Severity Badge:** Use `<span class="badge-score badge-score-{level}">` after the sentence.
-5. **Risk Summary:** A paragraph at the end: `<p><strong>Conclusion:</strong> {Risk Level Phrase}</p>`
+1. <h3> for section header
+2. <ul> for evidence list
+3. Evidence sentence in <span class="dict-evidence">
+4. Highlight keywords with <mark>
+5. Badge in <span class="badge-score badge-score-{level}">
+6. Final summary in <p><strong>Conclusion:</strong> ...</p>
 
-### Expected HTML Example:
-<div class="label-section">
-  <h3>5. Warnings and Precautions</h3>
-  <ul>
-    <li>
-      <span class="dict-evidence">Patients may experience <mark>palpitations</mark> and <mark>myocardial infarction</mark>.</span> 
-      <span class="badge-score badge-score-severe">Level: Severe (Heart damage)</span>
-    </li>
-  </ul>
-  <p><strong>Conclusion:</strong> Most DICT Concern</p>
-</div>
+### Output Size Limits (CRITICAL)
+- Maximum 3 <li> evidence items total.
+- Keep output concise and representative only.
 
-**CRITICAL OUTPUT REQUIREMENTS:**
--   Your response must be ONLY the raw HTML code.
--   Response must start with `<div class="label-section">` and end with a closing `</div>`.
--   If no DICT evidence is found, output: `<div class="label-section"><!-- No DICT evidence found in label --><p><strong>Conclusion:</strong> No DICT Concern</p></div>`.
+### Required Output Format
+- Output ONLY raw HTML.
+- Must start with <div class="label-section"> and end with </div>.
+- If no DICT evidence is found, output exactly:
+<div class="label-section"><!-- No DICT evidence found in label --><p><strong>Conclusion:</strong> No DICT Concern</p></div>
 '''
 
 DIRI_prompt = '''
 ### Role & Objective
-You are a medical data analyst specialized in Drug-Induced Renal Injury (DIRI). 
-Scan the provided drug labeling sections to identify DIRI-related keywords and map them to the correct severity levels.
+You are a medical data analyst specialized in Drug-Induced Renal Injury (DIRI).
+Scan the provided drug labeling sections to identify renal injury-related evidence and map each selected evidence sentence to the correct severity level.
 
-### Input Data Sections
-Focus your analysis on: Boxed Warnings, 4. Contraindications, 5. Warnings and Precautions, 6. Adverse Reactions, 7. Drug Interactions, and 8. Use in Specific Populations.
+### Section Priority Rules (CRITICAL)
+Prioritize sections in this order:
+1. Boxed Warning
+2. Warnings and Precautions
+3. Contraindications
+4. Adverse Reactions
+5. Drug Interactions
+6. Use in Specific Populations
 
-### Analysis Criteria (Hierarchy of Severity)
-Assign a single severity level per evidence sentence based on the **highest** relevant term found:
+### Evidence Selection Rules (CRITICAL)
+- Return ONLY the highest-priority section(s) containing meaningful DIRI evidence.
+- If evidence is found in a higher-priority section, skip all lower-priority sections.
+- Include at most 3 evidence items total.
+- Include at most 2 evidence items from one section.
+- Prefer the highest-severity, clearest, and most representative evidence.
+- Do NOT output repetitive or near-duplicate evidence.
+- If one sentence contains multiple DIRI terms, list it once and assign the highest applicable severity.
 
-- **[Level: Certain] High Severity:** Renal failure, AKI, anuria, nephrotoxicity, glomerulonephritis, acute tubular necrosis (ATN), CKD secondary to drug, interstitial nephritis, nephropathy, nephrotic syndrome, nephritis, renal toxicity, Fanconi syndrome, rhabdomyolysis-induced renal failure.
-- **[Level: Possible] Low Severity:** Elevated creatinine, Creatinine Clearance (CrCl) decreased, CLcr reduced, decreased GFR, proteinuria, albuminuria, hematuria, oliguria, hyperkalemia, pyuria, urinary casts, increased BUN, nephrolithiasis, renal impairment, renal insufficiency, renal dysfunction, azotemia, renal tubular acidosis, renal function deterioration.
-- **[Level: 0] Pre-existing Condition:** Terms describing patient history or baseline impairment.
+### Analysis Criteria
+Assign one severity level per selected evidence sentence:
+- [Level: Certain] High Severity: Renal failure, AKI, anuria, nephrotoxicity, glomerulonephritis, acute tubular necrosis, CKD secondary to drug, interstitial nephritis, nephropathy, nephrotic syndrome, nephritis, renal toxicity, Fanconi syndrome, rhabdomyolysis-induced renal failure.
+- [Level: Possible] Low Severity: Elevated creatinine, decreased creatinine clearance, decreased GFR, proteinuria, albuminuria, hematuria, oliguria, hyperkalemia, pyuria, urinary casts, increased BUN, nephrolithiasis, renal impairment, renal insufficiency, renal dysfunction, azotemia, renal tubular acidosis, renal function deterioration.
+- [Level: 0] Pre-existing Condition: History or baseline impairment.
 
-### DIRI Risk Level Classification (CRITICAL)
-After the list of evidence, you MUST provide a final summary sentence inside the `div`:
-- **Most DIRI Concern:** If there is ANY evidence with **Level: Certain**, or if renal injury is mentioned in **Boxed Warning** or **Warnings and Precautions**.
-- **Less DIRI Concern:** If there is evidence with **Level: Possible** but no Certain scores, AND it is only in **Adverse Reactions**.
-- **No DIRI Concern:** If no renal-related evidence is identified.
+### DIRI Risk Level Classification
+- Most DIRI Concern: any Certain evidence, or meaningful renal injury evidence in Boxed Warning or Warnings and Precautions.
+- Less DIRI Concern: Possible evidence only, mainly in lower-priority sections.
+- No DIRI Concern: no renal-related evidence.
 
 ### HTML Output Requirements
-1. **Section Headers:** <h3> for main sections, <h4> for subsections.
-2. **Evidence List:** <ul> list.
-3. **Evidence Sentence:** Wrap in `<span class="diri-evidence">`. Use `<mark>` for keywords.
-4. **Severity Badge:** Use `<span class="badge-score badge-score-{level}">` after the sentence.
-5. **Risk Summary:** A paragraph at the end: `<p><strong>Conclusion:</strong> {Risk Level Phrase}</p>`
+1. <h3> for section header
+2. <ul> for evidence list
+3. Evidence sentence in <span class="diri-evidence">
+4. Highlight keywords with <mark>
+5. Badge in <span class="badge-score badge-score-{level}">
+6. Final summary in <p><strong>Conclusion:</strong> ...</p>
 
-**CRITICAL OUTPUT REQUIREMENTS:**
--   Your response must be ONLY the raw HTML code.
--   Response must start with `<div class="label-section">` and end with a closing `</div>`.
--   If no DIRI evidence is found, output: `<div class="label-section"><!-- No DIRI evidence found in label --><p><strong>Conclusion:</strong> No DIRI Concern</p></div>`.
+### Output Size Limits (CRITICAL)
+- Maximum 3 <li> evidence items total.
+- Keep output concise and representative only.
+
+### Required Output Format
+- Output ONLY raw HTML.
+- Must start with <div class="label-section"> and end with </div>.
+- If no DIRI evidence is found, output exactly:
+<div class="label-section"><!-- No DIRI evidence found in label --><p><strong>Conclusion:</strong> No DIRI Concern</p></div>
 '''
 
 SEARCH_HELPER_PROMPT = '''

@@ -24,32 +24,32 @@ export default function HomePage() {
     {
       title: "AskFDALabel Suite",
       description: "The ultimate intelligence layer for FDA drug labeling research. Seamlessly navigate over 150,000 product labels with AI-driven insights and advanced safety analytics.",
-      image: "/carousel_bg/askfdalbel_bg.png"
+      image: "/askfdalabel/carousel_bg/askfdalbel_bg.png"
     },
     {
       title: "AFL Agent",
       description: "Reason beyond keywords. Ask complex clinical and pharmacological questions directly of the FDA label corpus using large language models grounded in real text.",
-      image: "/carousel_bg/afl_agent_bg.png"
+      image: "/askfdalabel/carousel_bg/afl_agent_bg.png"
     },
     {
       title: "Labeling Dashboard",
       description: "Visualize safety trends and manage clinical workspaces. Track metadata, monitor signal detection, and organize your labeling projects in one unified dashboard.",
-      image: "/carousel_bg/dashboard_bg.png"
+      image: "/askfdalabel/carousel_bg/dashboard_bg.png"
     },
     {
       title: "Side-by-Side Analysis",
       description: "Pinpoint critical regulatory differences. Compare linguistic nuances and safety updates across multiple drug labels with high-precision highlighting.",
-      image: "/carousel_bg/labelcomp_bg.png"
+      image: "/askfdalabel/carousel_bg/labelcomp_bg.png"
     },
     {
       title: "DrugTox Intelligence",
       description: "Deep toxicological tracking. Monitor DILI, cardiac, and renal toxicity profiles across thousands of drugs using harmonized evidence-based data.",
-      image: "/carousel_bg/drugtox_bg.png"
+      image: "/askfdalabel/carousel_bg/drugtox_bg.png"
     },
     {
       title: "Snippet Store",
       description: "Power up your research workflow. Draggable browser bookmarklets that instantly extract metadata and highlight safety terms directly on any clinical webpage.",
-      image: "/carousel_bg/snippetstore_bg_2.png"
+      image: "/askfdalabel/carousel_bg/snippetstore_bg_2.png"
     }
   ];
 

@@ -10,7 +10,7 @@ if (fs.existsSync(envPath)) {
 }
 
 const backendHost = process.env.HOST || 'localhost';
-const backendPort = process.env.BACKEND_PORT || 8849;
+const backendPort = process.env.BACKEND_PORT || 8842;
 const BACKEND = process.env.BACKEND_URL ?? `http://${backendHost}:${backendPort}`;
 const frontendBasePath =
   process.env.FRONTEND_BASE_PATH?.trim() || '/askfdalabel';
@@ -33,7 +33,7 @@ const nextConfig: NextConfig = {
     ];
   },
   devIndicators: false,
-  allowedDevOrigins: ["ncshpcgpu01", "elsa.fda.gov", "localhost"],
+  allowedDevOrigins: ["ncshpcgpu01", "elsa.fda.gov", "localhost", "ncshpc400"],
   async headers() {
     return [
       {

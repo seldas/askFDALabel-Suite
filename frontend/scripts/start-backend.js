@@ -10,7 +10,7 @@ if (fs.existsSync(envPath)) {
 
 // Resolve host and port
 const host = process.env.HOST || '0.0.0.0';
-const port = process.env.BACKEND_PORT || 8849;
+const port = process.env.BACKEND_PORT || 8842;
 const isProd = process.env.NODE_ENV === 'production';
 
 const backendPath = path.resolve(__dirname, '../../backend/app.py');
