@@ -523,12 +523,12 @@ export default function Header({
 
               {activeDropdown === 'ai' && (
                 <div className="dropdown-menu">
-                  {!session.is_internal && (
+                  {!isInternal && (
                     <button className={cx('dropdown-item', session.ai_provider === 'gemini' && 'active')} onClick={() => { updateAiProvider('gemini'); setActiveDropdown(null); }}>
                       Gemini
                     </button>
                   )}
-                  {session.is_internal && (
+                  {isInternal && (
                     <>
                       <button className={cx('dropdown-item', session.ai_provider === 'llama' && 'active')} onClick={() => { updateAiProvider('llama'); setActiveDropdown(null); }}>
                         LLAMA
