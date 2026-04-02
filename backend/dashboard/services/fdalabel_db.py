@@ -36,11 +36,11 @@ class FDALabelDBService:
         if db_choice == 'ORACLE':
             if not ORACLE_AVAILABLE: return None
             try:
-                user = current_app.config.get('FDALABEL_DB_USER')
-                psw = current_app.config.get('FDALABEL_DB_PASSWORD')
-                host = current_app.config.get('FDALABEL_DB_HOST')
-                port = current_app.config.get('FDALABEL_DB_PORT')
-                service = current_app.config.get('FDALABEL_DB_SERVICE')
+                user = current_app.config.get('FDALabel_USER')
+                psw = current_app.config.get('FDALabel_PSW')
+                host = current_app.config.get('FDALabel_HOST')
+                port = current_app.config.get('FDALabel_PORT')
+                service = current_app.config.get('FDALabel_SERVICE')
                 if psw and host and port and service:
                     dsnStr = oracledb.makedsn(host, port, service)
                     connection = oracledb.connect(user=user, password=psw, dsn=dsnStr)
