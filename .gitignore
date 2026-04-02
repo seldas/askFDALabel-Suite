@@ -44,7 +44,8 @@ backend/webtest/history/
 
 data/rxnorm/
 data/spl_storage/
-data/downloads/
+data/downloads/dailymed
+data/downloads/MedDRA_28_0_ENglish
 data/uploads/
 backend/data/uploads/
 *.db
