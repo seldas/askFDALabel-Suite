@@ -13,10 +13,10 @@ This directory contains categorized scripts for backend management, data synchro
 
 ## 📂 2. Label Data Pipeline (`scripts/labels/`)
 *   **`download_dailymed.py`**: Bulk downloads drug labeling SPL files from DailyMed.
-*   **`init_local_labeldb.py`**: Bootstraps the initial structure for a local labeling database.
-*   **`sync_labeldb.py`**: Synchronizes local label records with external source updates.
-*   **`update_labeldb_from_dailymed.py`**: Processes downloaded DailyMed files into the labeling schema.
-*   **`fix_rld_status.py`**: Updates the Reference Listed Drug (RLD) and Reference Standard (RS) flags using Orange Book data.
+
+
+
+
 
 ## 📂 3. AI & Embeddings (`scripts/ai/`)
 *   **`sync_label_embeddings.py`**: **[High Performance]** Multi-GPU (8x V100) script to generate and sync embeddings for new label data.
@@ -27,13 +27,13 @@ This directory contains categorized scripts for backend management, data synchro
 
 ## 📂 4. Maintenance & Utilities (`scripts/utils/`)
 *   **`check_users.py` / `check_projects.py`**: Diagnostic tools for inspecting user accounts and collaborative projects.
-*   **`debug_local_search.py`**: Analyzes search recall and results for the local SQLite/Postgres search engine.
+
 *   **`gen_drugsnippet.py`**: Generates high-speed lookup tries for drug name highlighting in the UI.
 *   **`update_tox_agent.py`**: Updates the toxicity knowledge base for the askDrugTox agent.
 *   **`list_gemini_models.py`**: Lists all available models for the configured Google API key.
 
 ## 📂 5. Archive & Migration (`scripts/archive/`)
-*   **`migrate_to_postgres.py`**: One-time use script to port SQLite data into the unified PostgreSQL instance.
+*   **`migrate_to_postgres.py`**: (Archived) One-time use script historically used to port SQLite data into the unified PostgreSQL instance.
 *   **`populate_embeddings.py`**: Original legacy script for initial embedding generation.
 
 ---
