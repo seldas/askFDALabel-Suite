@@ -12,7 +12,7 @@ from database import (
     db, User, Project, Favorite, FavoriteComparison, Annotation, 
     LabelAnnotation, DiliAssessment, DictAssessment, DiriAssessment, ToxAgent, ComparisonSummary,
     MeddraPT, MeddraMDHIER, MeddraSOC, MeddraHLT, MeddraLLT,
-    ProjectAeReport, ProjectAeReportDetail
+    ProjectAeReport, ProjectAeReportDetail, AeAiAssessment
 )
 import threading
 from dashboard.services.fda_client import get_label_metadata, get_label_xml, get_faers_data, find_labels, find_labels_by_set_ids
@@ -1764,6 +1764,234 @@ def api_faers_trends():
             trends[term] = []
 
     return jsonify({'trends': trends})
+
+@api_bp.route('/faers/emerging', methods=['POST'])
+def api_faers_emerging():
+    """
+    Identifies 'emerging' AEs: terms present in the last 5 years but absent 6-10 years ago.
+    Also scans the current label (set_id) for these terms.
+    """
+    data = request.get_json()
+    drug_name = data.get('drug_name')
+    set_id = data.get('set_id')
+    if not drug_name:
+        return jsonify({'error': 'Missing drug_name'}), 400
+
+    clean_name = re.split(r'[,;]', drug_name)[0].strip()
+    base_url = "https://api.fda.gov/drug/event.json"
+    
+    # We use openfda.brand_name OR openfda.generic_name for precision
+    search_term = f'(patient.drug.openfda.brand_name:"{clean_name}" OR patient.drug.openfda.generic_name:"{clean_name}")'
+
+    # Calculate date ranges: Recent (5y) and Previous (6-10y ago)
+    now = datetime.now()
+    p1_end = now.strftime('%Y%m%d')
+    p1_start = (now - timedelta(days=5*365)).strftime('%Y%m%d')
+    p2_end = (now - timedelta(days=5*365 + 1)).strftime('%Y%m%d')
+    p2_start = (now - timedelta(days=10*365)).strftime('%Y%m%d')
+
+    try:
+        def fetch_counts(start, end):
+            query = f'{search_term} AND receivedate:[{start} TO {end}]'
+            params = {
+                'search': query,
+                'count': 'patient.reaction.reactionmeddrapt.exact',
+                'limit': 1000
+            }
+            if Config.OPENFDA_API_KEY:
+                params['api_key'] = Config.OPENFDA_API_KEY
+            
+            resp = requests.get(base_url, params=params, timeout=15)
+            if resp.status_code == 200:
+                return {r['term']: r['count'] for r in resp.json().get('results', [])}
+            elif resp.status_code == 404:
+                return {}
+            else:
+                logger.warning(f"openFDA error {resp.status_code} for period {start}-{end}")
+                return {}
+
+        counts_recent = fetch_counts(p1_start, p1_end)
+        counts_prev = fetch_counts(p2_start, p2_end)
+
+        emerging = []
+        for term, count in counts_recent.items():
+            if term not in counts_prev:
+                emerging.append({'term': term, 'count': count, 'prev_count': 0, 'label_matches': []})
+
+        # Sort by count desc
+        emerging.sort(key=lambda x: x['count'], reverse=True)
+
+        # Enrich with MedDRA (SOC, HLT info)
+        if emerging:
+            emerging = enrich_faers_with_meddra(emerging)
+            
+        # LABELING SCAN for Emerging AEs
+        if set_id and emerging:
+            xml_content = get_label_xml(set_id)
+            if xml_content:
+                try:
+                    ns = {'v3': 'urn:hl7-org:v3'}
+                    root = ET.fromstring(xml_content.encode('ascii', 'ignore').decode('ascii'))
+                    target_sections = {
+                        '34066-1': 'Boxed Warning',
+                        '34070-3': 'Contraindications',
+                        '34071-1': 'Warnings and Precautions',
+                        '43685-7': 'Warnings and Precautions',
+                        '34084-4': 'Adverse Reactions'
+                    }
+                    
+                    # Extract text from relevant sections once
+                    sections_data = []
+                    for section in root.findall(".//v3:section", ns):
+                        code_el = section.find("v3:code", ns)
+                        if code_el is not None and code_el.get('code') in target_sections:
+                            title_el = section.find("v3:title", ns)
+                            title = "".join(title_el.itertext()).strip() if title_el is not None else target_sections[code_el.get('code')]
+                            text = "".join(section.itertext()).strip()
+                            sections_data.append({'title': title, 'text': text})
+                    
+                    # Match each emerging AE
+                    for ae in emerging:
+                        term = ae['term']
+                        for sec in sections_data:
+                            match = re.search(re.escape(term), sec['text'], re.IGNORECASE)
+                            if match:
+                                start_idx = match.start()
+                                end_idx = match.end()
+                                context_start = max(0, start_idx - 50)
+                                context_end = min(len(sec['text']), end_idx + 100)
+                                snippet = sec['text'][context_start:context_end]
+                                # Add simple bolding
+                                snippet = snippet.replace(sec['text'][start_idx:end_idx], f"**{sec['text'][start_idx:end_idx]}**")
+                                
+                                ae['label_matches'].append({
+                                    'section': sec['title'],
+                                    'snippet': snippet
+                                })
+                except Exception as xml_err:
+                    logger.error(f"Error scanning XML for emerging AEs: {xml_err}")
+
+        return jsonify({
+            'emerging': emerging,
+            'metadata': {
+                'drug': clean_name,
+                'recent_period': [p1_start, p1_end],
+                'previous_period': [p2_start, p2_end]
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error in api_faers_emerging: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/faers/ai_results', methods=['GET'])
+def api_faers_ai_results():
+    set_id = request.args.get('set_id')
+    drug_name = request.args.get('drug_name')
+    if not set_id or not drug_name:
+        return jsonify({'error': 'Missing parameters'}), 400
+    
+    assessment = AeAiAssessment.query.filter_by(set_id=set_id, drug_name=drug_name).first()
+    if assessment:
+        return jsonify({
+            'results': json.loads(assessment.result_json),
+            'timestamp': assessment.timestamp.isoformat(),
+            'min_count': assessment.min_count
+        })
+    return jsonify({'results': None})
+
+@api_bp.route('/faers/ai_rematch', methods=['POST'])
+def api_faers_ai_rematch():
+    data = request.get_json()
+    set_id = data.get('set_id')
+    drug_name = data.get('drug_name')
+    terms = data.get('terms', []) # List of {term, count}
+    min_count = data.get('min_count', 10)
+
+    if not set_id or not drug_name or not terms:
+        return jsonify({'error': 'Missing parameters'}), 400
+
+    # Filter terms by min_count
+    filtered_terms = [t for t in terms if t['count'] >= min_count]
+    if not filtered_terms:
+        return jsonify({'error': f'No terms found with count >= {min_count}'}), 400
+
+    xml_content = get_label_xml(set_id)
+    if not xml_content:
+        return jsonify({'error': 'Label not found'}), 404
+
+    try:
+        # Extract text for AI
+        root = ET.fromstring(xml_content.encode('ascii', 'ignore').decode('ascii'))
+        text_content = " ".join(root.itertext())
+        
+        # Limit text size if necessary, but label is usually okay
+        # For efficiency, we only send terms AI hasn't seen or that were undocumented
+        term_list_str = ", ".join([t['term'] for t in filtered_terms])
+
+        prompt = f"""
+        Analyze the provided drug labeling text for the drug "{drug_name}".
+        We have a list of adverse event (AE) terms (MedDRA Preferred Terms) reported in FAERS that were NOT found via direct string matching in the label.
+        
+        TASK: For each term, determine if it is SEMANTICALLY mentioned or related in the labeling (e.g., as a different synonym, a broader category, or mentioned in a specific clinical context).
+        
+        AE TERMS TO CHECK: {term_list_str}
+        
+        OUTPUT FORMAT: You MUST return a strict JSON array of objects. No other text.
+        Example format:
+        [
+          {{
+            "term": "Term Name",
+            "found": true/false,
+            "section": "Section Title if found",
+            "explanation": "Brief semantic explanation"
+          }}
+        ]
+        """
+
+        user_obj = current_user._get_current_object() if current_user.is_authenticated else None
+        # We use ai_chat logic but with a specialized prompt
+        ai_response = chat_with_document(user_obj, prompt, [], xml_content, chat_type='general')
+        
+        # Parse JSON from AI response
+        try:
+            # Clean possible markdown
+            cleaned_json = ai_response.replace('```json', '').replace('```', '').strip()
+            result_list = json.loads(cleaned_json)
+        except Exception as parse_err:
+            logger.error(f"AI JSON Parse Error: {parse_err}. Response: {ai_response}")
+            # Try to find JSON block with regex
+            match = re.search(r'\[\s*\{.*\}\s*\]', ai_response, re.DOTALL)
+            if match:
+                result_list = json.loads(match.group(0))
+            else:
+                return jsonify({'error': 'AI failed to return valid JSON format', 'raw': ai_response}), 500
+
+        # Save to DB (Upsert)
+        existing = AeAiAssessment.query.filter_by(set_id=set_id, drug_name=drug_name).first()
+        if existing:
+            existing.result_json = json.dumps(result_list)
+            existing.min_count = min_count
+            existing.timestamp = datetime.utcnow()
+        else:
+            new_assessment = AeAiAssessment(
+                set_id=set_id,
+                drug_name=drug_name,
+                result_json=json.dumps(result_list),
+                min_count=min_count
+            )
+            db.session.add(new_assessment)
+        db.session.commit()
+
+        return jsonify({
+            'results': result_list,
+            'timestamp': datetime.utcnow().isoformat(),
+            'min_count': min_count
+        })
+
+    except Exception as e:
+        logger.error(f"Error in api_faers_ai_rematch: {e}")
+        return jsonify({'error': str(e)}), 500
 
 def generic_assessment_route(set_id, assessment_model, pt_terms, prompt, keyword_check_fn):
     # Check existing

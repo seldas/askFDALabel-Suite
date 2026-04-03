@@ -2,6 +2,8 @@ services:
   db:
     image: ankane/pgvector:latest
     container_name: askfdalabel-db
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: askfdalabel
       POSTGRES_USER: afd_user

@@ -55,25 +55,25 @@ class Favorite(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=True)
     set_id = db.Column(db.String(100), nullable=False)
-    brand_name = db.Column(db.String(500))
-    generic_name = db.Column(db.String(500))
-    manufacturer_name = db.Column(db.String(500))
-    market_category = db.Column(db.String(200))
-    application_number = db.Column(db.String(200))
-    ndc = db.Column(db.String(500))
+    brand_name = db.Column(db.Text)
+    generic_name = db.Column(db.Text)
+    manufacturer_name = db.Column(db.Text)
+    market_category = db.Column(db.Text)
+    application_number = db.Column(db.Text)
+    ndc = db.Column(db.Text)
     effective_time = db.Column(db.String(100))
     
     # Missing columns for full analysis
     active_ingredients = db.Column(db.Text)
-    labeling_type = db.Column(db.String(200))
-    dosage_forms = db.Column(db.String(500))
-    routes = db.Column(db.String(500))
-    epc = db.Column(db.String(500))
-    fdalabel_link = db.Column(db.String(500))
-    dailymed_spl_link = db.Column(db.String(500))
-    dailymed_pdf_link = db.Column(db.String(500))
-    product_type = db.Column(db.String(50))
-    label_format = db.Column(db.String(50))
+    labeling_type = db.Column(db.Text)
+    dosage_forms = db.Column(db.Text)
+    routes = db.Column(db.Text)
+    epc = db.Column(db.Text)
+    fdalabel_link = db.Column(db.Text)
+    dailymed_spl_link = db.Column(db.Text)
+    dailymed_pdf_link = db.Column(db.Text)
+    product_type = db.Column(db.Text)
+    label_format = db.Column(db.Text)
     source = db.Column(db.String(50))
 
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
@@ -128,7 +128,7 @@ class DrugToxicity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     SETID = db.Column(db.String(100), index=True)
     Trade_Name = db.Column(db.String(255), index=True)
-    Generic_Proper_Names = db.Column(db.String(500), index=True)
+    Generic_Proper_Names = db.Column(db.Text, index=True)
     Toxicity_Class = db.Column(db.String(50), index=True)
     Author_Organization = db.Column(db.String(255))
     Tox_Type = db.Column(db.String(50), index=True)
@@ -346,6 +346,15 @@ class PgxAssessment(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 # --- Embedding Models ---
+
+class AeAiAssessment(db.Model):
+    __tablename__ = 'ae_ai_assessment'
+    id = db.Column(db.Integer, primary_key=True)
+    set_id = db.Column(db.String(100), nullable=False, index=True)
+    drug_name = db.Column(db.String(255), nullable=False)
+    result_json = db.Column(db.Text, nullable=False) # Store as JSON string
+    min_count = db.Column(db.Integer, default=10)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 class LabelEmbedding(db.Model):
     __tablename__ = 'label_embeddings'

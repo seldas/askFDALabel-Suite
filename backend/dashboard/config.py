@@ -57,8 +57,8 @@ class Config:
     
     SPL_STORAGE_DIR = os.path.join(DATA_DIR, 'spl_storage')
     
-    FDALABEL_DB_HOST = os.getenv('FDALabel_SERV', 'ncsvmscidevl03.fda.gov')
-    FDALABEL_DB_PORT = os.getenv('FDALabel_PORT', '1521')
-    FDALABEL_DB_SERVICE = os.getenv('FDALabel_APP', 'scidevl3')
-    FDALABEL_DB_USER = os.getenv('FDALabel_USER', 'lwu')
-    FDALABEL_DB_PASSWORD = os.getenv('FDALabel_PSW')
+    FDALabel_HOST = os.getenv('FDALabel_HOST', 'ncsvmscidevl03.fda.gov')
+    FDALabel_PORT = os.getenv('FDALabel_PORT', '1521')
+    FDALabel_SERVICE = os.getenv('FDALabel_SERVICE', 'scidevl3')
+    FDALabel_USER = os.getenv('FDALabel_USER', 'lwu')
+    FDALabel_PASSWORD = os.getenv('FDALabel_PASSWORD')

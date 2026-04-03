@@ -88,7 +88,8 @@ def to_html(element, media_map=None, set_id=None):
             child_html += to_html(child, media_map, set_id)
             
         img_url = f"https://dailymed.nlm.nih.gov/dailymed/image.cfm?setid={set_id}&name={filename}" if filename and set_id else ""
-        return f'<div class="spl-figure" style="text-align: center; margin: 20px 0;">{f"<img src=\'{img_url}\' style=\'max-width:100%\'/>" if img_url else ""}{child_html}</div>{_clean_chunk(element.tail)}'
+        img_tag = f'<img src="{img_url}" style="max-width:100%"/>' if img_url else ""
+        return f'<div class="spl-figure" style="text-align: center; margin: 20px 0;">{img_tag}{child_html}</div>{_clean_chunk(element.tail)}'
 
     tag_map = {
         'paragraph': 'p', 'linkHtml': 'a', 'list': 'ul', 'item': 'li', 
