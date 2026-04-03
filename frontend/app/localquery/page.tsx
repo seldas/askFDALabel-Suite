@@ -108,7 +108,7 @@ const LocalQueryPage = () => {
             return;
         }
         const setIds = results.map(r => r.set_id).join(',');
-        window.location.href = `/api/localquery/export?set_ids=${encodeURIComponent(setIds)}`;
+        window.location.href = `/askfdalabel_api/api/localquery/export?set_ids=${encodeURIComponent(setIds)}`;
     };
 
     return (
