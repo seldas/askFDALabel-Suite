@@ -1,15 +1,135 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { LabelData } from './types';
+
+interface EmergingAe {
+  term: string;
+  count: number;
+  prev_count: number;
+  soc: string;
+  hlt: string;
+  soc_abbrev: string;
+}
+
+function EmergingAeAnalysis({ drugName }: { drugName?: string }) {
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<EmergingAe[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const runAnalysis = async () => {
+    if (!drugName) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const resp = await fetch('/api/dashboard/faers/emerging', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ drug_name: drugName })
+      });
+      if (!resp.ok) {
+        const errJson = await resp.json();
+        throw new Error(errJson.error || 'Failed to fetch analysis');
+      }
+      const json = await resp.json();
+      setData(json.emerging);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="chart-card full-width" style={{ marginTop: '20px', borderTop: '2px solid #f1f5f9', paddingTop: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '1.5rem' }}>🆕</span>
+            <h3 style={{ margin: 0 }}>Emerging Adverse Events (New in Last 5 Years)</h3>
+        </div>
+        <button 
+          onClick={runAnalysis} 
+          disabled={loading || !drugName}
+          className="button"
+          style={{ 
+            backgroundColor: loading ? '#94a3b8' : '#0071bc', 
+            color: 'white', 
+            padding: '10px 24px', 
+            borderRadius: '12px',
+            fontSize: '0.85rem',
+            fontWeight: 800,
+            border: 'none',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+          }}
+        >
+          {loading ? 'Analyzing...' : 'Run Emerging AE Scan'}
+        </button>
+      </div>
+      
+      <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '10px', maxWidth: '800px', lineHeight: '1.5' }}>
+        This tool compares reports from the <strong>recent 5 years</strong> against reports from <strong>6-10 years ago</strong>. 
+        It highlights MedDRA Preferred Terms that have appeared recently but were absent in the previous decade.
+      </p>
+
+      {error && (
+        <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fee2e2', color: '#991b1b', padding: '12px', borderRadius: '8px', marginTop: '16px', fontSize: '0.85rem' }}>
+            <strong>Analysis Error:</strong> {error}
+        </div>
+      )}
+
+      {data && (
+        <div className="table-container" style={{ marginTop: '20px' }}>
+          <table className="coverage-table">
+            <thead>
+              <tr style={{ textAlign: 'left' }}>
+                <th style={{ padding: '12px' }}>Reaction Term (MedDRA PT)</th>
+                <th style={{ padding: '12px' }}>Recent Count</th>
+                <th style={{ padding: '12px' }}>SOC (System Organ Class)</th>
+                <th style={{ padding: '12px' }}>HLT (High Level Term)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.length > 0 ? data.map((ae, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '12px', fontWeight: 700, color: '#0f172a' }}>{ae.term}</td>
+                  <td style={{ padding: '12px' }}>
+                    <span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontWeight: 700, color: '#334155' }}>
+                        {ae.count}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px', fontSize: '0.75rem', color: '#475569', fontWeight: 600 }}>{ae.soc}</td>
+                  <td style={{ padding: '12px', fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>{ae.hlt}</td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={4} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', fontStyle: 'italic' }}>
+                    No entirely new AE terms found in the recent period for this drug.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <div style={{ marginTop: '12px', fontSize: '0.75rem', color: '#94a3b8', textAlign: 'right' }}>
+            Results enriched with MedDRA Hierarchy (MDHIER) data.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function FaersView({ 
   activeTab, 
   faersCoverageFilter, 
-  setFaersCoverageFilter 
+  setFaersCoverageFilter,
+  drugName
 }: { 
   activeTab: string;
   faersCoverageFilter: 'all' | 'not_presented';
   setFaersCoverageFilter: (filter: 'all' | 'not_presented') => void;
+  drugName?: string;
 }) {
   return (
     <div id="faers-view" className={`tab-content ${activeTab === 'faers-view' ? 'active' : ''}`} style={{ display: activeTab === 'faers-view' ? 'block' : 'none' }}>
@@ -107,6 +227,9 @@ export default function FaersView({
                     <button id="lastPage" className="button pagination-btn">&raquo;</button>
             </div>
             </div>
+
+            <EmergingAeAnalysis drugName={drugName} />
+
             <div className="chart-card full-width">
                 <h3>Adverse Events Trends (Time Series)</h3>
                 <div className="canvas-container" style={{ height: '400px' }}>

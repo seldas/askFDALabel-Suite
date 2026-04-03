@@ -1415,7 +1415,12 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                 
                 {/* Layer 2 (Inside Label function) handled within LabelView */}
                 <LabelView data={data} activeTab={activeTab} tocCollapsed={tocCollapsed} setTocCollapsed={setTocCollapsed} expandedSections={expandedSections} toggleSection={toggleSection} TOCItemComponent={TOCItemComponent} />
-                <FaersView activeTab={activeTab} faersCoverageFilter={faersCoverageFilter} setFaersCoverageFilter={setFaersCoverageFilter} />
+                <FaersView 
+                  activeTab={activeTab} 
+                  faersCoverageFilter={faersCoverageFilter} 
+                  setFaersCoverageFilter={setFaersCoverageFilter} 
+                  drugName={data?.faers_drug_name || data?.generic_name}
+                />
                 <AgentView data={data} activeTab={activeTab} />
             </div>
           </div>
