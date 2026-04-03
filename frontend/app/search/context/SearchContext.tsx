@@ -189,20 +189,20 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (chatHistory.length === 0) return;
     setIsRefining(true);
     setLoadingStatus(`Refining last response with ${productName} labeling...`);
-
     try {
       const response = await fetch('/api/search/refine_chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          set_id: setId,
-          product_name: productName,
-          chat_history: chatHistory,
-          filters: filters
-        }),
-      });
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                set_id: setId,
+                product_name: productName,
+                chat_history: chatHistory,
+                filters: filters
+              }),
+            });
 
       const data = await response.json();
+
       if (data.error) {
         alert(data.error);
       } else if (data.refined_json) {
@@ -234,8 +234,9 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const applyDataFilters = React.useCallback(async () => {
     try {
       setLoadingStatus('Filtering data...');
-      const response = await fetch('/api/search/filter_data', {
-        method: 'POST',
+
+const response = await fetch('/api/search/filter_data', {
+  method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filters, limit: resultsLimit }),
       });

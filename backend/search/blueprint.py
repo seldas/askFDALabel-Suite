@@ -80,12 +80,11 @@ def refine_chat():
     """
     from dashboard.services.fdalabel_db import FDALabelDBService
     from dashboard.services.ai_handler import call_llm
-    
+
     payload = request.json or {}
     set_id = payload.get("set_id")
     product_name = payload.get("product_name")
     history = payload.get("chat_history", [])
-    filters = payload.get("filters", {})
     
     if not history:
         return jsonify({"error": "No chat history to refine."}), 400
@@ -164,6 +163,8 @@ def refine_chat():
             
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
 @search_bp.route("/filter_data", methods=["POST"])
 def filter_data():
     """

@@ -35,6 +35,7 @@ services:
       BACKEND_PORT: 8842
       HOST: 0.0.0.0
     volumes:
+      - ./data:/data
       - ./backend/webtest/results:/app/webtest/results
       - ./backend/webtest/history:/app/webtest/history
     healthcheck:

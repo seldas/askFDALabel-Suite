@@ -270,7 +270,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
         }}
         className={isThisRefining ? "sparkle-animate" : ""}
       >
-        {isThisRefining ? '⏳' : '🔍📄'}
+        {isThisRefining ? '⏳' : '🔍'}
       </button>
     );
   };
