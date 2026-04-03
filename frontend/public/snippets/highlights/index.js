@@ -4,15 +4,12 @@
 
     console.log("Highlights Snippet: Initializing...");
 
-    const SNIPPET_HOST =
-        window.ASKFDALABEL_SNIPPET_HOST ||
-        window.ASKFDALABEL_BASE_URL ||
-        `${window.location.protocol}//${window.location.host}`;
-    const SNIPPET_APP_BASE = window.ASKFDALABEL_APP_BASE || '/askfdalabel';
+    const SNIPPET_APP_BASE = 'https://ncshpcgpu01/askfdalabel';
+    const SNIPPET_API_BASE = 'https://ncshpcgpu01/askfdalabel_api';
 
-    const normalizedHost = SNIPPET_HOST.replace(/\/$/, '');
     const normalizedAppBase =
         SNIPPET_APP_BASE === '/' ? '' : SNIPPET_APP_BASE.replace(/\/$/, '');
+    const normalizedApiBase = SNIPPET_API_BASE.replace(/\/$/, '');
 
     const withAppPath = (path = '') => {
         const normalizedPath = path
