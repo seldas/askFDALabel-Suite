@@ -4,5 +4,6 @@ from .models import (
     DrugToxicity, DiliAssessment, DictAssessment, DiriAssessment, ToxAgent,
     MeddraSOC, MeddraHLGT, MeddraHLT, MeddraPT, MeddraLLT, MeddraMDHIER, MeddraSMQList, MeddraSMQContent,
     PgxBiomarker, PgxSynonym, PgxAssessment,
-    ProjectAeReport, ProjectAeReportDetail
+    ProjectAeReport, ProjectAeReportDetail,
+    AeAiAssessment
 )

@@ -347,6 +347,15 @@ class PgxAssessment(db.Model):
 
 # --- Embedding Models ---
 
+class AeAiAssessment(db.Model):
+    __tablename__ = 'ae_ai_assessment'
+    id = db.Column(db.Integer, primary_key=True)
+    set_id = db.Column(db.String(100), nullable=False, index=True)
+    drug_name = db.Column(db.String(255), nullable=False)
+    result_json = db.Column(db.Text, nullable=False) # Store as JSON string
+    min_count = db.Column(db.Integer, default=10)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
 class LabelEmbedding(db.Model):
     __tablename__ = 'label_embeddings'
     id = db.Column(db.Integer, primary_key=True)

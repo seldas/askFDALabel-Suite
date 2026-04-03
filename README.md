@@ -61,6 +61,14 @@ Once all services are up and running, you can access the application:
 
 *   **Frontend:** Open your web browser and navigate to `http://localhost:8841/askfdalabel`.
 
+## Key Features
+
+- **Emerging AE Analysis**: Compare FAERS reports from the last 5 years against the previous 5 years to identify "NEW" safety signals.
+- **AI Semantic Matcher**: Use Large Language Models to determine if undocumented FAERS terms are semantically mentioned in the drug labeling (e.g., via synonyms or clinical context).
+- **Labeling Scan**: Automatically verify if emerging adverse events are already documented in the official SPL sections.
+- **MedDRA Enrichment**: Integrated MedDRA hierarchy (SOC/HLT) for all adverse event reporting.
+- **Persistent Cache**: All analysis results are saved in the project database for instant retrieval.
+
 ### Stopping the Application
 
 To stop all running services and remove the containers:

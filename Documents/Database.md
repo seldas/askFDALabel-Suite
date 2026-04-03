@@ -41,6 +41,14 @@ The public schema contains core application models. While Alembic is used for mi
 python scripts/database/init_public_schema.py
 ```
 
+**Key Application Models (Alembic Managed):**
+*   `User`: User authentication and role management.
+*   `Project`: Container for drug-related analysis tasks.
+*   `Favorite`: Drug label metadata saved by the user.
+*   `AeAiAssessment`: **(New)** Caches AI semantic matching results for adverse event analysis.
+*   `ToxAgent`: Consolidated toxicity assessment and report storage.
+*   `ProjectAeReport`: Background task management for batch AE profiling.
+
 **Schema Refinement:**
 To prevent truncation errors with long drug names or metadata (e.g., from FDALabel Excel imports), certain columns must be converted to `TEXT`. Run the following script after initial creation:
 ```bash
