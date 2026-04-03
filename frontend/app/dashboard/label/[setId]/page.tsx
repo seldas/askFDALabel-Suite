@@ -1419,7 +1419,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                   activeTab={activeTab} 
                   faersCoverageFilter={faersCoverageFilter} 
                   setFaersCoverageFilter={setFaersCoverageFilter} 
-                  drugName={data?.faers_drug_name || data?.generic_name}
+                  drugName={data?.faers_drug_name ?? data?.generic_name ?? undefined}
                   setId={setId}
                 />
                 <AgentView data={data} activeTab={activeTab} />
