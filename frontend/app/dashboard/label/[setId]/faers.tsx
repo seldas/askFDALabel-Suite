@@ -1,7 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { LabelData } from './types';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer,
+  AreaChart,
+  Area
+} from 'recharts';
 
 interface LabelMatch {
   section: string;
@@ -26,7 +37,21 @@ interface EmergingAe {
   ai_match?: AiMatch;
 }
 
-function EmergingAeAnalysis({ drugName, setId }: { drugName?: string, setId?: string }) {
+interface TrendPoint {
+  timestamp: number;
+  cumulative: number;
+  count?: number;
+}
+
+function EmergingAeAnalysis({ 
+  drugName, 
+  setId,
+  activeTab
+}: { 
+  drugName?: string, 
+  setId?: string,
+  activeTab: string
+}) {
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [data, setData] = useState<EmergingAe[] | null>(null);
@@ -34,11 +59,111 @@ function EmergingAeAnalysis({ drugName, setId }: { drugName?: string, setId?: st
   const [aiMinCount, setAiMinCount] = useState(10);
   const [hasAiResult, setHasAiResult] = useState(false);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+
+  // Pagination & Filtering Logic
+  const [activeFilters, setActiveFilters] = useState<Set<'exact' | 'semantic' | 'none'>>(new Set(['exact', 'semantic', 'none']));
+
+  // Trend State
+  const [selectedAe, setSelectedAe] = useState<EmergingAe | null>(null);
+  const [trendData, setTrendData] = useState<TrendPoint[]>([]);
+  const [trendLoading, setTrendLoading] = useState(false);
+
+  const toggleFilter = (filter: 'exact' | 'semantic' | 'none') => {
+    setActiveFilters(prev => {
+        const next = new Set(prev);
+        if (next.has(filter)) {
+            if (next.size > 1) next.delete(filter); // Don't allow deselecting all
+        } else {
+            next.add(filter);
+        }
+        return next;
+    });
+  };
+
   useEffect(() => {
     if (setId && drugName) {
         checkExistingAiResults();
     }
   }, [setId, drugName]);
+
+  // Automated scan when tab is active
+  useEffect(() => {
+    if (activeTab === 'faers-view' && drugName && !data && !loading) {
+        runAnalysis();
+    }
+  }, [activeTab, drugName, data, loading]);
+
+  // Reset to first page when data or itemsPerPage changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [data, itemsPerPage]);
+
+  useEffect(() => {
+    if (selectedAe) {
+        fetchTrend(selectedAe.term);
+    }
+  }, [selectedAe]);
+
+  const fetchTrend = async (term: string) => {
+    setTrendLoading(true);
+    try {
+        const resp = await fetch('/api/dashboard/faers/trends', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ drug_name: drugName, terms: [term] })
+        });
+        const json = await resp.json();
+        const rawPoints = json.trends[term] || [];
+
+        // Transform to cumulative format with real timestamps
+        let cumulative = 0;
+        const formatted: TrendPoint[] = rawPoints.map((p: any) => {
+            cumulative += p.count;
+            
+            const year = parseInt(p.time.substring(0, 4));
+            const month = parseInt(p.time.substring(4, 6)) - 1; // 0-indexed
+            const day = parseInt(p.time.substring(6, 8) || "01");
+            const timestamp = new Date(year, month, day).getTime();
+
+            return {
+                timestamp,
+                count: p.count,
+                cumulative: cumulative
+            };
+        });
+
+        // Ensure it starts from 0 exactly 5 years ago
+        const fiveYearsAgo = new Date();
+        fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+        const startTimestamp = fiveYearsAgo.getTime();
+
+        if (formatted.length > 0) {
+            // Sort by timestamp just in case
+            formatted.sort((a: TrendPoint, b: TrendPoint) => a.timestamp - b.timestamp);
+            
+            // If the first data point is after our 5y window start, prepend a 0 point
+            if (formatted[0].timestamp > startTimestamp) {
+                setTrendData([{ timestamp: startTimestamp, cumulative: 0, count: 0 }, ...formatted]);
+            } else {
+                setTrendData(formatted);
+            }
+        } else {
+            // Even if no data, show a flat line from 0
+            setTrendData([
+                { timestamp: startTimestamp, cumulative: 0 },
+                { timestamp: new Date().getTime(), cumulative: 0 }
+            ]);
+        }
+    } catch (e) {
+        console.error("Failed to fetch trend", e);
+    } finally {
+        setTrendLoading(false);
+    }
+  };
+
 
   const checkExistingAiResults = async () => {
     try {
@@ -138,6 +263,23 @@ function EmergingAeAnalysis({ drugName, setId }: { drugName?: string, setId?: st
     }
   };
 
+  // Pagination & Filtering Logic
+  const filteredData = data ? data.filter(ae => {
+    const isExact = ae.label_matches && ae.label_matches.length > 0;
+    const isSemantic = ae.ai_match?.found === true;
+    const isNone = !isExact && !isSemantic;
+
+    if (activeFilters.has('exact') && isExact) return true;
+    if (activeFilters.has('semantic') && isSemantic) return true;
+    if (activeFilters.has('none') && isNone) return true;
+    return false;
+  }) : [];
+
+  const totalItems = filteredData.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedData = filteredData.slice(startIndex, startIndex + itemsPerPage);
+
   return (
     <div className="chart-card full-width" style={{ marginTop: '0', borderTop: 'none', paddingTop: '0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '16px 24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -145,25 +287,12 @@ function EmergingAeAnalysis({ drugName, setId }: { drugName?: string, setId?: st
             <span style={{ fontSize: '1.5rem' }}>🆕</span>
             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>Emerging Adverse Events (Last 5 Years Only)</h3>
         </div>
-        <button 
-          onClick={runAnalysis} 
-          disabled={loading || !drugName}
-          className="button"
-          style={{ 
-            backgroundColor: loading ? '#94a3b8' : '#0071bc', 
-            color: 'white', 
-            padding: '8px 20px', 
-            borderRadius: '8px',
-            fontSize: '0.8rem',
-            fontWeight: 800,
-            border: 'none',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s ease',
-            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)'
-          }}
-        >
-          {loading ? 'Analyzing...' : 'Run Emerging Scan'}
-        </button>
+        {loading && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="loader" style={{ width: '16px', height: '16px', borderWidth: '2px', borderTopColor: '#0071bc' }}></div>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b' }}>Analyzing Reports...</span>
+            </div>
+        )}
       </div>
 
       <div style={{ 
@@ -232,6 +361,60 @@ function EmergingAeAnalysis({ drugName, setId }: { drugName?: string, setId?: st
 
       {data && (
         <div className="table-container" style={{ marginTop: '0', overflowX: 'auto' }}>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', padding: '0 4px' }}>
+              <button 
+                onClick={() => toggleFilter('exact')}
+                style={{
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    border: '1px solid',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    backgroundColor: activeFilters.has('exact') ? '#dcfce7' : 'transparent',
+                    color: activeFilters.has('exact') ? '#166534' : '#64748b',
+                    borderColor: activeFilters.has('exact') ? '#22c55e' : '#e2e8f0',
+                }}
+              >
+                  {activeFilters.has('exact') ? '✓ ' : ''}Exact Match
+              </button>
+              <button 
+                onClick={() => toggleFilter('semantic')}
+                style={{
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    border: '1px solid',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    backgroundColor: activeFilters.has('semantic') ? '#ecfdf5' : 'transparent',
+                    color: activeFilters.has('semantic') ? '#065f46' : '#64748b',
+                    borderColor: activeFilters.has('semantic') ? '#10b981' : '#e2e8f0',
+                }}
+              >
+                  {activeFilters.has('semantic') ? '✓ ' : ''}Semantic Match
+              </button>
+              <button 
+                onClick={() => toggleFilter('none')}
+                style={{
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    border: '1px solid',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    backgroundColor: activeFilters.has('none') ? '#fef2f2' : 'transparent',
+                    color: activeFilters.has('none') ? '#991b1b' : '#64748b',
+                    borderColor: activeFilters.has('none') ? '#ef4444' : '#e2e8f0',
+                }}
+              >
+                  {activeFilters.has('none') ? '✓ ' : ''}Not Matched
+              </button>
+          </div>
+
           <table className="coverage-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0', background: '#f1f5f9' }}>
@@ -243,9 +426,26 @@ function EmergingAeAnalysis({ drugName, setId }: { drugName?: string, setId?: st
               </tr>
             </thead>
             <tbody>
-              {data.length > 0 ? data.map((ae, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', verticalAlign: 'top' }}>
-                  <td style={{ padding: '12px', fontWeight: 700, color: '#0f172a' }}>{ae.term}</td>
+              {paginatedData.length > 0 ? paginatedData.map((ae, i) => (
+                <tr 
+                    key={i} 
+                    onClick={() => setSelectedAe(ae)}
+                    style={{ 
+                        borderBottom: '1px solid #f1f5f9', 
+                        verticalAlign: 'top',
+                        cursor: 'pointer',
+                        backgroundColor: selectedAe?.term === ae.term ? '#f1f7fd' : 'transparent',
+                        transition: 'background-color 0.2s ease'
+                    }}
+                    onMouseOver={e => { if (selectedAe?.term !== ae.term) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                    onMouseOut={e => { if (selectedAe?.term !== ae.term) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <td style={{ padding: '12px', fontWeight: 700, color: '#0f172a' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {selectedAe?.term === ae.term && <span style={{ color: '#0071bc' }}>→</span>}
+                        {ae.term}
+                    </div>
+                  </td>
                   <td style={{ padding: '12px' }}>
                     <span style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontWeight: 800, color: '#334155', fontSize: '0.75rem' }}>
                         {ae.count}
@@ -314,8 +514,146 @@ function EmergingAeAnalysis({ drugName, setId }: { drugName?: string, setId?: st
               )}
             </tbody>
           </table>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', padding: '0 4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Show:</label>
+                    <select 
+                        value={itemsPerPage} 
+                        onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
+                        style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.75rem', fontWeight: 600 }}
+                    >
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                    </select>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <button 
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        style={{ 
+                            padding: '6px 12px', 
+                            borderRadius: '6px', 
+                            border: '1px solid #e2e8f0', 
+                            background: currentPage === 1 ? '#f8fafc' : 'white', 
+                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: currentPage === 1 ? '#cbd5e1' : '#334155'
+                        }}
+                    >
+                        Previous
+                    </button>
+                    
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>
+                        Page {currentPage} of {totalPages}
+                    </span>
+
+                    <button 
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        style={{ 
+                            padding: '6px 12px', 
+                            borderRadius: '6px', 
+                            border: '1px solid #e2e8f0', 
+                            background: currentPage === totalPages ? '#f8fafc' : 'white', 
+                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: currentPage === totalPages ? '#cbd5e1' : '#334155'
+                        }}
+                    >
+                        Next
+                    </button>
+                </div>
+            </div>
+          )}
           <div style={{ marginTop: '12px', fontSize: '0.7rem', color: '#94a3b8', textAlign: 'right', fontWeight: 500 }}>
             Analysis Engine: Hybrid exact-string + semantic-AI. Results cached in project database.
+          </div>
+
+          {/* Trend Chart Section */}
+          <div style={{ 
+              marginTop: '30px', 
+              padding: '24px', 
+              background: '#ffffff', 
+              borderRadius: '16px', 
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>
+                    {selectedAe ? `Cumulative Reporting Trend: ${selectedAe.term}` : 'Select an AE term above to view reporting trend'}
+                </h4>
+                {selectedAe && (
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+                        Total Reports: <span style={{ color: '#0071bc', fontWeight: 800 }}>{selectedAe.count}</span>
+                    </div>
+                )}
+            </div>
+
+            <div style={{ height: '300px', width: '100%', position: 'relative' }}>
+                {trendLoading ? (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.8)', zIndex: 10 }}>
+                        <div className="loader"></div>
+                    </div>
+                ) : trendData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#0071bc" stopOpacity={0.1}/>
+                                    <stop offset="95%" stopColor="#0071bc" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis 
+                                dataKey="timestamp" 
+                                type="number"
+                                domain={['dataMin', 'dataMax']}
+                                fontSize={11} 
+                                tickLine={false} 
+                                axisLine={false} 
+                                tick={{ fill: '#94a3b8' }}
+                                minTickGap={30}
+                                tickFormatter={(ts) => new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })}
+                            />
+                            <YAxis 
+                                fontSize={11} 
+                                tickLine={false} 
+                                axisLine={false} 
+                                tick={{ fill: '#94a3b8' }}
+                            />
+                            <Tooltip 
+                                labelFormatter={(ts) => new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                itemStyle={{ fontWeight: 700, fontSize: '0.85rem' }}
+                            />
+                            <Area 
+                                type="monotone" 
+                                dataKey="cumulative" 
+                                stroke="#0071bc" 
+                                strokeWidth={3}
+                                fillOpacity={1} 
+                                fill="url(#colorCumulative)" 
+                                name="Cumulative Reports"
+                                animationDuration={1000}
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                ) : (
+                    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
+                        <span style={{ fontSize: '2rem', marginBottom: '8px' }}>📈</span>
+                        <p style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                            {selectedAe ? 'No trend data available for this term.' : 'Click a row in the table above to analyze its growth.'}
+                        </p>
+                    </div>
+                )}
+            </div>
           </div>
         </div>
       )}
@@ -325,14 +663,10 @@ function EmergingAeAnalysis({ drugName, setId }: { drugName?: string, setId?: st
 
 export default function FaersView({ 
   activeTab, 
-  faersCoverageFilter, 
-  setFaersCoverageFilter,
   drugName,
   setId
 }: { 
   activeTab: string;
-  faersCoverageFilter: 'all' | 'not_presented';
-  setFaersCoverageFilter: (filter: 'all' | 'not_presented') => void;
   drugName?: string;
   setId?: string;
 }) {
@@ -340,109 +674,7 @@ export default function FaersView({
     <div id="faers-view" className={`tab-content ${activeTab === 'faers-view' ? 'active' : ''}`} style={{ display: activeTab === 'faers-view' ? 'block' : 'none' }}>
         <div id="faers-loading" className="loader"></div>
         <div id="dashboard-content" className="dashboard-grid" style={{ display: 'none' }}>
-            
-            <EmergingAeAnalysis drugName={drugName} setId={setId} />
-
-            {/* Hidden legacy coverage analysis as requested */}
-            <div className="chart-card full-width" style={{ display: 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                <h3 style={{ margin: 0 }}>Label Coverage Analysis</h3>
-
-                {/* Toggle */}
-                <div
-                    style={{
-                    display: 'inline-flex',
-                    gap: '4px',
-                    padding: '4px',
-                    background: '#f1f5f9',
-                    borderRadius: '999px',
-                    border: '1px solid #e2e8f0',
-                    }}
-                >
-                    <button
-                    type="button"
-                    onClick={() => setFaersCoverageFilter('all')}
-                    style={{
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '6px 12px',
-                        borderRadius: '999px',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        background: faersCoverageFilter === 'all' ? 'white' : 'transparent',
-                        boxShadow: faersCoverageFilter === 'all' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-                        color: faersCoverageFilter === 'all' ? '#0f172a' : '#64748b',
-                    }}
-                    >
-                    All
-                    </button>
-
-                    <button
-                    type="button"
-                    onClick={() => setFaersCoverageFilter('not_presented')}
-                    style={{
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '6px 12px',
-                        borderRadius: '999px',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        background: faersCoverageFilter === 'not_presented' ? 'white' : 'transparent',
-                        boxShadow: faersCoverageFilter === 'not_presented' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-                        color: faersCoverageFilter === 'not_presented' ? '#0f172a' : '#64748b',
-                    }}
-                    >
-                    Not Presented
-                    </button>
-                </div>
-                </div>
-
-                <div
-                style={{
-                    marginTop: '6px',
-                    fontSize: '0.85rem',
-                    color: '#475569',
-                    fontWeight: 500
-                }}
-                >
-                Note: For clarity, we exclude SOC-level terms and non-AE groupings (e.g., PRD, SMP) from the summary bar.
-                </div>
-
-                {/* SOC summary bar injected by faers.js */}
-                <div id="soc-summary-bar" style={{ marginTop: '12px' }} />
-
-
-                <div className="table-container">
-                    <table id="coverageTable" className="coverage-table">
-                        <thead>
-                            <tr>
-                            <th style={{ width: '50px' }}></th>
-                            <th>Reaction</th>
-                            <th>Count</th>
-                            <th>SOC</th>
-                            <th>HLT</th>
-                            <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="coverageTable-body"></tbody>
-                    </table>
-                </div>
-                <div className="pagination-controls" style={{ marginTop: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-                        <button id="firstPage" className="button pagination-btn">&laquo;</button>
-                        <button id="prevPage" className="button pagination-btn">&lsaquo;</button>
-                        <input type="number" id="pageInput" defaultValue="1" style={{ width: '50px', textAlign: 'center' }} />
-                        <span className="page-info">of <span id="totalPages">1</span></span>
-                        <button id="nextPage" className="button pagination-btn">&rsaquo;</button>
-                        <button id="lastPage" className="button pagination-btn">&raquo;</button>
-                </div>
-            </div>
-
-            <div className="chart-card full-width">
-                <h3>Adverse Events Trends (Time Series)</h3>
-                <div className="canvas-container" style={{ height: '400px' }}>
-                    <canvas id="trendComparisonChart"></canvas>
-                </div>
-            </div>
+            <EmergingAeAnalysis drugName={drugName} setId={setId} activeTab={activeTab} />
         </div>
     </div>
   );

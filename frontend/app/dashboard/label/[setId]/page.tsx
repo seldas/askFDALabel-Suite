@@ -264,16 +264,6 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
     { id: 'tox-view', label: 'Agents' },
   ];
 
-  const [faersCoverageFilter, setFaersCoverageFilter] = useState<'all' | 'not_presented'>('all');
-
-  useEffect(() => {
-    if (activeTab !== 'faers-view') return;
-    const win = window as any;
-    if (typeof win.setCoverageFilter === 'function') {
-      win.setCoverageFilter(faersCoverageFilter);
-    }
-  }, [faersCoverageFilter, activeTab]);
-
   useEffect(() => {
     const handleClickOutside = () => setActiveDropdown(null);
     document.addEventListener('click', handleClickOutside);
@@ -1417,8 +1407,6 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                 <LabelView data={data} activeTab={activeTab} tocCollapsed={tocCollapsed} setTocCollapsed={setTocCollapsed} expandedSections={expandedSections} toggleSection={toggleSection} TOCItemComponent={TOCItemComponent} />
                 <FaersView 
                   activeTab={activeTab} 
-                  faersCoverageFilter={faersCoverageFilter} 
-                  setFaersCoverageFilter={setFaersCoverageFilter} 
                   drugName={data?.faers_drug_name ?? data?.generic_name ?? undefined}
                   setId={setId}
                 />
