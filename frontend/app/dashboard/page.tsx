@@ -8,6 +8,7 @@ import Header from "../components/Header";
 import ProjectSummary, { type ProjectStats } from './components/ProjectSummary';
 import AEProfileModal from './components/AEProfileModal';
 import Link from 'next/link';
+import './dashboard.css';
 
 interface Project {
   id: number;
@@ -473,6 +474,7 @@ export default function DashboardPage() {
   }, [showProjects]);
 
   return (
+    <div className="dashboard-suite">
     <main className="hp-main-layout" suppressHydrationWarning style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
 
 
@@ -1387,52 +1389,7 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
-      <style jsx>{`
-        .project-selection-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
-          border-color: #6366f1 !important;
-        }
-        .dashboard-action-panel:hover {
-          transform: translateY(-8px);
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1) !important;
-          border-color: #6366f1 !important;
-        }
-        .dashboard-action-panel.dragging:hover {
-          transform: translateY(-2px);
-        }
-        .project-name-input:focus {
-          border-color: #6366f1 !important;
-          background: white !important;
-          box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
-        }
-        .project-name-input:focus + label {
-          top: 0.3rem !important;
-          font-size: 0.65rem !important;
-          color: #6366f1 !important;
-        }
-        .loader {
-          border: 4px solid #f3f3f3;
-          border-radius: 50%;
-          border-top: 4px solid #6366f1;
-          width: 40px;
-          height: 40px;
-          animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </main>
+    </div>
   );
 }

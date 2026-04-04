@@ -1,0 +1,511 @@
+/* FAERS In-Text Annotation */
+.faers-signal {
+    position: relative;
+    cursor: help;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 4px;
+    border-bottom: 2px solid transparent;
+    display: inline;
+}
+
+/* Intensity Colors for FAERS Signals - Intuitive Traffic Light System */
+.faers-signal.intensity-high {
+    background-color: #fee2e2; /* Red-50 */
+    color: #991b1b;           /* Red-800 */
+    border-bottom-color: #ef4444; /* Red-500 */
+}
+.faers-signal.intensity-high:hover {
+    background-color: #fecaca; /* Red-100 */
+}
+
+.faers-signal.intensity-mid {
+    background-color: #ffedd5; /* Orange-50 */
+    color: #9a3412;           /* Orange-800 */
+    border-bottom-color: #f97316; /* Orange-500 */
+}
+.faers-signal.intensity-mid:hover {
+    background-color: #fed7aa; /* Orange-100 */
+}
+
+.faers-signal.intensity-low {
+    background-color: #f0fdf4; /* Green-50 */
+    color: #166534;           /* Green-800 */
+    border-bottom-color: #22c55e; /* Green-500 */
+}
+.faers-signal.intensity-low:hover {
+    background-color: #dcfce7; /* Green-100 */
+}
+
+/* Beautiful HTML Tooltip for FAERS signals */
+.faers-signal-tooltip {
+    position: absolute;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15), 0 0 1px rgba(0,0,0,0.1);
+    z-index: 10000;
+    width: 320px;
+    padding: 0;
+    overflow: hidden;
+    font-family: 'Inter', system-ui, sans-serif;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateY(10px) scale(0.98);
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.faers-signal-tooltip.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.faers-tooltip-header {
+    background: #f8fafc;
+    padding: 16px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.faers-tooltip-term {
+    font-weight: 800;
+    color: #0f172a;
+    font-size: 1.1rem;
+    letter-spacing: -0.02em;
+}
+
+.faers-tooltip-count {
+    font-size: 0.75rem;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 800;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.faers-tooltip-count.intensity-high { background-color: #ef4444; }
+.faers-tooltip-count.intensity-mid { background-color: #f97316; }
+.faers-tooltip-count.intensity-low { background-color: #22c55e; }
+
+.faers-tooltip-body {
+    padding: 20px;
+    background: white;
+}
+
+.faers-tooltip-row {
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+}
+
+.faers-tooltip-row:last-child {
+    margin-bottom: 0;
+}
+
+.faers-tooltip-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+
+.faers-tooltip-value {
+    font-size: 0.9rem;
+    color: #334155;
+    line-height: 1.6;
+    font-weight: 500;
+}
+
+.faers-tooltip-footer {
+    background: #f8fafc;
+    padding: 10px 20px;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    font-weight: 600;
+    text-align: right;
+    border-top: 1px solid #f1f5f9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.faers-tooltip-footer::before {
+    content: "Signal Confidence";
+    font-size: 0.6rem;
+    text-transform: uppercase;
+}
+
+/* SOC summary bar (gov/simple pill chips) */
+.soc-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.soc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 6px 12px;
+  border-radius: 999px;
+
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.soc-chip:hover {
+  border-color: #0071bc;
+  background: #f1f7fd;
+}
+
+.soc-chip:active {
+  transform: translateY(1px);
+}
+
+.soc-chip.active {
+  border-color: #0071bc;
+  background: #e6f2fb;
+  color: #002e5d;
+}
+
+.soc-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 28px;
+  height: 22px;
+  padding: 0 8px;
+
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.soc-chip.active .soc-chip-count {
+  background: #ffffff;
+  border-color: #b6d7f2;
+  color: #002e5d;
+}
+
+/* Hierarchical TOC Styles */
+.toc-list, .toc-sub-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.toc-sub-list {
+  margin-left: 12px;
+  border-left: 1px solid #f1f5f9;
+}
+
+.toc-item-container {
+  display: flex;
+  align-items: center;
+  padding: 2px 0;
+}
+
+.toc-expander {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.toc-expander.expanded {
+  transform: rotate(90deg);
+}
+
+/* General TOC Link Adjustments for better spacing */
+.toc-link {
+  text-decoration: none;
+  color: #475569;
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+  display: block;
+  transition: all 0.2s ease;
+  line-height: 1.2;
+  margin-bottom: 1px;
+}
+
+.toc-link:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+/* --- Boxed Warnings Refinement --- */
+.toc-boxed-warning {
+  margin: 4px 0 !important;
+  background-color: #fff1f2; /* Ultra-soft red */
+  border: 1px solid #fecaca; /* Soft red border */
+  border-left: 4px solid #e11d48; /* Strong clinical red accent */
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(225, 29, 72, 0.05);
+}
+
+.toc-boxed-warning .toc-link {
+  color: #9f1239 !important; /* Deep red for text */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  padding: 8px 10px;
+}
+
+.toc-boxed-warning:hover {
+  background-color: #ffe4e6;
+  border-color: #fda4af;
+}
+
+/* --- Highlights Refinement --- */
+.toc-highlights {
+  margin: 4px 0 !important;
+  background-color: #fffbeb; /* Creamy amber */
+  border: 1px solid #fde68a;
+  border-left: 4px solid #f59e0b; /* Amber accent */
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.toc-highlights .toc-link {
+  color: #92400e !important; /* Deep amber/brown for text */
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.toc-highlights:hover {
+  background-color: #fef3c7;
+  border-color: #fcd34d;
+}
+
+/* --- Drug Facts OTC --- */
+.toc-drug-facts {
+  margin: 4px 0 !important;
+  background-color: #f0f9ff; /* Ultra-soft blue */
+  border: 1px solid #bae6fd;
+  border-left: 4px solid #0284c7; /* Strong clinical blue accent */
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.toc-drug-facts .toc-link {
+  color: #0369a1 !important;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.toc-drug-facts:hover {
+  background-color: #e0f2fe;
+  border-color: #7dd3fc;
+}
+
+/* Adjust standard root links to match the new vertical rhythm */
+.toc-link.root-link {
+  font-weight: 600;
+  color: #1e293b;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+
+/* --- Book Mode Architecture --- */
+.book-mode-container {
+  position: relative;
+  background-color: #f1f5f9;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 20px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.book-viewport {
+  width: 100%;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none; /* Firefox */
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.book-viewport::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.book-pages-flow {
+  display: flex;
+  width: fit-content;
+  min-width: 100%;
+  gap: 40px;
+  padding: 20px 40px;
+  align-items: stretch; /* All pages stretch to the same height */
+}
+
+.book-page-item {
+  scroll-snap-align: center;
+  background: white;
+  width: 800px; /* Base width for a "page" */
+  max-width: 85vw;
+  
+  /* Uniform Height: Fills the flex container */
+  height: 100%;
+  min-height: 400px; 
+  
+  overflow-y: auto; /* Allow internal scroll for long sections */
+  
+  padding: 60px;
+  border-radius: 8px;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.1), 0 3px 10px rgba(0,0,0,0.05);
+  position: relative;
+  border: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start; /* Ensure text is at the top */
+  
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Custom scrollbar for the page itself */
+.book-page-item::-webkit-scrollbar {
+  width: 6px;
+}
+.book-page-item::-webkit-scrollbar-track {
+  background: transparent;
+}
+.book-page-item::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+.book-page-item::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
+/* Book Gutter effect - more subtle for flexible height */
+.book-page-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  background: linear-gradient(to right, rgba(0,0,0,0.03) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Responsive Pages */
+@media (max-width: 1200px) {
+  .book-page-item { width: 700px; padding: 40px; }
+}
+
+@media (max-width: 768px) {
+  .book-page-item { width: 90vw; padding: 30px; }
+  .book-pages-flow { gap: 20px; padding: 0 10px; }
+  .book-mode-container { padding: 20px 10px; }
+}
+
+/* Navigation Overlays */
+.book-nav-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  margin-top: 30px;
+  position: sticky;
+  bottom: 20px;
+  z-index: 100;
+}
+
+.book-flip-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: white;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.book-flip-btn:hover:not(:disabled) {
+  background: #3b82f6;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px rgba(59, 130, 246, 0.2);
+}
+
+.book-flip-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.book-page-indicator {
+  background: rgba(15, 23, 42, 0.8);
+  color: white;
+  padding: 8px 20px;
+  border-radius: 30px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(8px);
+}
+
+.page-divider { opacity: 0.5; font-weight: 400; }
+.page-total { opacity: 0.7; }
+
+/* Smooth Anchor Scrolling for Book Mode */
+html {
+  scroll-behavior: smooth;
+}
+
+.book-page-item h2 {
+  margin-top: 0;
+  color: #0f172a;
+  font-size: 1.5rem;
+  border-bottom: 2px solid #f1f5f9;
+  padding-bottom: 15px;
+  margin-bottom: 25px;
+}
