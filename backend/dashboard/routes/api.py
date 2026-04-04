@@ -35,40 +35,28 @@ def get_peers_count(set_id):
     """
     Fetches counts of peer labels (same name and same EPC) from various sources.
     Source can be 'local', 'oracle', or 'openfda'.
-    Always uses openFDA for metadata extraction to ensure EPC/MOA are present.
+    If the current set_id is missing EPC data, it searches by Generic Name
+    to borrow metadata from a richer peer record.
     """
     source = request.args.get('source', 'local').lower()
     
-    # 1. Get current label metadata - ALWAYS force openFDA for the "search terms"
-    # because local DB often lacks EPC/MOA
-    from dashboard.services.fda_client import Config as FDAConfig
-    import requests as fda_requests
+    # 1. Get basic metadata for the current set_id
+    meta = get_label_metadata(set_id)
+    if not meta:
+        return jsonify({'error': 'Label metadata not found'}), 404
     
-    generic_name = None
-    epc = None
+    generic_name = meta.get('generic_name')
+    epc = meta.get('epc')
     
-    try:
-        fda_url = "https://api.fda.gov/drug/label.json"
-        params = {'search': f'set_id:"{set_id}"'}
-        if FDAConfig.OPENFDA_API_KEY: params['api_key'] = FDAConfig.OPENFDA_API_KEY
-        
-        resp = fda_requests.get(fda_url, params=params, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            if 'results' in data and data['results']:
-                openfda = data['results'][0].get('openfda', {})
-                generic_name = ", ".join(openfda.get('generic_name', []))
-                epc = ", ".join(openfda.get('pharm_class_epc', []))
-    except Exception as e:
-        logger.error(f"Error fetching rich metadata for Deep Dive: {e}")
+    # 2. BORROWING STRATEGY: If EPC is missing, search by Generic Name for a rich peer
+    if not epc or epc.lower() == 'n/a':
+        logger.info(f"EPC missing for {set_id}. Searching by generic name: {generic_name}")
+        rich_meta = get_rich_metadata_by_generic(generic_name)
+        if rich_meta:
+            epc = rich_meta.get('epc')
+            logger.info(f"Borrowed EPC for {generic_name}: {epc}")
 
-    # Fallback to local if openFDA failed or returned nothing
-    if not generic_name or not epc:
-        meta = get_label_metadata(set_id)
-        if meta:
-            if not generic_name: generic_name = meta.get('generic_name')
-            if not epc: epc = meta.get('epc')
-    
+    # Final cleanup
     if generic_name == 'n/a' or generic_name == 'Unknown Generic':
         generic_name = None
     if epc == 'n/a':
