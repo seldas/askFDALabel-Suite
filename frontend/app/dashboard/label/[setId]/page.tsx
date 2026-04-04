@@ -10,6 +10,7 @@ import { useUser } from '../../../context/UserContext';
 import LabelView from './label';
 import FaersView from './faers';
 import AgentView from './agent';
+import DeepDiveView from './deepdive';
 import './label_view.css';
 
 // Shared Types
@@ -261,6 +262,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
 
   const tabs = [
     { id: 'label-view', label: 'Label' },
+    { id: 'deep-dive-view', label: 'Deep Dive' },
     { id: 'faers-view', label: 'FAERS' },
     { id: 'tox-view', label: 'Agents' },
   ];
@@ -893,6 +895,10 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                 
                 {/* Layer 2 (Inside Label function) handled within LabelView */}
                 <LabelView data={data} activeTab={activeTab} tocCollapsed={tocCollapsed} setTocCollapsed={setTocCollapsed} expandedSections={expandedSections} toggleSection={toggleSection} TOCItemComponent={TOCItemComponent} />
+                <DeepDiveView 
+                  activeTab={activeTab}
+                  setId={setId}
+                />
                 <FaersView 
                   activeTab={activeTab} 
                   drugName={data?.faers_drug_name ?? data?.generic_name ?? undefined}
@@ -934,7 +940,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       </Script>
 
       {/* Legacy Scripts */}
-      <Script src="/askfdalabel/dashboard/js/Chart.js" strategy="afterInteractive" />
+      <Script src="/askfdalabel/dashboard/js/chart.js" strategy="afterInteractive" />
       <Script src="/askfdalabel/dashboard/js/marked.min.js" strategy="afterInteractive" />
       <Script src="/askfdalabel/dashboard/js/utils.js" strategy="afterInteractive" />
       <Script src="/askfdalabel/dashboard/js/ui.js" strategy="afterInteractive" />

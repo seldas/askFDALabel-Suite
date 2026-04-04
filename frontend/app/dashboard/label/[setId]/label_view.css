@@ -509,3 +509,357 @@ html {
   padding-bottom: 15px;
   margin-bottom: 25px;
 }
+
+/* --- Base Layout & Layout Components --- */
+.results-container {
+    display: flex;
+    align-items: stretch;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+}
+
+.loader {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #007bff;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* --- Floating Action Buttons --- */
+.floating-action-btn {
+    position: fixed;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.5rem;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 2500;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid white;
+}
+.floating-action-btn:hover {
+    transform: scale(1.1) translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+}
+
+.chat-bubble {
+    background-color: #002e5d !important;
+    box-shadow: 0 4px 12px rgba(0, 46, 93, 0.3) !important;
+}
+
+/* --- Notes Summary List Styles --- */
+.notes-summary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.note-summary-item {
+    padding: 15px;
+    background: #ffffff;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.note-summary-item:hover {
+    border-color: #fd7e14;
+    background-color: #fff9f2;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(253, 126, 20, 0.1);
+}
+
+/* --- Custom Modal (Generic) --- */
+.custom-modal {
+    display: none; 
+    position: fixed; 
+    z-index: 3000; 
+    left: 0; 
+    top: 0; 
+    width: 100%; 
+    height: 100%; 
+    background-color: rgba(0,0,0,0.5);
+    backdrop-filter: blur(4px);
+}
+
+.custom-modal-content {
+    background-color: #fefefe;
+    margin: 5% auto; 
+    padding: 0;
+    border-radius: 12px;
+    width: 80%;
+    max-width: 900px;
+    height: 80vh;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    animation: slideDown 0.3s ease;
+}
+
+.custom-modal-header {
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.custom-modal-header h3 { margin: 0; color: #333; }
+
+.close-modal {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.close-modal:hover { color: #000; }
+
+.custom-modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+/* --- AI Assistant Chatbox --- */
+.chatbox { 
+    position: fixed; 
+    top: 60px; 
+    right: 0; 
+    bottom: 0;
+    width: 400px; 
+    background-color: white; 
+    display: flex; 
+    flex-direction: column; 
+    overflow: hidden; 
+    z-index: 3001; 
+    font-family: 'Inter', -apple-system, sans-serif;
+    border-left: 1px solid #e2e8f0;
+    box-shadow: -4px 0 15px rgba(0,0,0,0.05);
+    animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-sizing: border-box;
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.chat-header { 
+    background-color: #002e5d; 
+    color: white; 
+    padding: 1rem 1.5rem; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+}
+
+.chat-header h3 { 
+    margin: 0; 
+    font-size: 1rem; 
+    font-weight: 700;
+}
+
+.chat-messages { 
+    flex-grow: 1; 
+    padding: 1.5rem; 
+    overflow-y: auto; 
+    background-color: #f8fafc; 
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.message { 
+    margin-bottom: 0; 
+    max-width: 90%; 
+}
+
+.message-content { 
+    padding: 12px 16px; 
+    border-radius: 12px; 
+    font-size: 0.9rem;
+    line-height: 1.6;
+    word-wrap: break-word;
+}
+
+.message-ai .message-content { 
+    background-color: #ffffff; 
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
+    border-bottom-left-radius: 2px;
+}
+
+.message-user .message-content { 
+    background-color: #0071bc; 
+    color: white; 
+    border-bottom-right-radius: 2px;
+}
+
+.chat-input-form {
+    padding: 1.5rem;
+    background-color: white;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+}
+
+.chat-input-form input {
+    flex-grow: 1;
+    padding: 10px 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    outline: none;
+    font-size: 0.9rem;
+    background-color: #f8fafc;
+}
+
+.chat-input-form button {
+    margin-left: 10px;
+    padding: 0 20px;
+    background-color: #002e5d;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+/* --- AI Sticky Notes & Annotations --- */
+.top-annotations-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 0;
+    min-height: 0;
+}
+
+.top-annotations-container:empty {
+    display: none;
+}
+
+.chat-annotation-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background-color: #e7f5ff;
+    color: #007bff;
+    border-radius: 50%;
+    margin-left: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    border: 1px solid #b6d4fe;
+    position: relative;
+    vertical-align: middle;
+    transition: all 0.2s ease;
+}
+
+.chat-annotation-badge:hover, 
+.chat-annotation-badge.sticky {
+    background-color: #007bff;
+    color: white;
+    box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+}
+
+.annotation-popover {
+    position: absolute;
+    top: 130%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 350px;
+    max-height: 400px;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    z-index: 1000;
+    display: none;
+    text-align: left;
+    overflow: hidden;
+    flex-direction: column;
+}
+
+.chat-annotation-badge.sticky .annotation-popover {
+    display: flex;
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* --- Safety Annotations --- */
+.safety-annotation-badge { 
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center; 
+    width: 24px; 
+    height: 24px; 
+    background-color: #fff4e6; 
+    color: #fd7e14; 
+    border-radius: 50%; 
+    margin-left: 10px; 
+    cursor: pointer; 
+    font-size: 14px; 
+    border: 1px solid #ffd8a8; 
+    position: relative; 
+}
+.safety-popover { 
+    position: absolute; 
+    bottom: 120%; 
+    left: 50%; 
+    transform: translateX(-50%); 
+    width: 280px; 
+    background: white; 
+    border: 1px solid #dee2e6; 
+    border-radius: 12px; 
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15); 
+    z-index: 1000; 
+    display: none; 
+    padding: 12px; 
+    font-size: 0.85rem; 
+}
+.safety-annotation-badge:hover .safety-popover, 
+.safety-annotation-badge.sticky .safety-popover { 
+    display: block; 
+}
+
+/* --- Document Specifics --- */
+.DocumentTitle {
+  font-family: 'Helvetica', 'Arial', sans-serif;
+  font-size: 18pt;
+  font-weight: bold;
+  text-align: center;
+  margin-top: 1.5em;
+  margin-bottom: 1.5em;
+}

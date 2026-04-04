@@ -63,7 +63,7 @@ type Props = {
   // pass your existing formatter (same one used in table)
   formatEffectiveTime: (s?: string) => string;
 
-  // where your Chart.js is hosted (default assumes Next public/)
+  // where your chart.js is hosted (default assumes Next public/)
   chartSrc?: string;
 };
 
@@ -82,7 +82,7 @@ export default function ProjectSummary({
   error,
   stats,
   formatEffectiveTime,
-  chartSrc = '/dashboard/js/Chart.js',
+  chartSrc = '/dashboard/js/chart.js',
 }: Props) {
   // ESC to close
   useEffect(() => {

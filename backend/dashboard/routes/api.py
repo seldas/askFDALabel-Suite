@@ -15,7 +15,7 @@ from database import (
     ProjectAeReport, ProjectAeReportDetail, AeAiAssessment
 )
 import threading
-from dashboard.services.fda_client import get_label_metadata, get_label_xml, get_faers_data, find_labels, find_labels_by_set_ids
+from dashboard.services.fda_client import get_label_metadata, get_label_xml, get_faers_data, find_labels, find_labels_by_set_ids, get_label_counts, get_rich_metadata_by_generic
 from dashboard.services.ai_handler import chat_with_document, summarize_comparison, generate_assessment, get_search_helper_response
 from dashboard.services.xml_handler import extract_metadata_from_xml
 from dashboard.services.pgx_handler import run_pgx_assessment
@@ -23,11 +23,89 @@ from dashboard.prompts import (
     DILI_prompt, DICT_prompt, DIRI_prompt, 
     DILI_PT_TERMS, DICT_PT_TERMS, DIRI_PT_TERMS)
 from dashboard.config import Config
+from dashboard.services.fdalabel_db import FDALabelDBService
 from sqlalchemy import func
 from dashboard.services.meddra_matcher import scan_label_for_meddra
 
 logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__)
+
+@api_bp.route('/deep_dive/peers_count/<set_id>')
+def get_peers_count(set_id):
+    """
+    Fetches counts of peer labels (same name and same EPC) from various sources.
+    Source can be 'local', 'oracle', or 'openfda'.
+    Always uses openFDA for metadata extraction to ensure EPC/MOA are present.
+    """
+    source = request.args.get('source', 'local').lower()
+    
+    # 1. Get current label metadata - ALWAYS force openFDA for the "search terms"
+    # because local DB often lacks EPC/MOA
+    from dashboard.services.fda_client import Config as FDAConfig
+    import requests as fda_requests
+    
+    generic_name = None
+    epc = None
+    
+    try:
+        fda_url = "https://api.fda.gov/drug/label.json"
+        params = {'search': f'set_id:"{set_id}"'}
+        if FDAConfig.OPENFDA_API_KEY: params['api_key'] = FDAConfig.OPENFDA_API_KEY
+        
+        resp = fda_requests.get(fda_url, params=params, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            if 'results' in data and data['results']:
+                openfda = data['results'][0].get('openfda', {})
+                generic_name = ", ".join(openfda.get('generic_name', []))
+                epc = ", ".join(openfda.get('pharm_class_epc', []))
+    except Exception as e:
+        logger.error(f"Error fetching rich metadata for Deep Dive: {e}")
+
+    # Fallback to local if openFDA failed or returned nothing
+    if not generic_name or not epc:
+        meta = get_label_metadata(set_id)
+        if meta:
+            if not generic_name: generic_name = meta.get('generic_name')
+            if not epc: epc = meta.get('epc')
+    
+    if generic_name == 'n/a' or generic_name == 'Unknown Generic':
+        generic_name = None
+    if epc == 'n/a':
+        epc = None
+
+    results = {"source": source, "names": [], "epcs": []}
+
+    # Helper to get detailed counts for each term
+    def get_detailed_counts(name_str, epc_str, count_fn):
+        names = [n.strip() for n in (name_str or "").split(',') if n.strip() and n.strip().lower() != 'n/a']
+        epcs = [e.strip() for e in (epc_str or "").split(',') if e.strip() and e.strip().lower() != 'n/a']
+        
+        name_list = []
+        for n in names:
+            c = count_fn(generic_name=n)
+            name_list.append({"term": n, "count": c.get('generic_count', 0)})
+            
+        epc_list = []
+        for e in epcs:
+            c = count_fn(epc=e)
+            epc_list.append({"term": e, "count": c.get('epc_count', 0)})
+            
+        return name_list, epc_list
+
+    try:
+        if source == 'openfda':
+            n_list, e_list = get_detailed_counts(generic_name, epc, get_label_counts)
+        else:
+            n_list, e_list = get_detailed_counts(generic_name, epc, FDALabelDBService.get_label_counts)
+        
+        results["names"] = n_list
+        results["epcs"] = e_list
+            
+        return jsonify(results)
+    except Exception as e:
+        logger.error(f"Error in get_peers_count: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @api_bp.route('/meddra/scan_label/<set_id>')
 def scan_label_meddra(set_id):

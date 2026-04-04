@@ -28,7 +28,7 @@ function loadScriptOnce(src: string): Promise<void> {
     const existing = document.querySelector(`script[data-chartjs="1"][src="${src}"]`) as HTMLScriptElement | null;
     if (existing) {
       existing.addEventListener('load', () => resolve());
-      existing.addEventListener('error', () => reject(new Error('Failed to load Chart.js')));
+      existing.addEventListener('error', () => reject(new Error('Failed to load chart.js')));
       return;
     }
 
@@ -38,7 +38,7 @@ function loadScriptOnce(src: string): Promise<void> {
     s.defer = true;
     s.setAttribute('data-chartjs', '1');
     s.onload = () => resolve();
-    s.onerror = () => reject(new Error(`Failed to load Chart.js from ${src}`));
+    s.onerror = () => reject(new Error(`Failed to load chart.js from ${src}`));
     document.head.appendChild(s);
   });
 }
@@ -75,7 +75,7 @@ export function useCumulativeChart({ enabled, canvasRef, src, points }: Params) 
         if (cancelled) return;
 
         const Chart = window.Chart;
-        if (!Chart) throw new Error('Chart.js is not available on window.Chart');
+        if (!Chart) throw new Error('chart.js is not available on window.Chart');
 
         const canvas = canvasRef.current;
         if (!canvas) throw new Error('Chart canvas not mounted');

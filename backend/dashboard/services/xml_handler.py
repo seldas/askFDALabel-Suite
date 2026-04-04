@@ -681,13 +681,37 @@ def extract_metadata_from_xml(xml_string):
         # 5. NDC and Application Number Deep Search
         ndcs = set()
         apps = set()
+        epcs = set()
+        moas = set()
+        
         for elem in root.iter():
+            # NDC
             if elem.get('codeSystem') == '2.16.840.1.113883.6.69':
                 v = elem.get('code')
                 if v: ndcs.add(v)
+            
+            # Application Number
             if elem.get('root') == '2.16.840.1.113883.3.150' or elem.get('root') == '2.16.840.1.113883.3.989.2.1.1.1':
                 v = elem.get('extension')
                 if v: apps.add(v)
+            
+            # EPC & MOA (Pharmaceutical Class)
+            if local(elem.tag) == 'pharmaceuticalClass':
+                display_name = elem.get('displayName', '')
+                if not display_name:
+                    name_node = elem.find('{*}name')
+                    if name_node is not None: display_name = "".join(name_node.itertext()).strip()
+                
+                if display_name:
+                    if '[EPC]' in display_name.upper():
+                        epcs.add(display_name)
+                    elif '[MOA]' in display_name.upper():
+                        moas.add(display_name)
+                    else:
+                        # Fallback: if codeSystem is for EPC/MOA
+                        cs = elem.get('codeSystem')
+                        if cs == '2.16.840.1.113883.3.26.1.1': # NCI Thesaurus usually
+                            epcs.add(display_name)
 
         return {
             'set_id': set_id,
@@ -699,6 +723,8 @@ def extract_metadata_from_xml(xml_string):
             'label_format': identify_label_format(root),
             'ndc': ", ".join(sorted(list(ndcs))) if ndcs else "N/A",
             'application_number': ", ".join(sorted(list(apps))) if apps else "N/A",
+            'epc': ", ".join(sorted(list(epcs))) if epcs else "N/A",
+            'moa': ", ".join(sorted(list(moas))) if moas else "N/A",
             'document_type': "Label", # Simplified
             'has_boxed_warning': any(s.upper().startswith('WARNING') for s in [("".join(t.itertext())).strip() for t in root.iter() if local(t.tag) == 'title'])
         }

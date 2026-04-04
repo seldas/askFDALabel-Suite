@@ -192,6 +192,8 @@ def get_label_metadata(set_id, import_id=None):
                 'application_number': openfda.get('application_number', ['N/A'])[0],
                 'market_category': openfda.get('product_type', ['N/A'])[0],
                 'ndc': ', '.join(openfda.get('product_ndc', [])),
+                'epc': ', '.join(openfda.get('pharm_class_epc', ['N/A'])),
+                'moa': ', '.join(openfda.get('pharm_class_moa', ['N/A'])),
                 'source': 'openFDA'
             }
 
@@ -246,4 +248,74 @@ def get_faers_data(drug_name, limit=20):
             return {'reactions': resp.json().get('results', []), 'dates': []}
     except requests.exceptions.RequestException as e:
         return {"error": handle_openfda_error(e)}
+    return None
+
+def get_label_counts(generic_name=None, epc=None):
+    """
+    Queries openFDA to get counts of labels for a specific generic name and/or EPC.
+    """
+    fda_url = "https://api.fda.gov/drug/label.json"
+    results = {"generic_count": 0, "epc_count": 0}
+    
+    # Base params
+    base_params = {}
+    if Config.OPENFDA_API_KEY:
+        base_params['api_key'] = Config.OPENFDA_API_KEY
+
+    # 1. Query for Generic Name
+    if generic_name:
+        # Extract first part of generic name for better search matching
+        clean_name = re.split(r'[,;]', generic_name)[0].strip()
+        params = base_params.copy()
+        params['search'] = f'openfda.generic_name:"{clean_name}"'
+        params['limit'] = 1
+        try:
+            resp = requests.get(fda_url, params=params, timeout=10)
+            if resp.status_code == 200:
+                results["generic_count"] = resp.json().get('meta', {}).get('results', {}).get('total', 0)
+        except Exception as e:
+            logger.error(f"Error fetching generic counts from openFDA: {e}")
+
+    # 2. Query for EPC
+    if epc:
+        params = base_params.copy()
+        params['search'] = f'openfda.pharm_class_epc:"{epc}"'
+        params['limit'] = 1
+        try:
+            resp = requests.get(fda_url, params=params, timeout=10)
+            if resp.status_code == 200:
+                results["epc_count"] = resp.json().get('meta', {}).get('results', {}).get('total', 0)
+        except Exception as e:
+            logger.error(f"Error fetching EPC counts from openFDA: {e}")
+
+    return results
+
+def get_rich_metadata_by_generic(generic_name):
+    """
+    Searches openFDA by generic name to find a record that actually contains 
+    EPC/MOA data, which might be missing on specific manufacturer labels.
+    """
+    if not generic_name or generic_name.lower() == 'n/a':
+        return None
+        
+    clean_name = re.split(r'[,;]', generic_name)[0].strip()
+    fda_url = "https://api.fda.gov/drug/label.json"
+    params = {'search': f'openfda.generic_name:"{clean_name}"', 'limit': 5}
+    if Config.OPENFDA_API_KEY:
+        params['api_key'] = Config.OPENFDA_API_KEY
+
+    try:
+        resp = requests.get(fda_url, params=params, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            for result in data.get('results', []):
+                openfda = result.get('openfda', {})
+                if openfda.get('pharm_class_epc'):
+                    return {
+                        'epc': ", ".join(openfda.get('pharm_class_epc', [])),
+                        'moa': ", ".join(openfda.get('pharm_class_moa', [])),
+                        'generic_name': ", ".join(openfda.get('generic_name', []))
+                    }
+    except Exception as e:
+        logger.error(f"Error fetching rich metadata: {e}")
     return None

@@ -308,6 +308,40 @@ class FDALabelDBService:
         return results
 
     @classmethod
+    def get_label_counts(cls, generic_name=None, epc=None):
+        if not cls.check_connectivity(): return {"generic_count": 0, "epc_count": 0}
+        conn = cls.get_connection()
+        if not conn: return {"generic_count": 0, "epc_count": 0}
+        
+        results = {"generic_count": 0, "epc_count": 0}
+        try:
+            cursor = conn.cursor()
+            if cls._db_type == 'oracle':
+                if generic_name:
+                    sql = "SELECT COUNT(*) FROM druglabel.DGV_SUM_SPL WHERE UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q)"
+                    cursor.execute(sql, {"q": f"%{generic_name}%"})
+                    results["generic_count"] = cursor.fetchone()[0]
+                if epc:
+                    sql = "SELECT COUNT(*) FROM druglabel.DGV_SUM_SPL WHERE UPPER(EPC) LIKE UPPER(:q)"
+                    cursor.execute(sql, {"q": f"%{epc}%"})
+                    results["epc_count"] = cursor.fetchone()[0]
+            else:
+                schema = "labeling."
+                if generic_name:
+                    sql = f"SELECT COUNT(*) FROM {schema}sum_spl WHERE generic_names ILIKE %(q)s"
+                    cursor.execute(sql, {"q": f"%{generic_name}%"})
+                    results["generic_count"] = cursor.fetchone()[0]
+                if epc:
+                    sql = f"SELECT COUNT(*) FROM {schema}sum_spl WHERE epc ILIKE %(q)s"
+                    cursor.execute(sql, {"q": f"%{epc}%"})
+                    results["epc_count"] = cursor.fetchone()[0]
+        except Exception as e:
+            print(f"Error in get_label_counts: {e}")
+        finally:
+            conn.close()
+        return results
+
+    @classmethod
     def get_label_metadata(cls, set_id):
         if not cls.check_connectivity(): return None
         conn = cls.get_connection()

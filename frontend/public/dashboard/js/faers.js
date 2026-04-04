@@ -1167,7 +1167,7 @@ window.initFaers = function() {
         if (!canvas) return;
 
         if (typeof Chart === 'undefined') {
-            console.error("Chart.js is not loaded.");
+            console.error("chart.js is not loaded.");
             const container = canvas.parentElement;
             if (container) {
                 container.innerHTML = '<p style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 4px;">Error: Chart library could not be loaded. Please check your internet connection.</p>';
@@ -1198,7 +1198,7 @@ window.initFaers = function() {
             }
         }
 
-        // 2. Prepare Datasets for Chart.js
+        // 2. Prepare Datasets for chart.js
         const datasets = [];
         const allDates = new Set();
         
@@ -1605,7 +1605,7 @@ window.initFaers = function() {
         `;
         
         if (typeof Chart === 'undefined') {
-            modalBody.innerHTML = '<p style="color: red; padding: 20px;">Error: Chart.js library not loaded.</p>';
+            modalBody.innerHTML = '<p style="color: red; padding: 20px;">Error: chart.js library not loaded.</p>';
             return;
         }
 
