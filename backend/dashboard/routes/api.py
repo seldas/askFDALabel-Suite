@@ -24,6 +24,7 @@ from dashboard.prompts import (
     DILI_PT_TERMS, DICT_PT_TERMS, DIRI_PT_TERMS)
 from dashboard.config import Config
 from dashboard.services.fdalabel_db import FDALabelDBService
+from dashboard.services.deep_dive_service import DeepDiveService
 from sqlalchemy import func
 from dashboard.services.meddra_matcher import scan_label_for_meddra
 
@@ -93,6 +94,27 @@ def get_peers_count(set_id):
         return jsonify(results)
     except Exception as e:
         logger.error(f"Error in get_peers_count: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/deep_dive/analysis/<set_id>')
+def get_deep_dive_analysis(set_id):
+    """
+    Runs the Phase 2 statistical analysis (TF-IDF) for the label sections.
+    """
+    source = request.args.get('source', 'local').lower()
+    generic_names = request.args.get('generic_names')
+    epcs = request.args.get('epcs')
+    
+    try:
+        analysis = DeepDiveService.get_comparison_analysis(
+            target_set_id=set_id,
+            source=source,
+            generic_names=generic_names,
+            epcs=epcs
+        )
+        return jsonify(analysis)
+    except Exception as e:
+        logger.error(f"Error in get_deep_dive_analysis: {e}")
         return jsonify({'error': str(e)}), 500
 
 @api_bp.route('/meddra/scan_label/<set_id>')

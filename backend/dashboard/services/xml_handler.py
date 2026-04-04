@@ -754,3 +754,59 @@ def flatten_sections(sections):
         res.append(s)
         if s.get('children'): res.extend(flatten_sections(s['children']))
     return res
+
+def extract_sections_by_loinc(xml_content):
+    """
+    Parses SPL XML and returns a dictionary of sections keyed by LOINC code.
+    { '34071-1': {'title': '...', 'content': '...'}, ... }
+    """
+    sections = {}
+    if not xml_content: return sections
+    
+    try:
+        # Clean XML string
+        clean_xml = xml_content.encode('ascii', 'ignore').decode('ascii')
+        root = ET.fromstring(clean_xml)
+        
+        ns = {'v3': 'urn:hl7-org:v3'}
+        
+        # Handle both namespaced and non-namespaced tags
+        def local(tag): return tag.split('}')[-1] if '}' in tag else tag
+
+        # Find all section elements
+        # We search both with and without namespace
+        found_sections = root.findall(".//v3:section", ns)
+        if not found_sections:
+            found_sections = [s for s in root.iter() if local(s.tag) == 'section']
+
+        for section in found_sections:
+            code_el = section.find("v3:code", ns)
+            if code_el is None:
+                code_el = next((c for c in section if local(c.tag) == 'code'), None)
+            
+            if code_el is not None:
+                loinc = code_el.get('code')
+                if loinc:
+                    title_el = section.find("v3:title", ns)
+                    if title_el is None:
+                        title_el = next((t for t in section if local(t.tag) == 'title'), None)
+                    
+                    title = "".join(title_el.itertext()).strip() if title_el is not None else loinc
+                    
+                    # RECURSIVE TEXT EXTRACTION: Get ALL text within the section
+                    # This ensures content inside nested lists, tables, or generic tags is captured.
+                    def get_text_recursive(element):
+                        return "".join(element.itertext()).strip()
+
+                    content = get_text_recursive(section)
+                    
+                    # Only keep the FIRST occurrence or the longest one
+                    if loinc not in sections or len(content) > len(sections[loinc]['content']):
+                        sections[loinc] = {
+                            'title': title,
+                            'content': content
+                        }
+    except Exception as e:
+        logger.error(f"Error in extract_sections_by_loinc: {e}")
+        
+    return sections
