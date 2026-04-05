@@ -20,7 +20,6 @@ export default function HomePage() {
   const [isInternal, setIsInternal] = useState(false);
   const [fdaAccessible, setFdaAccessible] = useState(false);
   const [cderAccessible, setCderAccessible] = useState(false);
-  const [simpleView, setSimpleView] = useState(true);
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | 'ai' | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -55,10 +54,6 @@ export default function HomePage() {
     if (searchTerm.trim()) {
       router.push(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
     }
-  };
-
-  const handleSimpleViewChange = (simple: boolean) => {
-    setSimpleView(simple);
   };
 
   useEffect(() => {
@@ -107,10 +102,7 @@ export default function HomePage() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-      <Header 
-        simpleView={simpleView} 
-        onSimpleViewChange={handleSimpleViewChange} 
-      />
+      <Header />
 
       <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '4rem 2rem' }}>
         {/* Hero Section with AI Search */}
