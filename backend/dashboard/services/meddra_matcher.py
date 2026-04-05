@@ -4,6 +4,14 @@ from database import db, MeddraPT, MeddraLLT
 
 logger = logging.getLogger(__name__)
 
+# List of MedDRA terms that are too common in general English/Labeling context
+# and lead to false positives (e.g., "ALL" as in "all patients").
+MEDDRA_EXCLUSION_LIST = set([
+    'ALL', 'HIGH', 'LOW', 'FALL', 'MAY', 'CAN', 'OFF', 'BIT', 'SET', 'BAD', 
+    'LEAD', 'MASS', 'BORN', 'AGE', 'NORMAL', 'LONG', 'SKIN', 'BODY', 'STING',
+    'GAS', 'GRIP', 'TALK', 'WALK', 'HEAL', 'FEEL', 'FILL', 'IRON', 'COKE'
+])
+
 class MeddraMatcher:
     _instance = None
     _processor = None
@@ -19,7 +27,7 @@ class MeddraMatcher:
         self._loaded = False
 
     def load_dictionary(self):
-        """Loads all PTs and LLTs from the database into the FlashText processor."""
+        """Loads all PTs and LLTs from the database into the FlashText processor, with filtering."""
         if self._loaded:
             return
 
@@ -29,19 +37,19 @@ class MeddraMatcher:
             # 1. Load PTs
             pts = db.session.query(MeddraPT.pt_name).all()
             for pt in pts:
-                self.processor.add_keyword(pt.pt_name)
+                name = pt.pt_name.strip()
+                if name.upper() not in MEDDRA_EXCLUSION_LIST and len(name) > 2:
+                    self.processor.add_keyword(name)
 
             # 2. Load LLTs
-            # We map LLTs to their PT name so the output is normalized, 
-            # OR we can keep them as is. 
-            # User asked to match PT and LLT.
-            # Let's add them as is for now to highlight the exact text found.
             llts = db.session.query(MeddraLLT.llt_name).all()
             for llt in llts:
-                self.processor.add_keyword(llt.llt_name)
+                name = llt.llt_name.strip()
+                if name.upper() not in MEDDRA_EXCLUSION_LIST and len(name) > 2:
+                    self.processor.add_keyword(name)
 
             self._loaded = True
-            logger.info(f"Loaded {len(pts) + len(llts)} MedDRA terms.")
+            logger.info(f"Loaded {len(self.processor)} MedDRA terms (filtered).")
         except Exception as e:
             logger.error(f"Error loading MedDRA dictionary: {e}")
 
