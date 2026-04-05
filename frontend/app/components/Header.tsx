@@ -169,7 +169,7 @@ export default function Header({
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            Search <span className="dropdown-caret">▼</span>
+            Official Database <span className="dropdown-caret">▼</span>
           </button>
 
           <div className={cx('hp-dropdown-content', activeDropdown === 'nav' && 'visible')} style={{ minWidth: '240px' }}>

@@ -244,8 +244,6 @@ body {
   background: rgba(255,255,255,0.1);
   border: 1px solid rgba(255,255,255,0.2);
   color: white;
-  padding: 6px 12px;
-  border-radius: 4px;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
@@ -980,7 +978,12 @@ body {
 }
 
 .header-chip {
-  border-radius: 8px; /* more modern than 4px */
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 8px;
 }
 
 /* Avatar used in the user dropdown trigger */
