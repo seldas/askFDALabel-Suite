@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import "./search_global.css";
 import Header from "../components/Header";
 import Footer from '../components/Footer';
@@ -17,7 +17,9 @@ const App = () => {
         <Header/>
         <div className="app-container" style={{ flex: 1, height: 'auto' }}>
           <div className="chat-column">
-             <ChatPanel onSearch={() => setHasSearched(true)} />
+             <Suspense fallback={<div style={{ padding: '20px', textAlign: 'center' }}>Loading search...</div>}>
+                <ChatPanel onSearch={() => setHasSearched(true)} />
+             </Suspense>
           </div>
           <div className="results-column">
              <Results hasSearched={hasSearched} />

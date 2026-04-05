@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useSearchContext } from '../context/SearchContext';
 import { useUser } from '../../context/UserContext';
 import ReactMarkdown from 'react-markdown';
@@ -95,7 +96,21 @@ const DiffHighlight: React.FC<{ original: string; refined: string }> = ({ origin
   );
 };
 
+const ThinkingMessage = ({ status }: { status: string }) => {
+  return (
+    <div className="chat-message assistant thinking-message">
+      <div className="message-content">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="loading-spinner-small"></div>
+          <span style={{ fontStyle: 'italic', color: '#64748b' }}>{status || "AI is thinking..."}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
+  const searchParams = useSearchParams();
   const { session } = useUser();
   const {
     searchTerm,
@@ -124,6 +139,67 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
   const [isComparisonModalOpen, setIsComparisonModalOpen] = useState(false);
   const [comparisonOriginal, setComparisonOriginal] = useState('');
   const [comparisonRefined, setComparisonRefined] = useState('');
+
+  const executeSearch = async (queryText: string) => {
+    if (!queryText.trim()) return;
+
+    const updatedHistory = [...chatHistory, { role: 'user' as const, content: queryText }];
+    setChatHistory(updatedHistory);
+    setSearchTerm('');
+    setIsLoading(true);
+    setLoadingStatus("Thinking...");
+
+    const payload = {
+      query: queryText,
+      chat_history: updatedHistory,
+      ai_provider: session?.ai_provider,
+    };
+
+    onSearch();
+
+    try {
+      const endpoint = "/api/search/chat";
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      const answerText = result.response_text;
+
+      setChatHistory(prev => [...prev, { role: "assistant" as const, content: answerText }]);
+      setIsLoading(false);
+      setLoadingStatus("");
+    } catch (error) {
+      console.error("Chat error:", error);
+      setChatHistory(prev => [...prev, { role: 'assistant', content: "An unexpected error occurred." }]);
+      setIsLoading(false);
+      setLoadingStatus("");
+    }
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeSearch(searchTerm);
+  };
+
+  const handleClear = () => {
+      setChatHistory([]);
+      setResults([]);
+      setSetIds([]);
+      setTotalResults(0);
+      setCurrentPage(1);
+      setSearchTerm('');
+  };
+
+  // Auto-search if 'q' is present in URL
+  useEffect(() => {
+    const query = searchParams.get('q');
+    if (query && chatHistory.length === 0 && !isLoading) {
+      executeSearch(query);
+    }
+  }, [searchParams]);
 
   const ComparisonModal = () => {
     if (!isComparisonModalOpen) return null;
@@ -180,59 +256,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
         executeSearch(searchTerm);
       }
     }
-  };
-
-  const executeSearch = async (queryText: string) => {
-    if (!queryText.trim()) return;
-
-    const updatedHistory = [...chatHistory, { role: 'user' as const, content: queryText }];
-    setChatHistory(updatedHistory);
-    setSearchTerm('');
-    setIsLoading(true);
-    setLoadingStatus("Thinking...");
-
-    const payload = {
-      query: queryText,
-      chat_history: updatedHistory,
-      ai_provider: session?.ai_provider,
-    };
-
-    onSearch();
-
-    try {
-      const endpoint = "/api/search/chat";
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.json();
-      const answerText = result.response_text;
-
-      setChatHistory(prev => [...prev, { role: "assistant" as const, content: answerText }]);
-      setIsLoading(false);
-      setLoadingStatus("");
-    } catch (error) {
-      console.error("Chat error:", error);
-      setChatHistory(prev => [...prev, { role: 'assistant', content: "An unexpected error occurred." }]);
-      setIsLoading(false);
-      setLoadingStatus("");
-    }
-  };
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    executeSearch(searchTerm);
-  };
-
-  const handleClear = () => {
-      setChatHistory([]);
-      setResults([]);
-      setSetIds([]);
-      setTotalResults(0);
-      setCurrentPage(1);
-      setSearchTerm('');
   };
 
   return (
@@ -366,9 +389,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
                 </div>
                 ))}
                 {isLoading && (
-                <div className="chat-loading-container afd-progressWrap">
-                    <SimpleProgress status={loadingStatus} />
-                </div>
+                   <ThinkingMessage status={loadingStatus} />
                 )}
                 <div ref={chatEndRef} />
             </div>

@@ -1876,18 +1876,23 @@ body {
   }
 }
 
-/* Make the loading area “use the blank space” and center the progress card */
+/* Make the loading area stay in the message flow */
 .chat-history {
   display: flex;
   flex-direction: column;
 }
 
+.thinking-message {
+  animation: fadeIn 0.3s ease-in;
+  margin-bottom: 8px;
+  max-width: fit-content !important;
+  background-color: transparent !important;
+  border: none !important;
+  padding: 8px 16px !important;
+}
+
 .afd-progressWrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 22px 16px;
+  display: none; /* Hide the old full-screen progress wrap */
 }
 
 /* Progress dock */

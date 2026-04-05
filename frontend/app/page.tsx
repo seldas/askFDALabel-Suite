@@ -2,63 +2,64 @@
 
 import Link from 'next/link';
 import { useUser } from './context/UserContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import Header from "./components/Header";
 import Footer from './components/Footer';
 
+interface Project {
+  id: number;
+  title: string;
+  role: string;
+  count: number;
+}
+
 export default function HomePage() {
+  const router = useRouter();
   const { session, loading, updateAiProvider, refreshSession, openAuthModal } = useUser();
   const [isInternal, setIsInternal] = useState(false);
   const [fdaAccessible, setFdaAccessible] = useState(false);
   const [cderAccessible, setCderAccessible] = useState(false);
   const [simpleView, setSimpleView] = useState(true);
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | 'ai' | null>(null);
-  const [activeFeature, setActiveFeature] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // New Search & Project State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+
+  const fetchProjects = async () => {
+    if (!session?.is_authenticated) return;
+    setProjectsLoading(true);
+    try {
+      const res = await fetch('/api/dashboard/projects');
+      const data = await res.json();
+      // Show only top 5 recent projects on home page
+      setProjects((data.projects || []).slice(0, 5));
+    } catch (e) {
+      console.error("Failed to fetch projects", e);
+    } finally {
+      setProjectsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session?.is_authenticated) {
+      fetchProjects();
+    }
+  }, [session?.is_authenticated]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      router.push(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
+    }
+  };
 
   const handleSimpleViewChange = (simple: boolean) => {
     setSimpleView(simple);
   };
-
-  const features = [
-    {
-      title: "AskFDALabel Suite",
-      description: "The ultimate intelligence layer for FDA drug labeling research. Seamlessly navigate over 150,000 product labels with AI-driven insights and advanced safety analytics.",
-      image: "/askfdalabel/carousel_bg/askfdalbel_bg.png"
-    },
-    {
-      title: "AFL Agent",
-      description: "Reason beyond keywords. Ask complex clinical and pharmacological questions directly of the FDA label corpus using large language models grounded in real text.",
-      image: "/askfdalabel/carousel_bg/afl_agent_bg.png"
-    },
-    {
-      title: "Labeling Dashboard",
-      description: "Visualize safety trends and manage clinical workspaces. Track metadata, monitor signal detection, and organize your labeling projects in one unified dashboard.",
-      image: "/askfdalabel/carousel_bg/dashboard_bg.png"
-    },
-    {
-      title: "Side-by-Side Analysis",
-      description: "Pinpoint critical regulatory differences. Compare linguistic nuances and safety updates across multiple drug labels with high-precision highlighting.",
-      image: "/askfdalabel/carousel_bg/labelcomp_bg.png"
-    },
-    {
-      title: "DrugTox Intelligence",
-      description: "Deep toxicological tracking. Monitor DILI, cardiac, and renal toxicity profiles across thousands of drugs using harmonized evidence-based data.",
-      image: "/askfdalabel/carousel_bg/drugtox_bg.png"
-    },
-    {
-      title: "Snippet Store",
-      description: "Power up your research workflow. Draggable browser bookmarklets that instantly extract metadata and highlight safety terms directly on any clinical webpage.",
-      image: "/askfdalabel/carousel_bg/snippetstore_bg_2.png"
-    }
-  ];
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setActiveFeature((prev) => (prev + 1) % features.length);
-    }, 15000);
-    return () => clearInterval(timer);
-  }, [features.length]);
 
   useEffect(() => {
     const handleClickOutside = () => setActiveDropdown(null);
@@ -111,159 +112,269 @@ export default function HomePage() {
         onSimpleViewChange={handleSimpleViewChange} 
       />
 
-      {!simpleView && (
-        <>
-          {/* Hero / Immersive Mission Section */}
-          <section className="mission-section" style={{ padding: '0rem 2rem 3rem 2rem' }}>
-            <div style={{ textAlign: 'center', marginBottom: '2rem', marginTop: '-2rem' }}>
-              <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
-                <h1 className="suite-home-title-animated" style={{ 
-                  fontSize: 'clamp(3.5rem, 10vw, 7.5rem)', 
-                  fontWeight: 900, 
-                  marginBottom: '0',
-                  lineHeight: 1.1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '1rem',
-                  flexWrap: 'wrap'
-                }}>
-                  <span>AskFDALabel</span>
-                  <span className="suite-home-title-animated no-reveal" style={{ 
-                    fontSize: 'clamp(0.8rem, 2vw, 1.1rem)', 
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    background: 'linear-gradient(to right, #166534 20%, #4ade80 50%, #166534 80%)',
-                    backgroundSize: '200% auto',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    letterSpacing: '0.1em',
-                    padding: '4px 12px',
-                    border: '1px solid rgba(74, 222, 128, 0.3)',
-                    borderRadius: '12px',
-                    alignSelf: 'center',
-                    marginTop: '0.5rem'
-                  }}>[dev]</span>
-                </h1>
-                <div className="suite-home-title-animated" style={{ 
-                  fontSize: 'clamp(1.2rem, 3.5vw, 2.5rem)', 
-                  fontWeight: 300, 
-                  opacity: 0.6,
-                  marginTop: '0.25rem',
-                  letterSpacing: '0.3em',
-                  textTransform: 'uppercase',
-                  animationDelay: '0.2s'
-                }}>
-                  Suite
-                </div>
-              </div>
-              <p className="hero-subtitle-animated" style={{ color: '#94a3b8', fontSize: 'clamp(1rem, 2vw, 1.25rem)', maxWidth: '800px', margin: '2rem auto 0 auto', fontWeight: 500, lineHeight: 1.6, textAlign: 'center' }}>
-                Advancing Regulatory Science of Drug Labeling through AI
-              </p>
-            </div>
+      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '4rem 2rem' }}>
+        {/* Hero Section with AI Search */}
+        <section style={{ textAlign: 'center', marginBottom: '5rem' }}>
+          <div style={{ marginBottom: '3rem' }}>
+            <h1 style={{ 
+              fontSize: 'clamp(2.5rem, 8vw, 4.5rem)', 
+              fontWeight: 900, 
+              color: '#0f172a',
+              letterSpacing: '-0.02em',
+              marginBottom: '1rem'
+            }}>
+              AskFDALabel
+            </h1>
+          </div>
 
-            <div className="mission-carousel-container" style={{ height: '420px' }}>
-              {features.map((feature, idx) => (
-                <div 
-                  key={idx} 
-                  className={`mission-carousel-card ${idx === activeFeature ? 'active' : ''}`}
-                >
-                  <div 
-                    className="mission-card-bg animate-ken-burns" 
-                    style={{ backgroundImage: `url("${feature.image}")` }} 
-                  />
-                  <div className="mission-card-overlay" />
-                  <div className="mission-card-content">
-                    <h4>{feature.title}</h4>
-                    <p>{feature.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+          {/* Central Search Bar */}
+          <div style={{ maxWidth: '800px', margin: '0 auto 3rem auto' }}>
+            <form onSubmit={handleSearch} style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Ask about clinical data, safety, or dosing..."
+                style={{
+                  width: '100%',
+                  padding: '1.25rem 4rem 1.25rem 1.5rem',
+                  borderRadius: '16px',
+                  border: '1px solid #e2e8f0',
+                  fontSize: '1.1rem',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 10px 15px -5px rgba(0, 0, 0, 0.1)',
+                  outline: 'none',
+                  transition: 'all 0.2s ease',
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = '#6366f1'}
+                onBlur={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
+              />
+              <button 
+                type="submit"
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: searchTerm.trim() ? '#6366f1' : '#cbd5e1',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '8px 16px',
+                  cursor: searchTerm.trim() ? 'pointer' : 'default',
+                  fontSize: '1.2rem',
+                  transition: 'all 0.2s ease'
+                }}
+                disabled={!searchTerm.trim()}
+              >
+                ➤
+              </button>
+            </form>
 
-            <div className="mission-nav-dots" style={{ marginTop: '1rem' }}>
-              {features.map((_, idx) => (
+            <div style={{ 
+              display: 'flex', 
+              flexWrap: 'wrap', 
+              justifyContent: 'center', 
+              gap: '12px', 
+              marginTop: '1.5rem' 
+            }}>
+              {[
+                "Adverse events for Humira?",
+                "Indications for Keytruda?",
+                "Ozempic boxed warning?",
+                "Mounjaro contraindications?"
+              ].map((suggestion, idx) => (
                 <button
                   key={idx}
-                  className={`mission-dot ${idx === activeFeature ? 'active' : ''}`}
-                  onClick={() => setActiveFeature(idx)}
-                  aria-label={`Go to feature ${idx + 1}`}
-                />
+                  onClick={() => {
+                    setSearchTerm(suggestion);
+                    router.push(`/search?q=${encodeURIComponent(suggestion)}`);
+                  }}
+                  style={{
+                    background: 'white',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '999px',
+                    padding: '8px 16px',
+                    fontSize: '0.85rem',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    fontWeight: 600
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = '#f8fafc';
+                    e.currentTarget.style.borderColor = '#cbd5e1';
+                    e.currentTarget.style.color = '#334155';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'white';
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                    e.currentTarget.style.color = '#64748b';
+                  }}
+                >
+                  {suggestion}
+                </button>
               ))}
             </div>
-          </section>
-        </>
-      )}
+          </div>
+        </section>
 
-      {/* Primary Service Grid */}
-      <main className="card-grid">
-        <div className="card-grid-inner">
-          <div className="animate-fade-in-up delay-3">
-            <ScientificCard 
+        {/* Recent Projects Section */}
+        {session?.is_authenticated && (
+          <section style={{ marginBottom: '5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a' }}>Recent Projects</h2>
+              <Link href="/dashboard" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#6366f1', textDecoration: 'none' }}>
+                View all projects →
+              </Link>
+            </div>
+            
+            {projectsLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem' }}>
+                <div className="loader" style={{ margin: '0 auto' }}></div>
+              </div>
+            ) : projects.length > 0 ? (
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', 
+                gap: '1.25rem' 
+              }}>
+                {projects.map(p => (
+                  <Link 
+                    key={p.id} 
+                    href="/dashboard"
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <div style={{
+                      padding: '1.5rem',
+                      borderRadius: '16px',
+                      background: 'white',
+                      border: '1px solid #e2e8f0',
+                      transition: 'all 0.2s ease',
+                      cursor: 'pointer',
+                      height: '100%',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+                      e.currentTarget.style.borderColor = '#cbd5e1';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+                      e.currentTarget.style.borderColor = '#e2e8f0';
+                    }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
+                        <div style={{ 
+                          width: '32px', 
+                          height: '32px', 
+                          borderRadius: '8px', 
+                          background: '#f0f9ff', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          color: '#0369a1'
+                        }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                        </div>
+                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {p.title}
+                        </h3>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
+                        {p.count} labels • {p.role.toUpperCase()}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div style={{ 
+                padding: '3rem', 
+                textAlign: 'center', 
+                background: 'white', 
+                borderRadius: '16px', 
+                border: '1px dashed #e2e8f0' 
+              }}>
+                <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>No projects yet. Import your first dataset to get started.</p>
+                <Link 
+                  href="/dashboard"
+                  style={{
+                    background: '#6366f1',
+                    color: 'white',
+                    padding: '10px 20px',
+                    borderRadius: '10px',
+                    textDecoration: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  Go to Dashboard
+                </Link>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Secondary Services (The List) */}
+        <section style={{ marginTop: '5rem', borderTop: '1px solid #e2e8f0', paddingTop: '5rem', paddingBottom: '5rem' }}>
+          <div style={{ marginBottom: '3.5rem' }}>
+            <h2 style={{ fontSize: '1.75rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>Platform Tools</h2>
+            <p style={{ color: '#64748b', fontSize: '1.1rem' }}>Specialized modules for deeper regulatory and clinical analysis.</p>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <PlatformToolRow 
               title="Project Dashboard" 
               description="Integrated analysis dashboard for safety trends, metadata tracking, and project management."
               href="/dashboard"
-              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>}
+              icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>}
             />
-          </div>
-          <div className="animate-fade-in-up delay-1">
-            {(fdaAccessible || cderAccessible) ? (
-              <ScientificCard 
-                title="Access FDALabel" 
-                description="Internal FDALabel interface for searching over 150,000 product labeling and 3,000 reference listed drug labeling. "
-                icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>}
-              >
-                <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', flexWrap: 'wrap' }}>
-                  {fdaAccessible && (
-                    <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '6px', backgroundColor: '#f1f5f9', color: '#002e5d', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none', border: '1px solid #cbd5e1', minWidth: '100px' }}>FDA version</a>
-                  )}
-                  {cderAccessible && (
-                    <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '6px', backgroundColor: '#f1f5f9', color: '#002e5d', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none', border: '1px solid #cbd5e1', minWidth: '100px' }}>CDER-CBER version</a>
+            
+            <PlatformToolRow 
+              title="FDALabel Search" 
+              description="Search over 150,000 product labels and reference listed drug labeling via official FDA interfaces."
+              icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>}
+            >
+               <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+                  {(fdaAccessible || cderAccessible) ? (
+                    <>
+                      {fdaAccessible && (
+                        <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#6366f1', textDecoration: 'none' }}>FDA Version →</a>
+                      )}
+                      {cderAccessible && (
+                        <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#6366f1', textDecoration: 'none' }}>CDER-CBER Version →</a>
+                      )}
+                    </>
+                  ) : (
+                    <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#6366f1', textDecoration: 'none' }}>Public FDALabel →</a>
                   )}
                 </div>
-              </ScientificCard>
-            ) : (
-              <ScientificCard 
-                title="FDALabel Search" 
-                description="Public interface for the official FDA drug label database and Structured Product Labeling (SPL)."
-                href="https://nctr-crs.fda.gov/fdalabel/ui/search"
-                icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>}
-              />
-            )}
-          </div>
-          <div className="animate-fade-in-up delay-2">
-            <ScientificCard 
-              title="AI Assistant@FDALabel" 
-              description="Large language model powered reasoning across drug label datasets for complex clinical questions."
-              href="/search"
-              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8a2 2 0 0 0-2 2"></path></svg>}
-            />
-          </div>
-          <div className="animate-fade-in-up delay-4">
-            <ScientificCard 
+            </PlatformToolRow>
+
+            <PlatformToolRow 
               title="Label Compare" 
-              description="Detailed side-by-side linguistic and regulatory comparison of multiple drug labels."
+              description="Detailed side-by-side linguistic and regulatory comparison of multiple drug labels with highlighted differences."
               href="/labelcomp"
-              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>}
+              icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>}
             />
-          </div>
-          <div className="animate-fade-in-up delay-5">
-            <ScientificCard 
+
+            <PlatformToolRow 
               title="askDrugTox" 
-              description="Advanced toxicological data and safety profiles for DILI, heart, and kidney risk tracking."
+              description="Advanced toxicological data and safety profiles for DILI, heart, and kidney risk tracking across harmonized datasets."
               href="/drugtox"
-              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v8"></path><path d="M14 2v8"></path><path d="M8.5 15c.7 0 1.3-.5 1.5-1.2l.5-2.3c.2-.7.8-1.2 1.5-1.2s1.3.5 1.5 1.2l.5 2.3c.2.7.8 1.2 1.5 1.2"></path><path d="M6 18h12"></path><path d="M6 22h12"></path><circle cx="12" cy="13" r="10"></circle></svg>}
+              icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v8"></path><path d="M14 2v8"></path><path d="M8.5 15c.7 0 1.3-.5 1.5-1.2l.5-2.3c.2-.7.8-1.2 1.5-1.2s1.3.5 1.5 1.2l.5 2.3c.2.7.8 1.2 1.5 1.2"></path><path d="M6 18h12"></path><path d="M6 22h12"></path><circle cx="12" cy="13" r="10"></circle></svg>}
             />
-          </div>
-          <div className="animate-fade-in-up delay-6">
-            <ScientificCard 
-              title="Elsa Addons " 
-              description="Specialized browser bookmarklets for assisting label analysis within Elsa."
+
+            <PlatformToolRow 
+              title="Elsa Addons" 
+              description="Specialized browser bookmarklets for assisting label analysis and metadata extraction within Elsa."
               href="/snippet"
-              icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>}
+              icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>}
             />
           </div>
-        </div>
+        </section>
       </main>
       
       <Footer />
@@ -271,25 +382,52 @@ export default function HomePage() {
   );
 }
 
-function ScientificCard({ title, description, href, icon, children, className }: { title: string, description: string, href?: string, icon: React.ReactNode, children?: React.ReactNode, className?: string }) {
+function PlatformToolRow({ title, description, href, icon, children }: { title: string, description: string, href?: string, icon: React.ReactNode, children?: React.ReactNode }) {
   const content = (
-    <div className={`scientific-card ${className || ''}`}>
-      <div className="icon" style={{ color: 'var(--fda-blue)', marginBottom: '1.25rem', display: 'flex' }}>{icon}</div>
-      <h2>{title}</h2>
-      <p style={{ fontSize: '0.9375rem', color: '#475569', lineHeight: 1.5, marginBottom: '1.5rem', flex: 1 }}>{description}</p>
-      {children}
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      padding: '1.5rem',
+      borderRadius: '16px',
+      background: 'white',
+      border: '1px solid #e2e8f0',
+      transition: 'all 0.2s ease',
+      cursor: href ? 'pointer' : 'default',
+      gap: '1.5rem'
+    }}
+    className="tool-row-hover"
+    >
+      <div style={{
+        width: '48px',
+        height: '48px',
+        borderRadius: '12px',
+        background: '#f1f5f9',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#6366f1',
+        flexShrink: 0
+      }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1 }}>
+        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', marginBottom: '4px' }}>
+          {title}
+        </h3>
+        <p style={{ margin: 0, fontSize: '0.95rem', color: '#64748b', lineHeight: 1.5 }}>
+          {description}
+        </p>
+        {children}
+      </div>
+      {href && (
+        <div style={{ paddingLeft: '1rem' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#6366f1' }}>Launch →</span>
+        </div>
+      )}
     </div>
   );
 
   if (href) {
-    const isExternal = href.startsWith('http');
-    if (isExternal) {
-      return (
-        <a href={href} style={{ textDecoration: 'none' }} target="_blank" rel="noopener noreferrer">
-          {content}
-        </a>
-      );
-    }
     return (
       <Link href={href} style={{ textDecoration: 'none' }}>
         {content}

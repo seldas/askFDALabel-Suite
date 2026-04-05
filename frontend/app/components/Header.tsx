@@ -35,13 +35,9 @@ function inferActiveApp(pathname: string): ActiveApp {
 }
 
 export default function Header({ 
-  activeApp, 
-  simpleView, 
-  onSimpleViewChange 
+  activeApp 
 }: { 
-  activeApp?: ActiveApp, 
-  simpleView?: boolean, 
-  onSimpleViewChange?: (simple: boolean) => void 
+  activeApp?: ActiveApp 
 }) {
   const { session, loading, updateAiProvider, refreshSession, openAuthModal, activeTasks } = useUser();
 
@@ -57,8 +53,6 @@ export default function Header({
   const [allowLocalQuery, setAllowLocalQuery] = useState(true);
   const [activeDropdown, setActiveDropdown] = useState<DropdownKey | 'tasks'>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const isMoreActive = ['labelcomp', 'drugtox', 'snippet'].includes(resolvedActiveApp);
 
   const totalActiveTasks = activeTasks.length;
   const avgProgress = totalActiveTasks > 0 
@@ -133,68 +127,6 @@ export default function Header({
         <h1 className="header-title">
           AskFDALabel <span className="header-title-suffix">Suite</span>
         </h1>
-        {onSimpleViewChange && (
-        <button
-          type="button"
-          className="simple-view-toggle"
-          onClick={() => onSimpleViewChange(!simpleView)}
-          aria-label={simpleView ? "Switch to default view" : "Switch to simple view"}
-          title={simpleView ? "Default view" : "Simple view"}
-          style={{
-            marginLeft: 8,
-            padding: 8,
-            background: "transparent",
-            border: "none",
-            color: "inherit",              // inherit from theme
-            opacity: 0.85,                 // quieter by default
-            borderRadius: 8,
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            lineHeight: 0,
-            transition: "background 120ms ease, opacity 120ms ease",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.06)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          onFocus={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.06)")}
-          onBlur={(e) => (e.currentTarget.style.background = "transparent")}
-        >
-          {simpleView ? (
-            // Simple view icon: single square
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="4" y="4" width="16" height="16" rx="2" />
-            </svg>
-          ) : (
-            // Default view icon: "layout" (split panel)
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="4" y="4" width="16" height="16" rx="2" />
-              <path d="M9 4v16" />
-              <path d="M4 9h5" />
-            </svg>
-          )}
-        </button>
-      )}
       </div>
 
       {/* Mobile Toggle Button */}
@@ -229,8 +161,8 @@ export default function Header({
           onMouseLeave={() => setActiveDropdown(null)}
         >
           <button
-            className={cx('hp-nav-item', (resolvedActiveApp === 'fdalabel' || resolvedActiveApp === 'device') && 'is-active')}
-            aria-current={(resolvedActiveApp === 'fdalabel' || resolvedActiveApp === 'device') ? 'page' : undefined}
+            className={cx('hp-nav-item', (resolvedActiveApp === 'fdalabel' || resolvedActiveApp === 'device' || resolvedActiveApp === 'localquery') && 'is-active')}
+            aria-current={(resolvedActiveApp === 'fdalabel' || resolvedActiveApp === 'device' || resolvedActiveApp === 'localquery') ? 'page' : undefined}
             onClick={(e) => e.preventDefault()}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -362,21 +294,6 @@ export default function Header({
           </div>
         </div>
 
-        {/* AFL */}
-        <Link
-          href="/search"
-          className={cx('hp-nav-item', resolvedActiveApp === 'afl' && 'is-active')}
-          aria-current={resolvedActiveApp === 'afl' ? 'page' : undefined}
-          onClick={closeMobile}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            <path d="M11 8a2 2 0 0 0-2 2"></path>
-          </svg>
-          AI Assistant
-        </Link>
-
         {/* Dashboard */}
         <Link
           href="/dashboard"
@@ -392,80 +309,56 @@ export default function Header({
           Dashboard
         </Link>
 
-        {/* More */}
-        <div className="hp-nav-dropdown" onMouseEnter={() => setActiveDropdown('more')} onMouseLeave={() => setActiveDropdown(null)}>
-          <button className={cx('hp-nav-item', isMoreActive && 'is-active')} aria-current={isMoreActive ? 'page' : undefined} onClick={(e) => e.preventDefault()}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
-            </svg>
-            More <span className="dropdown-caret">▼</span>
-          </button>
+        {/* Label Compare */}
+        <Link
+          href="/labelcomp"
+          className={cx('hp-nav-item', resolvedActiveApp === 'labelcomp' && 'is-active')}
+          aria-current={resolvedActiveApp === 'labelcomp' ? 'page' : undefined}
+          onClick={closeMobile}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path>
+            <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path>
+            <path d="M7 21h10"></path>
+            <path d="M12 3v18"></path>
+            <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path>
+          </svg>
+          Compare
+        </Link>
 
-          <div className={cx('hp-dropdown-content', activeDropdown === 'more' && 'visible')}>
-            <Link
-              href="/labelcomp"
-              className={cx('hp-dropdown-item', resolvedActiveApp === 'labelcomp' && 'is-active')}
-              aria-current={resolvedActiveApp === 'labelcomp' ? 'page' : undefined}
-              onClick={closeMobile}
-            >
-              <span className="hp-dropdown-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path>
-                  <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path>
-                  <path d="M7 21h10"></path>
-                  <path d="M12 3v18"></path>
-                  <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path>
-                </svg>
-              </span>
-              <div>
-                <div className="dropdown-title">Label Compare</div>
-                <div className="dropdown-subtitle">Side-by-side analysis</div>
-              </div>
-            </Link>
+        {/* DrugTox */}
+        <Link
+          href="/drugtox"
+          className={cx('hp-nav-item', resolvedActiveApp === 'drugtox' && 'is-active')}
+          aria-current={resolvedActiveApp === 'drugtox' ? 'page' : undefined}
+          onClick={closeMobile}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10 2v8"></path>
+            <path d="M14 2v8"></path>
+            <path d="M8.5 15c.7 0 1.3-.5 1.5-1.2l.5-2.3c.2-.7.8-1.2 1.5-1.2s1.3.5 1.5 1.2l.5 2.3c.2.7.8 1.2 1.5 1.2"></path>
+            <path d="M6 18h12"></path>
+            <path d="M6 22h12"></path>
+            <circle cx="12" cy="13" r="10"></circle>
+          </svg>
+          DrugTox
+        </Link>
 
-            <Link
-              href="/drugtox"
-              className={cx('hp-dropdown-item', resolvedActiveApp === 'drugtox' && 'is-active')}
-              aria-current={resolvedActiveApp === 'drugtox' ? 'page' : undefined}
-              onClick={closeMobile}
-            >
-              <span className="hp-dropdown-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10 2v8"></path>
-                  <path d="M14 2v8"></path>
-                  <path d="M8.5 15c.7 0 1.3-.5 1.5-1.2l.5-2.3c.2-.7.8-1.2 1.5-1.2s1.3.5 1.5 1.2l.5 2.3c.2.7.8 1.2 1.5 1.2"></path>
-                  <path d="M6 18h12"></path>
-                  <path d="M6 22h12"></path>
-                  <circle cx="12" cy="13" r="10"></circle>
-                </svg>
-              </span>
-              <div>
-                <div className="dropdown-title">askDrugTox</div>
-                <div className="dropdown-subtitle">Toxicity profile tracking</div>
-              </div>
-            </Link>
-
-            <Link
-              href="/snippet"
-              className={cx('hp-dropdown-item', resolvedActiveApp === 'snippet' && 'is-active')}
-              aria-current={resolvedActiveApp === 'snippet' ? 'page' : undefined}
-              onClick={closeMobile}
-            >
-              <span className="hp-dropdown-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 7h-9"></path>
-                  <path d="M14 17H5"></path>
-                  <circle cx="17" cy="17" r="3"></circle>
-                  <circle cx="7" cy="7" r="3"></circle>
-                </svg>
-              </span>
-              <div>
-                <div className="dropdown-title">Elsa addons</div>
-                <div className="dropdown-subtitle">Browser snippets</div>
-              </div>
-            </Link>
-          </div>
-        </div>
+        {/* Snippets / Addons */}
+        <Link
+          href="/snippet"
+          className={cx('hp-nav-item', resolvedActiveApp === 'snippet' && 'is-active')}
+          aria-current={resolvedActiveApp === 'snippet' ? 'page' : undefined}
+          onClick={closeMobile}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 7h-9"></path>
+            <path d="M14 17H5"></path>
+            <circle cx="17" cy="17" r="3"></circle>
+            <circle cx="7" cy="7" r="3"></circle>
+          </svg>
+          Addons
+        </Link>
       </nav>
 
       {/* Right: User Controls */}
@@ -516,8 +409,23 @@ export default function Header({
 
             {/* AI Provider Dropdown */}
             <div className="custom-dropdown" onClick={(e) => e.stopPropagation()}>
-              <button className="dropdown-trigger header-chip" onClick={() => setActiveDropdown(activeDropdown === 'ai' ? null : 'ai')}>
-                <span className="header-muted">AI:</span> {session.ai_provider?.toUpperCase()}
+              <button 
+                className={cx('dropdown-trigger header-chip', activeDropdown === 'ai' && 'active')} 
+                onClick={() => setActiveDropdown(activeDropdown === 'ai' ? null : 'ai')}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.8 }}>
+                  <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+                  <rect x="9" y="9" width="6" height="6"></rect>
+                  <line x1="9" y1="1" x2="9" y2="4"></line>
+                  <line x1="15" y1="1" x2="15" y2="4"></line>
+                  <line x1="9" y1="20" x2="9" y2="23"></line>
+                  <line x1="15" y1="20" x2="15" y2="23"></line>
+                  <line x1="20" y1="9" x2="23" y2="9"></line>
+                  <line x1="20" y1="15" x2="23" y2="15"></line>
+                  <line x1="1" y1="9" x2="4" y2="9"></line>
+                  <line x1="1" y1="15" x2="4" y2="15"></line>
+                </svg>
+                <span className="header-muted" style={{ fontWeight: 800 }}>{session.ai_provider?.toUpperCase()}</span>
                 <span className="caret">▼</span>
               </button>
 
@@ -544,9 +452,13 @@ export default function Header({
 
             {/* User Settings Dropdown */}
             <div className="custom-dropdown" onClick={(e) => e.stopPropagation()}>
-              <button className="dropdown-trigger header-chip" onClick={() => setActiveDropdown(activeDropdown === 'user' ? null : 'user')}>
+              <button 
+                className={cx('dropdown-trigger header-chip', activeDropdown === 'user' && 'active')} 
+                onClick={() => setActiveDropdown(activeDropdown === 'user' ? null : 'user')}
+              >
                 <div className="avatar-circle">{session.username?.[0].toUpperCase()}</div>
-                <span className="username-text">{session.username}</span>
+                <span className="username-text" style={{ fontWeight: 800 }}>{session.username}</span>
+                <span className="caret">▼</span>
               </button>
 
               {activeDropdown === 'user' && (
