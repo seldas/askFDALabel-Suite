@@ -76,7 +76,7 @@ function ResultsContent() {
         </div>
 
         <nav className="header-nav">
-          <Link href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9, fontWeight: 600 }}>Suite Home</Link>
+          <Link href="/" style={{ color: 'white', fontSize: '0.875rem', textDecoration: 'none', opacity: 0.9, fontWeight: 600 }}>Home</Link>
         </nav>
       </header>
 

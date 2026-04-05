@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useUser } from '../context/UserContext';
 import Header from "../components/Header";
@@ -36,13 +36,14 @@ interface Comparison {
 
 type SortMode = 'none' | 'asc' | 'desc';
 
-export default function DashboardPage() {
+export function DashboardContent() {
   const [uploading, setUploading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [newImportProjectName, setNewImportProjectName] = useState('');
   const [isDraggingExcel, setIsDraggingExcel] = useState(false);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { session, loading, refreshSession, openAuthModal } = useUser();
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | 'analyze' | null>(null);
   const [isInternal, setIsInternal] = useState(false);
@@ -196,6 +197,32 @@ export default function DashboardPage() {
     };
     checkInternalStatus();
   }, []);
+
+  // Auto-select project from URL
+  useEffect(() => {
+    const pid = searchParams.get('projectId');
+    if (pid && session?.is_authenticated) {
+      setShowProjects(true);
+      fetchProjects();
+    }
+  }, [searchParams, session]);
+
+  // Initial load
+  useEffect(() => {
+    if (session?.is_authenticated && !searchParams.get('projectId')) {
+        fetchProjects();
+    }
+  }, [session]);
+
+  useEffect(() => {
+    const pid = searchParams.get('projectId');
+    if (pid && projects.length > 0 && !activeProject) {
+        const project = projects.find(p => p.id === parseInt(pid));
+        if (project) {
+            setActiveProject(project);
+        }
+    }
+  }, [projects, searchParams]);
 
   const fetchProjects = async () => {
     try {
@@ -474,7 +501,7 @@ export default function DashboardPage() {
   }, [showProjects]);
 
   return (
-    <div className="dashboard-suite">
+    <div className="dashboard-container">
     <main className="hp-main-layout" suppressHydrationWarning style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
 
 
@@ -492,7 +519,7 @@ export default function DashboardPage() {
           minHeight: '100vh'
         }}>
           <div className="hp-hero" style={{ marginBottom: '3rem' }}>
-            <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: '800', marginBottom: '1rem', letterSpacing: '-0.025em' }}>AFDL Dashboard</h1>
+            <h1 className="hero-title-animated" style={{ fontSize: '3.5rem', fontWeight: '800', marginBottom: '1rem', letterSpacing: '-0.025em' }}>AskFDALabel Dashboard</h1>
             <p className="hp-hero-subtitle hero-subtitle-animated" style={{ fontSize: '1.25rem', color: '#64748b', fontWeight: '500' }}>The Intelligence Layer for Drug Safety & Analysis</p>
             {!loading && !session?.is_authenticated && (
               <div className="animate-fade-in" style={{
@@ -1391,5 +1418,17 @@ export default function DashboardPage() {
       </div>
     </main>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
+        <div className="loader"></div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }

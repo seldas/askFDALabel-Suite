@@ -125,7 +125,7 @@ export default function Header({
         </Link>
 
         <h1 className="header-title">
-          AskFDALabel <span className="header-title-suffix">Suite</span>
+          AskFDALabel
         </h1>
       </div>
 

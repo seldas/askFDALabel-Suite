@@ -71,6 +71,10 @@ body {
   flex-shrink: 0;
 }
 
+.mobile-menu-toggle {
+  display: none !important;
+}
+
 .header-logo-link {
   display: flex;
   align-items: center;
@@ -144,7 +148,7 @@ body {
   }
   
   .mobile-menu-toggle {
-    display: block;
+    display: block !important;
     z-index: 101;
   }
 
@@ -686,7 +690,7 @@ body {
   animation: modalScaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-/* Suite Homepage Top Nav */
+/* AskFDALabel Homepage Top Nav */
 .hp-top-nav {
   display: flex;
   justify-content: center;
@@ -858,7 +862,7 @@ body {
 }
 
 /* More significant version for the main homepage (Luminous Sweep Style) */
-.suite-home-title-animated {
+.afdl-home-title-animated {
   color: #002e5d;
   background: linear-gradient(
     to right, 
@@ -880,7 +884,7 @@ body {
       hp-title-reveal-large 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.suite-home-title-animated.no-reveal {
+.afdl-home-title-animated.no-reveal {
   animation: hp-title-sweep 8s ease-in-out infinite;
 }
 

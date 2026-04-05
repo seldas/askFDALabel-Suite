@@ -233,7 +233,7 @@ export default function HomePage() {
                 {projects.map(p => (
                   <Link 
                     key={p.id} 
-                    href="/dashboard"
+                    href={`/dashboard?projectId=${p.id}`}
                     style={{ textDecoration: 'none' }}
                   >
                     <div style={{

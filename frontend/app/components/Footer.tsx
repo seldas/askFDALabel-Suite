@@ -17,7 +17,7 @@ export default function Footer() {
     >
       <div style={{ maxWidth: '800px', opacity: 0.8, fontSize: '0.875rem' }}>
         <p style={{ marginBottom: '1.5rem', lineHeight: 1.6, color: 'white' }}>
-          <strong>AskFDALabel Suite</strong> &copy; 2026. FDA/NCTR{' '}
+          <strong>AskFDALabel</strong> &copy; 2026. FDA/NCTR{' '}
           <strong>This is an on-going research effort that is not for official use yet.</strong>
         </p>
       </div>

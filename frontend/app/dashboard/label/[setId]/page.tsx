@@ -436,7 +436,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px'
-              }} title="AI model is set on the Suite Home page">
+              }} title="AI model is set on the Home page">
                 <span style={{ opacity: 0.7 }}>AI:</span>
                 <span style={{ fontWeight: 700 }}>{session.ai_provider?.toUpperCase()}</span>
               </div>
