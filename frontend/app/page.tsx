@@ -323,27 +323,6 @@ export default function HomePage() {
               href="/dashboard"
               icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>}
             />
-            
-            <PlatformToolRow 
-              title="FDALabel Search" 
-              description="Search over 150,000 product labels and reference listed drug labeling via official FDA interfaces."
-              icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>}
-            >
-               <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
-                  {(fdaAccessible || cderAccessible) ? (
-                    <>
-                      {fdaAccessible && (
-                        <a href="https://fdalabel.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#6366f1', textDecoration: 'none' }}>FDA Version →</a>
-                      )}
-                      {cderAccessible && (
-                        <a href="https://fdalabel.fda.gov/fdalabel-r/ui/search" target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#6366f1', textDecoration: 'none' }}>CDER-CBER Version →</a>
-                      )}
-                    </>
-                  ) : (
-                    <a href="https://nctr-crs.fda.gov/fdalabel/ui/search" target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#6366f1', textDecoration: 'none' }}>Public FDALabel →</a>
-                  )}
-                </div>
-            </PlatformToolRow>
 
             <PlatformToolRow 
               title="Label Compare" 
