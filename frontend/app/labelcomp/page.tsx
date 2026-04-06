@@ -107,6 +107,91 @@ function LabelCompContent() {
   // Collapse State
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
+  // New Grid Selection State
+  const [selectedSlots, setSelectedSlots] = useState<(LabelMetadata | null)[]>([null, null, null, null]);
+  const [activeSlotIdx, setActiveSlotIdx] = useState<number | null>(null);
+
+  const handleSlotClick = (idx: number) => {
+    setActiveSlotIdx(idx);
+    setShowAddModal(true);
+  };
+
+  const handleClearSlot = (idx: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newSlots = [...selectedSlots];
+    newSlots[idx] = null;
+    setSelectedSlots(newSlots);
+    
+    // Sync with URL if we are already in comparison mode
+    const activeIds = newSlots.filter(s => s !== null).map(s => s!.set_id);
+    const params = new URLSearchParams();
+    activeIds.forEach(id => params.append('set_ids', id));
+    router.push(`/labelcomp?${params.toString()}`);
+  };
+
+  const filledSlotsCount = selectedSlots.filter(s => s !== null).length;
+
+  const ComparisonSlot = ({ metadata, index, isLarge = false }: { metadata: LabelMetadata | null, index: number, isLarge?: boolean }) => {
+    return (
+      <div 
+        onClick={() => handleSlotClick(index)}
+        style={{
+          flex: isLarge ? 1.5 : 1,
+          minWidth: isLarge ? '300px' : '200px',
+          height: isLarge ? '220px' : '180px',
+          backgroundColor: metadata ? 'white' : '#f8fafc',
+          border: metadata ? '2px solid #6366f1' : '2px dashed #e2e8f0',
+          borderRadius: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          position: 'relative',
+          padding: '1.5rem',
+          textAlign: 'center',
+          boxShadow: metadata ? '0 10px 15px -3px rgba(99, 102, 241, 0.1)' : 'none'
+        }}
+        onMouseOver={e => {
+          if (!metadata) {
+            e.currentTarget.style.borderColor = '#6366f1';
+            e.currentTarget.style.backgroundColor = '#f5f3ff';
+          }
+        }}
+        onMouseOut={e => {
+          if (!metadata) {
+            e.currentTarget.style.borderColor = '#e2e8f0';
+            e.currentTarget.style.backgroundColor = '#f8fafc';
+          }
+        }}
+      >
+        {metadata ? (
+          <>
+            <button 
+              onClick={(e) => handleClearSlot(index, e)}
+              style={{ position: 'absolute', top: '12px', right: '12px', border: 'none', background: '#f1f5f9', color: '#94a3b8', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >✕</button>
+            <div style={{ width: '48px', height: '48px', background: '#e0e7ff', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4338ca', marginBottom: '1rem' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            </div>
+            <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>{metadata.brand_name}</h4>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>{metadata.manufacturer_name}</div>
+            <div style={{ marginTop: 'auto', fontSize: '0.65rem', fontWeight: 800, background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', color: '#475569' }}>{metadata.label_format}</div>
+          </>
+        ) : (
+          <>
+            <div style={{ width: '40px', height: '40px', background: '#f1f5f9', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', marginBottom: '1rem' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </div>
+            <div style={{ fontWeight: 700, color: '#94a3b8', fontSize: '0.9rem' }}>{index < 2 ? 'Primary Label' : 'Optional Label'}</div>
+            <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '4px' }}>Click to select or upload</div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   // Design System Constants
   const toolbarToggleStyle = {
     padding: '8px 16px',
@@ -264,6 +349,14 @@ function LabelCompContent() {
         const json = await res.json();
         setData(json);
         setAiSummary(json.existing_summary);
+
+        // Sync grid slots with fetched metadata
+        const fetchedMeta = json.selected_labels_metadata || [];
+        const newSlots: (LabelMetadata | null)[] = [null, null, null, null];
+        fetchedMeta.forEach((meta: LabelMetadata, i: number) => {
+          if (i < 4) newSlots[i] = meta;
+        });
+        setSelectedSlots(newSlots);
         
         // Initialize all sections as expanded
         const initialCollapseState: Record<string, boolean> = {};
@@ -372,23 +465,31 @@ function LabelCompContent() {
   };
 
   const confirmBulkAdd = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    let addedCount = 0;
-    
+    const newSlots = [...selectedSlots];
+    let slotPtr = activeSlotIdx !== null ? activeSlotIdx : 0;
+
     selectedLabelsForAdd.forEach(label => {
-      if (!setIds.includes(label.set_id)) {
-        params.append('set_ids', label.set_id);
-        addedCount++;
+      // Find next empty slot starting from slotPtr
+      while (slotPtr < 4 && newSlots[slotPtr] !== null) {
+        slotPtr++;
+      }
+      if (slotPtr < 4) {
+        newSlots[slotPtr] = label;
+        slotPtr++;
       }
     });
 
-    if (addedCount > 0) {
-      router.push(`/labelcomp?${params.toString()}`);
-    }
+    setSelectedSlots(newSlots);
+    
+    const activeIds = newSlots.filter(s => s !== null).map(s => s!.set_id);
+    const params = new URLSearchParams();
+    activeIds.forEach(id => params.append('set_ids', id));
+    router.push(`/labelcomp?${params.toString()}`);
     
     setShowAddModal(false);
     setShowConfirmDialog(false);
     setSelectedLabelsForAdd([]);
+    setActiveSlotIdx(null);
   };
 
   const handleAddLabel = (setId: string) => {
@@ -399,17 +500,32 @@ function LabelCompContent() {
       alert('This label is already in the comparison.');
       return;
     }
-    if (setIds.length >= 5) {
-      alert('You can compare up to 5 labels at a time.');
+
+    const newSlots = [...selectedSlots];
+    let targetIdx = activeSlotIdx;
+    if (targetIdx === null || newSlots[targetIdx] !== null) {
+        targetIdx = newSlots.findIndex(s => s === null);
+    }
+
+    if (targetIdx === -1 || targetIdx >= 4) {
+      alert('Maximum 4 labels reached. Please clear a slot first.');
       return;
     }
-    const params = new URLSearchParams(searchParams.toString());
-    params.append('set_ids', cleanId);
+
+    // Since we only have setId, we'll let the fetchData useEffect handle the metadata sync
+    // But for immediate UI feedback we can push to router
+    const activeIds = newSlots.filter(s => s !== null).map(s => s!.set_id);
+    activeIds.push(cleanId);
+    
+    const params = new URLSearchParams();
+    activeIds.forEach(id => params.append('set_ids', id));
     router.push(`/labelcomp?${params.toString()}`);
+
     setShowAddModal(false);
     setSetIdInput('');
     setSelectedProject(null);
     setProjectLabels([]);
+    setActiveSlotIdx(null);
   };
 
   const handleFileUpload = async (file: File) => {
@@ -420,8 +536,14 @@ function LabelCompContent() {
       return;
     }
 
-    if (setIds.length >= 5) {
-      alert('You can compare up to 5 labels at a time.');
+    const newSlots = [...selectedSlots];
+    let targetIdx = activeSlotIdx;
+    if (targetIdx === null || newSlots[targetIdx] !== null) {
+        targetIdx = newSlots.findIndex(s => s === null);
+    }
+
+    if (targetIdx === -1 || targetIdx >= 4) {
+      alert('Maximum 4 labels reached. Please clear a slot first.');
       return;
     }
 
@@ -430,7 +552,6 @@ function LabelCompContent() {
 
     const formData = new FormData();
     formData.append('file', file);
-    // Send current set IDs to validate format compatibility (if backend needs it)
     setIds.forEach(id => formData.append('current_set_ids[]', id));
 
     try {
@@ -444,10 +565,14 @@ function LabelCompContent() {
         if (setIds.includes(result.set_id)) {
           setUploadError('This label is already in the comparison.');
         } else {
-          const params = new URLSearchParams(searchParams.toString());
-          params.append('set_ids', result.set_id);
+          const activeIds = newSlots.filter(s => s !== null).map(s => s!.set_id);
+          activeIds.push(result.set_id);
+          
+          const params = new URLSearchParams();
+          activeIds.forEach(id => params.append('set_ids', id));
           router.push(`/labelcomp?${params.toString()}`);
           setShowAddModal(false);
+          setActiveSlotIdx(null);
         }
       } else {
         setUploadError(result.error || 'Failed to upload label.');
@@ -640,128 +765,107 @@ function LabelCompContent() {
       <main style={{ maxWidth: '1600px', margin: '0 auto', padding: 'clamp(2rem, 5vh, 4rem) clamp(1rem, 5vw, 2rem)' }}>
         {/* Hero Section */}
         <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-          <h1 className="hero-title-animated" style={{ fontSize: 'clamp(2.25rem, 6vw, 3rem)', fontWeight: 900, color: '#0f172a', marginBottom: '0.75rem', letterSpacing: '-0.025em' }}>
+          <h1 className="hero-title-animated" style={{ fontSize: 'clamp(2.25rem, 6vw, 3rem)', fontWeight: 900, marginBottom: '0.75rem', letterSpacing: '-0.025em' }}>
             Side-by-Side Analysis
           </h1>
           <p className="hero-subtitle-animated" style={{ fontSize: 'clamp(1rem, 2vw, 1.15rem)', color: '#64748b', fontWeight: '500', maxWidth: '700px', margin: '0 auto' }}>
-            Precision regulatory comparison and clinical data synchronization across FDA drug labels.
+            Synchronize and compare clinical data across multiple FDA drug labels.
           </p>
         </div>
 
-        {/* Unified Action Toolbar */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'flex-start', 
-          marginBottom: '2.5rem',
-          padding: '1rem 1.25rem',
-          backgroundColor: 'white',
-          borderRadius: '16px',
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-          flexWrap: 'wrap',
-          gap: '1rem'
-        }}>
-          <div style={{ display: 'flex', gap: '4px', backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '10px' }}>
-            <button onClick={expandAll} style={toolbarToggleStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = 'white'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Expand All</button>
-            <button onClick={collapseAll} style={toolbarToggleStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = 'white'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Collapse All</button>
-          </div>
-
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-            <button onClick={() => setShowAddModal(true)} style={primaryButtonStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = '#059669'} onMouseOut={e => e.currentTarget.style.backgroundColor = '#10b981'}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              Add Label
+        {/* Comparison Setup Grid */}
+        <section style={{ marginBottom: '4rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>Comparison Workspace</h2>
+              <p style={{ margin: '4px 0 0 0', color: '#64748b', fontWeight: 600, fontSize: '0.9rem' }}>Select up to 4 labels to analyze side-by-side.</p>
+            </div>
+            <button 
+              onClick={() => { setSelectedSlots([null, null, null, null]); router.push('/labelcomp'); }}
+              style={{ background: 'white', border: '1px solid #e2e8f0', padding: '8px 16px', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 700, color: '#64748b', cursor: 'pointer' }}
+            >
+              Clear All
             </button>
-            
-            {data && data.selected_labels_metadata.length >= 2 && (
-              <div style={{ display: 'flex', gap: '16px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                  <button onClick={handleExportDiffs} style={secondaryButtonStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = '#2563eb'} onMouseOut={e => e.currentTarget.style.backgroundColor = '#3b82f6'}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    Export
-                  </button>
-                  <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, maxWidth: '150px', textAlign: 'center', lineHeight: 1.3 }}>
-                    Generates regulatory JSON for analysis.
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                  <button 
-                    onClick={() => {
-                      if (!session?.is_authenticated) {
-                        openAuthModal('login');
-                        return;
-                      }
-                      setComparisonTitle(data.selected_labels_metadata.map(m => m.brand_name).join(' vs '));
-                      setShowFavoriteModal(true);
-                      if (projects.length > 0) setTargetProjectId(projects[0].id);
-                    }} 
-                    style={{ ...secondaryButtonStyle, backgroundColor: '#6366f1' }} 
-                    onMouseOver={e => e.currentTarget.style.backgroundColor = '#4f46e5'} 
-                    onMouseOut={e => e.currentTarget.style.backgroundColor = '#6366f1'}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                    Favorite
-                  </button>
-                  <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, maxWidth: '150px', textAlign: 'center', lineHeight: 1.3 }}>
-                    Save this comparison to your workspace.
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
-        </div>
 
-        {loading && <div style={{ textAlign: 'center', padding: '4rem', color: '#64748b', fontWeight: 600 }}>Synchronizing data...</div>}
-        {error && <div style={{ textAlign: 'center', padding: '4rem', color: '#ef4444', backgroundColor: '#fef2f2', borderRadius: '12px', border: '1px solid #fee2e2' }}>Error: {error}</div>}
-        
-        {/* Metadata Grid */}
-        {data && data.selected_labels_metadata.length > 0 && (
-          <div style={{ ...comparisonGridStyle, marginBottom: '2.5rem' }}>
-            {data.selected_labels_metadata.map((meta) => (
-              <div key={meta.set_id} style={metaCardStyle}>
-                <button 
-                  onClick={() => handleRemoveLabel(meta.set_id)}
-                  style={removeButtonStyle}
-                  onMouseOver={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#ef4444'; }}
-                  onMouseOut={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#94a3b8'; }}
-                  title="Remove from comparison"
-                >
-                  &times;
-                </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                  <div style={{ padding: '4px 8px', backgroundColor: '#e0f2fe', color: '#0369a1', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 800 }}>{meta.label_format}</div>
-                  {(meta as any).is_rld && (
-                    <div style={{ padding: '4px 8px', backgroundColor: '#fef2f2', color: '#ef4444', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900, border: '1px solid #fee2e2' }}>RLD</div>
-                  )}
-                  {(meta as any).is_rs && (
-                    <div style={{ padding: '4px 8px', backgroundColor: '#f0fdf4', color: '#16a34a', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900, border: '1px solid #dcfce7' }}>RS</div>
-                  )}
-                  <h3 style={{ color: '#0f172a', margin: 0, fontSize: '1rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{meta.brand_name}</h3>
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>
-                    <span style={{ fontWeight: 600 }}>Manufacturer</span>
-                    <span style={{ textAlign: 'right', color: '#334155', fontWeight: 500 }}>{meta.manufacturer_name}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '4px' }}>
-                    <span style={{ fontWeight: 600 }}>Published</span>
-                    <span style={{ color: '#334155', fontWeight: 500 }}>{meta.effective_time}</span>
-                  </div>
-                </div>
-                <Link 
-                  href={`/dashboard/label/${meta.set_id}`}
-                  target="_blank"
-                  style={linkStyle}
-                  onMouseOver={e => e.currentTarget.style.textDecoration = 'underline'}
-                  onMouseOut={e => e.currentTarget.style.textDecoration = 'none'}
-                >
-                  Full Label Intelligence &rarr;
-                </Link>
-              </div>
-            ))}
+          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            {/* First two are large */}
+            <ComparisonSlot index={0} metadata={selectedSlots[0]} isLarge />
+            <ComparisonSlot index={1} metadata={selectedSlots[1]} isLarge />
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', flex: 1, minWidth: '200px' }}>
+              <ComparisonSlot index={2} metadata={selectedSlots[2]} />
+              <ComparisonSlot index={3} metadata={selectedSlots[3]} />
+            </div>
+          </div>
+
+          {filledSlotsCount >= 2 && !data && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '3rem' }}>
+               <button 
+                onClick={() => {
+                    const activeIds = selectedSlots.filter(s => s !== null).map(s => s!.set_id);
+                    const params = new URLSearchParams();
+                    activeIds.forEach(id => params.append('set_ids', id));
+                    router.push(`/labelcomp?${params.toString()}`);
+                }}
+                style={{ ...primaryButtonStyle, height: '54px', padding: '0 40px', fontSize: '1rem' }}
+               >
+                 Launch Comparison Analysis
+               </button>
+            </div>
+          )}
+        </section>
+
+        {/* Unified Action Toolbar (Only shown when data is loaded) */}
+        {data && (
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            marginBottom: '2.5rem',
+            padding: '1rem 1.25rem',
+            backgroundColor: 'white',
+            borderRadius: '16px',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', gap: '4px', backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '10px' }}>
+              <button onClick={expandAll} style={toolbarToggleStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = 'white'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Expand All</button>
+              <button onClick={collapseAll} style={toolbarToggleStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = 'white'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>Collapse All</button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <button onClick={handleExportDiffs} style={secondaryButtonStyle} onMouseOver={e => e.currentTarget.style.backgroundColor = '#2563eb'} onMouseOut={e => e.currentTarget.style.backgroundColor = '#3b82f6'}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Export
+              </button>
+
+              <button 
+                onClick={() => {
+                  if (!session?.is_authenticated) {
+                    openAuthModal('login');
+                    return;
+                  }
+                  setComparisonTitle(selectedSlots.filter(s => s !== null).map(s => s!.brand_name).join(' vs '));
+                  setShowFavoriteModal(true);
+                }} 
+                style={{ ...secondaryButtonStyle, backgroundColor: '#6366f1' }} 
+                onMouseOver={e => e.currentTarget.style.backgroundColor = '#4f46e5'} 
+                onMouseOut={e => e.currentTarget.style.backgroundColor = '#6366f1'}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                Favorite
+              </button>
+            </div>
           </div>
         )}
+
+        {loading && <div style={{ textAlign: 'center', padding: '4rem', color: '#64748b', fontWeight: 600 }}><div className="loader" style={{ margin: '0 auto 1rem auto' }}></div>Synchronizing data...</div>}
+        {error && <div style={{ textAlign: 'center', padding: '4rem', color: '#ef4444', backgroundColor: '#fef2f2', borderRadius: '12px', border: '1px solid #fee2e2' }}>Error: {error}</div>}
+        
+        {/* Metadata section removed as it is now in the slots */}
 
         {/* AI Comparison Insight (Indigo Theme) */}
         {data && data.selected_labels_metadata.length >= 2 && (
