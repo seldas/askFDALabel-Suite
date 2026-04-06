@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useUser } from '../context/UserContext';
 
-type DropdownKey = 'user' | 'nav' | 'more' | 'ai' | null;
+type DropdownKey = 'user' | 'nav' | 'more' | 'ai' | 'updates' | null;
 
 export type ActiveApp =
   | 'home'
@@ -206,6 +206,68 @@ export default function Header({
         <h1 className="header-title">
           AskFDALabel
         </h1>
+
+        <div className="custom-dropdown" onClick={(e) => e.stopPropagation()}>
+          <button 
+            className={cx('header-updates-btn', activeDropdown === 'updates' && 'active')}
+            onClick={() => setActiveDropdown(activeDropdown === 'updates' ? null : 'updates')}
+            aria-label="Major Updates"
+            title="What's New"
+            style={{
+              marginLeft: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '6px',
+              borderRadius: '8px',
+              color: 'rgba(255, 255, 255, 0.7)',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+          </button>
+
+          {activeDropdown === 'updates' && (
+            <div className="dropdown-menu" style={{ 
+              width: '320px', 
+              left: 0, 
+              right: 'auto',
+              padding: '1.25rem',
+              backgroundColor: '#ffffff',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px'
+            }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.05em' }}>
+                Major Functional Updates
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <li style={{ fontSize: '0.85rem', color: '#1e293b', lineHeight: 1.5 }}>
+                  <span style={{ fontWeight: 800, color: '#3b82f6' }}>Apr 2026:</span> redesign label comparison workspace.
+                </li>
+                <li style={{ fontSize: '0.85rem', color: '#1e293b', lineHeight: 1.5 }}>
+                  <span style={{ fontWeight: 800, color: '#3b82f6' }}>Mar 2026:</span> redesign Project-centric dashboard.
+                </li>
+                <li style={{ fontSize: '0.85rem', color: '#1e293b', lineHeight: 1.5 }}>
+                  <span style={{ fontWeight: 800, color: '#3b82f6' }}>Feb 2026:</span> Updated AI search assistant.
+                </li>
+                <li style={{ fontSize: '0.85rem', color: '#1e293b', lineHeight: 1.5 }}>
+                  <span style={{ fontWeight: 800, color: '#3b82f6' }}>Jan 2026:</span> Merge Individual Apps to AskFDALabel Suite!
+                </li>
+              </ul>
+              <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #f1f5f9', fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textAlign: 'right' }}>
+                Last updated on Apr 05, 2026
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Mobile Toggle Button */}
@@ -589,6 +651,12 @@ export default function Header({
         .header-chip.active {
           background-color: #e0e7ff !important;
           border-color: #6366f1 !important;
+        }
+
+        .header-updates-btn:hover, .header-updates-btn.active {
+          background-color: rgba(255, 255, 255, 0.2) !important;
+          color: white !important;
+          border-color: rgba(255, 255, 255, 0.3) !important;
         }
       `}</style>
     </header>
