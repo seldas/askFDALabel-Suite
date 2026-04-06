@@ -393,9 +393,6 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       {/* Main Header */}
       <header className="header-main" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2000, width: '100vw', justifyContent: 'space-between', padding: '0.5rem 2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <button onClick={() => setTocCollapsed(!tocCollapsed)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.25rem' }}>
-             ☰
-          </button>
           <a href="/" style={{ 
             color: 'white', 
             textDecoration: 'none', 
@@ -408,7 +405,8 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             background: 'rgba(255,255,255,0.15)',
             padding: '5px 14px',
             borderRadius: '20px',
-            transition: 'all 0.2s ease'
+            transition: 'all 0.2s ease',
+            height: '36px'
           }}>
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -417,7 +415,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
              Home
           </a>
           <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
-            Label Intelligence
+            Label View and Analysis
           </h1>
         </div>
 

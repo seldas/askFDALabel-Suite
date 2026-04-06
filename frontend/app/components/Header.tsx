@@ -53,6 +53,7 @@ export default function Header({
   const [allowLocalQuery, setAllowLocalQuery] = useState(true);
   const [activeDropdown, setActiveDropdown] = useState<DropdownKey | 'tasks'>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   const totalActiveTasks = activeTasks.length;
   const avgProgress = totalActiveTasks > 0 
@@ -98,8 +99,86 @@ export default function Header({
     }
   };
 
+  const AiPreferenceModal = () => {
+    if (!isAiModalOpen) return null;
+    return (
+      <div 
+        style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}
+        onClick={() => setIsAiModalOpen(false)}
+      >
+        <div 
+          style={{
+            width: '100%',
+            maxWidth: '440px',
+            background: 'white',
+            borderRadius: '24px',
+            padding: '2rem',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            animation: 'modalEnter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>AI Preferences</h2>
+            <button 
+              onClick={() => setIsAiModalOpen(false)}
+              style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}
+            >
+              ✕
+            </button>
+          </div>
+
+          <p style={{ color: '#64748b', fontSize: '0.95rem', marginBottom: '2rem', lineHeight: 1.5 }}>
+            Select the primary Large Language Model (LLM) to power your clinical analysis and search queries.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {!isInternal && (
+              <button 
+                className={cx('ai-option-card', session?.ai_provider === 'gemini' && 'selected')}
+                onClick={() => { updateAiProvider('gemini'); setIsAiModalOpen(false); }}
+              >
+                <div style={{ fontWeight: 800 }}>Gemini 2.0</div>
+                <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Standard clinical reasoning engine</div>
+              </button>
+            )}
+            {isInternal && (
+              <>
+                <button 
+                  className={cx('ai-option-card', session?.ai_provider === 'llama' && 'selected')}
+                  onClick={() => { updateAiProvider('llama'); setIsAiModalOpen(false); }}
+                >
+                  <div style={{ fontWeight: 800 }}>LLAMA 3.3</div>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Internal secure reasoning</div>
+                </button>
+                <button 
+                  className={cx('ai-option-card', session?.ai_provider === 'elsa' && 'selected')}
+                  onClick={() => { updateAiProvider('elsa'); setIsAiModalOpen(false); }}
+                >
+                  <div style={{ fontWeight: 800 }}>ELSA Specialized</div>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Fine-tuned for FDA label data</div>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <header className="header-main header-typography">
+      <AiPreferenceModal />
       {/* Left: Branding */}
       <div className="header-branding">
         <Link href="/" className="header-logo-link" onClick={closeMobile} aria-label="AskFDALabel Home">
@@ -344,7 +423,7 @@ export default function Header({
           DrugTox
         </Link>
 
-        {/* Snippets / Addons */}
+        {/* ELSA Widget */}
         <Link
           href="/snippet"
           className={cx('hp-nav-item', resolvedActiveApp === 'snippet' && 'is-active')}
@@ -357,7 +436,7 @@ export default function Header({
             <circle cx="17" cy="17" r="3"></circle>
             <circle cx="7" cy="7" r="3"></circle>
           </svg>
-          Addons
+          ELSA Widget
         </Link>
       </nav>
 
@@ -407,49 +486,6 @@ export default function Header({
               </div>
             )}
 
-            {/* AI Provider Dropdown */}
-            <div className="custom-dropdown" onClick={(e) => e.stopPropagation()}>
-              <button 
-                className={cx('dropdown-trigger header-chip', activeDropdown === 'ai' && 'active')} 
-                onClick={() => setActiveDropdown(activeDropdown === 'ai' ? null : 'ai')}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.8 }}>
-                  <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
-                  <rect x="9" y="9" width="6" height="6"></rect>
-                  <line x1="9" y1="1" x2="9" y2="4"></line>
-                  <line x1="15" y1="1" x2="15" y2="4"></line>
-                  <line x1="9" y1="20" x2="9" y2="23"></line>
-                  <line x1="15" y1="20" x2="15" y2="23"></line>
-                  <line x1="20" y1="9" x2="23" y2="9"></line>
-                  <line x1="20" y1="15" x2="23" y2="15"></line>
-                  <line x1="1" y1="9" x2="4" y2="9"></line>
-                  <line x1="1" y1="15" x2="4" y2="15"></line>
-                </svg>
-                <span className="header-muted" style={{ fontWeight: 800 }}>{session.ai_provider?.toUpperCase()}</span>
-                <span className="caret">▼</span>
-              </button>
-
-              {activeDropdown === 'ai' && (
-                <div className="dropdown-menu">
-                  {!isInternal && (
-                    <button className={cx('dropdown-item', session.ai_provider === 'gemini' && 'active')} onClick={() => { updateAiProvider('gemini'); setActiveDropdown(null); }}>
-                      Gemini
-                    </button>
-                  )}
-                  {isInternal && (
-                    <>
-                      <button className={cx('dropdown-item', session.ai_provider === 'llama' && 'active')} onClick={() => { updateAiProvider('llama'); setActiveDropdown(null); }}>
-                        LLAMA
-                      </button>
-                      <button className={cx('dropdown-item', session.ai_provider === 'elsa' && 'active')} onClick={() => { updateAiProvider('elsa'); setActiveDropdown(null); }}>
-                        ELSA
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-
             {/* User Settings Dropdown */}
             <div className="custom-dropdown" onClick={(e) => e.stopPropagation()}>
               <button 
@@ -466,9 +502,16 @@ export default function Header({
                   <div className="account-block">
                     <div className="account-label">ACCOUNT</div>
                     <div className="account-name">{session.username}</div>
+                    <div style={{ marginTop: '8px', padding: '4px 8px', background: '#f1f5f9', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', fontWeight: 700, color: '#475569' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect></svg>
+                        AI: {session.ai_provider?.toUpperCase()}
+                    </div>
                   </div>
 
                   <div className="account-actions">
+                    <button onClick={() => { setIsAiModalOpen(true); setActiveDropdown(null); }} className="dropdown-item">
+                      AI Preference
+                    </button>
                     <button onClick={() => { openAuthModal('change_password'); setActiveDropdown(null); }} className="dropdown-item">
                       Change Password
                     </button>
@@ -492,6 +535,34 @@ export default function Header({
         )}
       </div>
       <style jsx>{`
+        @keyframes modalEnter {
+          from { opacity: 0; transform: scale(0.95) translateY(10px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .ai-option-card {
+          width: 100%;
+          padding: 1rem 1.25rem;
+          border-radius: 12px;
+          border: 2px solid #f1f5f9;
+          background: white;
+          text-align: left;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          color: #1e293b;
+        }
+
+        .ai-option-card:hover {
+          border-color: #cbd5e1;
+          background: #f8fafc;
+        }
+
+        .ai-option-card.selected {
+          border-color: #6366f1;
+          background: #f5f3ff;
+          color: #4338ca;
+        }
+
         .pulse-dot {
           width: 8px;
           height: 8px;

@@ -274,11 +274,6 @@ export default function LabelView({
               <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No TOC available.</p>
             )}
           </div>
-          <div className="sidebar-footer" style={{ padding: '12px', borderTop: '1px solid #f1f5f9' }}>
-            <Link href="/dashboard" className="btn-sidebar-home" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 700, color: '#475569', textDecoration: 'none' }}>
-               🏠 Dashboard
-            </Link>
-          </div>
         </div>
 
         {/* Main Content */}

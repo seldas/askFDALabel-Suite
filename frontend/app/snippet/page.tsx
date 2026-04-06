@@ -50,10 +50,10 @@ export default function SnippetPage() {
       >
         <div style={{ marginBottom: 'clamp(2rem, 5vh, 4rem)' }}>
           <h1 className="hero-title-animated" style={{ fontSize: 'clamp(2rem, 8vw, 3.5rem)', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
-            Snippet Store
+            ELSA Widget
           </h1>
           <p className="hero-subtitle-animated" style={{ fontSize: 'clamp(1rem, 3vw, 1.25rem)', color: '#64748b', fontWeight: '500' }}>
-            Specialized research tools for your browser
+            Specialized research tools for your clinical workflow
           </p>
         </div>
 
@@ -71,7 +71,7 @@ export default function SnippetPage() {
         }}>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-            How to use these snippets
+            How to use these widgets
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
             <div>
@@ -80,11 +80,11 @@ export default function SnippetPage() {
             </div>
             <div>
               <div style={{ fontWeight: 800, color: '#1e40af', fontSize: '0.9rem', marginBottom: '8px', textTransform: 'uppercase' }}>2. Drag and Drop</div>
-              <p style={{ fontSize: '0.95rem', color: '#475569', lineHeight: 1.5, margin: 0 }}>Simply click and drag the tool button below directly onto your bookmarks bar.</p>
+              <p style={{ fontSize: '0.95rem', color: '#475569', lineHeight: 1.5, margin: 0 }}>Simply click and drag the widget button below directly onto your bookmarks bar.</p>
             </div>
             <div>
               <div style={{ fontWeight: 800, color: '#1e40af', fontSize: '0.9rem', marginBottom: '8px', textTransform: 'uppercase' }}>3. Launch with Elsa</div>
-              <p style={{ fontSize: '0.95rem', color: '#475569', lineHeight: 1.5, margin: 0 }}>Click the bookmark while viewing Elsa website to activate the tool.</p>
+              <p style={{ fontSize: '0.95rem', color: '#475569', lineHeight: 1.5, margin: 0 }}>Click the bookmark while viewing Elsa website to activate the widget.</p>
             </div>
           </div>
         </section>
@@ -134,7 +134,7 @@ export default function SnippetPage() {
                 if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
               }}
             >
-              Drug Snippet
+              Label Insights Widget
             </a>
 
             <div style={{ 
@@ -154,7 +154,7 @@ export default function SnippetPage() {
                 <path d="m8.5 8.5 7 7"></path>
               </svg>
             </div>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem' }}>Drug Snippet</h3>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem' }}>Label Insights</h3>
             <p style={{ fontSize: '1rem', color: '#64748b', lineHeight: 1.6, marginBottom: '2rem', flex: 1 }}>
               Instantly extract and summarize drug information from any clinical webpage or FDA label. Provides a quick-view panel with key metadata and clinical highlights.
             </p>
@@ -178,7 +178,7 @@ export default function SnippetPage() {
                   boxSizing: 'border-box'
                 }}
               >
-                Drug Snippet
+                Label Insights Widget
               </div>
               <div className="bookmarklet-tooltip">Drag card to Bookmarks Bar</div>
             </div>
@@ -219,7 +219,7 @@ export default function SnippetPage() {
                 if (e.currentTarget.getAttribute('href') === '#') e.preventDefault();
               }}
             >
-              Smart Highlighter
+              Smart Highlighter Widget
             </a>
 
             <div style={{ 
@@ -266,7 +266,7 @@ export default function SnippetPage() {
                   boxSizing: 'border-box'
                 }}
               >
-                Smart Highlighter
+                Smart Highlighter Widget
               </div>
               <div className="bookmarklet-tooltip">Drag card to Bookmarks Bar</div>
             </div>
