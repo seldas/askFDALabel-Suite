@@ -33,6 +33,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     
     # AI Preferences
+    is_admin = db.Column(db.Boolean, default=False)
     ai_provider = db.Column(db.String(20), default='gemini')
     custom_gemini_key = db.Column(db.String(255), nullable=True)
     openai_api_key = db.Column(db.String(255), nullable=True)
@@ -43,7 +44,7 @@ class User(UserMixin, db.Model):
     comparisons = db.relationship('FavoriteComparison', backref='user', lazy=True)
 
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256')
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
@@ -385,3 +386,15 @@ class OrangeBook(db.Model):
     rs = db.Column(db.String(10))  # Yes or No
     type = db.Column(db.String(20)) # RX, OTC, DISCN
     applicant_full_name = db.Column(db.String(500))
+
+class SystemTask(db.Model):
+    __tablename__ = 'system_tasks'
+    id = db.Column(db.Integer, primary_key=True)
+    task_type = db.Column(db.String(50), nullable=False) # 'labeling', 'orangebook', etc.
+    status = db.Column(db.String(20), default='pending') # pending, processing, completed, failed
+    progress = db.Column(db.Integer, default=0) # 0 to 100
+    message = db.Column(db.String(255))
+    error_details = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = db.Column(db.DateTime)
