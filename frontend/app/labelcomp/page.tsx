@@ -616,8 +616,7 @@ function LabelCompContent() {
         .filter(s => !s.is_same && !s.is_empty)
         .map(s => ({
           title: s.title,
-          content1: s.contents[0],
-          content2: s.contents[1]
+          contents: s.contents // Send all contents instead of just content1/content2
         }));
 
       const res = await fetch('/api/labelcomp/summarize', {

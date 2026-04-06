@@ -22,36 +22,66 @@ def get_comparison_summary(user, set_ids, comparison_data, label_names, force_re
             return cached.summary_content
 
     # 2. Prepare data for AI
-    # We only send sections that have differences to save tokens and focus the AI
     differing_sections = []
+    total_chars = 0
+    MAX_CHARS_FOR_AI = 100000 # 100k chars limit to prevent timeout
+
     for section in comparison_data:
-        # Check if it's the simplified format from frontend (content1/content2)
-        if 'content1' in section and 'content2' in section:
+        # Check if it's the newer list-based format from frontend
+        if 'contents' in section:
+            contents = [c or 'N/A' for c in section.get('contents', [])]
             differing_sections.append({
                 'title': section.get('title'),
-                'content1': section.get('content1') or 'N/A',
-                'content2': section.get('content2') or 'N/A'
+                'contents': contents
             })
+            total_chars += sum(len(c) for c in contents)
+        # Backward compatibility for content1/content2
+        elif 'content1' in section and 'content2' in section:
+            c1 = section.get('content1') or 'N/A'
+            c2 = section.get('content2') or 'N/A'
+            differing_sections.append({
+                'title': section.get('title'),
+                'contents': [c1, c2]
+            })
+            total_chars += len(c1) + len(c2)
         # Or the full format from backend (contents list)
         elif not section.get('is_same') and not section.get('is_empty'):
             contents = section.get('contents', [])
-            if contents and len(contents) >= 2:
+            if contents:
+                c_list = [c or 'N/A' for c in contents]
                 differing_sections.append({
                     'title': section.get('title'),
-                    'content1': contents[0] or 'N/A',
-                    'content2': contents[1] or 'N/A'
+                    'contents': c_list
                 })
+                total_chars += sum(len(c) for c in c_list)
 
     if not differing_sections:
         return "<p>No substantive differences were identified between the labels for comparison.</p>"
 
-    label1_name = label_names[0] if len(label_names) > 0 else "Label A"
-    label2_name = label_names[1] if len(label_names) > 1 else "Label B"
+    # 3. Handle data volume limit
+    if total_chars > MAX_CHARS_FOR_AI:
+        return f"""
+            <div style="padding: 1.5rem; background-color: #fff7ed; border: 1px solid #fed7aa; borderRadius: 12px; color: #9a3412;">
+                <h3 style="margin-top: 0; color: #9a3412;">Comparison Data Too Large</h3>
+                <p>These labeling documents contain a very large amount of differing content ({total_chars:,} characters), which exceeds our automated reasoning limit.</p>
+                <p>To analyze these differences, please use the <strong>Export</strong> button below to download the comparison data as a JSON file, which you can then upload to <strong>ELSA</strong> or other specialized analysis tools.</p>
+            </div>
+        """
 
-    # 3. Generate via AI
-    summary_content = summarize_comparison_logic(user, differing_sections, label1_name, label2_name)
+    # 4. Generate via AI
+    try:
+        summary_content = summarize_comparison_logic(user, differing_sections, label_names)
+    except Exception as e:
+        print(f"AI Summary Error: {str(e)}")
+        return f"""
+            <div style="padding: 1.5rem; background-color: #fef2f2; border: 1px solid #fee2e2; borderRadius: 12px; color: #991b1b;">
+                <h3 style="margin-top: 0; color: #991b1b;">AI Analysis Interrupted</h3>
+                <p>We encountered an issue while generating the clinical summary (likely a timeout due to complex content).</p>
+                <p>Please use the <strong>Export</strong> button to download the raw comparison data for review in <strong>ELSA</strong>.</p>
+            </div>
+        """
     
-    # 4. Update Cache
+    # 5. Update Cache
     existing = ComparisonSummary.query.filter_by(set_ids_hash=ids_hash).first()
     if existing:
         existing.summary_content = summary_content
@@ -67,24 +97,30 @@ def get_comparison_summary(user, set_ids, comparison_data, label_names, force_re
     db.session.commit()
     return summary_content
 
-def summarize_comparison_logic(user, differing_sections, label1_name, label2_name):
+def summarize_comparison_logic(user, differing_sections, label_names):
     """
-    The actual AI prompt and call logic.
+    The actual AI prompt and call logic. Supports multiple labels.
     """
     summary_parts = []
     for section in differing_sections:
         title = section.get('title', 'Unknown Section')
-        content1 = section.get('content1', '')
-        content2 = section.get('content2', '')
-        summary_parts.append(f"--- Section: {title} ---\n{label1_name}:\n{content1}\n\n{label2_name}:\n{content2}\n\n")
+        contents = section.get('contents', [])
+        
+        summary_parts.append(f"--- Section: {title} ---\n")
+        for idx, content in enumerate(contents):
+            label_name = label_names[idx] if idx < len(label_names) else f"Label {idx+1}"
+            summary_parts.append(f"{label_name}:\n{content}\n\n")
 
     combined_diff_text = "".join(summary_parts)
     
-    system_prompt = """
-        You are an expert AI analyst for the FDA. Your sole function is to identify and summarize the key substantive differences between two drug labeling documents.
+    label_list_str = ", ".join([f"'{n}'" for n in label_names])
+    num_labels = len(label_names)
+
+    system_prompt = f"""
+        You are an expert AI analyst for the FDA. Your sole function is to identify and summarize the key substantive differences between {num_labels} drug labeling documents.
 
         **Core Task:**
-        1.  Analyze the provided text, which contains the content of two different drug labels.
+        1.  Analyze the provided text, which contains the content of {num_labels} different drug labels: {label_list_str}.
         2.  Identify the most critical differences, focusing on safety, efficacy, indications, contraindications, and warnings.
         3.  Generate a concise "Overall Critical Differences" executive summary.
         4.  Generate a section-by-section summary of notable differences.
@@ -96,31 +132,23 @@ def summarize_comparison_logic(user, differing_sections, label1_name, label2_nam
         The entire output must follow this exact structure:
         <h3>Overall Critical Differences</h3>
         <ul>
-            <li>A summary of the most important difference.</li>
+            <li>A summary of the most important difference between the versions.</li>
             <li>Another key difference summary.</li>
         </ul>
 
         <div class="summary-section">
             <h4>[Section Name, e.g., Indications and Usage]</h4>
             <ul>
-                <li>Detail of a difference found in this section.</li>
-            </ul>
-        </div>
-
-        <div class="summary-section">
-            <h4>[Section Name, e.g., Warnings and Precautions]</h4>
-            <ul>
-                <li>Detail of a difference found in this section.</li>
-                <li>Another difference in the same section.</li>
+                <li>Detail of a difference found in this section across the labels.</li>
             </ul>
         </div>
 
         If a section has no significant differences, DO NOT include a heading for it.
-        If there are no differences at all, output only: <p>No substantive differences were identified between the two labels.</p> 
+        If there are no differences at all, output only: <p>No substantive differences were identified between the labels.</p> 
     """
     
     user_message = (
-        f"Compare the drug labels for '{label1_name}' and '{label2_name}'. "
+        f"Compare the drug labels for {label_list_str}. "
         f"Generate the HTML summary based on the content below.\n\n"
         f"--- DOCUMENT CONTENT ---\n{combined_diff_text}"
     )
