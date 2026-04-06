@@ -1,6 +1,8 @@
 import os
 import sys
+import argparse
 from pathlib import Path
+from sqlalchemy import text
 
 # Add backend to path
 root_dir = Path(__file__).resolve().parent.parent.parent
@@ -20,19 +22,25 @@ def parse_int(value):
     except ValueError:
         return None
 
-def process_file(file_name, model_class, field_mapping, data_dir, batch_size=5000):
+def process_file(file_name, model_class, field_mapping, data_dir, batch_size=10000):
     file_path = os.path.join(data_dir, file_name)
     if not os.path.exists(file_path):
         print(f"  [!] Skipping {file_name}: File not found in {data_dir}")
         return
 
+    table_name = model_class.__tablename__
+    
     # Check if data already exists
-    existing_count = db.session.query(model_class).count()
-    if existing_count > 0:
-        print(f"  [i] Table {model_class.__tablename__} already has {existing_count} records. Skipping.")
-        return
+    try:
+        existing_count = db.session.query(model_class).count()
+        if existing_count > 0:
+            print(f"  [i] Table {table_name} already has {existing_count} records. Skipping. (Use --force to update)")
+            return
+    except Exception:
+        # Table might not exist, db.create_all() at start will handle it
+        pass
 
-    print(f"  [+] Importing {file_name} into {model_class.__tablename__}...")
+    print(f"  [+] Importing {file_name} into {table_name}...")
     
     objects = []
     count = 0
@@ -41,6 +49,7 @@ def process_file(file_name, model_class, field_mapping, data_dir, batch_size=500
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             for line in f:
+                # MedDRA files end with a trailing $ sometimes
                 parts = line.strip().split('$')
                 
                 data = {}
@@ -48,7 +57,8 @@ def process_file(file_name, model_class, field_mapping, data_dir, batch_size=500
                     if index < len(parts):
                         val = parts[index]
                         col = getattr(model_class, field)
-                        if str(col.type).startswith('INTEGER'):
+                        # Check column type for integer parsing
+                        if str(col.type).upper().startswith('INT'):
                             data[field] = parse_int(val)
                         else:
                             data[field] = val if val != '' else None
@@ -75,10 +85,33 @@ def process_file(file_name, model_class, field_mapping, data_dir, batch_size=500
         db.session.rollback()
 
 def run_import():
+    parser = argparse.ArgumentParser(description='Import MedDRA data into PostgreSQL')
+    parser.add_argument('--force', action='store_true', help='Force update by clearing existing tables')
+    args = parser.parse_args()
+
     app = create_app()
     with app.app_context():
-        print("=== MedDRA Data Importer ===")
+        print("=== MedDRA Data Importer (PostgreSQL Optimized) ===")
         
+        # Check if we are actually using Postgres
+        engine_name = db.engine.name
+        print(f"  [i] Target Database: {engine_name}")
+        
+        if args.force:
+            print(f"  [-] Force update: Dropping and recreating MedDRA tables...")
+            # Get table names in dependency order for dropping
+            tables = [
+                'meddra_smq_content', 'meddra_smq_list',
+                'meddra_mdhier', 'meddra_llt', 'meddra_pt', 
+                'meddra_hlt', 'meddra_hlgt', 'meddra_soc'
+            ]
+            for table in tables:
+                db.session.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
+            db.session.commit()
+            # Recreate tables based on current models
+            db.create_all()
+            print(f"  [+] Tables recreated.")
+
         root_dir = Path(__file__).resolve().parent.parent.parent
         data_dir = root_dir / 'data' / 'downloads' / 'MedDRA_28_0_ENglish' / 'MedAscii'
         
@@ -86,6 +119,8 @@ def run_import():
             print(f"Critical Error: MedDRA data directory not found at {data_dir}")
             return
 
+        # Import order matters due to foreign keys
+        
         # 1. SOC
         process_file('soc.asc', MeddraSOC, {
             'soc_code': 0, 'soc_name': 1, 'soc_abbrev': 2, 'soc_whoart_code': 3,

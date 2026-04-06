@@ -297,14 +297,14 @@ class MeddraMDHIER(db.Model):
 class MeddraSMQList(db.Model):
     __tablename__ = 'meddra_smq_list'
     smq_code = db.Column(db.Integer, primary_key=True)
-    smq_name = db.Column(db.String(255), nullable=False)
+    smq_name = db.Column(db.Text, nullable=False)
     smq_level = db.Column(db.Integer)
     smq_description = db.Column(db.Text)
-    smq_source = db.Column(db.String(255))
+    smq_source = db.Column(db.Text)
     smq_note = db.Column(db.Text)
     meddra_version = db.Column(db.String(10))
     status = db.Column(db.String(1))
-    smq_algorithm = db.Column(db.String(255))
+    smq_algorithm = db.Column(db.Text)
 
 class MeddraSMQContent(db.Model):
     __tablename__ = 'meddra_smq_content'
