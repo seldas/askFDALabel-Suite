@@ -42,10 +42,6 @@ frontend/public/webtest/history/
 backend/webtest/results/
 backend/webtest/history/
 
-data/rxnorm/
-data/spl_storage/
-data/downloads/dailymed
-data/downloads/MedDRA_28_0_ENglish
-data/uploads/
+data/
 backend/data/uploads/
 *.db
