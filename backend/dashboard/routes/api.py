@@ -39,7 +39,7 @@ def get_peers_count(set_id):
     If the current set_id is missing EPC data, it searches by Generic Name
     to borrow metadata from a richer peer record.
     """
-    source = request.args.get('source', 'local').lower()
+    source = request.args.get('source', 'openfda').lower()
     
     # 1. Get basic metadata for the current set_id
     meta = get_label_metadata(set_id)
@@ -101,7 +101,7 @@ def get_deep_dive_analysis(set_id):
     """
     Runs the Phase 2 statistical analysis (TF-IDF) for the label sections.
     """
-    source = request.args.get('source', 'local').lower()
+    source = request.args.get('source', 'openfda').lower()
     generic_names = request.args.get('generic_names')
     epcs = request.args.get('epcs')
     

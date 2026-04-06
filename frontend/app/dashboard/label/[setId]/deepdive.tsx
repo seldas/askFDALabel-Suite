@@ -65,7 +65,7 @@ export default function DeepDiveView({
   const [loadingCounts, setLoadingCounts] = useState(false);
   const [countsData, setCountsData] = useState<PeerCounts | null>(null);
   const [countsError, setCountsError] = useState<string | null>(null);
-  const [source, setSource] = useState<'local' | 'oracle' | 'openfda'>('local');
+  const [source, setSource] = useState<'local' | 'oracle' | 'openfda'>('openfda');
 
   // Analysis State
   const [analyzing, setAnalyzing] = useState(false);
@@ -215,11 +215,6 @@ export default function DeepDiveView({
           <div>
             <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>Regulatory Intelligence</h3>
             <p style={{ margin: '6px 0 0 0', fontSize: '0.9rem', color: '#64748b', fontWeight: 500 }}>Select a clinical cohort to perform a comparative gap analysis.</p>
-          </div>
-          <div className="source-toggle">
-            {(['local', 'oracle', 'openfda'] as const).map((s) => (
-              <button key={s} onClick={() => setSource(s)} className={`source-btn ${source === s ? 'active' : ''}`}>{s}</button>
-            ))}
           </div>
         </div>
 
