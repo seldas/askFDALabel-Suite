@@ -16,26 +16,10 @@ window.initFaers = function() {
         const labelContainer = document.getElementById('label-view');
         if (!labelContainer) return;
 
-        // 1. Re-apply MedDRA Scan (Base terms)
+        // ONLY Re-apply MedDRA Scan (Base terms found in local DB)
+        // We no longer overlay FAERS signals on the label text per updated requirements
         if (meddraScanData) {
             highlightSafetyTerms(labelContainer, meddraScanData);
-        }
-
-        // 2. Re-apply FAERS Signals (Overlays)
-        if (currentFaersData && currentFaersData.reactions) {
-            const termsMap = {};
-            currentFaersData.reactions.forEach(r => {
-                if (r.term && r.term.length > 2) {
-                    termsMap[r.term.toLowerCase()] = {
-                        count: r.count,
-                        term: r.term,
-                        soc: r.soc || 'N/A',
-                        soc_abbrev: r.soc_abbrev || '',
-                        hlt: r.hlt || 'N/A'
-                    };
-                }
-            });
-            highlightSafetyTerms(labelContainer, termsMap);
         }
     };
 
@@ -233,8 +217,7 @@ window.initFaers = function() {
             faersDataLoaded = true;
             
             filterAndRenderCharts();
-            tagSafetySignals(data); 
-
+            // tagSafetySignals(data); // Removed tagging signals on label view per requirements
         } catch (error) {
             console.error('Error fetching FAERS data:', error);
             const loadingEl = document.getElementById('faers-loading');
@@ -783,51 +766,15 @@ window.initFaers = function() {
     }
 
     function tagSafetySignals(data) {
-        if (!data.reactions || data.reactions.length === 0) return;
-
-        // Build a map of term -> details object
-        const termsMap = {};
-        data.reactions.forEach(r => {
-            if (r.term && r.term.length > 2) {
-                termsMap[r.term.toLowerCase()] = {
-                    count: r.count,
-                    term: r.term,
-                    soc: r.soc || 'N/A',
-                    soc_abbrev: r.soc_abbrev || '',
-                    hlt: r.hlt || 'N/A'
-                };
-            }
-        });
-
-        const labelContainer = document.getElementById('label-view');
-        if (!labelContainer) return;
-
-        highlightSafetyTerms(labelContainer, termsMap);
+        // Disabled per requirements: FAERS data should not affect label highlights
+        return;
     }
 
     function highlightSafetyTerms(root, termsMap) {
-        // ... (sorting logic)
         const terms = Object.keys(termsMap).sort((a, b) => b.length - a.length);
         if (terms.length === 0) return;
 
-        // 1. Upgrade existing highlights
-        const existingHighlights = root.querySelectorAll('.meddra-term-base, .faers-signal');
-        existingHighlights.forEach(span => {
-            const termText = (span.getAttribute('data-term') || span.textContent).toLowerCase();
-            if (termsMap[termText]) {
-                const details = termsMap[termText];
-                
-                // Always update data attributes
-                span.setAttribute('data-soc', details.soc_abbrev || details.soc || 'Unknown');
-                span.setAttribute('data-term', details.term);
-
-                if (details.count > 0) {
-                    upgradeSpanToSignal(span, details);
-                }
-            }
-        });
-
-        // 2. Scan for new highlights
+        // 1. Scan for highlights (only base MedDRA terms now)
         const pattern = new RegExp(`\\b(${terms.map(window.escapeRegExp).join('|')})\\b`, 'gi');
         
         const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
@@ -863,13 +810,10 @@ window.initFaers = function() {
                     // Store Metadata
                     span.setAttribute('data-term', details.term);
                     span.setAttribute('data-soc', details.soc_abbrev || details.soc || 'Unknown');
-
-                    if (details.count === 0) {
-                        span.className = 'meddra-term-base';
-                        span.title = `MedDRA Term: ${details.term} (${details.soc_abbrev || details.soc})`; 
-                    } else {
-                        upgradeSpanToSignal(span, details);
-                    }
+                    
+                    // Always use base MedDRA style
+                    span.className = 'meddra-term-base';
+                    span.title = `MedDRA Term: ${details.term} (${details.soc_abbrev || details.soc})`; 
                 }
                 
                 fragment.appendChild(span);
@@ -1547,8 +1491,8 @@ window.initFaers = function() {
 
         if (!modalBody) return;
 
-        // 1. Gather Data
-        const signals = document.querySelectorAll('.meddra-term-base, .faers-signal');
+        // 1. Gather Data (Strictly from base MedDRA terms found in labeling)
+        const signals = document.querySelectorAll('.meddra-term-base');
         const socCounts = {};
         const uniqueTerms = new Set();
         const socTermsMap = {}; // Map SOC -> Map Term -> Set of Sections
@@ -1638,7 +1582,7 @@ window.initFaers = function() {
                     legend: { display: false },
                     title: {
                         display: true,
-                        text: `Total Unique Terms: ${uniqueTerms.size}`
+                        text: `Labeling MedDRA Terms: ${uniqueTerms.size}`
                     },
                     tooltip: {
                         callbacks: {
@@ -1769,7 +1713,7 @@ window.initFaers = function() {
         window.focusedMeddraTerms.add(lowerTerm);
 
         // Update DOM
-        const allSignals = document.querySelectorAll('.meddra-term-base, .faers-signal');
+        const allSignals = document.querySelectorAll('.meddra-term-base');
         let found = false;
         let firstMatch = null;
 
@@ -1786,11 +1730,14 @@ window.initFaers = function() {
         });
         
         if (found && firstMatch) {
-            // 3. Scroll to first match
-            firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
+            // Close modal first
             const modal = document.getElementById('meddra-stats-modal');
             if (modal) modal.style.display = 'none';
+
+            // 3. Scroll to first match with a tiny delay to ensure layout
+            setTimeout(() => {
+                firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 50);
         } else {
             console.warn(`Term "${term}" not found in DOM with data-term matching "${lowerTerm}"`);
             // Fallback: try content match
@@ -1801,9 +1748,13 @@ window.initFaers = function() {
                 }
             });
             if (firstMatch) {
-                 firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                 // Close modal first
                  const modal = document.getElementById('meddra-stats-modal');
                  if (modal) modal.style.display = 'none';
+
+                 setTimeout(() => {
+                    firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                 }, 50);
             } else {
                 alert(`Could not find "${term}" in the visible text.`);
             }
@@ -1811,7 +1762,7 @@ window.initFaers = function() {
     }
 
     function exportMeddraStats() {
-        const signals = document.querySelectorAll('.meddra-term-base, .faers-signal');
+        const signals = document.querySelectorAll('.meddra-term-base');
         const termsList = [];
         
         signals.forEach(el => {
