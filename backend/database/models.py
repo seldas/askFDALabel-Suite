@@ -367,3 +367,21 @@ class LabelEmbedding(db.Model):
     chunk_text = db.Column(db.Text, nullable=False)
     embedding = db.Column(Vector(768)) # Default for many models, can adjust
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class OrangeBook(db.Model):
+    __tablename__ = 'orange_book'
+    id = db.Column(db.Integer, primary_key=True)
+    ingredient = db.Column(db.String(500))
+    df_route = db.Column(db.String(500))
+    trade_name = db.Column(db.String(500))
+    applicant = db.Column(db.String(255))
+    strength = db.Column(db.String(500))
+    appl_type = db.Column(db.String(10)) # N or A
+    appl_no = db.Column(db.String(20), index=True)
+    product_no = db.Column(db.String(10))
+    te_code = db.Column(db.String(50))
+    approval_date = db.Column(db.String(50))
+    rld = db.Column(db.String(10)) # Yes or No
+    rs = db.Column(db.String(10))  # Yes or No
+    type = db.Column(db.String(20)) # RX, OTC, DISCN
+    applicant_full_name = db.Column(db.String(500))

@@ -2,12 +2,14 @@ import re
 import math
 import random
 import logging
+import requests
 from collections import Counter
-from database import db, MeddraLLT, MeddraPT, MeddraMDHIER
+from database import db, MeddraLLT, MeddraPT, MeddraMDHIER, OrangeBook
 from dashboard.services.xml_handler import extract_sections_by_loinc
 from dashboard.services.fda_client import get_label_xml, get_label_counts, find_labels, get_label_metadata
 from dashboard.services.fdalabel_db import FDALabelDBService
 from dashboard.services.meddra_matcher import scan_label_for_meddra
+from dashboard.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +36,29 @@ class DeepDiveService:
             logger.error(f"Error fetching MedDRA mappings: {e}")
         return pt_map
 
+    @staticmethod
+    def _determine_label_format(sections_dict):
+        """
+        Determines the label format based on presence of specific LOINC sections.
+        PLR: has 'Warnings and Precautions' (43685-7)
+        non-PLR: has 'Adverse Reactions' (34084-4) but NO 'Warnings and Precautions'
+        OTC: Has neither
+        """
+        if '43685-7' in sections_dict:
+            return 'PLR'
+        if '34084-4' in sections_dict:
+            return 'non-PLR'
+        return 'OTC'
+
     @classmethod
-    def get_comparison_analysis(cls, target_set_id, source='local', generic_names=None, epcs=None):
+    def get_comparison_analysis(cls, target_set_id, source='openfda', generic_names=None, epcs=None):
         """Builds a Compliance Matrix with Traceability and Peer References."""
         target_xml = get_label_xml(target_set_id)
         if not target_xml: return {"error": "Target XML not found"}
         target_sections = extract_sections_by_loinc(target_xml)
-        peer_set_ids = cls._get_peer_sample(source, generic_names, epcs)
+        target_format = cls._determine_label_format(target_sections)
+        
+        peer_set_ids = cls._get_peer_sample(source, generic_names, epcs, target_format)
         
         HIERARCHY = {
             '34066-1': {'level': 3, 'code': 'B', 'label': 'Boxed Warning'},
@@ -72,7 +90,8 @@ class DeepDiveService:
                 }
             pxml = get_label_xml(pid)
             if pxml:
-                p_raw = scan_sections(extract_sections_by_loinc(pxml))
+                p_sections = extract_sections_by_loinc(pxml)
+                p_raw = scan_sections(p_sections)
                 peers_raw.append({'id': pid, 'data': p_raw})
                 for loinc_terms in p_raw.values(): all_unique_terms.update(loinc_terms)
         
@@ -182,42 +201,99 @@ class DeepDiveService:
         }
 
     @classmethod
-    def _get_peer_sample(cls, source, generic_names, epcs):
-        all_peers = set()
+    def _get_peer_sample(cls, source, generic_names, epcs, target_format):
+        """
+        Samples up to 20 peers, prioritizing RLDs and matching label format.
+        """
+        all_peer_data = [] # List of {set_id, is_rld, format}
         name_list = [n.strip() for n in (generic_names or "").split(',') if n.strip() and n.strip().lower() != 'n/a']
         epc_list = [e.strip() for e in (epcs or "").split(',') if e.strip() and e.strip().lower() != 'n/a']
+        
         try:
+            # 1. Gather pool of candidates
+            raw_candidates = []
             if source == 'openfda':
-                import requests
-                from dashboard.config import Config
                 fda_url = "https://api.fda.gov/drug/label.json"
                 for n in name_list[:2]:
-                    params = {'search': f'openfda.generic_name:"{n}"', 'limit': 50}
+                    params = {'search': f'openfda.generic_name:"{n}"', 'limit': 100}
                     if Config.OPENFDA_API_KEY: params['api_key'] = Config.OPENFDA_API_KEY
                     resp = requests.get(fda_url, params=params, timeout=10)
                     if resp.status_code == 200:
-                        for r in resp.json().get('results', []):
-                            if r.get('set_id'): all_peers.add(r['set_id'])
+                        raw_candidates.extend(resp.json().get('results', []))
                 for e in epc_list[:2]:
-                    params = {'search': f'openfda.pharm_class_epc:"{e}"', 'limit': 50}
+                    params = {'search': f'openfda.pharm_class_epc:"{e}"', 'limit': 100}
                     if Config.OPENFDA_API_KEY: params['api_key'] = Config.OPENFDA_API_KEY
                     resp = requests.get(fda_url, params=params, timeout=10)
                     if resp.status_code == 200:
-                        for r in resp.json().get('results', []):
-                            if r.get('set_id'): all_peers.add(r['set_id'])
+                        raw_candidates.extend(resp.json().get('results', []))
             else:
+                # Local/Oracle query
                 for n in name_list[:2]:
-                    ids = cls._query_local_ids(generic_name=n)
-                    all_peers.update(ids)
+                    raw_candidates.extend(cls._query_local_full_meta(generic_name=n))
                 for e in epc_list[:2]:
-                    ids = cls._query_local_ids(epc=e)
-                    all_peers.update(ids)
+                    raw_candidates.extend(cls._query_local_full_meta(epc=e))
+
+            # 2. Enrich candidates with RLD status and Format
+            unique_set_ids = set()
+            for c in raw_candidates:
+                sid = c.get('set_id')
+                if not sid or sid in unique_set_ids: continue
+                unique_set_ids.add(sid)
+
+                # Determine Format
+                # OpenFDA returns effective_time and sections in slightly different ways
+                # We can try to use LOINC codes if available in 'effective_time' (wrong place)
+                # Better: check section headers or common PLR section names
+                # For simplicity, we use the _determine_label_format logic if sections are available
+                fmt = 'Unknown'
+                if 'effective_time' in c and isinstance(c.get('effective_time'), dict):
+                    # This happens when sections are returned instead of just metadata
+                    fmt = cls._determine_label_format(c)
+                else:
+                    # Fallback metadata check
+                    if 'warnings_and_precautions' in c: fmt = 'PLR'
+                    elif 'adverse_reactions' in c: fmt = 'non-PLR'
+                    else: fmt = 'OTC'
+
+                # Determine RLD status from local Orange Book
+                is_rld = False
+                app_no = c.get('application_number')
+                if app_no:
+                    # Application numbers in OpenFDA often have prefixes like NDA, ANDA
+                    # Extract numeric part
+                    match = re.search(r'\d+', app_no)
+                    if match:
+                        clean_app_no = match.group(0).zfill(6) # Orange book often pads to 6
+                        rld_check = db.session.query(OrangeBook).filter(
+                            OrangeBook.appl_no.like(f"%{clean_app_no}%"),
+                            OrangeBook.rld == 'Yes'
+                        ).first()
+                        if rld_check: is_rld = True
+
+                all_peer_data.append({
+                    'id': sid,
+                    'is_rld': is_rld,
+                    'format': fmt,
+                    'score': (2 if is_rld else 0) + (1 if fmt == target_format else 0)
+                })
+
+            # 3. Sort and Sample
+            # Primary: score (RLD + Format Match), Secondary: random to avoid same generic pool every time
+            random.shuffle(all_peer_data)
+            all_peer_data.sort(key=lambda x: x['score'], reverse=True)
+            
+            return [p['id'] for p in all_peer_data[:20]]
+
         except Exception as e:
             logger.error(f"Error sampling peers: {e}")
-        peer_list = list(all_peers)
-        if len(peer_list) > 20:
-            return random.sample(peer_list, 20)
-        return peer_list
+            return []
+
+    @staticmethod
+    def _query_local_full_meta(generic_name=None, epc=None):
+        """Mock-like or basic query for local metadata to match sampling logic."""
+        # For brevity, reusing _query_local_ids but wrapping in dict format
+        ids = DeepDiveService._query_local_ids(generic_name, epc)
+        return [{'set_id': i} for i in ids]
 
     @staticmethod
     def _query_local_ids(generic_name=None, epc=None):
@@ -227,20 +303,12 @@ class DeepDiveService:
         ids = []
         try:
             cursor = conn.cursor()
-            if FDALabelDBService._db_type == 'oracle':
-                if generic_name:
-                    sql = "SELECT SET_ID FROM druglabel.DGV_SUM_SPL WHERE UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q) FETCH NEXT 50 ROWS ONLY"
-                    cursor.execute(sql, {"q": f"%{generic_name}%"})
-                else:
-                    sql = "SELECT SET_ID FROM druglabel.DGV_SUM_SPL WHERE UPPER(EPC) LIKE UPPER(:q) FETCH NEXT 50 ROWS ONLY"
-                    cursor.execute(sql, {"q": f"%{epc}%"})
+            schema = "labeling."
+            if generic_name:
+                sql = f"SELECT set_id FROM {schema}sum_spl WHERE generic_names ILIKE %(q)s LIMIT 100"
             else:
-                schema = "labeling."
-                if generic_name:
-                    sql = f"SELECT set_id FROM {schema}sum_spl WHERE generic_names ILIKE %(q)s LIMIT 50"
-                else:
-                    sql = f"SELECT set_id FROM {schema}sum_spl WHERE epc ILIKE %(q)s LIMIT 50"
-                cursor.execute(sql, {"q": f"%{generic_name if generic_name else epc}%"})
+                sql = f"SELECT set_id FROM {schema}sum_spl WHERE epc ILIKE %(q)s LIMIT 100"
+            cursor.execute(sql, {"q": f"%{generic_name if generic_name else epc}%"})
             rows = cursor.fetchall()
             for r in rows:
                 if isinstance(r, dict): ids.append(r['set_id'])
