@@ -543,9 +543,46 @@ export function DashboardContent() {
                                 <td style={{ padding: '16px', fontSize: '0.85rem', color: '#475569' }}>{item.manufacturer_name || 'N/A'}</td>
                                 <td style={{ padding: '16px', fontSize: '0.85rem', color: '#475569' }}>{formatEffectiveTime(item.effective_time)}</td>
                                 <td style={{ padding: '16px', textAlign: 'right' }}>
-                                  <button onClick={() => handleDeleteLabel(item.id)} style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H5c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-                                  </button>
+                                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                    <Link 
+                                      href={`/dashboard/label/${item.set_id}`} 
+                                      style={{ 
+                                        padding: '6px 12px', 
+                                        background: '#6366f1', 
+                                        color: 'white', 
+                                        borderRadius: '8px', 
+                                        fontSize: '0.75rem', 
+                                        fontWeight: 800, 
+                                        textDecoration: 'none',
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: '0 2px 4px rgba(99, 102, 241, 0.2)'
+                                      }}
+                                      onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                                      onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+                                    >
+                                      OPEN
+                                    </Link>
+                                    <button 
+                                      onClick={() => handleDeleteLabel(item.id)} 
+                                      title="Remove from Workspace"
+                                      style={{ 
+                                        border: '1px solid #e2e8f0', 
+                                        background: '#ffffff', 
+                                        color: '#94a3b8', 
+                                        cursor: 'pointer', 
+                                        padding: '6px',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.2s ease'
+                                      }}
+                                      onMouseOver={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.background = '#fef2f2'; }}
+                                      onMouseOut={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#ffffff'; }}
+                                    >
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H5c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
@@ -597,9 +634,46 @@ export function DashboardContent() {
                                 </td>
                                 <td style={{ padding: '16px', fontSize: '0.85rem', color: '#475569' }}>{new Date(c.timestamp).toLocaleDateString()}</td>
                                 <td style={{ padding: '16px', textAlign: 'right' }}>
-                                  <button onClick={() => handleDeleteComparison(c.id)} style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H5c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-                                  </button>
+                                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                    <Link 
+                                      href={`/dashboard/results?id=${c.id}`} 
+                                      style={{ 
+                                        padding: '6px 12px', 
+                                        background: '#10b981', 
+                                        color: 'white', 
+                                        borderRadius: '8px', 
+                                        fontSize: '0.75rem', 
+                                        fontWeight: 800, 
+                                        textDecoration: 'none',
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)'
+                                      }}
+                                      onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                                      onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+                                    >
+                                      VIEW
+                                    </Link>
+                                    <button 
+                                      onClick={() => handleDeleteComparison(c.id)} 
+                                      title="Delete Comparison"
+                                      style={{ 
+                                        border: '1px solid #e2e8f0', 
+                                        background: '#ffffff', 
+                                        color: '#94a3b8', 
+                                        cursor: 'pointer', 
+                                        padding: '6px',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.2s ease'
+                                      }}
+                                      onMouseOver={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.background = '#fef2f2'; }}
+                                      onMouseOut={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#ffffff'; }}
+                                    >
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H5c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
