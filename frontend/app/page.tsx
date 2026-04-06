@@ -104,24 +104,48 @@ export default function HomePage() {
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       <Header />
 
-      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '4rem 2rem' }}>
+      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 2rem 4rem 2rem' }}>
         {/* Hero Section with AI Search */}
-        <section style={{ textAlign: 'center', marginBottom: '5rem' }}>
-          <div style={{ marginBottom: '3rem' }}>
-            <h1 style={{ 
+        <section style={{ textAlign: 'center', marginBottom: '3rem' }}>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h1 className="hero-title-animated" style={{ 
               fontSize: 'clamp(2.5rem, 8vw, 4.5rem)', 
               fontWeight: 900, 
-              color: '#0f172a',
               letterSpacing: '-0.02em',
-              marginBottom: '1rem'
+              marginBottom: '0.5rem'
             }}>
               AskFDALabel
             </h1>
+
+            {/* Database Stats Row */}
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              gap: '24px', 
+              color: '#64748b', 
+              fontSize: '0.9rem', 
+              fontWeight: 600,
+              marginTop: '1rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: '#3b82f6', fontSize: '1.1rem' }}>📊</span>
+                <span>157,513 Structured Labels</span>
+              </div>
+              <div style={{ width: '1px', height: '16px', background: '#e2e8f0', alignSelf: 'center' }}></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: '#10b981', fontSize: '1.1rem' }}>🧬</span>
+                <span>MedDRA v28.0 Integrated</span>
+              </div>
+              <div style={{ width: '1px', height: '16px', background: '#e2e8f0', alignSelf: 'center' }}></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: '#f59e0b', fontSize: '1.1rem' }}>🛡️</span>
+                <span>Grounded Regulatory AI</span>
+              </div>
+            </div>
           </div>
 
           {/* Central Search Bar */}
-          <div style={{ maxWidth: '800px', margin: '0 auto 3rem auto' }}>
-            <form onSubmit={handleSearch} style={{ position: 'relative' }}>
+          <div style={{ maxWidth: '800px', margin: '2.5rem auto 2rem auto' }}>            <form onSubmit={handleSearch} style={{ position: 'relative' }}>
               <input
                 type="text"
                 value={searchTerm}
@@ -212,7 +236,7 @@ export default function HomePage() {
 
         {/* Recent Projects Section */}
         {session?.is_authenticated && (
-          <section style={{ marginBottom: '5rem' }}>
+          <section style={{ marginBottom: '3.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a' }}>Recent Projects</h2>
               <Link href="/dashboard" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#6366f1', textDecoration: 'none' }}>

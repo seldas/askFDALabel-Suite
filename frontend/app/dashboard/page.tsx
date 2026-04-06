@@ -441,7 +441,7 @@ export function DashboardContent() {
                         <span style={{ padding: '4px 10px', background: '#eef2ff', color: '#6366f1', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase' }}>{activeProject.role}</span>
                       </div>
                       <p style={{ margin: 0, color: '#64748b', fontWeight: 500 }}>
-                        Clinical Workspace: Managing <strong>{activeProject.count}</strong> pharmaceutical product labels.
+                        Workspace: Managing <strong>{activeProject.count}</strong> pharmaceutical product labels.
                       </p>
                     </div>
 
@@ -636,7 +636,7 @@ export function DashboardContent() {
             ) : (
               <div style={{ padding: '4rem', textAlign: 'center', maxWidth: '800px', margin: '0 auto' }}>
                 <div style={{ marginBottom: '3rem' }}>
-                  <h1 style={{ fontSize: '3rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.025em', marginBottom: '1rem' }}>Clinical Workspace</h1>
+                  <h1 className="hero-title-animated" style={{ fontSize: '3rem', fontWeight: 900, letterSpacing: '-0.025em', marginBottom: '1rem' }}>Dashboard</h1>
                   <p style={{ fontSize: '1.1rem', color: '#64748b', fontWeight: 500, lineHeight: 1.6 }}>
                     Select an existing project from the sidebar to manage your labels, or create a new workspace by importing an Excel/CSV file from FDALabel.
                   </p>
