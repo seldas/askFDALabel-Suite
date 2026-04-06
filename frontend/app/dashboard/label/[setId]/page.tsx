@@ -16,9 +16,9 @@ import './label_view.css';
 // Shared Types
 import { TOCItem, LabelData } from './types';
 
-function TOCItemComponent({ 
-  item, 
-  level = 0, 
+function TOCItemComponent({
+  item,
+  level = 0,
   expandedSections, 
   toggleSection,
   activeSectionId
@@ -150,6 +150,8 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   const [selectedSectionsForExport, setSelectedSectionsForExport] = useState<Set<string>>(new Set());
   const [exportFormat, setExportFormat] = useState<'html' | 'xml' | 'text'>('html');
   const [techDetailsOpen, setTechDetailsOpen] = useState(false);
+  const [ndcModalOpen, setNdcModalOpen] = useState(false);
+  const [companyModalOpen, setCompanyModalOpen] = useState(false);
 
   // Reset global legacy caches when setId changes to prevent stale data
   useEffect(() => {
@@ -237,6 +239,149 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       document.title = titleParts.join(' - ');
     }
   }, [data]);
+
+  const toggleSectionSelection = (id: string, includeChildren: boolean = true) => {
+    setSelectedSectionsForExport((prev) => {
+      const next = new Set(prev);
+      const isCurrentlySelected = next.has(id);
+
+      const findAndToggleRecursive = (items: any[], targetId: string, forceState: boolean) => {
+        for (const item of items) {
+          if (item.id === targetId) {
+             if (forceState) next.add(item.id); else next.delete(item.id);
+             if (includeChildren && item.children) {
+                const toggleChildren = (childs: any[]) => {
+                  childs.forEach(c => {
+                    if (forceState) next.add(c.id); else next.delete(c.id);
+                    if (c.children) toggleChildren(c.children);
+                  });
+                };
+                toggleChildren(item.children);
+             }
+             return true;
+          }
+          if (item.children && findAndToggleRecursive(item.children, targetId, forceState)) return true;
+        }
+        return false;
+      };
+
+      const sectionsTree = [
+        ...(data?.table_of_contents || [])
+      ];
+
+      findAndToggleRecursive(sectionsTree, id, !isCurrentlySelected);
+      return next;
+    });
+  };
+
+  const handleExport = async () => {
+    if (selectedSectionsForExport.size === 0) {
+      alert("Please select at least one section for export.");
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/dashboard/export_sections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          set_id: data?.set_id,
+          section_ids: Array.from(selectedSectionsForExport),
+          format: exportFormat
+        })
+      });
+
+      if (!response.ok) {
+        const errJson = await response.json();
+        throw new Error(errJson.error || "Failed to generate export file.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const cleanTitle = (data?.brand_name || data?.drug_name || 'label').replace(/[^a-z0-9]/gi, '_');
+      a.download = `${cleanTitle}_sections.${exportFormat === 'text' ? 'txt' : exportFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      setExportModalOpen(false);
+    } catch (err: any) {
+      alert(`Export Error: ${err.message}`);
+    }
+  };
+
+  const toggleSection = (id: string) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (!exportModalOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExportModalOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [exportModalOpen]);
+
+  useEffect(() => {
+    if (!ndcModalOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setNdcModalOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [ndcModalOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = () => setActiveDropdown(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const response = await fetch(`/api/dashboard/label/${setId}?json=1`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!response.ok) throw new Error('Failed to fetch label data');
+        const json = await response.json();
+        setData(json);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, [setId]);
+
+  const ndcRaw = (data?.ndc || '').trim();
+  const ndcTooLong = ndcRaw.length > 40;
+
+  const ndcList = (() => {
+    if (!ndcRaw) return [];
+    return ndcRaw
+      .split(/[\n,;]+/g)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  })();
+
+  const tabs = [
+    { id: 'label-view', label: 'Label' },
+    { id: 'deep-dive-view', label: 'Deep Dive' },
+    { id: 'faers-view', label: 'FAERS' },
+    { id: 'tox-view', label: 'Agents' },
+  ];
 
   if (loading) {
     return (
@@ -383,8 +528,6 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       </header>
       
       <div style={{ display: 'flex', flex: 1, paddingTop: '60px', overflow: 'hidden' }}>
-        {/* Table of Contents Side Panel */}
-
         {/* Main Content Area */}
         <div id="main-content" className="main-content expanded" style={{ 
             transition: 'margin-left 0.3s ease', 
@@ -399,7 +542,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             
             <div className="container" style={{ maxWidth: '1400px', margin: '0 auto', width: '100%', padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
             
-            {/* DRUG METADATA (Layer 1, Part 1) */}
+            {/* DRUG METADATA */}
             <div className="label-header" style={{ marginBottom: '20px', background: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '40px' }}>
                         <div style={{ flex: '0 1 60%', minWidth: 0 }}>
@@ -416,10 +559,10 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                   textShadow: '0 1px 2px rgba(0,0,0,0.02)',
                                   textTransform: 'capitalize'
                                 }}>
-                                  {[data.brand_name || data.drug_name, data.effective_time]
-                                    .filter(Boolean)
-                                    .join(' - ')
-                                    .toLowerCase()}
+                                  {([data.brand_name || data.drug_name, data.effective_time]
+                                          .filter(Boolean)
+                                          .join(' - ')
+                                          .toLowerCase())}
                                 </h1>
                                 <span style={{ 
                                     backgroundColor: data.label_format === 'PLR' ? '#dcfce7' : '#f1f5f9',
@@ -491,7 +634,6 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                       <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexShrink: 0 }}>
                           <button 
                             onClick={() => {
-                              // Initialize selections with ALL IDs (recursive)
                               const allIds = new Set<string>();
                               const addIdsRecursive = (items: any[]) => {
                                 items.forEach(i => {
@@ -534,7 +676,6 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                    const response = await fetch(`/api/dashboard/meddra/profile/${setId}`);
                                    if (!response.ok) throw new Error("Failed to fetch MedDRA profile");
                                    const dataJson = await response.json();
-                                   
                                    const blob = new Blob([JSON.stringify(dataJson, null, 2)], { type: 'application/json' });
                                    const url = window.URL.createObjectURL(blob);
                                    const a = document.createElement('a');
@@ -553,7 +694,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                              style={{ 
                                 background: '#f1f5f9', 
                                 border: '1px solid #e2e8f0', 
-                                color: '#6366f1', // Subtle indigo for distinction
+                                color: '#6366f1', 
                                 padding: '8px 14px', 
                                 borderRadius: '10px', 
                                 fontSize: '0.8rem', 
@@ -619,7 +760,6 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                     </div>
                 </div>
 
-                {/* Technical Product Data Strategy: Clean, official table layout */}
                 {data.product_data && data.product_data.length > 0 && (
                    <div style={{ marginTop: '24px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
                       <button 
@@ -639,8 +779,6 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                             transition: 'all 0.2s ease',
                             boxShadow: techDetailsOpen ? 'inset 0 2px 4px rgba(0,0,0,0.05)' : '0 2px 4px rgba(0,0,0,0.02)'
                         }}
-                        onMouseOver={e => e.currentTarget.style.borderColor = '#cbd5e1'}
-                        onMouseOut={e => e.currentTarget.style.borderColor = '#e2e8f0'}
                       >
                          <span style={{ fontSize: '1.1rem' }}>📦</span> 
                          TECHNICAL PRODUCT SPECIFICATIONS ({data.product_data.length}) 
@@ -648,14 +786,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                       </button>
                       
                       {techDetailsOpen && (
-                        <div style={{ 
-                            marginTop: '16px', 
-                            background: '#ffffff', 
-                            borderRadius: '16px', 
-                            border: '1px solid #e2e8f0',
-                            overflow: 'hidden',
-                            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)'
-                        }}>
+                        <div style={{ marginTop: '16px', background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)' }}>
                             <div style={{ overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                     <thead>
@@ -668,11 +799,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                     <tbody>
                                         {data.product_data.map((prod, pIdx) => (
                                             <tr key={pIdx} style={{ borderBottom: pIdx < data.product_data.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                                                <td style={{ padding: '16px 20px', verticalAlign: 'top' }}>
-                                                    <span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 700, color: '#0f172a', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem' }}>
-                                                        {prod.ndc}
-                                                    </span>
-                                                </td>
+                                                <td style={{ padding: '16px 20px', verticalAlign: 'top' }}><span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 700, color: '#0f172a', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem' }}>{prod.ndc}</span></td>
                                                 <td style={{ padding: '16px 20px', verticalAlign: 'top' }}>
                                                     <div style={{ fontWeight: 700, color: '#334155', fontSize: '0.9rem' }}>{prod.name}</div>
                                                     <div style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '4px', fontWeight: 500 }}>{prod.form}</div>
@@ -683,17 +810,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                                             {prod.ingredients.map((ingr, iIdx) => (
                                                                 <div key={iIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px' }}>
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                        <span style={{ 
-                                                                            fontSize: '0.6rem', 
-                                                                            fontWeight: 900, 
-                                                                            background: ingr.type === 'active' ? '#fee2e2' : '#f1f5f9',
-                                                                            color: ingr.type === 'active' ? '#991b1b' : '#64748b',
-                                                                            padding: '2px 6px',
-                                                                            borderRadius: '4px',
-                                                                            textTransform: 'uppercase'
-                                                                        }}>
-                                                                            {ingr.type === 'active' ? 'ACT' : 'INC'}
-                                                                        </span>
+                                                                        <span style={{ fontSize: '0.6rem', fontWeight: 900, background: ingr.type === 'active' ? '#fee2e2' : '#f1f5f9', color: ingr.type === 'active' ? '#991b1b' : '#64748b', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>{ingr.type === 'active' ? 'ACT' : 'INC'}</span>
                                                                         <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1e293b' }}>{ingr.name}</span>
                                                                     </div>
                                                                     <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700, fontFamily: 'ui-monospace, monospace' }}>{ingr.strength}</span>
@@ -713,88 +830,39 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                 )}
             </div>
             
-            {/* FUNCTION PANELS (Layer 1, Part 2) */}
-            <div
-              className="function-tabs-bar"
-              style={{
-                width: '100%',
-                padding: '0 0 20px 0',
-                display: 'flex',
-                justifyContent: 'center'
-              }}
-            >
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: '8px',
-                    backgroundColor: '#f1f5f9',
-                    padding: '6px',
-                    borderRadius: '14px',
-                  }}
-                >
+            {/* FUNCTION PANELS */}
+            <div className="function-tabs-bar" style={{ width: '100%', padding: '0 0 20px 0', display: 'flex', justifyContent: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px', backgroundColor: '#f1f5f9', padding: '6px', borderRadius: '14px' }}>
                   {tabs.map((tab) => {
                     const isActive = activeTab === tab.id;
                     return (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        style={{
-                          border: 'none',
-                          background: isActive ? 'white' : 'transparent',
-                          color: isActive ? '#0f172a' : '#64748b',
-                          padding: '10px 32px',
-                          borderRadius: '12px',
-                          cursor: 'pointer',
-                          fontSize: '1rem',
-                          fontWeight: 800,
-                          letterSpacing: '-0.01em',
-                          boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.10)' : 'none',
-                          transition: 'all 0.2s ease',
-                          lineHeight: '1.1',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {tab.label}
-                      </button>
+                        style={{ border: 'none', background: isActive ? 'white' : 'transparent', color: isActive ? '#0f172a' : '#64748b', padding: '10px 32px', borderRadius: '12px', cursor: 'pointer', fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.01em', boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.2s ease', lineHeight: '1.1', whiteSpace: 'nowrap' }}
+                      >{tab.label}</button>
                     );
                   })}
                 </div>
             </div>
 
-            {/* FUNCTION CONTENT PLACEHOLDER (Layer 1, Part 3) */}
             <div className="function-content-area" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <div id="top-annotations-container" className="top-annotations-container"></div>
-                
-                {/* Layer 2 (Inside Label function) handled within LabelView */}
                 <LabelView data={data} activeTab={activeTab} tocCollapsed={tocCollapsed} setTocCollapsed={setTocCollapsed} expandedSections={expandedSections} toggleSection={toggleSection} TOCItemComponent={TOCItemComponent} />
-                <DeepDiveView 
-                  activeTab={activeTab}
-                  setId={setId}
-                />
-                <FaersView 
-                  activeTab={activeTab} 
-                  drugName={data?.faers_drug_name ?? data?.generic_name ?? undefined}
-                  setId={setId}
-                />
+                <DeepDiveView activeTab={activeTab} setId={setId} />
+                <FaersView activeTab={activeTab} drugName={data?.faers_drug_name ?? data?.generic_name ?? undefined} setId={setId} />
                 <AgentView data={data} activeTab={activeTab} />
             </div>
           </div>
         </div>
       </div>
-    </div>
 
       {/* Floating Action Buttons */}
       {session?.is_authenticated && (
-        <div id="user-notes-btn" className="floating-action-btn" title="My Notes" style={{ bottom: '160px', backgroundColor: '#0071bc', zIndex: 2500, }}>
-          <span>{"\u270E"}</span>
-        </div>
+        <div id="user-notes-btn" className="floating-action-btn" title="My Notes" style={{ bottom: '160px', backgroundColor: '#0071bc', zIndex: 2500 }}><span>{"\u270E"}</span></div>
       )}
-      <div id="meddra-stats-btn" className="floating-action-btn" title="MedDRA Stats" style={{ bottom: '90px', backgroundColor: '#0071bc', zIndex: 2500, }}>
-        <span>{"\u2126"}</span>
-      </div>
-      <div id="chat-bubble" className="floating-action-btn chat-bubble" title="AI Assistant" style={{ bottom: '20px', backgroundColor: '#002e5d', zIndex: 2500, }}>
-        <span>{"\uD83D\uDCAC"}</span>
-      </div>
+      <div id="meddra-stats-btn" className="floating-action-btn" title="MedDRA Stats" style={{ bottom: '90px', backgroundColor: '#0071bc', zIndex: 2500 }}><span>{"\u2126"}</span></div>
+      <div id="chat-bubble" className="floating-action-btn chat-bubble" title="AI Assistant" style={{ bottom: '20px', backgroundColor: '#002e5d', zIndex: 2500 }}><span>{"\uD83D\uDCAC"}</span></div>
 
       {/* Hidden Data for JS */}
       <div id="xml-content" style={{ display: 'none' }}>{data.label_xml_raw}</div>
@@ -811,7 +879,6 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
         `}
       </Script>
 
-      {/* Legacy Scripts */}
       <Script src="/askfdalabel/dashboard/js/chart.js" strategy="afterInteractive" />
       <Script src="/askfdalabel/dashboard/js/marked.min.js" strategy="afterInteractive" />
       <Script src="/askfdalabel/dashboard/js/utils.js" strategy="afterInteractive" />
@@ -823,25 +890,17 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       <Script src="/askfdalabel/dashboard/js/faers.js" strategy="afterInteractive" />
       <Script src="/askfdalabel/dashboard/js/tox.js" strategy="afterInteractive" />
 
-      {/* Modals placeholders for ui.js */}
+      {/* Modals placeholders */}
       <div id="user-notes-modal" className="custom-modal" style={{ display: 'none' }}>
         <div className="custom-modal-content">
-          <div className="custom-modal-header">
-            <h3>My Notes</h3>
-            <span className="close-modal" id="close-user-notes">&times;</span>
-          </div>
-          <div className="custom-modal-body" id="user-notes-modal-body">
-             <div id="notes-list-container" className="notes-summary-list"></div>
-          </div>
+          <div className="custom-modal-header"><h3>My Notes</h3><span className="close-modal" id="close-user-notes">&times;</span></div>
+          <div className="custom-modal-body" id="user-notes-modal-body"><div id="notes-list-container" className="notes-summary-list"></div></div>
         </div>
       </div>
 
       <div id="meddra-stats-modal" className="custom-modal" style={{ display: 'none' }}>
         <div className="custom-modal-content">
-          <div className="custom-modal-header">
-            <h3>MedDRA Statistics</h3>
-            <span className="close-modal" id="close-meddra-stats">&times;</span>
-          </div>
+          <div className="custom-modal-header"><h3>MedDRA Statistics</h3><span className="close-modal" id="close-meddra-stats">&times;</span></div>
           <div className="custom-modal-body" id="meddra-stats-body"></div>
         </div>
       </div>
@@ -851,20 +910,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           <div className="custom-modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 id="table-extract-title" style={{ margin: 0 }}>Table Data</h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <button id="copy-selection-btn" className="button" style={{ 
-                    display: 'none', 
-                    padding: '6px 12px', 
-                    fontSize: '0.85rem', 
-                    backgroundColor: '#28a745',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    alignItems: 'center',
-                    gap: '5px'
-                }}>
-                    <span>{"\uD83D\uDCCB"}</span> Copy Selection
-                </button>
+                <button id="copy-selection-btn" className="button" style={{ display: 'none', padding: '6px 12px', fontSize: '0.85rem', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', alignItems: 'center', gap: '5px' }}><span>{"\uD83D\uDCCB"}</span> Copy Selection</button>
                 <span className="close-modal" id="close-table-extract" style={{ cursor: 'pointer', fontSize: '1.5rem' }}>&times;</span>
             </div>
           </div>
@@ -879,7 +925,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
          </div>
       </div>
 
-      <div id="chatbox" className="chatbox" style={{ display: 'none', zIndex: 2500, }}>
+      <div id="chatbox" className="chatbox" style={{ display: 'none', zIndex: 2500 }}>
         <div className="chat-header" id="chat-header">
             <h3>AI Assistant</h3>
             <div className="chat-header-buttons" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -895,379 +941,94 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       </div>
 
       {ndcModalOpen && (
-        <div
-          onClick={closeNdcModal} // clicking outside closes
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.45)',
-            zIndex: 5000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '24px'
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()} // keep clicks inside from closing
-            style={{
-              width: 'min(720px, 92vw)',
-              maxHeight: 'min(520px, 80vh)',
-              background: 'white',
-              borderRadius: '16px',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-              border: '1px solid #e2e8f0',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
-            <div
-              style={{
-                padding: '14px 16px',
-                borderBottom: '1px solid #f1f5f9',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                background: '#f8fafc'
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }}>
-                  NDC Codes
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>
-                  ESC or outside click to close
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeNdcModal}
-                aria-label="Close"
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '10px',
-                  border: '1px solid #e2e8f0',
-                  background: 'white',
-                  cursor: 'pointer',
-                  fontSize: '18px',
-                  lineHeight: 1,
-                  color: '#334155',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                ×
-              </button>
+        <div onClick={() => setNdcModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.45)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(720px, 92vw)', maxHeight: 'min(520px, 80vh)', background: 'white', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid #e2e8f0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+              <div><div style={{ fontWeight: 800, color: '#0f172a' }}>NDC Codes</div><div style={{ fontSize: '0.8rem', color: '#64748b' }}>ESC or outside click to close</div></div>
+              <button onClick={() => setNdcModalOpen(false)} style={{ width: '34px', height: '34px', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: '18px', color: '#334155' }}>×</button>
             </div>
-
             <div style={{ padding: '16px', overflow: 'auto' }}>
               {ndcList.length > 0 ? (
-                <div
-                  style={{
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '12px',
-                    overflow: 'hidden'
-                  }}
-                >
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
                   {ndcList.map((code, i) => (
-                    <div
-                      key={`${code}-${i}`}
-                      style={{
-                        padding: '10px 12px',
-                        display: 'flex',
-                        gap: '12px',
-                        alignItems: 'baseline',
-                        borderTop: i === 0 ? 'none' : '1px solid #f1f5f9',
-                        background: i % 2 === 0 ? '#ffffff' : '#fbfdff'
-                      }}
-                    >
-                      <div
-                        style={{
-                          minWidth: '44px',
-                          fontSize: '0.75rem',
-                          color: '#94a3b8',
-                          fontWeight: 800
-                        }}
-                      >
-                        #{i + 1}
-                      </div>
-                      <div
-                        style={{
-                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                          color: '#0f172a',
-                          fontSize: '0.95rem',
-                          userSelect: 'text'
-                        }}
-                      >
-                        {code}
-                      </div>
+                    <div key={i} style={{ padding: '10px 12px', display: 'flex', gap: '12px', borderTop: i === 0 ? 'none' : '1px solid #f1f5f9', background: i % 2 === 0 ? '#ffffff' : '#fbfdff' }}>
+                      <div style={{ minWidth: '44px', fontSize: '0.75rem', color: '#94a3b8', fontWeight: 800 }}>#{i + 1}</div>
+                      <div style={{ fontFamily: 'ui-monospace, monospace', color: '#0f172a', fontSize: '0.95rem' }}>{code}</div>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div style={{ color: '#64748b' }}>No NDC codes available.</div>
-              )}
+              ) : <div style={{ color: '#64748b' }}>No NDC codes available.</div>}
             </div>
           </div>
         </div>
       )}
 
-      {/* SECTION EXPORT MODAL */}
-      {exportModalOpen && (
-        <div
-          onClick={() => setExportModalOpen(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.45)',
-            zIndex: 5000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '24px',
-            backdropFilter: 'blur(4px)'
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 'min(600px, 95vw)',
-              maxHeight: 'min(700px, 90vh)',
-              background: 'white',
-              borderRadius: '20px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              border: '1px solid #e2e8f0',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Export Sections</h3>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Select label sections and preferred format</p>
-              </div>
-              <button onClick={() => setExportModalOpen(false)} style={{ background: 'white', border: '1px solid #e2e8f0', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>×</button>
-            </div>
-
-            <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Available Sections ({selectedSectionsForExport.size} Selected)</span>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button 
-                    onClick={() => {
-                      const allIds = new Set<string>();
-                      const addIdsRecursive = (items: any[]) => {
-                        items.forEach(i => {
-                          allIds.add(i.id);
-                          if (i.children && i.children.length > 0) {
-                            addIdsRecursive(i.children);
-                          }
-                        });
-                      };
-                      if (data.table_of_contents) {
-                        addIdsRecursive(data.table_of_contents);
-                      }
-                      setSelectedSectionsForExport(allIds);
-                    }}
-                    style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer' }}
-                  >
-                    SELECT ALL
-                  </button>
-                  <button 
-                    onClick={() => setSelectedSectionsForExport(new Set())}
-                    style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer' }}
-                  >
-                    CLEAR
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ background: '#f9fafb', border: '1px solid #f1f5f9', borderRadius: '12px', padding: '16px' }}>
-                {data?.table_of_contents?.map(item => (
-                  <ExportSectionItem 
-                    key={item.id}
-                    item={item}
-                    selectedSectionsForExport={selectedSectionsForExport}
-                    toggleSectionSelection={toggleSectionSelection}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div style={{ padding: '20px 24px', borderTop: '1px solid #f1f5f9', background: '#f8fafc' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b' }}>FORMAT:</span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {(['html', 'xml', 'text'] as const).map(fmt => (
-                    <button
-                      key={fmt}
-                      onClick={() => setExportFormat(fmt)}
-                      style={{
-                        padding: '6px 16px',
-                        borderRadius: '8px',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        textTransform: 'uppercase',
-                        backgroundColor: exportFormat === fmt ? '#3b82f6' : 'white',
-                        color: exportFormat === fmt ? 'white' : '#64748b',
-                        border: '1px solid',
-                        borderColor: exportFormat === fmt ? '#3b82f6' : '#e2e8f0',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      {fmt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button 
-                onClick={handleExport}
-                style={{
-                  width: '100%',
-                  backgroundColor: '#0f172a',
-                  color: 'white',
-                  border: 'none',
-                  padding: '12px',
-                  borderRadius: '12px',
-                  fontSize: '0.9rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '10px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                }}
-              >
-                <span>{"\u2913"}</span> GENERATE EXPORT FILE
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* COMPANY DETAILS MODAL */}
       {companyModalOpen && (
-        <div
-          onClick={() => setCompanyModalOpen(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.45)',
-            zIndex: 5000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '24px',
-            backdropFilter: 'blur(4px)'
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 'min(800px, 95vw)',
-              maxHeight: 'min(600px, 90vh)',
-              background: 'white',
-              borderRadius: '20px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              border: '1px solid #e2e8f0',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
+        <div onClick={() => setCompanyModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.45)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', backdropFilter: 'blur(4px)' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(800px, 95vw)', maxHeight: 'min(600px, 90vh)', background: 'white', borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: '1px solid #e2e8f0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Organization Details</h3>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Companies involved in the manufacture and distribution of this product</p>
-              </div>
-              <button onClick={() => setCompanyModalOpen(false)} style={{ background: 'white', border: '1px solid #e2e8f0', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>×</button>
+              <div><h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Organization Details</h3><p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Companies involved in manufacture/distribution</p></div>
+              <button onClick={() => setCompanyModalOpen(false)} style={{ background: 'white', border: '1px solid #e2e8f0', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer' }}>×</button>
             </div>
-
             <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
               <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
-                <thead>
-                  <tr style={{ textAlign: 'left' }}>
-                    <th style={{ padding: '0 12px', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em' }}>Role</th>
-                    <th style={{ padding: '0 12px', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em' }}>Name & Address</th>
-                    <th style={{ padding: '0 12px', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em' }}>DUNS</th>
-                    <th style={{ padding: '0 12px', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em' }}>Safety Contact</th>
-                  </tr>
-                </thead>
+                <thead><tr style={{ textAlign: 'left' }}><th style={{ padding: '0 12px', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Role</th><th style={{ padding: '0 12px', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Name & Address</th><th style={{ padding: '0 12px', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>DUNS</th><th style={{ padding: '0 12px', fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Safety Contact</th></tr></thead>
                 <tbody>
                   {data?.companies?.map((comp, idx) => (
                     <tr key={idx} style={{ background: '#f8fafc', borderRadius: '12px' }}>
-                      <td style={{ padding: '16px 12px', borderRadius: '12px 0 0 12px', verticalAlign: 'top', width: '20%' }}>
-                        <span style={{ 
-                          fontSize: '0.7rem', 
-                          fontWeight: 800, 
-                          color: '#475569', 
-                          background: '#e2e8f0', 
-                          padding: '4px 10px', 
-                          borderRadius: '20px',
-                          display: 'inline-block'
-                        }}>
-                          {comp.role.toUpperCase()}
-                        </span>
-                      </td>
-                      <td style={{ padding: '16px 12px', verticalAlign: 'top' }}>
-                        <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem', marginBottom: '4px' }}>{comp.name}</div>
-                        {comp.address && (
-                          <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.4, fontWeight: 500 }}>{comp.address}</div>
-                        )}
-                      </td>
-                      <td style={{ padding: '16px 12px', verticalAlign: 'top', width: '12%' }}>
-                        {comp.duns ? (
-                          <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>{comp.duns}</span>
-                        ) : (
-                          <span style={{ color: '#cbd5e1', fontSize: '0.75rem', fontWeight: 600 }}>N/A</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '16px 12px', borderRadius: '0 12px 12px 0', verticalAlign: 'top', width: '18%' }}>
-                        {comp.safety_phone ? (
-                          <div>
-                            <div style={{ fontSize: '0.65rem', color: '#0284c7', fontWeight: 800, marginBottom: '2px', textTransform: 'uppercase' }}>Report Adverse Effects:</div>
-                            <span style={{ fontWeight: 700, color: '#0284c7', fontSize: '0.85rem' }}>{comp.safety_phone}</span>
-                          </div>
-                        ) : (
-                          <span style={{ color: '#cbd5e1', fontSize: '0.75rem', fontWeight: 600 }}>N/A</span>
-                        )}
-                      </td>
+                      <td style={{ padding: '16px 12px', verticalAlign: 'top', width: '20%' }}><span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#475569', background: '#e2e8f0', padding: '4px 10px', borderRadius: '20px' }}>{comp.role.toUpperCase()}</span></td>
+                      <td style={{ padding: '16px 12px', verticalAlign: 'top' }}><div style={{ fontWeight: 700, color: '#0f172a' }}>{comp.name}</div>{comp.address && <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{comp.address}</div>}</td>
+                      <td style={{ padding: '16px 12px', verticalAlign: 'top', width: '12%' }}><span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem', fontWeight: 700 }}>{comp.duns || 'N/A'}</span></td>
+                      <td style={{ padding: '16px 12px', verticalAlign: 'top', width: '18%' }}>{comp.safety_phone ? <div><div style={{ fontSize: '0.65rem', color: '#0284c7', fontWeight: 800 }}>SAFETY:</div><span style={{ fontWeight: 700, color: '#0284c7' }}>{comp.safety_phone}</span></div> : 'N/A'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-
             <div style={{ padding: '20px 24px', borderTop: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end' }}>
-              <button 
-                onClick={() => setCompanyModalOpen(false)}
-                style={{
-                  padding: '10px 24px',
-                  background: '#0f172a',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '0.9rem',
-                  fontWeight: 800,
-                  cursor: 'pointer'
-                }}
-              >
-                CLOSE
-              </button>
+              <button onClick={() => setCompanyModalOpen(false)} style={{ padding: '10px 24px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800 }}>CLOSE</button>
             </div>
           </div>
         </div>
       )}
-
-
+      {exportModalOpen && (
+        <div onClick={() => setExportModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.45)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', backdropFilter: 'blur(4px)' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(600px, 95vw)', maxHeight: 'min(700px, 90vh)', background: 'white', borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: '1px solid #e2e8f0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div><h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Export Sections</h3><p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Select label sections and preferred format</p></div>
+              <button onClick={() => setExportModalOpen(false)} style={{ background: 'white', border: '1px solid #e2e8f0', width: '32px', height: '32px', borderRadius: '8px' }}>×</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8' }}>Available Sections ({selectedSectionsForExport.size})</span>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button onClick={() => {
+                    const allIds = new Set<string>();
+                    const addIdsRecursive = (items: any[]) => { items.forEach(i => { allIds.add(i.id); if (i.children) addIdsRecursive(i.children); }); };
+                    if (data.table_of_contents) addIdsRecursive(data.table_of_contents);
+                    setSelectedSectionsForExport(allIds);
+                  }} style={{ color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '0.7rem' }}>SELECT ALL</button>
+                  <button onClick={() => setSelectedSectionsForExport(new Set())} style={{ color: '#64748b', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '0.7rem' }}>CLEAR</button>
+                </div>
+              </div>
+              <div style={{ background: '#f9fafb', border: '1px solid #f1f5f9', borderRadius: '12px', padding: '16px' }}>
+                {data?.table_of_contents?.map(item => <ExportSectionItem key={item.id} item={item} selectedSectionsForExport={selectedSectionsForExport} toggleSectionSelection={toggleSectionSelection} />)}
+              </div>
+            </div>
+            <div style={{ padding: '20px 24px', borderTop: '1px solid #f1f5f9', background: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800 }}>FORMAT:</span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {(['html', 'xml', 'text'] as const).map(fmt => (
+                    <button key={fmt} onClick={() => setExportFormat(fmt)} style={{ padding: '6px 16px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: exportFormat === fmt ? '#3b82f6' : 'white', color: exportFormat === fmt ? 'white' : '#64748b', border: '1px solid #e2e8f0' }}>{fmt}</button>
+                  ))}
+                </div>
+              </div>
+              <button onClick={handleExport} style={{ width: '100%', backgroundColor: '#0f172a', color: 'white', border: 'none', padding: '12px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>GENERATE EXPORT FILE</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
