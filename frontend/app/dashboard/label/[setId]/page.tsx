@@ -856,6 +856,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           </div>
         </div>
       </div>
+    </div>
 
       {/* Floating Action Buttons */}
       {session?.is_authenticated && (

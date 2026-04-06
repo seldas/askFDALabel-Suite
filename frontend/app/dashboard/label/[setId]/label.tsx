@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, memo } from 'react';
 import { Section, LabelData, TOCItem } from './types';
 import Link from 'next/link';
 
-function SectionComponent({ section }: { section: Section }) {
+const SectionComponent = memo(function SectionComponent({ section }: { section: Section }) {
   return (
     <div 
       className={`Section ${section.is_boxed_warning ? 'black-boxed-warning' : ''}`}
@@ -26,7 +26,36 @@ function SectionComponent({ section }: { section: Section }) {
       ))}
     </div>
   );
-}
+});
+
+const HighlightsComponent = memo(function HighlightsComponent({ highlights }: { highlights: any[] }) {
+  return (
+    <div id="highlights-content">
+        <h2 style={{ 
+            fontSize: '1.25rem', 
+            color: '#000', 
+            marginBottom: '20px', 
+            fontWeight: 900, 
+            textTransform: 'uppercase', 
+            borderBottom: '2px solid #000', 
+            paddingBottom: '8px',
+            letterSpacing: '0.05em' 
+        }}>
+            Highlights of Prescribing Information
+        </h2>
+        {highlights.map((h, i) => (
+            <div key={i} className="highlight-item" style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #e2e8f0' }}>
+                {h.source_section_title !== 'Untitled Section' && (
+                    <div className="highlight-source-header" style={{ marginBottom: '6px' }}>
+                        <span className="source-title" style={{ fontWeight: 700, color: '#334155', textTransform: 'uppercase', fontSize: '0.75rem' }}>{h.source_section_title}</span>
+                    </div>
+                )}
+                <div className="highlight-body" style={{ color: '#1e293b', lineHeight: '1.5', fontSize: '0.9rem' }} dangerouslySetInnerHTML={{ __html: h.content_html }} />
+            </div>
+        ))}
+    </div>
+  );
+});
 
 export default function LabelView({ 
   data, 
@@ -182,13 +211,15 @@ export default function LabelView({
   // Re-apply MedDRA highlights after render
   useEffect(() => {
     if (activeTab === 'label-view') {
-        setTimeout(() => {
+        // Use a slight delay to ensure React has finished DOM updates
+        const timer = setTimeout(() => {
             if ((window as any).reapplyMeddraHighlights) {
                 (window as any).reapplyMeddraHighlights();
             }
-        }, 500); 
+        }, 100); 
+        return () => clearTimeout(timer);
     }
-  }, [activeTab, sections]);
+  }, [activeTab, sections, currentIndex]);
 
   return (
     <div id="label-view" className={`tab-content ${activeTab === 'label-view' ? 'active' : ''}`} style={{ 
@@ -326,30 +357,7 @@ export default function LabelView({
                                 }}
                             >
                                 {section.is_highlights ? (
-                                    <div id="highlights-content">
-                                        <h2 style={{ 
-                                            fontSize: '1.25rem', 
-                                            color: '#000', 
-                                            marginBottom: '20px', 
-                                            fontWeight: 900, 
-                                            textTransform: 'uppercase', 
-                                            borderBottom: '2px solid #000', 
-                                            paddingBottom: '8px',
-                                            letterSpacing: '0.05em' 
-                                        }}>
-                                            Highlights of Prescribing Information
-                                        </h2>
-                                        {data.highlights.map((h, i) => (
-                                            <div key={i} className="highlight-item" style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #e2e8f0' }}>
-                                                {h.source_section_title !== 'Untitled Section' && (
-                                                    <div className="highlight-source-header" style={{ marginBottom: '6px' }}>
-                                                        <span className="source-title" style={{ fontWeight: 700, color: '#334155', textTransform: 'uppercase', fontSize: '0.75rem' }}>{h.source_section_title}</span>
-                                                    </div>
-                                                )}
-                                                <div className="highlight-body" style={{ color: '#1e293b', lineHeight: '1.5', fontSize: '0.9rem' }} dangerouslySetInnerHTML={{ __html: h.content_html }} />
-                                            </div>
-                                        ))}
-                                    </div>
+                                    <HighlightsComponent highlights={data.highlights} />
                                 ) : (
                                     <SectionComponent section={section} />
                                 )}
