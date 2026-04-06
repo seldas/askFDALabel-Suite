@@ -3,10 +3,14 @@ window.initFaers = function() {
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
     const faersLimitSelect = document.getElementById('faers-limit-select');
-    let faersDataLoaded = false;
-    let chartInstances = {}; // Track chart instances to destroy them on update
+    // Track chart instances to destroy them on update
+    let chartInstances = {}; 
     let currentFaersData = null; // Store fetched reactions for pagination
-    let meddraScanData = null; // Store initial scan data for re-highlighting
+    
+    // Globally shared flags/data to survive React re-inits
+    window.faersDataLoaded = window.faersDataLoaded || false;
+    window.meddraScanData = window.meddraScanData || null; 
+    
     let currentCoveragePage = 1;
     const itemsPerPage = 10;
 
@@ -18,8 +22,8 @@ window.initFaers = function() {
 
         // ONLY Re-apply MedDRA Scan (Base terms found in local DB)
         // We no longer overlay FAERS signals on the label text per updated requirements
-        if (meddraScanData) {
-            highlightSafetyTerms(labelContainer, meddraScanData);
+        if (window.meddraScanData) {
+            highlightSafetyTerms(labelContainer, window.meddraScanData);
         }
     };
 
@@ -106,7 +110,7 @@ window.initFaers = function() {
                 }
 
                 // Load Data if FAERS tab is selected
-                if (targetId === 'faers-view' && !faersDataLoaded) {
+                if (targetId === 'faers-view' && !window.faersDataLoaded) {
                     loadFaersData();
                 }
             });
@@ -175,7 +179,7 @@ window.initFaers = function() {
     window.loadFaersData = loadFaersData;
 
     async function loadFaersData() {
-        if (faersDataLoaded) return;
+        if (window.faersDataLoaded) return;
         if (typeof currentDrugName === 'undefined') return;
 
         // --- Improved Literal Generic Search Strategy ---
@@ -214,7 +218,7 @@ window.initFaers = function() {
             if (contentEl) contentEl.style.display = 'grid';
             
             currentFaersData = data;
-            faersDataLoaded = true;
+            window.faersDataLoaded = true;
             
             filterAndRenderCharts();
             // tagSafetySignals(data); // Removed tagging signals on label view per requirements
@@ -1439,11 +1443,24 @@ window.initFaers = function() {
     setTimeout(syncCachedAiResultsToDb, 1000); 
 
     // --- Load All MedDRA Terms (Initial Scan) ---
-    if (typeof currentSetId !== 'undefined') {
+    // Only auto-trigger if we don't have cached data yet
+    if (typeof currentSetId !== 'undefined' && !window.meddraScanData) {
         loadMeddraScan(currentSetId);
     }
 
+    window.loadMeddraScan = loadMeddraScan;
+
     async function loadMeddraScan(setId) {
+        // --- Caching Logic ---
+        if (window.meddraScanData) {
+            console.log("Using cached MedDRA scan data.");
+            const labelContainer = document.getElementById('label-view');
+            if (labelContainer) {
+                highlightSafetyTerms(labelContainer, window.meddraScanData);
+            }
+            return window.meddraScanData;
+        }
+
         try {
             const response = await fetch(`/api/dashboard/meddra/scan_label/${setId}`);
             if (!response.ok) return;
@@ -1453,11 +1470,10 @@ window.initFaers = function() {
                 // Create a map where count is null/0 to indicate base highlighting
                 const termsMap = {};
                 data.found_terms.forEach(item => {
-                    // Item is now {term: "...", soc: "...", soc_abbrev: "...", ...}
                     const term = item.term;
                     if (term && term.length > 2) {
                         termsMap[term.toLowerCase()] = {
-                            count: 0, // 0 indicates "base MedDRA term"
+                            count: 0, 
                             term: term,
                             soc: item.soc || 'Unknown',
                             soc_abbrev: item.soc_abbrev || ''
@@ -1465,12 +1481,13 @@ window.initFaers = function() {
                     }
                 });
                 
-                meddraScanData = termsMap; // Store globally
+                window.meddraScanData = termsMap; 
 
                 const labelContainer = document.getElementById('label-view');
                 if (labelContainer) {
                     highlightSafetyTerms(labelContainer, termsMap);
                 }
+                return termsMap;
             }
         } catch (e) {
             console.error("Error scanning MedDRA terms:", e);

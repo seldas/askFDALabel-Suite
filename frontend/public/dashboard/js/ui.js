@@ -202,6 +202,11 @@ window.initUI = function() {
             }
         });
         console.log(`Table Extractor: Added ${addedCount} extract buttons`);
+        
+        // Re-apply MedDRA highlights if DOM was changed
+        if (addedCount > 0 && window.reapplyMeddraHighlights) {
+            window.reapplyMeddraHighlights();
+        }
     }
     window.initTableExtractor = initTableExtractor;
 

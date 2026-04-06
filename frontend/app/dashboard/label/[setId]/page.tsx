@@ -151,164 +151,29 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
   const [exportFormat, setExportFormat] = useState<'html' | 'xml' | 'text'>('html');
   const [techDetailsOpen, setTechDetailsOpen] = useState(false);
 
-  const toggleSectionSelection = (id: string, includeChildren: boolean = true) => {
-    setSelectedSectionsForExport((prev) => {
-      const next = new Set(prev);
-      const isCurrentlySelected = next.has(id);
-
-      const findAndToggleRecursive = (items: any[], targetId: string, forceState: boolean) => {
-        for (const item of items) {
-          if (item.id === targetId) {
-             if (forceState) next.add(item.id); else next.delete(item.id);
-             if (includeChildren && item.children) {
-                const toggleChildren = (childs: any[]) => {
-                  childs.forEach(c => {
-                    if (forceState) next.add(c.id); else next.delete(c.id);
-                    if (c.children) toggleChildren(c.children);
-                  });
-                };
-                toggleChildren(item.children);
-             }
-             return true;
-          }
-          if (item.children && findAndToggleRecursive(item.children, targetId, forceState)) return true;
-        }
-        return false;
-      };
-
-      const sectionsTree = [
-        ...(data?.table_of_contents || [])
-      ];
-
-      findAndToggleRecursive(sectionsTree, id, !isCurrentlySelected);
-      return next;
-    });
-  };
-
-  const handleExport = async () => {
-    if (selectedSectionsForExport.size === 0) {
-      alert("Please select at least one section for export.");
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/dashboard/export_sections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          set_id: data?.set_id,
-          section_ids: Array.from(selectedSectionsForExport),
-          format: exportFormat
-        })
-      });
-
-      if (!response.ok) {
-        const errJson = await response.json();
-        throw new Error(errJson.error || "Failed to generate export file.");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const cleanTitle = (data?.brand_name || data?.drug_name || 'label').replace(/[^a-z0-9]/gi, '_');
-      a.download = `${cleanTitle}_sections.${exportFormat === 'text' ? 'txt' : exportFormat}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      setExportModalOpen(false);
-    } catch (err: any) {
-      alert(`Export Error: ${err.message}`);
-    }
-  };
-
-  const toggleSection = (id: string) => {
-    setExpandedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
+  // Reset global legacy caches when setId changes to prevent stale data
   useEffect(() => {
-    if (!exportModalOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExportModalOpen(false);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [exportModalOpen]);
-
-  const [ndcModalOpen, setNdcModalOpen] = useState(false);
-  const [companyModalOpen, setCompanyModalOpen] = useState(false);
-
-  const ndcRaw = (data?.ndc || '').trim();
-  const ndcTooLong = ndcRaw.length > 40;
-
-  const ndcList = (() => {
-    if (!ndcRaw) return [];
-    // split by common delimiters: comma, semicolon, newline
-    return ndcRaw
-      .split(/[\n,;]+/g)
-      .map((s) => s.trim())
-      .filter(Boolean);
-  })();
-
-  const closeNdcModal = () => setNdcModalOpen(false);
-
-  const tabs = [
-    { id: 'label-view', label: 'Label' },
-    { id: 'deep-dive-view', label: 'Deep Dive' },
-    { id: 'faers-view', label: 'FAERS' },
-    { id: 'tox-view', label: 'Agents' },
-  ];
-
-  useEffect(() => {
-    const handleClickOutside = () => setActiveDropdown(null);
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const response = await fetch(`/api/dashboard/label/${setId}?json=1`, {
-          headers: { 'Accept': 'application/json' }
-        });
-        if (!response.ok) throw new Error('Failed to fetch label data');
-        const json = await response.json();
-        setData(json);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
+    const win = window as any;
+    win.meddraScanData = null;
+    win.faersDataLoaded = false;
+    win.trendCache = {};
+    win.selectedTerms = new Set();
+    console.log("Global legacy caches reset for setId:", setId);
   }, [setId]);
 
-  useEffect(() => {
-    if (!ndcModalOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeNdcModal();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [ndcModalOpen]);
-
+  // Robust initialization: wait for scripts to be ready
   useEffect(() => {
     if (!loading && data) {
-      // Robust initialization: wait for scripts to be ready
       let attempts = 0;
       const interval = setInterval(() => {
         const win = window as any;
         attempts++;
         
-        if (win.initUI && win.initFaers && win.initToxAgents && win.initChat && win.initAnnotations && win.initFavorites) {
+        const scriptsReady = win.initUI && win.initFaers && win.initToxAgents && 
+                           win.initChat && win.initAnnotations && win.initFavorites;
+
+        if (scriptsReady) {
+          console.log("Initializing legacy scripts...");
           win.initUI();
           win.initFaers();
           win.initToxAgents();
@@ -316,7 +181,16 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
           win.initAnnotations();
           win.initFavorites();
           clearInterval(interval);
-        } else if (attempts > 50) { // Stop after 5 seconds
+
+          // Trigger MedDRA Scan with a slight delay AFTER UI init
+          setTimeout(() => {
+            if (win.loadMeddraScan) {
+              console.log("Triggering MedDRA Scan for setId:", setId);
+              win.loadMeddraScan(setId);
+            }
+          }, 200);
+
+        } else if (attempts > 50) {
           console.warn("Legacy scripts failed to load in time.");
           clearInterval(interval);
         }
@@ -324,7 +198,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       
       return () => clearInterval(interval);
     }
-  }, [loading, data]);
+  }, [loading, data, setId]);
 
   useEffect(() => {
     if (activeTab === 'faers-view') {
