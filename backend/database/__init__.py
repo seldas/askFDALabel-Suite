@@ -5,5 +5,6 @@ from .models import (
     MeddraSOC, MeddraHLGT, MeddraHLT, MeddraPT, MeddraLLT, MeddraMDHIER, MeddraSMQList, MeddraSMQContent,
     PgxBiomarker, PgxSynonym, PgxAssessment,
     ProjectAeReport, ProjectAeReportDetail,
-    AeAiAssessment, OrangeBook, SystemTask, LabelEmbedding
+    AeAiAssessment, OrangeBook, SystemTask, LabelEmbedding,
+    DrugLabel, LabelSection, ActiveIngredientMap
 )

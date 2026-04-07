@@ -36,7 +36,8 @@ def import_drugtox():
     with app.app_context():
         task_id = args.task_id
         try:
-            print("=== DrugTox Data Importer (Task-Enabled) ===")
+            print(f"=== DrugTox Data Importer (Task-Enabled) ===")
+            print(f"  [i] Started at: {datetime.utcnow()}")
             update_progress(task_id, 5, "Initializing DrugTox import...")
             
             table_name = DrugToxicity.__tablename__
@@ -47,10 +48,12 @@ def import_drugtox():
                 db.session.commit()
                 db.create_all()
 
-            root_dir = backend_dir.parent
-            excel_path = root_dir / 'data' / 'downloads' / 'ALT_update_latest.xlsx'
+            data_dir = Path(app.config['DATA_DIR'])
+            excel_path = data_dir / 'downloads' / 'ALT_update_latest.xlsx'
+            print(f"  [i] Looking for data in: {excel_path}")
             
             if not excel_path.exists():
+                print(f"  [!] ERROR: Path does not exist!")
                 raise FileNotFoundError(f"Excel file not found at {excel_path}")
 
             print(f"  [+] Reading {excel_path}...")

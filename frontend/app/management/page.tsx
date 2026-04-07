@@ -20,6 +20,8 @@ export default function ManagementPage() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [activeTasks, setActiveTasks] = useState<Record<number, any>>({});
   const [dbStatus, setDbStatus] = useState<Record<string, any>>({});
+  const [selectedLogs, setSelectedLogs] = useState<string | null>(null);
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   
   // New user form
   const [newUsername, setNewUsername] = useState('');
@@ -172,8 +174,8 @@ export default function ManagementPage() {
       const data = await res.json();
       if (data.success) {
         const taskId = data.task_id;
-        setActiveTasks(prev => ({ ...prev, [taskId]: { status: 'processing', progress: 0 } }));
-        setDbStatus(prev => ({ ...prev, [type]: { status: 'processing', progress: 0 } }));
+        setActiveTasks(prev => ({ ...prev, [taskId]: { id: taskId, type, status: 'processing', progress: 0 } }));
+        setDbStatus(prev => ({ ...prev, [type]: { id: taskId, type, status: 'processing', progress: 0 } }));
       } else {
         alert(data.error || 'Failed to trigger update');
       }
@@ -182,19 +184,47 @@ export default function ManagementPage() {
     }
   };
 
-  if (sessionLoading || !session?.is_admin) {
-    return <div style={{ padding: '2rem', textAlign: 'center' }}>Verifying admin access...</div>;
-  }
-
-  const ProgressBar = ({ progress, status, message }: { progress: number, status: string, message?: string }) => {
+  const ProgressBar = ({ progress, status, message, taskId }: { progress: number, status: string, message?: string, taskId?: number }) => {
     const isError = status === 'failed';
     const isComplete = status === 'completed';
     
+    const fetchLogs = async () => {
+      if (!taskId) return;
+      try {
+        const res = await fetch(`/api/dashboard/admin/tasks/${taskId}/logs`);
+        const data = await res.json();
+        if (data.success) {
+          setSelectedLogs(data.logs);
+          setIsLogModalOpen(true);
+        } else {
+          alert(data.error || 'Failed to fetch logs');
+        }
+      } catch (err) {
+        alert('Error fetching logs');
+      }
+    };
+
     return (
       <div style={{ marginTop: '10px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: '4px' }}>
-          <span style={{ fontWeight: 700, color: isError ? '#ef4444' : (isComplete ? '#22c55e' : '#6366f1') }}>
+          <span style={{ fontWeight: 700, color: isError ? '#ef4444' : (isComplete ? '#22c55e' : '#6366f1'), display: 'flex', alignItems: 'center', gap: '8px' }}>
             {status.toUpperCase()}: {message || ''}
+            {taskId && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); fetchLogs(); }}
+                style={{ 
+                  background: '#f1f5f9', 
+                  border: '1px solid #e2e8f0', 
+                  borderRadius: '4px', 
+                  padding: '1px 6px', 
+                  fontSize: '0.6rem', 
+                  cursor: 'pointer',
+                  fontWeight: 800
+                }}
+              >
+                VIEW LOGS
+              </button>
+            )}
           </span>
           <span style={{ fontWeight: 800 }}>{progress}%</span>
         </div>
@@ -212,9 +242,71 @@ export default function ManagementPage() {
     );
   };
 
+  const LogModal = () => {
+    if (!isLogModalOpen) return null;
+    return (
+      <div 
+        style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '40px'
+        }}
+        onClick={() => setIsLogModalOpen(false)}
+      >
+        <div 
+          style={{
+            width: '100%',
+            maxWidth: '900px',
+            maxHeight: '80vh',
+            background: '#1e293b',
+            borderRadius: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div style={{ padding: '1.25rem', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, color: '#f8fafc', fontWeight: 800 }}>Task Execution Logs</h3>
+            <button 
+              onClick={() => setIsLogModalOpen(false)}
+              style={{ background: '#334155', border: 'none', borderRadius: '4px', color: '#94a3b8', padding: '4px 12px', cursor: 'pointer', fontWeight: 700 }}
+            >
+              CLOSE
+            </button>
+          </div>
+          <div style={{ 
+            flex: 1, 
+            padding: '1.5rem', 
+            overflowY: 'auto', 
+            fontFamily: 'monospace', 
+            fontSize: '0.85rem', 
+            lineHeight: 1.6, 
+            color: '#cbd5e1',
+            whiteSpace: 'pre-wrap',
+            background: '#0f172a'
+          }}>
+            {selectedLogs || 'No logs available for this task.'}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (sessionLoading || !session?.is_admin) {
+    return <div style={{ padding: '2rem', textAlign: 'center' }}>Verifying admin access...</div>;
+  }
+
   return (
     <div className="management-container">
       <Header />
+      <LogModal />
       
       <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
         <h1 style={{ fontWeight: 900, fontSize: '2.5rem', marginBottom: '2rem', color: '#0f172a' }}>
@@ -349,6 +441,7 @@ export default function ManagementPage() {
                       progress={dbStatus[item.id].progress} 
                       status={dbStatus[item.id].status}
                       message={dbStatus[item.id].message}
+                      taskId={dbStatus[item.id].id}
                     />
                   )}
                 </div>

@@ -369,6 +369,51 @@ class LabelEmbedding(db.Model):
     embedding = db.Column(Vector(768)) # Default for many models, can adjust
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+# --- Drug Labeling Models (in 'labeling' schema) ---
+
+class DrugLabel(db.Model):
+    __tablename__ = 'sum_spl'
+    __table_args__ = {'schema': 'labeling'}
+    
+    spl_id = db.Column(db.String(100), primary_key=True)
+    set_id = db.Column(db.String(100), index=True)
+    product_names = db.Column(db.Text)
+    generic_names = db.Column(db.Text)
+    manufacturer = db.Column(db.Text)
+    appr_num = db.Column(db.Text)
+    active_ingredients = db.Column(db.Text)
+    market_categories = db.Column(db.Text)
+    doc_type = db.Column(db.Text)
+    routes = db.Column(db.Text)
+    dosage_forms = db.Column(db.Text)
+    epc = db.Column(db.Text)
+    ndc_codes = db.Column(db.Text)
+    revised_date = db.Column(db.String(20))
+    initial_approval_year = db.Column(db.Integer)
+    is_rld = db.Column(db.Integer, default=0)
+    is_rs = db.Column(db.Integer, default=0)
+    local_path = db.Column(db.Text)
+
+class LabelSection(db.Model):
+    __tablename__ = 'spl_sections'
+    __table_args__ = {'schema': 'labeling'}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    spl_id = db.Column(db.String(100), db.ForeignKey('labeling.sum_spl.spl_id', ondelete='CASCADE'), index=True)
+    loinc_code = db.Column(db.String(50))
+    title = db.Column(db.Text)
+    content_xml = db.Column(db.Text)
+    # search_vector is handled by DB triggers/stored column
+
+class ActiveIngredientMap(db.Model):
+    __tablename__ = 'active_ingredients_map'
+    __table_args__ = {'schema': 'labeling'}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    spl_id = db.Column(db.String(100), db.ForeignKey('labeling.sum_spl.spl_id', ondelete='CASCADE'), index=True)
+    substance_name = db.Column(db.Text)
+    is_active = db.Column(db.Integer)
+
 class OrangeBook(db.Model):
     __tablename__ = 'orange_book'
     id = db.Column(db.Integer, primary_key=True)

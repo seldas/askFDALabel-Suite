@@ -103,7 +103,8 @@ def run_import():
     with app.app_context():
         task_id = args.task_id
         try:
-            print("=== MedDRA Data Importer (Task-Enabled) ===")
+            print(f"=== MedDRA Data Importer (Task-Enabled) ===")
+            print(f"  [i] Started at: {datetime.utcnow()}")
             update_progress(task_id, 5, "Starting MedDRA import...")
             
             if args.force:
@@ -117,10 +118,11 @@ def run_import():
                 db.session.commit()
                 db.create_all()
 
-            root_dir = backend_dir.parent
-            data_dir = root_dir / 'data' / 'downloads' / 'MedDRA_28_0_ENglish' / 'MedAscii'
+            data_dir = Path(app.config['DATA_DIR']) / 'downloads' / 'MedDRA_28_0_ENglish' / 'MedAscii'
+            print(f"  [i] Looking for data in: {data_dir}")
             
             if not data_dir.exists():
+                print(f"  [!] ERROR: Path does not exist!")
                 raise FileNotFoundError(f"MedDRA directory not found at {data_dir}")
 
             # Import steps (distributed progress 10% to 95%)

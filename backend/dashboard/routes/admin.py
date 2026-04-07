@@ -93,10 +93,10 @@ def trigger_db_update():
     db_type = data.get('type') # 'labeling', 'orangebook', 'drugtox', 'meddra'
     
     scripts = {
-        'labeling': 'backend/admin/tasks/import_labels.py',
-        'orangebook': 'backend/admin/tasks/import_orangebook.py',
-        'drugtox': 'backend/admin/tasks/import_drugtox.py',
-        'meddra': 'backend/admin/tasks/import_meddra.py'
+        'labeling': 'admin/tasks/import_labels.py',
+        'orangebook': 'admin/tasks/import_orangebook.py',
+        'drugtox': 'admin/tasks/import_drugtox.py',
+        'meddra': 'admin/tasks/import_meddra.py'
     }
 
     if db_type not in scripts:
@@ -117,26 +117,55 @@ def trigger_db_update():
     if not os.path.exists(venv_python):
         venv_python = sys.executable
 
+    # Ensure log directory exists
+    from flask import current_app
+    log_dir = os.path.join(current_app.config['DATA_DIR'], 'logs', 'tasks')
+    os.makedirs(log_dir, exist_ok=True)
+    log_file_path = os.path.join(log_dir, f'task_{new_task.id}.log')
+
     try:
         # Pass --task-id to the script
         cmd = [venv_python, script_path, '--force', '--task-id', str(new_task.id)]
         
+        # Redirect stdout and stderr to a log file
+        log_file = open(log_file_path, 'w')
         process = subprocess.Popen(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            text=True,
+            close_fds=True # Ensure file stays open for child but closed in parent after fork
         )
         
         return jsonify({
             'success': True, 
             'task_id': new_task.id,
-            'message': f'Started update for {db_type}.'
+            'message': f'Started update for {db_type}. Log: {log_file_path}'
         })
     except Exception as e:
         new_task.status = 'failed'
         new_task.error_details = str(e)
         db.session.commit()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_bp.route('/tasks/<int:task_id>/logs', methods=['GET'])
+@login_required
+@admin_required
+def get_task_logs(task_id):
+    from flask import current_app
+    log_file_path = os.path.join(current_app.config['DATA_DIR'], 'logs', 'tasks', f'task_{task_id}.log')
+    
+    if not os.path.exists(log_file_path):
+        return jsonify({'success': False, 'error': 'Log file not found'}), 404
+        
+    try:
+        with open(log_file_path, 'r') as f:
+            logs = f.read()
+        return jsonify({
+            'success': True,
+            'logs': logs
+        })
+    except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @admin_bp.route('/tasks/<int:task_id>', methods=['GET'])
