@@ -87,7 +87,7 @@ Populate the PGx biomarker database:
 
 ### 4.4. MedDRA Dictionary
 Populate MedDRA tables for FAERS analysis (requires MedAscii files):
-*   **Source Path:** `data/downloads/MedDRA/MedDRA_28_0_ENglish/MedAscii/`
+*   **Source Path:** `data/downloads/MedDRA/MedDRA_latest/MedAscii/`
 *   **Command:**
     ```bash
     python scripts/migration/01_import_meddra.py

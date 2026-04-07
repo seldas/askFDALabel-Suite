@@ -113,7 +113,7 @@ def run_import():
             print(f"  [+] Tables recreated.")
 
         root_dir = Path(__file__).resolve().parent.parent.parent
-        data_dir = root_dir / 'data' / 'downloads' / 'MedDRA' / 'MedDRA_28_0_ENglish' / 'MedAscii'
+        data_dir = root_dir / 'data' / 'downloads' / 'MedDRA' / 'MedDRA_latest' / 'MedAscii'
         
         if not data_dir.exists():
             print(f"Critical Error: MedDRA data directory not found at {data_dir}")
