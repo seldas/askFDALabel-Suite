@@ -1,6 +1,7 @@
 'use client';
 
 import { LabelData } from './types';
+import './analysis.css';
 
 export default function AgentView({ 
   data,
