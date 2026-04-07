@@ -23,21 +23,14 @@ import {
   InputAdornment,
   Button,
   TablePagination,
-  ToggleButton,
-  ToggleButtonGroup,
   useTheme,
   Autocomplete,
   Stack,
   Avatar,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   FormControlLabel,
   Switch,
   Card,
   CardContent,
-  Tabs,
-  Tab,
   GlobalStyles,
   Dialog,
   DialogTitle,
@@ -46,6 +39,8 @@ import {
   Select,
   MenuItem,
   FormControl,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import Grid from '@mui/material/GridLegacy'; 
@@ -151,7 +146,6 @@ const DRUGTOX_API_PREFIX = `${BACKEND_API_PREFIX}/drugtox`;
 export default function DrugToxPage() {
   const theme = useTheme();
   const { session, updateAiProvider, loading: userLoading } = useUser();
-  const [activeTab, setActiveTab] = useState(0);
   const [activeDropdown, setActiveDropdown] = useState<'user' | 'nav' | 'more' | null>(null);
   const [isInternal, setIsInternal] = useState(false);
 
@@ -235,6 +229,7 @@ export default function DrugToxPage() {
   // Discrepancy State
   const [discrepancies, setDiscrepancies] = useState<DiscrepancyItem[]>([]);
   const [discrepancyLoading, setDiscrepancyLoading] = useState(false);
+  const [hasAnalyzedDiscrepancies, setHasAnalyzedDiscrepancies] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<string | null>('HIGH');
 
   const filteredMarket = useMemo(() => {
@@ -273,19 +268,22 @@ export default function DrugToxPage() {
 
   const fetchDiscrepancies = useCallback((currentTox: string | null) => {
     setDiscrepancyLoading(true);
+    setHasAnalyzedDiscrepancies(true);
     axios
       .get(`${DRUGTOX_API_PREFIX}/discrepancies`, { params: { tox_type: currentTox } })
       .then((res) => {
         setDiscrepancies(res.data);
         setDiscrepancyLoading(false);
       })
-      .catch((err) => console.error(err));
+      .catch((err) => {
+        console.error(err);
+        setDiscrepancyLoading(false);
+      });
   }, []);
 
   useEffect(() => {
     fetchStats(toxType);
-    if (activeTab === 2) fetchDiscrepancies(toxType);
-  }, [toxType, activeTab, fetchStats, fetchDiscrepancies]);
+  }, [toxType, fetchStats]);
 
   const filteredDiscrepancies = useMemo(() => {
     let result = discrepancies;
@@ -354,18 +352,7 @@ export default function DrugToxPage() {
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setPage(0);
-    setActiveTab(1);
     fetchDrugs(query, toxType, showHistorical, changedOnly, 0, rowsPerPage);
-  };
-
-  const handleToxTypeChange = (_event: React.MouseEvent<HTMLElement>, newToxType: string | null) => {
-    if (newToxType !== null) {
-      setToxType(newToxType);
-      setPage(0);
-      if (activeTab === 1) {
-        fetchDrugs(query, newToxType, showHistorical, changedOnly, 0, rowsPerPage);
-      }
-    }
   };
 
   const handleHistoricalToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -379,7 +366,6 @@ export default function DrugToxPage() {
     const newValue = event.target.checked;
     setChangedOnly(newValue);
     setPage(0);
-    setActiveTab(1);
     fetchDrugs(query, toxType, showHistorical, newValue, 0, rowsPerPage);
   };
 
@@ -578,15 +564,38 @@ export default function DrugToxPage() {
       <Header />
 
       <Container maxWidth="lg" sx={{ py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <Box sx={{ textAlign: 'center', mb: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+        <Box sx={{ textAlign: 'center', mb: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
           <Typography variant="h2" className="hero-title-animated" sx={{ fontWeight: 900, mb: 1, letterSpacing: '-1.5px' }}>
             askDrugTox
           </Typography>
-          <Typography variant="h6" className="hero-subtitle-animated" color="text.secondary" sx={{ fontWeight: 400, opacity: 0.8, mb: 6 }}>
+          <Typography variant="h6" className="hero-subtitle-animated" color="text.secondary" sx={{ fontWeight: 400, opacity: 0.8, mb: 4 }}>
             Advanced Pharmacology Intelligence Dashboard
           </Typography>
 
-          <Paper sx={{ display: 'flex', alignItems: 'center', width: '100%', maxWidth: 800, p: 1, border: '1px solid #e0e0e0', mb: 4 }}>
+          <Paper sx={{ display: 'flex', alignItems: 'center', width: '100%', maxWidth: 900, p: 1, border: '1px solid #e2e8f0', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+            <FormControl size="small" sx={{ minWidth: 120, borderRight: '1px solid #e2e8f0', '& .MuiOutlinedInput-notchedOutline': { border: 'none' } }}>
+              <Select
+                value={toxType}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setToxType(val);
+                  if (hasSearched) {
+                    setPage(0);
+                    fetchDrugs(query, val, showHistorical, changedOnly, 0, rowsPerPage);
+                  }
+                }}
+                sx={{ 
+                  fontWeight: 800, 
+                  color: 'primary.main',
+                  '& .MuiSelect-select': { pl: 2 }
+                }}
+              >
+                <MenuItem value="DILI" sx={{ fontWeight: 700 }}>LIVER</MenuItem>
+                <MenuItem value="DICT" sx={{ fontWeight: 700 }}>HEART</MenuItem>
+                <MenuItem value="DIRI" sx={{ fontWeight: 700 }}>KIDNEY</MenuItem>
+              </Select>
+            </FormControl>
+
             <Autocomplete
               fullWidth
               options={options}
@@ -598,31 +607,22 @@ export default function DrugToxPage() {
                 setQuery(val);
                 if (val) {
                   setPage(0);
-                  setActiveTab(1);
                   fetchDrugs(val, toxType, showHistorical, changedOnly, 0, rowsPerPage);
                 }
               }}
               clearIcon={<CloseIcon sx={{ fontSize: 20 }} />}
               sx={{ 
+                flex: 1,
                 '& .MuiAutocomplete-clearIndicator': {
                   color: '#64748b',
-                  transition: 'all 0.2s ease',
                   backgroundColor: 'transparent !important',
-                  '&:hover': { 
-                    color: '#1e293b',
-                    transform: 'rotate(90deg)'
-                  }
-                },
-                // Ensure the clear button doesn't push the Analyze button
-                '& .MuiAutocomplete-endAdornment': {
-                  right: '15px !important'
                 }
               }}
               renderInput={(params) => (
                 <TextField
                   {...params}
                   variant="standard"
-                  placeholder="Search drug database..."
+                  placeholder="Analyze agent toxicity profile..."
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       setQuery(inputValue);
@@ -634,7 +634,7 @@ export default function DrugToxPage() {
                     disableUnderline: true,
                     startAdornment: (
                       <InputAdornment position="start" sx={{ ml: 2 }}>
-                        <SearchIcon color="primary" />
+                        <SearchIcon color="action" />
                       </InputAdornment>
                     ),
                   }}
@@ -642,287 +642,305 @@ export default function DrugToxPage() {
                 />
               )}
             />
+            
             <Button 
               variant="contained" 
               onClick={() => handleSearchSubmit()} 
+              startIcon={<ScienceIcon />}
               sx={{ 
-                borderRadius: '10px', 
-                px: 5, 
-                py: 1.5, 
-                fontWeight: 700, 
+                borderRadius: '12px', 
+                px: 4, 
+                py: 1.2, 
+                fontWeight: 800, 
                 boxShadow: 'none',
-                ml: 1 // Add specific margin to separate from the input area
+                textTransform: 'none',
+                fontSize: '0.95rem'
               }}
             >
-              Analyze
+              Search
             </Button>
           </Paper>
-
-          <Stack direction="column" alignItems="center" spacing={3}>
-            <ToggleButtonGroup
-              value={toxType}
-              exclusive
-              onChange={handleToxTypeChange}
-              color="primary"
-              sx={{ backgroundColor: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
-            >
-              <ToggleButton value="DILI" sx={{ px: 6, fontWeight: 700 }}>
-                LIVER
-              </ToggleButton>
-              <ToggleButton value="DICT" sx={{ px: 6, fontWeight: 700 }}>
-                HEART
-              </ToggleButton>
-              <ToggleButton value="DIRI" sx={{ px: 6, fontWeight: 700 }}>
-                KIDNEY
-              </ToggleButton>
-            </ToggleButtonGroup>
-
-            <Stack direction="row" spacing={6} sx={{ mt: 1 }}>
-              <FormControlLabel
-                control={<Switch checked={showHistorical} onChange={handleHistoricalToggle} color="primary" />}
-                label={<Typography variant="button" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem' }}>Archives</Typography>}
-              />
-              <FormControlLabel
-                control={<Switch checked={changedOnly} onChange={handleChangedOnlyToggle} color="warning" />}
-                label={<Typography variant="button" sx={{ fontWeight: 700, color: '#ed6c02', fontSize: '0.75rem' }}>Latest Changes</Typography>}
-              />
-            </Stack>
-          </Stack>
         </Box>
 
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 5, width: '100%' }}>
-          <Tabs value={activeTab} onChange={(_e, v) => setActiveTab(v)} sx={{ '& .MuiTab-root': { fontWeight: 800, fontSize: '0.9rem', minWidth: 160 } }}>
-            <Tab icon={<DashboardIcon />} iconPosition="start" label="ANALYTICS" />
-            <Tab icon={<ListIcon />} iconPosition="start" label="EXPLORER" />
-            <Tab icon={<GavelIcon />} iconPosition="start" label="DISCREPANCIES" />
-          </Tabs>
-        </Box>
-
-        <Box sx={{ width: '100%' }}>
-          {activeTab === 0 ? (
-            <Box>
-              <Grid container spacing={4}>
-                {/* MUI v7 Grid: remove `item` */}
-                <Grid xs={12} md={4}>
-                  <Card sx={{ textAlign: 'center', borderTop: '5px solid #1a237e' }}>
-                    <CardContent sx={{ py: 4 }}>
-                      <Typography variant="overline" sx={{ fontWeight: 800 }}>
-                        Total Labels
+        {/* Global Statistics Panel - Now on top */}
+        <Box sx={{ width: '100%', mb: 6 }}>
+          <Grid container spacing={3}>
+            <Grid xs={12} md={8}>
+              <Card sx={{ borderLeft: `6px solid ${theme.palette.primary.main}`, height: '100%' }}>
+                <CardContent sx={{ py: 3, px: 4 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Box>
+                      <Typography variant="overline" sx={{ fontWeight: 800, color: 'text.secondary' }}>
+                        {toxType} Database Scope
                       </Typography>
-                      <Typography variant="h2" sx={{ fontWeight: 900, color: '#1a237e' }}>
+                      <Typography variant="h3" sx={{ fontWeight: 900, color: 'primary.main', mb: 1 }}>
                         {stats?.distribution.reduce((a, c) => a + c.count, 0).toLocaleString()}
                       </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-
-                <Grid xs={12} md={4}>
-                  <Card sx={{ textAlign: 'center', borderTop: '5px solid #ed6c02' }}>
-                    <CardContent sx={{ py: 4 }}>
-                      <Typography variant="overline" sx={{ fontWeight: 800 }}>
-                        Recent Updates
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                        Total identified structured drug labels
                       </Typography>
-                      <Typography variant="h2" sx={{ fontWeight: 900, color: '#ed6c02' }}>
-                        {stats?.total_changes}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-
-                <Grid xs={12} md={4}>
-                  <Card sx={{ textAlign: 'center', borderTop: '5px solid #2e7d32' }}>
-                    <CardContent sx={{ py: 4 }}>
-                      <Typography variant="overline" sx={{ fontWeight: 800 }}>
-                        No Toxicity
-                      </Typography>
-                      <Typography variant="h2" sx={{ fontWeight: 900, color: '#2e7d32' }}>
-                        {stats?.distribution.find((d) => d.Toxicity_Class === 'No')?.count || 0}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-
-                <Grid xs={12}>
-                  <Paper sx={{ p: 6, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <Typography variant="h5" sx={{ fontWeight: 900, mb: 4, color: '#1a237e' }}>
-                      Agent Toxicity Distribution
-                    </Typography>
-                    <Box sx={{ width: '100%', height: 450 }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={stats?.distribution}
-                            innerRadius={100}
-                            outerRadius={160}
-                            paddingAngle={10}
-                            dataKey="count"
-                            nameKey="Toxicity_Class"
-                            label={(p: any) => `${p.name} ${((p.percent ? p.percent * 100 : 0) as number).toFixed(1)}%`}
-                          >
-                            {stats?.distribution.map((e, i) => (
-                              <Cell key={`cell-${i}`} fill={COLORS[e.Toxicity_Class] || '#757575'} stroke="none" />
-                            ))}
-                          </Pie>
-                          <RechartsTooltip />
-                          <Legend verticalAlign="bottom" height={36} />
-                        </PieChart>
-                      </ResponsiveContainer>
                     </Box>
-                  </Paper>
-                </Grid>
-              </Grid>
-            </Box>
-          ) : activeTab === 1 ? (
-            <Box>
-              {hasSearched ? (
-                <Paper sx={{ overflow: 'hidden', border: '1px solid #e0e0e0' }}>
-                  <TableContainer sx={{ maxHeight: '60vh' }}>
-                    <Table stickyHeader>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell sx={{ fontWeight: 900, backgroundColor: '#f8f9fa', color: '#1a237e' }}>TRADE NAME</TableCell>
-                          <TableCell sx={{ fontWeight: 900, backgroundColor: '#f8f9fa', color: '#1a237e' }}>COMPANY</TableCell>
-                          <TableCell sx={{ fontWeight: 900, backgroundColor: '#f8f9fa', color: '#1a237e' }}>RELEASE</TableCell>
-                          <TableCell align="center" sx={{ fontWeight: 900, backgroundColor: '#f8f9fa', color: '#1a237e' }}>
-                            {toxType} STATUS
-                          </TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {drugs.map((drug) => (
-                          <TableRow
-                            key={drug.SETID}
-                            hover
-                            sx={{
-                              cursor: 'pointer',
-                              backgroundColor:
-                                selectedSetid === drug.SETID ? '#e8eaf6' : drug.is_historical === 1 ? '#fafafa' : 'inherit',
-                              borderLeft:
-                                selectedSetid === drug.SETID
-                                  ? '6px solid #1a237e'
-                                  : drug.Changed === 'Yes'
-                                    ? '6px solid #ed6c02'
-                                    : '6px solid transparent',
-                              opacity: drug.is_historical === 1 ? 0.7 : 1,
-                            }}
-                          >
-                            <TableCell sx={{ py: 2.5 }} onClick={() => setSelectedSetid(drug.SETID)}>
-                              <Stack direction="row" alignItems="center" spacing={1.5}>
-                                <Typography variant="body2" sx={{ fontWeight: 800, color: '#1a237e' }}>
-                                  {drug.Trade_Name}
-                                </Typography>
-                                {drug.is_historical === 1 && (
-                                  <Chip label="ARCHIVED" size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 18, fontWeight: 800 }} />
-                                )}
-                                {drug.Changed === 'Yes' && drug.is_historical === 0 && <NewReleasesIcon sx={{ color: '#ed6c02', fontSize: 20 }} />}
-                              </Stack>
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                size="small"
-                                startIcon={<BusinessIcon sx={{ fontSize: 16 }} />}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedCompany(drug.Author_Organization);
-                                }}
-                                sx={{ textTransform: 'none', fontWeight: 600, color: '#1a237e' }}
-                              >
-                                {drug.Author_Organization}
-                              </Button>
-                            </TableCell>
-                            <TableCell sx={{ color: '#546e7a', fontSize: '0.85rem' }} onClick={() => setSelectedSetid(drug.SETID)}>
-                              {formatDate(drug.SPL_Effective_Time)}
-                            </TableCell>
-                            <TableCell align="center" onClick={() => setSelectedSetid(drug.SETID)}>
-                              <Chip
-                                label={drug.Toxicity_Class}
-                                color={getToxColor(drug.Toxicity_Class) as any}
-                                variant="filled"
-                                sx={{ minWidth: 100, fontWeight: 900, borderRadius: '8px' }}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                  <TablePagination
-                    rowsPerPageOptions={[10, 20, 50]}
-                    component="div"
-                    count={total}
-                    rowsPerPage={rowsPerPage}
-                    page={page}
-                    onPageChange={handleChangePage}
-                    onRowsPerPageChange={handleChangeRowsPerPage}
-                  />
-                </Paper>
-              ) : (
-                <Box textAlign="center" py={10}>
-                  <Typography variant="body1" sx={{ color: '#546e7a', fontStyle: 'italic' }}>
-                    Initiate a search to explore the pharmacological dataset.
+                    
+                    <Stack direction="row" spacing={3} sx={{ pt: 1 }}>
+                      {['Most', 'Less', 'No'].map(cat => {
+                        const count = stats?.distribution.find(d => d.Toxicity_Class === cat)?.count || 0;
+                        return (
+                          <Box key={cat} sx={{ textAlign: 'center' }}>
+                            <Typography variant="h6" sx={{ fontWeight: 900, color: cat === 'Most' ? 'error.main' : cat === 'Less' ? 'warning.main' : 'success.main', lineHeight: 1 }}>
+                              {count.toLocaleString()}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', fontSize: '0.65rem' }}>
+                              {cat.toUpperCase()} {toxType}
+                            </Typography>
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid xs={12} md={4}>
+              <Card 
+                sx={{ 
+                  borderLeft: '6px solid #ed6c02', 
+                  height: '100%',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 6px 16px rgba(237, 108, 2, 0.15) !important',
+                    borderColor: '#e65100'
+                  }
+                }}
+                onClick={() => {
+                  const newValue = !changedOnly;
+                  setChangedOnly(newValue);
+                  setPage(0);
+                  // Clear query to show all records with changes
+                  setQuery('');
+                  setInputValue('');
+                  fetchDrugs('', toxType, showHistorical, newValue, 0, rowsPerPage);
+                }}
+              >
+                <CardContent sx={{ py: 3, px: 4 }}>
+                  <Typography variant="overline" sx={{ fontWeight: 800, color: 'text.secondary' }}>
+                    Recent {toxType} Updates
                   </Typography>
-                </Box>
-              )}
+                  <Typography variant="h3" sx={{ fontWeight: 900, color: '#ed6c02' }}>
+                    {stats?.total_changes}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                    Click to view all {toxType} changes
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Box>
+
+        {/* Results Explorer */}
+        <Box sx={{ width: '100%', mb: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5" sx={{ fontWeight: 900, color: '#1a237e', display: 'flex', alignItems: 'center' }}>
+              <ListIcon sx={{ mr: 1 }} /> Agent Toxicity Explorer
+            </Typography>
+            
+            <Stack direction="row" spacing={2} alignItems="center">
+              <FormControlLabel
+                control={<Switch size="small" checked={showHistorical} onChange={handleHistoricalToggle} color="primary" />}
+                label={<Typography variant="button" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.65rem' }}>Include Archives</Typography>}
+              />
+              <FormControlLabel
+                control={<Switch size="small" checked={changedOnly} onChange={handleChangedOnlyToggle} color="warning" />}
+                label={<Typography variant="button" sx={{ fontWeight: 700, color: '#ed6c02', fontSize: '0.65rem' }}>Latest Changes Only</Typography>}
+              />
+            </Stack>
+          </Box>
+
+          {hasSearched ? (
+            <Paper sx={{ overflow: 'hidden', border: '1px solid #e0e0e0', borderRadius: '12px' }}>
+              <TableContainer sx={{ maxHeight: '60vh' }}>
+                <Table stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 900, backgroundColor: '#f8f9fa', color: '#1a237e' }}>TRADE NAME</TableCell>
+                      <TableCell sx={{ fontWeight: 900, backgroundColor: '#f8f9fa', color: '#1a237e' }}>COMPANY</TableCell>
+                      <TableCell sx={{ fontWeight: 900, backgroundColor: '#f8f9fa', color: '#1a237e' }}>RELEASE</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 900, backgroundColor: '#f8f9fa', color: '#1a237e' }}>
+                        {toxType} STATUS
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {drugs.length > 0 ? drugs.map((drug) => (
+                      <TableRow
+                        key={drug.SETID}
+                        hover
+                        sx={{
+                          cursor: 'pointer',
+                          backgroundColor:
+                            selectedSetid === drug.SETID ? '#e8eaf6' : drug.is_historical === 1 ? '#fafafa' : 'inherit',
+                          borderLeft:
+                            selectedSetid === drug.SETID
+                              ? '6px solid #1a237e'
+                              : drug.Changed === 'Yes'
+                                ? '6px solid #ed6c02'
+                                : '6px solid transparent',
+                          opacity: drug.is_historical === 1 ? 0.7 : 1,
+                        }}
+                      >
+                        <TableCell sx={{ py: 2.5 }} onClick={() => setSelectedSetid(drug.SETID)}>
+                          <Stack direction="row" alignItems="center" spacing={1.5}>
+                            <Typography variant="body2" sx={{ fontWeight: 800, color: '#1a237e' }}>
+                              {drug.Trade_Name}
+                            </Typography>
+                            {drug.is_historical === 1 && (
+                              <Chip label="ARCHIVED" size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 18, fontWeight: 800 }} />
+                            )}
+                            {drug.Changed === 'Yes' && drug.is_historical === 0 && <NewReleasesIcon sx={{ color: '#ed6c02', fontSize: 20 }} />}
+                          </Stack>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="small"
+                            startIcon={<BusinessIcon sx={{ fontSize: 16 }} />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCompany(drug.Author_Organization);
+                            }}
+                            sx={{ textTransform: 'none', fontWeight: 600, color: '#1a237e' }}
+                          >
+                            {drug.Author_Organization}
+                          </Button>
+                        </TableCell>
+                        <TableCell sx={{ color: '#546e7a', fontSize: '0.85rem' }} onClick={() => setSelectedSetid(drug.SETID)}>
+                          {formatDate(drug.SPL_Effective_Time)}
+                        </TableCell>
+                        <TableCell align="center" onClick={() => setSelectedSetid(drug.SETID)}>
+                          <Chip
+                            label={drug.Toxicity_Class}
+                            color={getToxColor(drug.Toxicity_Class) as any}
+                            variant="filled"
+                            sx={{ minWidth: 100, fontWeight: 900, borderRadius: '8px' }}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center" sx={{ py: 8 }}>
+                          <Typography variant="body1" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                            No results found for your query. Try adjusting filters.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <TablePagination
+                rowsPerPageOptions={[10, 20, 50]}
+                component="div"
+                count={total}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+              />
+            </Paper>
+          ) : (
+            <Box textAlign="center" py={10} sx={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+              <Typography variant="body1" sx={{ color: '#64748b', fontStyle: 'italic', fontWeight: 500 }}>
+                Select an organ or search an agent to explore the pharmacological dataset.
+              </Typography>
+            </Box>
+          )}
+        </Box>
+
+        {/* Discrepancies Section - Now at the bottom as an Add-on */}
+        <Box sx={{ width: '100%', mt: 8, pt: 6, borderTop: '2px dashed #e2e8f0' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 900, color: '#1a237e', display: 'flex', alignItems: 'center' }}>
+                <GavelIcon sx={{ mr: 1 }} /> Toxicity Discrepancies
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                Identifying controversial agents with conflicting labeling status across manufacturers.
+              </Typography>
+            </Box>
+            
+            {hasAnalyzedDiscrepancies && !discrepancyLoading && (
+              <Alert
+                severity="warning"
+                icon={<GavelIcon />}
+                sx={{ borderRadius: '12px', fontWeight: 700 }}
+              >
+                {filteredDiscrepancies.length} Controversies Detected
+              </Alert>
+            )}
+          </Box>
+
+          {!hasAnalyzedDiscrepancies ? (
+            <Box sx={{ textAlign: 'center', py: 6, backgroundColor: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+              <GavelIcon sx={{ fontSize: 48, color: '#94a3b8', mb: 2 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700, color: '#475569', mb: 1 }}>Market Variance Analysis</Typography>
+              <Typography variant="body2" sx={{ color: '#64748b', mb: 4, maxWidth: 500, mx: 'auto' }}>
+                This advanced tool cross-references all labels in the database to find agents where different manufacturers report different toxicity levels for the same organ.
+              </Typography>
+              <Button 
+                variant="outlined" 
+                onClick={() => fetchDiscrepancies(toxType)}
+                startIcon={<ScienceIcon />}
+                sx={{ fontWeight: 800, borderRadius: '10px', px: 4, py: 1 }}
+              >
+                Start Discrepancy Analysis
+              </Button>
             </Box>
           ) : (
-          <Box>
-              <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid xs={12} md={9}>
-                  <Paper sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 3, border: '1px solid #e0e0e0', flexWrap: 'wrap' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1a237e', display: 'flex', alignItems: 'center' }}>
-                      <FilterListIcon sx={{ mr: 1 }} /> FILTERS:
-                    </Typography>
-                    
-                    <FormControl size="small" sx={{ minWidth: 200 }}>
-                      <Select
-                        value={severityFilter || 'ALL'}
-                        onChange={(e) => setSeverityFilter(e.target.value)}
-                        sx={{ 
-                          fontWeight: 700, 
-                          fontSize: '0.8rem',
-                          borderRadius: '8px',
-                          backgroundColor: '#fff',
-                          '& .MuiSelect-select': { py: 1 }
-                        }}
-                      >
-                        <MenuItem value="ALL" sx={{ fontWeight: 700 }}>ALL DISCREPANCIES ({discrepancies.length})</MenuItem>
-                        <MenuItem value="HIGH" sx={{ fontWeight: 700, color: 'error.main' }}>HIGH SEVERITY GAP ({discrepancies.filter((d) => d.severity_gap >= 3).length})</MenuItem>
-                        <MenuItem value="MEDIUM" sx={{ fontWeight: 700, color: 'warning.main' }}>MEDIUM SEVERITY GAP ({discrepancies.filter((d) => d.severity_gap === 2).length})</MenuItem>
-                        <MenuItem value="LOW" sx={{ fontWeight: 700, color: 'info.main' }}>LOW SEVERITY GAP ({discrepancies.filter((d) => d.severity_gap === 1).length})</MenuItem>
-                      </Select>
-                    </FormControl>
-
-                    <Box sx={{ borderLeft: '1px solid #e0e0e0', pl: 3, ml: 1 }}>
-                      <Button
-                        variant={rldOnly ? "contained" : "outlined"}
-                        color={rldOnly ? "error" : "primary"}
-                        size="small"
-                        onClick={() => setRldOnly(!rldOnly)}
-                        startIcon={<ScienceIcon />}
-                        sx={{ 
-                          fontWeight: 800, 
-                          textTransform: 'none', 
-                          borderRadius: '8px',
-                          fontSize: '0.75rem',
-                          px: 2,
-                          height: '38px'
-                        }}
-                      >
-                        RLD AVAILABLE ONLY {rldOnly ? 'ON' : 'OFF'}
-                      </Button>
-                    </Box>
-                  </Paper>
-                </Grid>
-                <Grid xs={12} md={3}>
-                  <Alert
-                    severity="warning"
-                    icon={<GavelIcon />}
-                    sx={{ height: '100%', display: 'flex', alignItems: 'center', borderRadius: '12px', fontWeight: 700 }}
+            <>
+              <Paper sx={{ p: 2, mb: 4, display: 'flex', alignItems: 'center', gap: 3, border: '1px solid #e0e0e0', borderRadius: '12px', flexWrap: 'wrap' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1a237e', display: 'flex', alignItems: 'center' }}>
+                  <FilterListIcon sx={{ mr: 1 }} /> FILTERS:
+                </Typography>
+                
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <Select
+                    value={severityFilter || 'ALL'}
+                    onChange={(e) => setSeverityFilter(e.target.value)}
+                    sx={{ 
+                      fontWeight: 700, 
+                      fontSize: '0.8rem',
+                      borderRadius: '8px',
+                      backgroundColor: '#fff',
+                      '& .MuiSelect-select': { py: 1 }
+                    }}
                   >
-                    {filteredDiscrepancies.length} Controversial Agents Detected
-                  </Alert>
-                </Grid>
-              </Grid>
+                    <MenuItem value="ALL" sx={{ fontWeight: 700 }}>ALL DISCREPANCIES ({discrepancies.length})</MenuItem>
+                    <MenuItem value="HIGH" sx={{ fontWeight: 700, color: 'error.main' }}>HIGH SEVERITY GAP ({discrepancies.filter((d) => d.severity_gap >= 3).length})</MenuItem>
+                    <MenuItem value="MEDIUM" sx={{ fontWeight: 700, color: 'warning.main' }}>MEDIUM SEVERITY GAP ({discrepancies.filter((d) => d.severity_gap === 2).length})</MenuItem>
+                    <MenuItem value="LOW" sx={{ fontWeight: 700, color: 'info.main' }}>LOW SEVERITY GAP ({discrepancies.filter((d) => d.severity_gap === 1).length})</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <Button
+                  variant={rldOnly ? "contained" : "outlined"}
+                  color={rldOnly ? "error" : "primary"}
+                  size="small"
+                  onClick={() => setRldOnly(!rldOnly)}
+                  startIcon={<ScienceIcon />}
+                  sx={{ 
+                    fontWeight: 800, 
+                    textTransform: 'none', 
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                    px: 2,
+                    height: '38px'
+                  }}
+                >
+                  RLD ONLY {rldOnly ? 'ON' : 'OFF'}
+                </Button>
+              </Paper>
 
               {discrepancyLoading ? (
                 <Box display="flex" justifyContent="center" py={10}>
@@ -941,19 +959,10 @@ export default function DrugToxPage() {
                           borderTop: `4px solid ${
                             item.severity_gap >= 3 ? '#c62828' : item.severity_gap === 2 ? '#ef6c00' : '#1565c0'
                           }`,
-                          position: 'relative'
+                          borderRadius: '12px'
                         }}
                       >
-                        <Box
-                          sx={{
-                            p: 2,
-                            backgroundColor: '#f8f9fa',
-                            borderBottom: '1px solid #eee',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                          }}
-                        >
+                        <Box sx={{ p: 2, backgroundColor: '#f8f9fa', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#1a237e' }}>
                             {item.generic_name}
                           </Typography>
@@ -972,9 +981,7 @@ export default function DrugToxPage() {
                                 <Box key={cls}>
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                                     <Chip label={cls} size="small" color={getToxColor(cls) as any} sx={{ height: 18, fontSize: '0.6rem', fontWeight: 800 }} />
-                                    <Typography variant="caption" color="text.secondary">
-                                      ({classItems.length})
-                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">({classItems.length})</Typography>
                                   </Box>
                                   <Stack spacing={0.5} sx={{ pl: 1.5 }}>
                                     {classItems.slice(0, 2).map((d, i) => (
@@ -983,9 +990,7 @@ export default function DrugToxPage() {
                                       </Typography>
                                     ))}
                                     {classItems.length > 2 && (
-                                      <Typography variant="caption" sx={{ color: 'text.disabled', fontStyle: 'italic', pl: 1 }}>
-                                        ... and {classItems.length - 2} more
-                                      </Typography>
+                                      <Typography variant="caption" sx={{ color: 'text.disabled', fontStyle: 'italic', pl: 1 }}>... and {classItems.length - 2} more</Typography>
                                     )}
                                   </Stack>
                                 </Box>
@@ -995,27 +1000,6 @@ export default function DrugToxPage() {
                         </CardContent>
 
                         <Box sx={{ p: 1.5, borderTop: '1px solid #f0f0f0' }}>
-                          <Box sx={{ mb: 1, p: 1, backgroundColor: '#fdfdfd', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
-                            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', display: 'flex', alignItems: 'center', mb: 0.5 }}>
-                              <GavelIcon sx={{ fontSize: 14, mr: 0.5 }} /> RLD SEVERITY GAP:
-                            </Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700 }}>RLD Class:</Typography>
-                              <Chip 
-                                label={item.rld_info?.status || 'Not Found'} 
-                                size="small" 
-                                color={item.rld_info?.status === 'Unknown' || !item.rld_info?.status ? 'default' : (getToxColor(item.rld_info?.status) as any)}
-                                sx={{ height: 18, fontSize: '0.65rem', fontWeight: 800 }}
-                              />
-                              {item.rld_info?.is_rld && (
-                                <Chip label="RLD" size="small" color="error" sx={{ height: 16, fontSize: '0.55rem', fontWeight: 900 }} />
-                              )}
-                              {item.rld_info?.is_rs && (
-                                <Chip label="RS" size="small" color="success" sx={{ height: 16, fontSize: '0.55rem', fontWeight: 900 }} />
-                              )}
-                            </Box>
-                          </Box>
-                          
                           <Button 
                             fullWidth
                             size="small" 
@@ -1025,30 +1009,17 @@ export default function DrugToxPage() {
                             sx={{ fontWeight: 700, textTransform: 'none', fontSize: '0.7rem' }}
                             onClick={() => {
                               if (item.rld_info?.setid) {
-                                window.open(
-                                  withDashboardBase(`/dashboard/label/${item.rld_info.setid}`),
-                                  '_blank',
-                                );
+                                window.open(withDashboardBase(`/dashboard/label/${item.rld_info.setid}`), '_blank');
                               } else {
-                                axios
-                                  .get(`${DRUGTOX_API_PREFIX}/latest_rld?generic_name=${item.generic_name}`)
+                                axios.get(`${DRUGTOX_API_PREFIX}/latest_rld?generic_name=${item.generic_name}`)
                                   .then((res) => {
-                                    if (res.data.set_id) {
-                                      window.open(
-                                        withDashboardBase(
-                                          `/dashboard/label/${res.data.set_id}`,
-                                        ),
-                                        '_blank',
-                                      );
-                                    } else {
-                                      alert('No labeling found for this drug in the database.');
-                                    }
-                                  })
-                                  .catch(() => alert('Could not retrieve labeling.'));
+                                    if (res.data.set_id) window.open(withDashboardBase(`/dashboard/label/${res.data.set_id}`), '_blank');
+                                    else alert('No labeling found.');
+                                  }).catch(() => alert('Could not retrieve labeling.'));
                               }
                             }}
                           >
-                            {item.rld_info?.setid ? 'View RLD Labeling' : 'View Latest Labeling (no RLD found)'}
+                            {item.rld_info?.setid ? 'View RLD Labeling' : 'View Latest Labeling'}
                           </Button>
                         </Box>
                       </Card>
@@ -1056,7 +1027,7 @@ export default function DrugToxPage() {
                   ))}
                 </Grid>
               )}
-            </Box>
+            </>
           )}
         </Box>
       </Container>
@@ -1675,4 +1646,3 @@ export default function DrugToxPage() {
     </Box>
   );
 }
-
