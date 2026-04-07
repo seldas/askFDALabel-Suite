@@ -368,6 +368,24 @@ export default function HomePage() {
               href="/snippet"
               icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>}
             />
+
+            {/* Discrete Webtest link for internal use */}
+            <div style={{ textAlign: 'right', marginTop: '-0.5rem', paddingRight: '0.5rem' }}>
+              <Link 
+                href="/webtest" 
+                style={{ 
+                  fontSize: '0.7rem', 
+                  color: '#cbd5e1', 
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                  transition: 'color 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.color = '#94a3b8'}
+                onMouseOut={(e) => e.currentTarget.style.color = '#cbd5e1'}
+              >
+                FDALabel Auto Test Tool
+              </Link>
+            </div>
           </div>
         </section>
       </main>

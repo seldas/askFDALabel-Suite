@@ -32,9 +32,13 @@ class Config:
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-    # Paths - Use project root as base
+    # Paths - Use project root as base, but check for Docker /data mount
     PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-    DATA_DIR = PROJECT_ROOT / 'data'
+    
+    if os.path.exists('/data'):
+        DATA_DIR = Path('/data')
+    else:
+        DATA_DIR = PROJECT_ROOT / 'data'
     
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False

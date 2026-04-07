@@ -571,6 +571,11 @@ export default function Header({
                   </div>
 
                   <div className="account-actions">
+                    {session?.is_admin && (
+                      <Link href="/management" className="dropdown-item" style={{ color: '#6366f1', fontWeight: 800 }}>
+                        Management
+                      </Link>
+                    )}
                     <button onClick={() => { setIsAiModalOpen(true); setActiveDropdown(null); }} className="dropdown-item">
                       AI Preference
                     </button>

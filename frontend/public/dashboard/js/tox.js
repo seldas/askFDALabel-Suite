@@ -182,7 +182,7 @@ window.initToxAgents = function() {
                     signalsContainer.appendChild(controlsDiv);
                     document.getElementById('btn-run-dili-assessment').addEventListener('click', runDiliAssessment);
                 } else {
-                    signalsContainer.innerHTML = `<div style="text-align: center; padding: 20px;"><p style="color: #666; margin-bottom: 15px;">Click below to analyze the official label for DILI-related safety signals using state-of-the-art AI.</p><button id="btn-run-dili-assessment" class="button" style="background-color: #17a2b8; color: white;">Run Assessment</button></div>`;
+                    signalsContainer.innerHTML = `<div class="assessment-prompt"><p>Click below to analyze the official label for DILI-related safety signals using state-of-the-art AI.</p><button id="btn-run-dili-assessment" class="button btn-assess-dili">Run Assessment</button></div>`;
                     document.getElementById('btn-run-dili-assessment').addEventListener('click', runDiliAssessment);
                 }
             }
@@ -276,7 +276,7 @@ window.initToxAgents = function() {
                     signalsContainer.appendChild(controlsDiv);
                     document.getElementById('btn-run-dict-assessment').addEventListener('click', runDictAssessment);
                 } else {
-                    signalsContainer.innerHTML = `<div style="text-align: center; padding: 20px;"><p style="color: #666; margin-bottom: 15px;">Click below to analyze the official label for cardiotoxicity signals using state-of-the-art AI.</p><button id="btn-run-dict-assessment" class="button" style="background-color: #dc3545; color: white;">Run Assessment</button></div>`;
+                    signalsContainer.innerHTML = `<div class="assessment-prompt"><p>Click below to analyze the official label for cardiotoxicity signals using state-of-the-art AI.</p><button id="btn-run-dict-assessment" class="button btn-assess-dict">Run Assessment</button></div>`;
                     document.getElementById('btn-run-dict-assessment').addEventListener('click', runDictAssessment);
                 }
             }
@@ -366,7 +366,7 @@ window.initToxAgents = function() {
                     signalsContainer.appendChild(controlsDiv);
                     document.getElementById('btn-run-diri-assessment').addEventListener('click', runDiriAssessment);
                 } else {
-                    signalsContainer.innerHTML = `<div style="text-align: center; padding: 20px;"><p style="color: #666; margin-bottom: 15px;">Click below to analyze the official label for renal injury signals using state-of-the-art AI.</p><button id="btn-run-diri-assessment" class="button" style="background-color: #ffc107; color: black;">Run Assessment</button></div>`;
+                    signalsContainer.innerHTML = `<div class="assessment-prompt"><p>Click below to analyze the official label for renal injury signals using state-of-the-art AI.</p><button id="btn-run-diri-assessment" class="button btn-assess-diri">Run Assessment</button></div>`;
                     document.getElementById('btn-run-diri-assessment').addEventListener('click', runDiriAssessment);
                 }
             }

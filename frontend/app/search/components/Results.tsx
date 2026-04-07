@@ -1745,7 +1745,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                   <div style={{ marginTop: '15px', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                     {result.is_combination && (
                       <a
-                        href={`/device?q=${encodeURIComponent(result.PRODUCT_NAMES.split(' ')[0])}`}
+                        href={withAppBase(`/device?q=${encodeURIComponent(result.PRODUCT_NAMES.split(' ')[0])}`)}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
@@ -1765,7 +1765,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                       </a>
                     )}
                     <a
-                      href={`/dashboard/label/${result.set_id}`}
+                      href={withAppBase(`/dashboard/label/${result.set_id}`)}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
@@ -1922,7 +1922,7 @@ const Results: React.FC<ResultsProps> = ({ hasSearched }) => {
                             </a>
                             {result.is_combination && (
                               <a
-                                href={`/device?q=${encodeURIComponent(result.PRODUCT_NAMES.split(' ')[0])}`}
+                                href={withAppBase(`/device?q=${encodeURIComponent(result.PRODUCT_NAMES.split(' ')[0])}`)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.75rem' }}

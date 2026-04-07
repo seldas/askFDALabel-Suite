@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 export interface UserSession {
   is_authenticated: boolean;
+  is_admin?: boolean;
   username?: string;
   ai_provider?: string;
   custom_gemini_key?: string;

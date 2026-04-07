@@ -23,7 +23,14 @@ def login():
     user = User.query.filter_by(username=username).first()
     if user and user.check_password(password):
         login_user(user)
-        return jsonify({'success': True})
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'is_admin': user.is_admin
+            }
+        })
     else:
         return jsonify({'success': False, 'error': 'Invalid username or password'}), 401
 
@@ -51,7 +58,7 @@ def register():
     if User.query.filter_by(username=username).first():
         return jsonify({'success': False, 'error': 'Username already exists'}), 400
     
-    new_user = User(username=username)
+    new_user = User(username=username, is_admin=False)
     new_user.set_password(password)
     db.session.add(new_user)
     db.session.commit()
@@ -97,6 +104,7 @@ def session():
             'is_authenticated': True,
             'id': current_user.id,
             'username': current_user.username,
+            'is_admin': current_user.is_admin,
             'ai_provider': current_user.ai_provider,
             'custom_gemini_key': current_user.custom_gemini_key,
             'openai_api_key': current_user.openai_api_key,

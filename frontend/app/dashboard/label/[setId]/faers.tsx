@@ -13,6 +13,7 @@ import {
   AreaChart,
   Area
 } from 'recharts';
+import './analysis.css';
 
 interface LabelMatch {
   section: string;
