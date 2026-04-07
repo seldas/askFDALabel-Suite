@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { withAppBase } from '../utils/appPaths';
 
 interface Label {
   set_id: string;
@@ -68,7 +69,7 @@ function ResultsContent() {
             padding: '5px', 
             borderRadius: '4px'
           }}>
-             <img src="/askfdalabel_icon.svg" alt="Logo" style={{ height: '20px' }} />
+             <img src={withAppBase("/askfdalabel_icon.svg")} alt="Logo" style={{ height: '20px' }} />
           </Link>
           <h1 className="header-title" style={{ fontSize: '1.25rem' }}>
             askFDALabel <span className="header-title-suffix">Search</span>

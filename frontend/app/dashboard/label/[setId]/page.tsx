@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Script from 'next/script';
 import Link from 'next/link';
 import { useUser } from '../../../context/UserContext';
+import { withAppBase } from '../../../utils/appPaths';
 
 // Modular Components
 import LabelView from './label';
@@ -880,16 +881,16 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
         `}
       </Script>
 
-      <Script src="/askfdalabel/dashboard/js/chart.js" strategy="afterInteractive" />
-      <Script src="/askfdalabel/dashboard/js/marked.min.js" strategy="afterInteractive" />
-      <Script src="/askfdalabel/dashboard/js/utils.js" strategy="afterInteractive" />
-      <Script src="/askfdalabel/dashboard/js/ui.js" strategy="afterInteractive" />
-      <Script src="/askfdalabel/dashboard/js/favorites.js" strategy="afterInteractive" />
-      <Script src="/askfdalabel/dashboard/js/session_manager.js" strategy="afterInteractive" />
-      <Script src="/askfdalabel/dashboard/js/chat.js?v=20260218_1" strategy="afterInteractive" />
-      <Script src="/askfdalabel/dashboard/js/annotations.js" strategy="afterInteractive" />
-      <Script src="/askfdalabel/dashboard/js/faers.js" strategy="afterInteractive" />
-      <Script src="/askfdalabel/dashboard/js/tox.js" strategy="afterInteractive" />
+      <Script src={withAppBase("/dashboard/js/chart.js")} strategy="afterInteractive" />
+      <Script src={withAppBase("/dashboard/js/marked.min.js")} strategy="afterInteractive" />
+      <Script src={withAppBase("/dashboard/js/utils.js")} strategy="afterInteractive" />
+      <Script src={withAppBase("/dashboard/js/ui.js")} strategy="afterInteractive" />
+      <Script src={withAppBase("/dashboard/js/favorites.js")} strategy="afterInteractive" />
+      <Script src={withAppBase("/dashboard/js/session_manager.js")} strategy="afterInteractive" />
+      <Script src={withAppBase("/dashboard/js/chat.js?v=20260218_1")} strategy="afterInteractive" />
+      <Script src={withAppBase("/dashboard/js/annotations.js")} strategy="afterInteractive" />
+      <Script src={withAppBase("/dashboard/js/faers.js")} strategy="afterInteractive" />
+      <Script src={withAppBase("/dashboard/js/tox.js")} strategy="afterInteractive" />
 
       {/* Modals placeholders */}
       <div id="user-notes-modal" className="custom-modal" style={{ display: 'none' }}>

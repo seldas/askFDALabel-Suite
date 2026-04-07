@@ -4,6 +4,7 @@ import "./globals.css";
 import { UserProvider } from "./context/UserContext";
 import AuthModals from "./components/AuthModals";
 import FetchPrefix from "./FetchPrefix";
+import { withAppBase } from "./utils/appPaths";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
   title: "askFDALabel | Scientific Drug Label Intelligence",
   description: "Advanced semantic search and toxicological analysis for FDA drug labeling.",
   icons: {
-    icon: "/askfdalabel/askfdalabel_icon.svg",
+    icon: withAppBase("/askfdalabel_icon.svg"),
   },
 };
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { withDashboardBase } from '../../../utils/appPaths';
 
 interface PeerItem {
   term: string;
@@ -125,7 +126,7 @@ export default function DeepDiveView({
     const header = `INTERNAL REGULATORY REVIEW MEMO\n================================\nDATE: ${new Date().toLocaleDateString()}\nCOHORT: ${selectedBaseline?.term}\nSCOPE: ${results.peer_count} peers analyzed\n================================\n\n`;
     let refs = `\n--------------------------------\nREFERENCES (Peer Evidence Base):\n`;
     Object.entries(results.peers_metadata).forEach(([pid, meta]) => {
-      refs += `- ${meta.brand} (${meta.manufacturer}): ${window.location.origin}/askfdalabel/dashboard/label/${pid}\n`;
+      refs += `- ${meta.brand} (${meta.manufacturer}): ${window.location.origin}${withDashboardBase(`/dashboard/label/${pid}`)}\n`;
     });
     const fullText = header + memoText + refs;
     navigator.clipboard.writeText(fullText);
@@ -377,7 +378,7 @@ export default function DeepDiveView({
                                         const peerId = peerIds[pIdx];
                                         const peerMeta = results.peers_metadata[peerId];
                                         return (
-                                          <div key={pIdx} className={`peer-gem ${p}`} style={{ backgroundColor: pStyle.border, opacity: p === 'N' ? 0.15 : 1 }} title={peerMeta ? `${peerMeta.brand} (${peerMeta.manufacturer})` : ''} onClick={() => window.open(`/askfdalabel/dashboard/label/${peerId}`, '_blank')}></div>
+                                          <div key={pIdx} className={`peer-gem ${p}`} style={{ backgroundColor: pStyle.border, opacity: p === 'N' ? 0.15 : 1 }} title={peerMeta ? `${peerMeta.brand} (${peerMeta.manufacturer})` : ''} onClick={() => window.open(withDashboardBase(`/dashboard/label/${peerId}`), '_blank')}></div>
                                         );
                                       })}
                                     </div>
@@ -447,7 +448,7 @@ export default function DeepDiveView({
                         <div key={pid} className="ref-item">
                           <span className="ref-meta">{meta.brand} ({meta.manufacturer})</span>
                           <a 
-                            href={`/askfdalabel/dashboard/label/${pid}`} 
+                            href={withDashboardBase(`/dashboard/label/${pid}`)} 
                             target="_blank" 
                             rel="noreferrer"
                             className="ref-link"

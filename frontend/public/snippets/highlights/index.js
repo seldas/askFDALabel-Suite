@@ -4,8 +4,9 @@
 
     console.log("Highlights Snippet: Initializing...");
 
-    const SNIPPET_APP_BASE = 'https://ncshpcgpu01/askfdalabel';
-    const SNIPPET_API_BASE = 'https://ncshpcgpu01/askfdalabel_api';
+    const SNIPPET_ORIGIN = window.ASKFDALABEL_ORIGIN || 'https://ncshpcgpu01';
+    const SNIPPET_APP_BASE = window.ASKFDALABEL_APP_BASE || '/askfdalabel';
+    const SNIPPET_API_BASE = window.ASKFDALABEL_API_BASE || '/askfdalabel_api';
 
     const normalizedAppBase =
         SNIPPET_APP_BASE === '/' ? '' : SNIPPET_APP_BASE.replace(/\/$/, '');
@@ -15,7 +16,14 @@
         const normalizedPath = path
             ? path.startsWith('/') ? path : `/${path}`
             : '';
-        return `${normalizedHost}${normalizedAppBase}${normalizedPath}`;
+        return `${SNIPPET_ORIGIN}${normalizedAppBase}${normalizedPath}`;
+    };
+
+    const withApiPath = (path = '') => {
+        const normalizedPath = path
+            ? path.startsWith('/') ? path : `/${path}`
+            : '';
+        return `${SNIPPET_ORIGIN}${normalizedApiBase}${normalizedPath}`;
     };
 
     const highlightBaseUrl = withAppPath('');

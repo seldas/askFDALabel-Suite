@@ -66,3 +66,6 @@ class Config:
     FDALabel_SERVICE = os.getenv('FDALabel_SERVICE', 'scidevl3')
     FDALabel_USER = os.getenv('FDALabel_USER', 'lwu')
     FDALabel_PASSWORD = os.getenv('FDALabel_PASSWORD')
+
+    # Frontend base path for redirects
+    FRONTEND_BASE_PATH = os.getenv('FRONTEND_BASE_PATH', '/askfdalabel').rstrip('/')

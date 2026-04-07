@@ -28,3 +28,4 @@ export const DASHBOARD_BASE = normalizeBasePath(
 
 export const withAppBase = (path: string) => appendBase(path, APP_BASE);
 export const withDashboardBase = (path: string) => appendBase(path, DASHBOARD_BASE);
+export const withApiBase = (path: string) => appendBase(path, API_BASE);

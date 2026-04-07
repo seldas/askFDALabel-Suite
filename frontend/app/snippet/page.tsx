@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useUser } from '../context/UserContext';
 import Link from 'next/link';
 import Header from "../components/Header";
+import { withAppBase } from '../utils/appPaths';
 
 export default function SnippetPage() {
   const drugBookmarkletRef = useRef<HTMLAnchorElement>(null);
@@ -19,15 +20,22 @@ export default function SnippetPage() {
   }, []);
 
   useEffect(() => {
+    const origin = window.location.origin;
+    const appBase = APP_BASE;
+    const apiBase = API_BASE;
+    const globals = `window.ASKFDALABEL_ORIGIN='${origin}'; window.ASKFDALABEL_APP_BASE='${appBase}'; window.ASKFDALABEL_API_BASE='${apiBase}';`;
+
     if (drugBookmarkletRef.current) {
       // Fetch + Eval approach to bypass CSP blocking of script.src
+      const jsPath = withAppBase('/snippets/drug-snippet/drug_snippet.js');
       const code =
-        "javascript:(async function(){try{const r=await fetch('https://ncshpcgpu01/askfdalabel/snippets/drug-snippet/drug_snippet.js?t='+Date.now());const t=await r.text();const s=document.createElement('script');s.textContent=t;document.body.appendChild(s);}catch(e){alert('Failed to load: '+e)}})();";
+        `javascript:(async function(){ try { ${globals} const r=await fetch('${origin}${jsPath}?t='+Date.now()); const t=await r.text(); const s=document.createElement('script'); s.textContent=t; document.body.appendChild(s); } catch(e) { alert('Failed to load: '+e) } })();`;
       drugBookmarkletRef.current.setAttribute('href', code);
     }
     if (highlightBookmarkletRef.current) {
+      const jsPath = withAppBase('/snippets/highlights/index.js');
       const code =
-        "javascript:(async function(){try{const r=await fetch('https://ncshpcgpu01/askfdalabel/snippets/highlights/index.js?t='+Date.now());const t=await r.text();const s=document.createElement('script');s.textContent=t;document.body.appendChild(s);}catch(e){alert('Failed to load: '+e)}})();";
+        `javascript:(async function(){ try { ${globals} const r=await fetch('${origin}${jsPath}?t='+Date.now()); const t=await r.text(); const s=document.createElement('script'); s.textContent=t; document.body.appendChild(s); } catch(e) { alert('Failed to load: '+e) } })();`;
       highlightBookmarkletRef.current.setAttribute('href', code);
     }
   }, []);
@@ -276,7 +284,7 @@ export default function SnippetPage() {
         <div style={{ marginTop: '2rem', width: '100%', textAlign: 'center', maxWidth: '800px' }}>
           <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', marginBottom: '1.5rem' }}>See it in action</h3>
           <video
-            src="/askfdalabel/snippets/Animated_Tutorial_Medical_Snippet_Tool.mp4"
+            src={withAppBase("/snippets/Animated_Tutorial_Medical_Snippet_Tool.mp4")}
             controls
             style={{
               width: '100%',

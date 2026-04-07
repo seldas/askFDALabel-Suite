@@ -12,25 +12,36 @@ if (fs.existsSync(envPath)) {
 const backendHost = process.env.HOST || 'localhost';
 const backendPort = process.env.BACKEND_PORT || 8842;
 const BACKEND = process.env.BACKEND_URL ?? `http://${backendHost}:${backendPort}`;
-const frontendBasePath =
-  process.env.FRONTEND_BASE_PATH?.trim() || '/askfdalabel';
-const normalizedBasePath =
-  frontendBasePath === '/'
-    ? ''
-    : frontendBasePath.replace(/\/$/, '');
-const basePath =
-  normalizedBasePath === '' ? undefined : normalizedBasePath;
-const assetPath =
-  normalizedBasePath === '' ? undefined : normalizedBasePath;
+
+// App Base Path (e.g. /askfdalabel)
+const appBase = process.env.NEXT_PUBLIC_APP_BASE?.trim() || 
+                process.env.NEXT_PUBLIC_DASHBOARD_BASE?.trim() || 
+                '/askfdalabel';
+const normalizedAppBase = appBase === '/' ? '' : appBase.replace(/\/$/, '');
+const basePath = normalizedAppBase === '' ? undefined : normalizedAppBase;
+const assetPath = normalizedAppBase === '' ? undefined : normalizedAppBase;
+
+// API Base Path (e.g. /askfdalabel_api)
+const apiBase = process.env.NEXT_PUBLIC_API_BASE?.trim() || '/askfdalabel_api';
+const normalizedApiBase = apiBase === '/' ? '' : apiBase.replace(/\/$/, '');
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    return [
+    const rewrites = [
       {
         source: "/api/:path*",
         destination: `${BACKEND}/api/:path*`,
       },
     ];
+
+    if (normalizedApiBase && normalizedApiBase !== '/api') {
+      rewrites.push({
+        source: `${normalizedApiBase}/api/:path*`,
+        destination: `${BACKEND}/api/:path*`,
+      });
+    }
+
+    return rewrites;
   },
   devIndicators: false,
   allowedDevOrigins: ["ncshpcgpu01", "elsa.fda.gov", "localhost", "ncshpc400"],

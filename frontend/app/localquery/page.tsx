@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Header from "../components/Header";
 import Footer from '../components/Footer';
 import "../globals.css";
-import { withAppBase } from '../utils/appPaths';
+import { withAppBase, withApiBase } from '../utils/appPaths';
 
 interface LocalQueryResult {
     set_id: string;
@@ -109,7 +109,7 @@ const LocalQueryPage = () => {
             return;
         }
         const setIds = results.map(r => r.set_id).join(',');
-        window.location.href = `/askfdalabel_api/api/localquery/export?set_ids=${encodeURIComponent(setIds)}`;
+        window.location.href = withApiBase(`/api/localquery/export?set_ids=${encodeURIComponent(setIds)}`);
     };
 
     return (
