@@ -6,6 +6,7 @@ import Header from '../../../components/Header';
 import { useUser } from '../../../context/UserContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import Modal from '../../../components/Modal';
+import { withAppBase } from '../../../utils/appPaths';
 
 interface ReportDetail {
   report: {
@@ -393,7 +394,7 @@ export default function AEReportPage() {
                         {ctx.set_ids.map(sid => (
                           <a 
                             key={sid} 
-                            href={`/dashboard/label/${sid}`} 
+                            href={withAppBase(`/dashboard/label/${sid}`)} 
                             target="_blank" 
                             rel="noreferrer"
                             style={{ 

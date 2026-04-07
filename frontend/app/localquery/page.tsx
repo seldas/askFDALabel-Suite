@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Header from "../components/Header";
 import Footer from '../components/Footer';
 import "../globals.css";
+import { withAppBase } from '../utils/appPaths';
 
 interface LocalQueryResult {
     set_id: string;
@@ -369,7 +370,7 @@ const LocalQueryPage = () => {
                                                 <td style={{ padding: '16px 20px' }}>{r.revised_date}</td>
                                                 <td style={{ padding: '16px 20px' }}>
                                                     <a 
-                                                        href={`/dashboard/label/${r.set_id}`} 
+                                                        href={withAppBase(`/dashboard/label/${r.set_id}`)} 
                                                         target="_blank" 
                                                         rel="noopener noreferrer"
                                                         style={{ 

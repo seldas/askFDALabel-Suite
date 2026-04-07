@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 # Internal imports
 from pg_utils import PGUtils
 from psycopg2 import sql
+from psycopg2.extras import execute_values
 
 # Namespace for SPL XML
 NS = {'ns': 'urn:hl7-org:v3'}
@@ -37,20 +38,25 @@ def parse_spl_zip(zip_path, rld_appl_nos, rs_appl_nos):
         root = ET.fromstring(xml_content)
         
         # 1. Basic Metadata
-        spl_id = root.find('ns:id', NS).get('root') if root.find('ns:id', NS) is not None else None
-        set_id = root.find('ns:setId', NS).get('root') if root.find('ns:setId', NS) is not None else None
+        spl_id_el = root.find('ns:id', NS)
+        spl_id = spl_id_el.get('root') if spl_id_el is not None else None
+        
+        set_id_el = root.find('ns:setId', NS)
+        set_id = set_id_el.get('root') if set_id_el is not None else None
         
         if not spl_id or not set_id:
             return None
 
-        eff_val = root.find('ns:effectiveTime', NS).get('value') if root.find('ns:effectiveTime', NS) is not None else ""
+        eff_val_el = root.find('ns:effectiveTime', NS)
+        eff_val = eff_val_el.get('value') if eff_val_el is not None else ""
         revised_date = f"{eff_val[:4]}-{eff_val[4:6]}-{eff_val[6:8]}" if len(eff_val) >= 8 else eff_val
 
         doc_type_el = root.find('ns:code', NS)
         doc_type = doc_type_el.get('displayName') if doc_type_el is not None else ""
 
         # Initial Approval Year
-        title_text = get_el_text(root.find('ns:title', NS))
+        title_el = root.find('ns:title', NS)
+        title_text = get_el_text(title_el)
         appr_match = re.search(r'Initial U.S. Approval:\s*(\d{4})', title_text)
         initial_approval_year = int(appr_match.group(1)) if appr_match else None
 
@@ -58,7 +64,7 @@ def parse_spl_zip(zip_path, rld_appl_nos, rs_appl_nos):
         manufacturer = ""
         author_org = root.find('.//ns:author/ns:assignedEntity/ns:representedOrganization/ns:name', NS)
         if author_org is not None:
-            manufacturer = author_org.find('ns:name', NS).text if author_org.find('ns:name', NS) is not None else ""
+            manufacturer = author_org.text if author_org.text else ""
 
         # 2. Product Information
         product_names, generic_names, active_ingredients, dosage_forms, ndc_codes, routes, appr_nums = [], [], [], [], [], [], []
@@ -106,8 +112,10 @@ def parse_spl_zip(zip_path, rld_appl_nos, rs_appl_nos):
         # 3. Sections
         sections_db = []
         for sec in root.findall('.//ns:section', NS):
-            loinc = (sec.find('ns:code', NS).get('code')) if sec.find('ns:code', NS) is not None else ""
-            title = get_el_text(sec.find('ns:title', NS))
+            sec_code_el = sec.find('ns:code', NS)
+            loinc = sec_code_el.get('code') if sec_code_el is not None else ""
+            sec_title_el = sec.find('ns:title', NS)
+            title = get_el_text(sec_title_el)
             if (text_el := sec.find('ns:text', NS)) is not None:
                 raw_xml = ET.tostring(text_el, encoding='unicode').strip()
                 sections_db.append((spl_id, loinc, title, raw_xml))
@@ -208,10 +216,10 @@ def load_orange_book():
         print(f"Warning: Orange Book not found at {ob_path}")
     return rld_nos, rs_nos
 
-def sync_from_storage(storage_dir):
+def sync_from_storage(storage_dir, num_workers=4):
     root_dir = Path(__file__).resolve().parent.parent.parent
     storage_path = root_dir / storage_dir
-    zip_files = glob.glob(str(storage_path / "*.zip"))
+    zip_files = sorted(glob.glob(str(storage_path / "*.zip")))
     
     if not zip_files:
         print(f"No ZIP files found in {storage_path}")
@@ -232,53 +240,93 @@ def sync_from_storage(storage_dir):
     try:
         results = PGUtils.execute_query("SELECT set_id, revised_date FROM labeling.sum_spl", fetch=True)
         existing = { (r['set_id'], r['revised_date']) for r in results }
+        print(f"Skipping {len(existing)} records already in database.")
     except Exception:
         pass
 
-    batch_size = 500
+    batch_size = 200
     meta_batch, ingr_batch, sect_batch, spl_id_batch = [], [], [], []
     processed, skipped = 0, 0
     
-    print("Starting multi-threaded parsing...")
-    with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-        futures = [executor.submit(parse_spl_zip, z, rld_nos, rs_nos) for z in zip_files]
+    print(f"Starting multi-threaded parsing (Workers: {num_workers})...")
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        # Use map with chunksize to avoid overwhelming the queue and memory
+        results_gen = executor.map(
+            parse_spl_zip, 
+            zip_files, 
+            [rld_nos] * len(zip_files), 
+            [rs_nos] * len(zip_files),
+            chunksize=50
+        )
         
-        for i, future in enumerate(as_completed(futures)):
-            data = future.result()
-            if not data: continue
+        for i, data in enumerate(results_gen):
+            if not data:
+                continue
             
             if (data['set_id'], data['revised_date']) in existing:
                 skipped += 1
-                continue
+            else:
+                meta_batch.append(data['metadata'])
+                ingr_batch.extend(data['ingr_map'])
+                sect_batch.extend(data['sections'])
+                spl_id_batch.append(data['spl_id'])
+                processed += 1
             
-            meta_batch.append(data['metadata'])
-            ingr_batch.extend(data['ingr_map'])
-            sect_batch.extend(data['sections'])
-            spl_id_batch.append(data['spl_id'])
-            processed += 1
-            
+            # Insert in batches
             if len(meta_batch) >= batch_size or (i + 1) == len(zip_files):
                 if spl_id_batch:
-                    PGUtils.execute_query(sql.SQL("DELETE FROM labeling.sum_spl WHERE spl_id = ANY(%s)"), (spl_id_batch,))
+                    try:
+                        conn = PGUtils.get_connection()
+                        with conn.cursor() as cur:
+                            # 1. Clean up old records
+                            cur.execute(sql.SQL("DELETE FROM labeling.sum_spl WHERE spl_id = ANY(%s)"), (spl_id_batch,))
+                            
+                            # 2. Insert metadata
+                            cols = [
+                                'spl_id', 'set_id', 'product_names', 'generic_names', 'manufacturer', 
+                                'appr_num', 'active_ingredients', 'market_categories', 'doc_type', 
+                                'routes', 'dosage_forms', 'epc', 'ndc_codes', 'revised_date', 
+                                'initial_approval_year', 'is_rld', 'is_rs', 'local_path'
+                            ]
+                            full_table_name = sql.Identifier('labeling', 'sum_spl')
+                            col_names = [sql.Identifier(c) for c in cols]
+                            query = sql.SQL("INSERT INTO {table} ({cols}) VALUES %s").format(
+                                table=full_table_name,
+                                cols=sql.SQL(', ').join(col_names)
+                            )
+                            execute_values(cur, query, meta_batch)
+                            
+                            # 3. Insert Ingredients
+                            if ingr_batch:
+                                ingr_table = sql.Identifier('labeling', 'active_ingredients_map')
+                                ingr_cols = [sql.Identifier(c) for c in ['spl_id', 'substance_name', 'is_active']]
+                                ingr_query = sql.SQL("INSERT INTO {table} ({cols}) VALUES %s").format(
+                                    table=ingr_table,
+                                    cols=sql.SQL(', ').join(ingr_cols)
+                                )
+                                execute_values(cur, ingr_query, ingr_batch)
+                                
+                            # 4. Insert Sections
+                            if sect_batch:
+                                sect_table = sql.Identifier('labeling', 'spl_sections')
+                                sect_cols = [sql.Identifier(c) for c in ['spl_id', 'loinc_code', 'title', 'content_xml']]
+                                sect_query = sql.SQL("INSERT INTO {table} ({cols}) VALUES %s").format(
+                                    table=sect_table,
+                                    cols=sql.SQL(', ').join(sect_cols)
+                                )
+                                execute_values(cur, sect_query, sect_batch)
+                                
+                        conn.commit()
+                    except Exception as e:
+                        print(f"\n[ERROR] Batch insertion failed: {e}")
+                        if 'conn' in locals(): conn.rollback()
+                    finally:
+                        if 'conn' in locals(): conn.close()
                 
-                if meta_batch:
-                    cols = [
-                        'spl_id', 'set_id', 'product_names', 'generic_names', 'manufacturer', 
-                        'appr_num', 'active_ingredients', 'market_categories', 'doc_type', 
-                        'routes', 'dosage_forms', 'epc', 'ndc_codes', 'revised_date', 
-                        'initial_approval_year', 'is_rld', 'is_rs', 'local_path'
-                    ]
-                    PGUtils.bulk_insert('sum_spl', cols, meta_batch, schema='labeling')
-                
-                if ingr_batch:
-                    PGUtils.bulk_insert('active_ingredients_map', ['spl_id', 'substance_name', 'is_active'], ingr_batch, schema='labeling')
-                
-                if sect_batch:
-                    PGUtils.bulk_insert('spl_sections', ['spl_id', 'loinc_code', 'title', 'content_xml'], sect_batch, schema='labeling')
-                
+                # Clear batches
                 meta_batch, ingr_batch, sect_batch, spl_id_batch = [], [], [], []
                 
-            if (i + 1) % 100 == 0 or (i+1) == len(zip_files):
+            if (i + 1) % 100 == 0 or (i + 1) == len(zip_files):
                 sys.stdout.write(f"\rProgress: {i+1}/{len(zip_files)} | Processed: {processed} | Skipped: {skipped}")
                 sys.stdout.flush()
 
@@ -290,6 +338,7 @@ def main():
     parser.add_argument("--storage-dir", default="data/spl_storage", help="Target for extracted labeling ZIPs")
     parser.add_argument("--filter", choices=['prescription', 'human', 'all'], default='human', help="Unpacking filter")
     parser.add_argument("--skip-unpack", action="store_true", help="Skip the unpacking phase")
+    parser.add_argument("--workers", type=int, default=4, help="Number of worker processes (default: 4)")
     
     args = parser.parse_args()
 
@@ -300,7 +349,7 @@ def main():
         print("Unpacking phase skipped.")
 
     print("\n=== Phase 2: Syncing to PostgreSQL ===")
-    sync_from_storage(args.storage_dir)
+    sync_from_storage(args.storage_dir, num_workers=args.workers)
 
 if __name__ == "__main__":
     main()

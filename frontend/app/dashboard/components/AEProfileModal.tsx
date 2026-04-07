@@ -5,6 +5,8 @@ import Modal from '../../components/Modal';
 import { debounce } from 'lodash';
 import { useUser } from '../../context/UserContext';
 
+import { withAppBase } from '../../utils/appPaths';
+
 interface AEProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -485,7 +487,7 @@ export default function AEProfileModal({ isOpen, onClose, projectId, projectName
                   <div style={{ marginLeft: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {report.status === 'completed' ? (
                       <a 
-                        href={`/dashboard/ae-report/${report.id}`}
+                        href={withAppBase(`/dashboard/ae-report/${report.id}`)}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
