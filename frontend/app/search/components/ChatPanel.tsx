@@ -239,7 +239,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onSearch }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatHistory.length > 2) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [chatHistory, isLoading]);
 
   useEffect(() => {

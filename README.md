@@ -1,84 +1,349 @@
-# askFDALabel-Suite
+# AskFDALabel
 
-Welcome to askFDALabel-Suite, a comprehensive application designed to assist in the analysis and management of FDA-related label information. This suite provides a user-friendly interface to search, compare, and organize drug label data, and streamlines your workflow by offering efficient tools for regulatory intelligence.
+AskFDALabel is a full-stack FDA labeling intelligence suite. It combines a Next.js frontend, a unified Flask backend, PostgreSQL plus pgvector storage, and optional Oracle/internal FDALabel connectivity to support label search, project-based review, AI-assisted analysis, toxicology workflows, device intelligence, and validation tooling.
 
-## Getting Started
+The authoritative implementation lives in `frontend/`, `backend/`, `scripts/`, and the database models under `backend/database/`.
 
-Follow these instructions to set up and run the askFDALabel-Suite on your local machine using Docker Compose.
+## What the suite includes
 
-### Prerequisites
+### Global AI search (`/search`)
+A grounded label-search workspace backed by the `backend/search` blueprint. The current search stack includes:
+- conversational search entry points (`/api/search/chat`, `/api/search/search_agentic_stream`)
+- a semantic pipeline under `backend/search/scripts/semantic_core/`
+- semantic retrieval over `label_embeddings`
+- keyword retrieval, reranking, evidence fetching, and answer composition
+- export helpers for filtered result sets
 
-Before you begin, ensure you have the following installed:
+### Project dashboard (`/dashboard`)
+The dashboard is the main label review workspace. It supports:
+- importing FDALabel Excel exports
+- uploading SPL XML or ZIP files for local comparison
+- searching labels and opening label detail views
+- organizing labels and saved comparisons into projects
+- label annotations and saved notes
+- AI chat and compare summaries
+- deep-dive analysis endpoints
+- FAERS-based adverse-event workflows and AI rematching
+- MedDRA label scans and profile lookups
+- PGx, DILI, DICT, and DIRI assessment endpoints
+- admin-only user and database maintenance features
 
-*   **Docker:** [Installation Guide](https://docs.docker.com/get-docker/)
-*   **Docker Compose:** (Usually included with Docker Desktop. Verify with `docker compose version`)
+### Label comparison (`/labelcomp`)
+A side-by-side comparison workspace for up to four labels, with support for:
+- selecting labels from projects
+- adding labels by `set_id`
+- uploading local SPL files
+- highlighted section-level differences
+- AI-generated comparison summaries
+- saving comparisons back into projects
 
-### Installation
+### askDrugTox (`/drugtox`)
+A dedicated toxicology module for browsing harmonized toxicity records. The current backend exposes:
+- dataset statistics
+- filtered drug browsing
+- discrepancy analysis
+- latest RLD lookup
+- per-drug history and market context
+- company portfolio and company-level toxicity summaries
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-repo/askFDALabel-Suite.git
-    cd askFDALabel-Suite
-    ```
+### Device intelligence (`/device`)
+A device-focused module backed by openFDA endpoints. It provides:
+- 510(k) and PMA search
+- device metadata lookup
+- MAUDE event summaries
+- recall and enforcement summaries
+- AI comparison of device IFU content
 
-2.  **Configure Environment Variables:**
-    The application uses environment variables for configuration. Create a `.env` file in the root directory of the project. A basic `.env` might look like this (you may need to add more variables based on your specific setup, refer to project documentation if available):
-    ```env
-    # Example .env file
-    # Ensure these match values in docker-compose.yml if customized
-    POSTGRES_DB=askfdalabel
-    POSTGRES_USER=afd_user
-    POSTGRES_PASSWORD=afd_password
+### Local query (`/localquery`)
+A lightweight query and export surface for the local labeling database. It supports:
+- quick search by brand, generic, `set_id`, or application number
+- autocomplete
+- random label sampling
+- export to Excel for dashboard import or offline review
 
-    # Backend
-    BACKEND_PORT=8842
-    # Ensure BACKEND_URL in frontend points to this
-    BACKEND_URL=http://backend:8842
+### Web validation tool (`/webtest`)
+An internal regression and probing tool for FDALabel web endpoints. It works with Excel templates, stores history, and records timing and count-based checks under `backend/webtest/`.  
+This function is designed for FDALabel website auto testing, as required by a specific user group.
 
-    # Frontend
-    FRONTEND_PORT=8841
-    FRONTEND_BASE_PATH=/askfdalabel
-    ```
+### Supporting utilities
+The repo also includes:
+- an admin/management page for users and database update tasks
+- bookmarklet-based ELSA/snippet helpers under `/snippet`
+- import and maintenance scripts under `scripts/`
+- an optional nginx reverse proxy under `deploy/nginx/`
 
-3.  **Build and Run with Docker Compose:**
-    Navigate to the root directory of the cloned repository and run:
-    ```bash
-    docker compose up --build -d
-    ```
-    This command will:
-    *   Build the Docker images for the backend and frontend services.
-    *   Start the database, backend, and frontend containers in detached mode (`-d`).
+## Architecture at a glance
 
-4.  **Verify Services (Optional):**
-    You can check the status of your running containers with:
-    ```bash
-    docker compose ps
-    ```
+### Frontend
+- Next.js `16.1.6`
+- React `19`
+- MUI-based application UI
+- app-router pages under `frontend/app/`
+- default app base path: `/askfdalabel`
 
-### Accessing the Application
+### Backend
+- Flask application assembled in `backend/app.py`
+- dashboard app factory in `backend/dashboard/__init__.py`
+- blueprints registered at:
+  - `/api/dashboard`
+  - `/api/search`
+  - `/api/drugtox`
+  - `/api/labelcomp`
+  - `/api/device`
+  - `/api/localquery`
+  - `/api/webtest`
 
-Once all services are up and running, you can access the application:
+### Data layer
+- PostgreSQL is the primary runtime database
+- `pgvector` is used for semantic label search
+- the `labeling` schema stores SPL label metadata and sections
+- public-schema tables store users, projects, favorites, reports, MedDRA, PGx, DrugTox, embeddings, and system tasks
+- optional Oracle connectivity is supported through `FDALabelDBService`
 
-*   **Frontend:** Open your web browser and navigate to `http://localhost:8841/askfdalabel`.
+### AI and external data sources
+- Gemini via `google-genai`
+- OpenAI-compatible endpoints for internal Llama or similar services
+- Elsa integration for internal FDA workflows
+- local sentence-transformer embeddings when `EMBEDDING_PROVIDER=local`
+- openFDA for FAERS and device data
+- DailyMed and SPL ZIP ingestion for label content
+- Orange Book, MedDRA, PGx, and DrugTox import pipelines
 
-## Key Features
+## Repository layout
 
-- **Emerging AE Analysis**: Compare FAERS reports from the last 5 years against the previous 5 years to identify "NEW" safety signals.
-- **AI Semantic Matcher**: Use Large Language Models to determine if undocumented FAERS terms are semantically mentioned in the drug labeling (e.g., via synonyms or clinical context).
-- **Labeling Scan**: Automatically verify if emerging adverse events are already documented in the official SPL sections.
-- **MedDRA Enrichment**: Integrated MedDRA hierarchy (SOC/HLT) for all adverse event reporting.
-- **Persistent Cache**: All analysis results are saved in the project database for instant retrieval.
+```text
+backend/             Flask app, blueprints, services, models, migrations
+frontend/            Next.js app-router frontend
+Documents/           Living project documentation (currently being refreshed)
+data/                Runtime data, downloads, SPL storage, uploads
+scripts/             Import, database, AI, migration, and utility scripts
+deploy/nginx/        Optional reverse proxy for /askfdalabel and /askfdalabel_api
+backend/webtest/     Validation templates, history, and results
+idea/                Historical notes and completed design writeups
+```
 
-### Stopping the Application
+## Prerequisites
 
-To stop all running services and remove the containers:
+For the containerized stack:
+- Docker
+- Docker Compose / `docker compose`
+
+For local development:
+- Python `3.12` recommended
+- Node.js `22` recommended
+- PostgreSQL with the `pgvector` extension
+
+## Environment configuration
+
+Create a root `.env` file before starting the app.
+
+A few important notes before you copy values from `.env.template.txt`:
+- the running code reads `GOOGLE_API_KEY`, not `GEMINI_API_KEY`
+- the running code reads `LOCAL_QUERY`, not `LOCAL-QUERY`
+- `DATABASE_URL` is required by the backend
+- `LABEL_DB=POSTGRES` is the safest default unless Oracle access is configured
+
+A minimal local `.env` usually looks like this:
+
+```env
+# Core runtime
+DATABASE_URL=postgresql://afd_user:afd_password@localhost:5432/askfdalabel
+LABEL_DB=POSTGRES
+LOCAL_QUERY=True
+SECRET_KEY=change-me
+
+# Ports
+HOST=0.0.0.0
+BACKEND_PORT=8842
+FRONTEND_PORT=8841
+FRONTEND_BASE_PATH=/askfdalabel
+
+# Frontend path helpers
+NEXT_PUBLIC_APP_BASE=/askfdalabel
+NEXT_PUBLIC_API_BASE=/askfdalabel_api
+NEXT_PUBLIC_DASHBOARD_BASE=/askfdalabel
+
+# AI providers
+GOOGLE_API_KEY=
+OPENFDA_API_KEY=
+ELSA_API_NAME=
+ELSA_API_KEY=
+ELSA_MODEL_ID=
+LLM_URL=
+LLM_KEY=
+LLM_MODEL=meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8
+
+# Embeddings
+EMBEDDING_PROVIDER=local
+LOCAL_EMBEDDING_MODEL_ID=all-mpnet-base-v2
+```
+
+Optional Oracle/internal FDALabel settings:
+
+```env
+FDALabel_HOST=
+FDALabel_PORT=1521
+FDALabel_SERVICE=
+FDALabel_USER=
+FDALabel_PASSWORD=
+```
+
+Routing note:
+- when you use `deploy/nginx`, keep `NEXT_PUBLIC_API_BASE=/askfdalabel_api`
+- when you run Next.js directly during local UI development, `NEXT_PUBLIC_API_BASE=/askfdalabel` is usually the better fit for the checked-in `/api/*` rewrite logic
+- a few flows still hardcode the nginx-style prefix in the current codebase, so nginx remains the most reliable way to exercise every module end-to-end
+
+## Running with Docker
+
+### 1. Start the core stack
+From the repo root:
+
+```bash
+cp .env.template.txt .env
+# edit .env and correct the variable names noted above
+
+docker compose up --build -d
+```
+
+This starts:
+- `db` (PostgreSQL + pgvector)
+- `backend` (Flask)
+- `frontend` (Next.js)
+
+### 2. Publish the app to host ports with nginx
+The checked-in root `docker-compose.yml` uses `expose` for `frontend` and `backend`, so those services are reachable inside Docker but are not published directly to host ports. To access the app from your browser using the provided deployment layout, start the optional nginx proxy:
+
+```bash
+docker compose -f deploy/nginx/docker-compose.yml up --build -d
+```
+
+Then open:
+
+```text
+http://localhost/askfdalabel/
+```
+
+The nginx layer also maps API traffic under:
+
+```text
+http://localhost/askfdalabel_api/
+```
+
+### 3. Stopping containers
 
 ```bash
 docker compose down
+docker compose -f deploy/nginx/docker-compose.yml down
 ```
 
-To stop and remove containers along with associated volumes (e.g., database data):
+To remove the database volume contents as well:
 
 ```bash
 docker compose down -v
 ```
+
+## Running in local development
+
+Local development is useful for active frontend or backend work, but the path-prefix behavior is not perfectly uniform yet across every module. For the most production-like routing, keep the optional nginx proxy in front; for direct Next.js work, pay attention to the `NEXT_PUBLIC_API_BASE` note above.
+
+### 1. Start PostgreSQL
+You can use the bundled container for the database:
+
+```bash
+docker compose up -d db
+```
+
+### 2. Create the Python environment
+From the repo root:
+
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r backend/requirements.txt
+```
+
+On Windows, activate the environment with `venv\Scripts\activate`.
+
+### 3. Install frontend dependencies
+
+```bash
+cd frontend
+npm install
+```
+
+### 4. Start frontend and backend together
+From `frontend/`:
+
+```bash
+npm run dev:all
+```
+
+This uses the helper scripts in `frontend/scripts/` to:
+- start Next.js on `http://localhost:8841/askfdalabel`
+- start Flask on `http://localhost:8842`
+
+Backend health check:
+
+```text
+http://localhost:8842/health
+```
+
+## Data and maintenance workflows
+
+### Label data ingestion
+Relevant paths and scripts:
+- SPL ZIP storage: `data/spl_storage/`
+- uploads and temporary imports: `data/uploads/`
+- DailyMed downloader: `scripts/labels/download_dailymed.py`
+- admin label import task: `backend/admin/tasks/import_labels.py`
+- PostgreSQL initialization helpers: `scripts/database/pg_init_labeldb.py`, `scripts/database/init_public_schema.py`
+
+The label importer populates the `labeling` schema, including:
+- `labeling.sum_spl`
+- `labeling.spl_sections`
+- `labeling.active_ingredients_map`
+
+### Reference and enrichment datasets
+- Orange Book import: `backend/admin/tasks/import_orangebook.py` and `scripts/database/import_orange_book.py`
+- MedDRA import: `backend/admin/tasks/import_meddra.py` and `scripts/migration/01_import_meddra.py`
+- PGx import: `scripts/migration/02_import_pgx.py`
+- DrugTox import: `backend/admin/tasks/import_drugtox.py` and `scripts/migration/03_import_drugtox.py`
+
+### Embeddings and semantic search maintenance
+- embedding sync: `scripts/ai/sync_label_embeddings.py`
+- vector index creation: `scripts/ai/create_vector_index.py`
+- pgvector checks: `scripts/ai/check_pg_vector.py`
+
+### Validation assets
+- Web test templates: `backend/webtest/*.xlsx`
+- Web test history: `backend/webtest/history/`
+- Web test results: `backend/webtest/results/`
+
+## Authentication and administration
+
+The dashboard includes built-in user authentication and admin-only maintenance endpoints.
+
+Admin capabilities currently include:
+- user creation, deletion, and role management
+- password updates
+- long-running database update tasks with progress polling and task logs
+
+The admin UI is exposed in the frontend under `/management`, and the corresponding backend routes live under `/api/dashboard/admin`.
+
+## Current documentation status
+
+This README is intended to be the current top-level entry point for the repo.
+
+Additional technical documentation is being refreshed under `Documents/`. At the moment, the existing `Documents/Database.md` may still be useful as a partial reference, but it should be read alongside the actual code until the remaining docs are updated.
+
+## Known implementation notes
+
+- `idea/` contains historical notes and completed design writeups; it is not the authoritative description of the current code.
+- The backend loads environment variables from the repo-root `.env`.
+- The frontend expects the backend under `/api/*` in direct development, and under `/askfdalabel_api/*` when routed through nginx.
+- The application creates required data directories on startup.
+- MedDRA-dependent features will run with reduced detail if MedDRA tables have not been populated.
+- Some functionality becomes richer when Oracle/internal FDALabel access is available, but the suite is designed to run in PostgreSQL-only mode as well.
+
+
+

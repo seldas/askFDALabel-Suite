@@ -13,7 +13,7 @@ const App = () => {
   
   return (
     <SearchProvider>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '110vh' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
         <Header/>
         <div className="app-container" style={{ flex: 1, height: 'auto' }}>
           <div className="chat-column">
