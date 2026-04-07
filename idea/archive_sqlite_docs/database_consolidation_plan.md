@@ -27,7 +27,7 @@ The following models will be consolidated in `backend/database/models.py`:
 A set of ordered scripts to populate the fresh `afd.db` from raw sources in `./data/downloads/`.
 
 - `scripts/migration/01_import_meddra.py`:
-    - **Source**: `./data/downloads/MedDRA_28_0_ENglish/MedAscii/`
+    - **Source**: `./data/downloads/MedDRA/MedDRA_28_0_ENglish/MedAscii/`
     - **Logic**: Bulk insert into MedDRA hierarchical tables.
 - `scripts/migration/02_import_pgx.py`:
     - **Source**: `./data/downloads/biomarker_db/Table of Pharmacogenomic Biomarkers in Drug Labeling FDA.xlsx`

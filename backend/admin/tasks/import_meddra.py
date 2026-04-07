@@ -118,7 +118,7 @@ def run_import():
                 db.session.commit()
                 db.create_all()
 
-            data_dir = Path(app.config['DATA_DIR']) / 'downloads' / 'MedDRA_28_0_ENglish' / 'MedAscii'
+            data_dir = Path(app.config['DATA_DIR']) / 'downloads' / 'MedDRA' / 'MedDRA_28_0_ENglish' / 'MedAscii'
             print(f"  [i] Looking for data in: {data_dir}")
             
             if not data_dir.exists():
