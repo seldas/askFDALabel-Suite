@@ -57,7 +57,7 @@
 ### 🛠️ Steps to Implement RLD/RS Identification:
 1.  **Ensure Data Presence:**
     Place the latest FDA Orange Book `products.txt` file at:
-    `data\downloads\EOB_2026_01\products.txt`
+    `data\downloads\OrangeBook\EOB_Latest\products.txt`
 2.  **Add Database Column:**
     Run the following command from the project root to add the `is_rs` column to your existing database:
     ```powershell
@@ -231,7 +231,7 @@
 ### 🛠️ Steps to Update Your Local System:
 1.  **Ensure Data Presence:**
     Place the latest FDA Orange Book `products.txt` file at:
-    `data\downloads\EOB_2026_01\products.txt`
+    `data\downloads\OrangeBook\EOB_Latest\products.txt`
 2.  **Add Database Column:**
     Run the following command from the project root to add the `is_rs` column to your existing database:
     ```powershell

@@ -119,7 +119,7 @@ def parse_spl_zip(zip_path, rld_nos, rs_nos):
 
 def load_orange_book(app):
     rld_nos, rs_nos = set(), set()
-    ob_path = Path(app.config['DATA_DIR']) / 'downloads' / 'EOB_2026_01' / 'products.txt'
+    ob_path = Path(app.config['DATA_DIR']) / 'downloads' / 'OrangeBook' / 'EOB_Latest' / 'products.txt'
     if ob_path.exists():
         try:
             with open(ob_path, 'r', encoding='latin-1') as f:

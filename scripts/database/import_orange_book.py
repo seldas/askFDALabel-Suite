@@ -33,7 +33,7 @@ def run_import():
                 print(f"  [i] Table already has {count} records. Use --force to re-import.")
                 return
 
-        data_file = root_dir / 'data' / 'downloads' / 'EOB_2026_01' / 'products.txt'
+        data_file = root_dir / 'data' / 'downloads' / 'OrangeBook' / 'EOB_Latest' / 'products.txt'
         if not data_file.exists():
             print(f"  [!] Error: Data file not found at {data_file}")
             return

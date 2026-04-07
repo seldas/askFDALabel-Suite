@@ -44,7 +44,7 @@ def import_orangebook():
                 db.session.commit()
 
             data_dir = Path(app.config['DATA_DIR'])
-            data_file = data_dir / 'downloads' / 'EOB_2026_01' / 'products.txt'
+            data_file = data_dir / 'downloads' / 'OrangeBook' / 'EOB_Latest' / 'products.txt'
             
             if not data_file.exists():
                 raise FileNotFoundError(f"Orange Book data not found at {data_file}")
