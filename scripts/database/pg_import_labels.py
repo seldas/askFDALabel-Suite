@@ -216,6 +216,135 @@ def load_orange_book():
         print(f"Warning: Orange Book not found at {ob_path}")
     return rld_nos, rs_nos
 
+# Global sets for workers
+_rld_appl_nos = set()
+_rs_appl_nos = set()
+
+def _init_worker(rld_nos, rs_nos):
+    global _rld_appl_nos, _rs_appl_nos
+    _rld_appl_nos = rld_nos
+    _rs_appl_nos = rs_nos
+
+def parse_spl_zip(zip_path):
+    """
+    Worker function to parse a single SPL ZIP file.
+    Uses global rld/rs sets for performance.
+    """
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as z:
+            xml_files = [f for f in z.namelist() if f.endswith('.xml')]
+            if not xml_files:
+                return None
+            # Only read first 10MB of XML for metadata if it's a monster file? 
+            # Actually we need full XML for sections, so we must read it.
+            with z.open(xml_files[0]) as f:
+                xml_content = f.read()
+        
+        root = ET.fromstring(xml_content)
+        
+        # 1. Basic Metadata
+        spl_id_el = root.find('ns:id', NS)
+        spl_id = spl_id_el.get('root') if spl_id_el is not None else None
+        
+        set_id_el = root.find('ns:setId', NS)
+        set_id = set_id_el.get('root') if set_id_el is not None else None
+        
+        if not spl_id or not set_id:
+            return None
+
+        eff_val_el = root.find('ns:effectiveTime', NS)
+        eff_val = eff_val_el.get('value') if eff_val_el is not None else ""
+        revised_date = f"{eff_val[:4]}-{eff_val[4:6]}-{eff_val[6:8]}" if len(eff_val) >= 8 else eff_val
+
+        doc_type_el = root.find('ns:code', NS)
+        doc_type = doc_type_el.get('displayName') if doc_type_el is not None else ""
+
+        # Initial Approval Year
+        title_el = root.find('ns:title', NS)
+        title_text = get_el_text(title_el)
+        appr_match = re.search(r'Initial U.S. Approval:\s*(\d{4})', title_text)
+        initial_approval_year = int(appr_match.group(1)) if appr_match else None
+
+        # Manufacturer
+        manufacturer = ""
+        # Faster lookup than recursive //
+        author_path = 'ns:author/ns:assignedEntity/ns:representedOrganization/ns:name'
+        author_org = root.find(author_path, NS)
+        if author_org is not None:
+            manufacturer = author_org.text if author_org.text else ""
+
+        # 2. Product Information
+        product_names, generic_names, active_ingredients, dosage_forms, ndc_codes, routes, appr_nums = [], [], [], [], [], [], []
+        ingr_map = [] # (spl_id, substance_name, is_active)
+        
+        products = root.findall('.//ns:manufacturedProduct/ns:manufacturedProduct', NS)
+        for prod in products:
+            if (name_el := prod.find('ns:name', NS)) is not None:
+                product_names.append(get_el_text(name_el))
+            
+            if (gen_name_el := prod.find('.//ns:genericMedicine/ns:name', NS)) is not None:
+                generic_names.append(get_el_text(gen_name_el))
+                
+            if (form_el := prod.find('ns:formCode', NS)) is not None:
+                dosage_forms.append(form_el.get('displayName'))
+                
+            if (ndc_el := prod.find('ns:code', NS)) is not None:
+                ndc_codes.append(ndc_el.get('code'))
+                
+            for ingr in prod.findall('ns:ingredient', NS):
+                class_code = ingr.get('classCode')
+                if (subst := ingr.find('ns:ingredientSubstance/ns:name', NS)) is not None:
+                    is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
+                    sub_name = get_el_text(subst)
+                    if is_active:
+                        active_ingredients.append(sub_name)
+                    ingr_map.append((spl_id, sub_name, is_active))
+
+            for rel in prod.findall('.//ns:routeCode', NS):
+                routes.append(rel.get('displayName'))
+
+        if (appr_el := root.find('.//ns:approval/ns:id', NS)) is not None:
+            appr_nums.append(appr_el.get('extension'))
+
+        # RLD / RS Logic
+        is_rld, is_rs = 0, 0
+        all_appr = "; ".join(set(appr_nums))
+        if all_appr:
+            digits = re.findall(r'\d+', all_appr)
+            for d in digits:
+                norm_d = d.lstrip('0')
+                if norm_d in _rld_appl_nos: is_rld = 1
+                if norm_d in _rs_appl_nos: is_rs = 1
+
+        # 3. Sections
+        sections_db = []
+        for sec in root.findall('.//ns:section', NS):
+            sec_code_el = sec.find('ns:code', NS)
+            loinc = sec_code_el.get('code') if sec_code_el is not None else ""
+            sec_title_el = sec.find('ns:title', NS)
+            title = get_el_text(sec_title_el)
+            if (text_el := sec.find('ns:text', NS)) is not None:
+                # Optimized tostring
+                raw_xml = ET.tostring(text_el, encoding='unicode').strip()
+                sections_db.append((spl_id, loinc, title, raw_xml))
+
+        return {
+            'metadata': (
+                spl_id, set_id, "; ".join(set(product_names)), "; ".join(set(generic_names)),
+                manufacturer, all_appr, "; ".join(set(active_ingredients)), "",
+                doc_type, "; ".join(set(routes)), "; ".join(set(dosage_forms)), "",
+                "; ".join(set(ndc_codes)), revised_date, initial_approval_year,
+                is_rld, is_rs, os.path.basename(zip_path)
+            ),
+            'ingr_map': ingr_map,
+            'sections': sections_db,
+            'spl_id': spl_id,
+            'set_id': set_id,
+            'revised_date': revised_date
+        }
+    except Exception:
+        return None
+
 def sync_from_storage(storage_dir, num_workers=4):
     root_dir = Path(__file__).resolve().parent.parent.parent
     storage_path = root_dir / storage_dir
@@ -244,22 +373,20 @@ def sync_from_storage(storage_dir, num_workers=4):
     except Exception:
         pass
 
-    batch_size = 200
+    batch_size = 500
     meta_batch, ingr_batch, sect_batch, spl_id_batch = [], [], [], []
     processed, skipped = 0, 0
     
     print(f"Starting multi-threaded parsing (Workers: {num_workers})...")
-    with ProcessPoolExecutor(max_workers=num_workers) as executor:
-        # Use map with chunksize to avoid overwhelming the queue and memory
-        results_gen = executor.map(
-            parse_spl_zip, 
-            zip_files, 
-            [rld_nos] * len(zip_files), 
-            [rs_nos] * len(zip_files),
-            chunksize=50
-        )
+    
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+    
+    with ProcessPoolExecutor(max_workers=num_workers, initializer=_init_worker, initargs=(rld_nos, rs_nos)) as executor:
+        # Submit all tasks
+        future_to_zip = {executor.submit(parse_spl_zip, zp): zp for zp in zip_files}
         
-        for i, data in enumerate(results_gen):
+        for i, future in enumerate(as_completed(future_to_zip)):
+            data = future.result()
             if not data:
                 continue
             
@@ -331,6 +458,7 @@ def sync_from_storage(storage_dir, num_workers=4):
                 sys.stdout.flush()
 
     print(f"\nFinished Sync. Processed: {processed}, Skipped: {skipped}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="DailyMed to PostgreSQL Sync Pipeline.")
