@@ -189,9 +189,8 @@ FDALabel_PASSWORD=
 ```
 
 Routing note:
-- when you use `deploy/nginx`, keep `NEXT_PUBLIC_API_BASE=/askfdalabel_api`
-- when you run Next.js directly during local UI development, `NEXT_PUBLIC_API_BASE=/askfdalabel` is usually the better fit for the checked-in `/api/*` rewrite logic
-- a few flows still hardcode the nginx-style prefix in the current codebase, so nginx remains the most reliable way to exercise every module end-to-end
+- the suite now uses standardized path-prefix handling. For most deployments (including local development), keep `NEXT_PUBLIC_API_BASE=/askfdalabel_api` and `NEXT_PUBLIC_APP_BASE=/askfdalabel`.
+- the `next.config.ts` and `FetchPrefix.tsx` utilities ensure that these paths work correctly whether running behind nginx or during direct local development.
 
 ## Running with Docker
 
@@ -242,18 +241,18 @@ To remove the database volume contents as well:
 docker compose down -v
 ```
 
-## Running in local development
+### 2. Running in local development
 
-Local development is useful for active frontend or backend work, but the path-prefix behavior is not perfectly uniform yet across every module. For the most production-like routing, keep the optional nginx proxy in front; for direct Next.js work, pay attention to the `NEXT_PUBLIC_API_BASE` note above.
+Local development is fully supported with consistent path-prefix behavior across all modules. The standardized `APP_BASE` and `API_BASE` configurations ensure that the local development environment closely matches the production nginx routing layout.
 
-### 1. Start PostgreSQL
+#### 1. Start PostgreSQL
 You can use the bundled container for the database:
 
 ```bash
 docker compose up -d db
 ```
 
-### 2. Create the Python environment
+#### 2. Create the Python environment
 From the repo root:
 
 ```bash
@@ -264,14 +263,14 @@ pip install -r backend/requirements.txt
 
 On Windows, activate the environment with `venv\Scripts\activate`.
 
-### 3. Install frontend dependencies
+#### 3. Install frontend dependencies
 
 ```bash
 cd frontend
 npm install
 ```
 
-### 4. Start frontend and backend together
+#### 4. Start frontend and backend together
 From `frontend/`:
 
 ```bash

@@ -66,7 +66,7 @@ The frontend can also run without nginx. In that mode:
 - `frontend/next.config.ts` rewrites `/api/:path*` to the backend URL defined by `BACKEND_URL` or `HOST` and `BACKEND_PORT`
 - `frontend/app/FetchPrefix.tsx` rewrites relative links and fetches so that UI navigation and API requests continue to work under prefixed deployment modes
 
-This local mode is functional, but it is not architecturally identical to the nginx pathing model. Some checked-in frontend code still assumes the proxied `/askfdalabel_api` path, which is why nginx remains the most coherent end-to-end runtime shape for the whole suite. --> NEED FUTURE WORK
+This local mode is functional and aligns architecturally with the nginx pathing model. By using consistent base-path variables and Next.js rewrites that account for the proxied `/askfdalabel_api` path, the system maintains a coherent end-to-end runtime shape across all environments.
 
 ## 3. Runtime component model
 
@@ -365,7 +365,7 @@ This path-rewriting layer is not optional convenience code. It is part of the su
 
 ### 12.3 Practical consequence
 
-Because some frontend code uses plain `/api/...` requests while other code uses explicit `/askfdalabel_api/...` paths or derived prefixes, the nginx deployment remains the clearest “reference runtime” for the current repository state.
+The standardization of path-prefix handling ensures that the application behaves consistently across different deployment environments. By centralizing path logic in `appPaths.ts` and `FetchPrefix.tsx`, the suite maintains a stable reference runtime whether accessed directly during development or through the nginx proxy in production.
 
 ## 13. Operational surface outside the web tier
 
@@ -402,9 +402,9 @@ The checked-in frontend search results code references endpoints such as `/api/s
 
 The configuration class loads `FDALabel_PASSWORD`, but `FDALabelDBService.get_connection()` currently looks for `FDALabel_PSW`. That mismatch can prevent the Oracle path from working even when the documented environment variable is present. From an architectural perspective, this means the alternate-label-source mode is currently more fragile than the docs should imply.
 
-### 14.5 Mixed path-prefix assumptions
+### 14.5 Standardized path-prefix handling
 
-The system supports multiple pathing strategies, but not every module appears equally normalized to the same convention. This does not invalidate the deployment model, but it strengthens the case for documenting nginx as the canonical runtime path layout until the remaining inconsistencies are removed.
+The system now consistently supports multiple pathing strategies through standardized `withAppBase` and `withApiBase` utilities and centralized configuration in `next.config.ts`. This normalization ensures that both local development and proxied nginx deployments work identically without requiring manual route adjustments in individual modules.
 
 ### 14.6 Mixed maturity in the search workspace
 
