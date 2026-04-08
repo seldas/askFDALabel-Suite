@@ -67,15 +67,24 @@ class DeepDiveService:
             '34084-4': {'level': 1, 'code': 'A', 'label': 'Adverse Reaction'}
         }
 
-        def scan_sections(sections_dict):
+        def scan_sections(sections_dict, sid):
             raw_data = {}
+            stats = {'hits': 0, 'misses': 0}
             for loinc, data in sections_dict.items():
                 if loinc in HIERARCHY:
                     text = data.get('content', '')
-                    if text: raw_data[loinc] = scan_label_for_meddra(text)
-            return raw_data
+                    if text: 
+                        terms, is_hit = scan_label_for_meddra(text, set_id=sid, section_loinc=loinc, return_stats=True)
+                        raw_data[loinc] = terms
+                        if is_hit: stats['hits'] += 1
+                        else: stats['misses'] += 1
+            return raw_data, stats
 
-        target_raw = scan_sections(target_sections)
+        analysis_stats = {'cache_hits': 0, 'cache_misses': 0}
+        target_raw, t_stats = scan_sections(target_sections, target_set_id)
+        analysis_stats['cache_hits'] += t_stats['hits']
+        analysis_stats['cache_misses'] += t_stats['misses']
+
         peers_raw = []
         all_unique_terms = set()
         peers_meta = {}
@@ -91,7 +100,9 @@ class DeepDiveService:
             pxml = get_label_xml(pid)
             if pxml:
                 p_sections = extract_sections_by_loinc(pxml)
-                p_raw = scan_sections(p_sections)
+                p_raw, p_stats = scan_sections(p_sections, pid)
+                analysis_stats['cache_hits'] += p_stats['hits']
+                analysis_stats['cache_misses'] += p_stats['misses']
                 peers_raw.append({'id': pid, 'data': p_raw})
                 for loinc_terms in p_raw.values(): all_unique_terms.update(loinc_terms)
         
@@ -198,7 +209,8 @@ class DeepDiveService:
             'tiers': tiers,
             'peer_count': total_peers,
             'peers_metadata': peers_meta,
-            'target_set_id': target_set_id
+            'target_set_id': target_set_id,
+            '_stats': analysis_stats
         }
 
     @classmethod

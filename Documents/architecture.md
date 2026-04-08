@@ -154,7 +154,7 @@ The `backend/database/models.py` file shows that the public schema carries sever
 
 - **Identity and collaboration:** `User`, `Project`, project membership table, `Favorite`, `FavoriteComparison`, `LabelAnnotation`
 - **Analysis outputs and caches:** `ComparisonSummary`, `DiliAssessment`, `DictAssessment`, `DiriAssessment`, `PgxAssessment`, `AeAiAssessment`
-- **Workflow state:** `ProjectAeReport`, `ProjectAeReportDetail`, `SystemTask`
+- **Workflow state:** `ProjectAeReport`, `ProjectAeReportDetail`, `SystemTask` (includes user/project ownership, progress, status, and JSON result data)
 - **Reference and enrichment data:** `DrugToxicity`, MedDRA tables, PGx biomarker/synonym tables, `OrangeBook`
 - **Vector search layer:** `LabelEmbedding`
 
@@ -200,6 +200,7 @@ The backend service layer is concentrated under `backend/dashboard/services/` an
 | `deep_dive_service.py` | Higher-level deep-dive analysis orchestration |
 | `pgx_handler.py` | PGx-specific assessment and biomarker matching logic |
 | `meddra_matcher.py` | Label-to-MedDRA scanning support |
+| `task_service.py` | Centralized task creation, status tracking, and background thread orchestration |
 
 This layer is one of the most important architectural stabilizers in the codebase. Even though features are spread across several blueprints, they converge on a smaller set of shared services.
 
@@ -291,29 +292,22 @@ The semantic search path is structurally different:
 5. answer generation occurs through the shared AI provider layer  
 6. reasoning/debug payloads are returned alongside results
 
-### 9.4 Background thread flow
+### 9.4 Unified Background Task Strategy
 
-The application uses **in-process threads** for long-running but user-triggered work.
+The application uses a centralized **`TaskService`** and a shared **`SystemTask`** model to manage both user-triggered background work and administrative operations. This provides a consistent status, progress, and result-tracking mechanism across the platform.
 
-The clearest example is AE report generation:
+The system supports two execution strategies behind a common service interface:
 
-- `/api/dashboard/ae_report/generate` creates a `ProjectAeReport` record
-- a Python thread runs `run_ae_report_generation(...)`
-- progress is persisted in the database
-- the frontend polls `/api/dashboard/ae_report/status/<id>` and `/api/dashboard/ae_report/active_tasks`
+1.  **In-process threads:** Used for interactive, user-scoped work like AE report generation or complex AI summarizations. These tasks are launched via `TaskService.start_background_task`, which manages the application context and error handling.
+2.  **External subprocesses:** Used for heavy operational maintenance (e.g., importing labeling data, Orange Book, or MedDRA). These are launched as standalone Python processes but report progress back to the same `SystemTask` record, allowing the frontend to track them uniformly.
 
-This is a lightweight background-job model. There is no separate queue broker or task worker tier in the checked-in architecture.
+The workflow for any non-blocking task follows this pattern:
+1.  The request creates a `SystemTask` record via `TaskService.create_task`.
+2.  The task is launched (as a thread or subprocess).
+3.  The backend persists progress (0-100), status messages, and optional JSON `result_data` in the database.
+4.  The frontend polls the unified `/api/dashboard/tasks/active` endpoint via the `UserContext` and displays progress globally.
 
-### 9.5 Subprocess task flow
-
-Administrative refresh operations use a different pattern:
-
-- `/api/dashboard/admin/update_db` creates a `SystemTask` row
-- the backend launches a Python subprocess for the requested import task
-- stdout/stderr are redirected to a task-specific log file under the data directory
-- the frontend polls task status and can fetch logs via admin endpoints
-
-This means the platform has **two distinct non-blocking execution strategies**: in-process threads for interactive workflows and subprocesses for operational maintenance jobs.
+This unified approach removes the architectural distinction between "interactive analysis" and "system maintenance," making the platform easier to monitor and scale.
 
 ## 10. Session, identity, and authorization model
 

@@ -9,9 +9,10 @@ This document is designed for high-speed indexing by AI agents. It maps technica
 | Task Scenario | Primary Files to Inspect | Technical Logic Keywords |
 | :--- | :--- | :--- |
 | **Fix FAERS/Safety Counts** | `backend/dashboard/services/fda_client.py`<br>`backend/dashboard/routes/api.py` | `get_faers_data`, `run_ae_report_generation` |
-| **Update Search Agent Flow** | `backend/search/scripts/search_v2_core/controller.py`<br>`backend/search/blueprint.py` | `run_controller`, `search_agentic_stream` |
+| **Update Search Agent Flow** | `backend/search/scripts/semantic_core/controller.py`<br>`backend/search/blueprint.py` | `run_controller`, `search_agentic_stream` |
 | **Add New AI Provider** | `backend/dashboard/services/ai_handler.py` | `AIClientFactory`, `call_llm` |
-| **Modify Schema / MedDRA** | `backend/database/models.py` | `MeddraMDHIER`, `ProjectAeReport` |
+| **Modify Schema / MedDRA** | `backend/database/models.py` | `MeddraMDHIER`, `SystemTask` |
+| **Unified Task Tracking** | `backend/dashboard/services/task_service.py` | `create_task`, `start_background_task` |
 | **Change Result Card UI** | `frontend/app/search/components/ResultCard.tsx` | `Metadata`, `Highlighting`, `Comparison` |
 | **Fix Auth / Session** | `backend/dashboard/routes/auth.py`<br>`frontend/app/context/UserContext.tsx` | `login`, `session`, `activeTasks` |
 
@@ -22,6 +23,7 @@ This document is designed for high-speed indexing by AI agents. It maps technica
 - **Frontend:** Next.js 15 (App Router), TypeScript, Tailwind-ready (Vanilla CSS preferred), Recharts.
 - **AI Infrastructure:** Google Gemini (SDK), Meta Llama (vLLM / OpenAI API), Elsa (FDA Internal Pixel API).
 - **Data Sources:** openFDA API, DailyMed (NIH), Internal FDALabel Oracle DB.
+- **Background Tasks:** Unified `TaskService` for threads (reports) and subprocesses (imports).
 
 ---
 
@@ -36,13 +38,19 @@ This document is designed for high-speed indexing by AI agents. It maps technica
 - `User`: Preferences (`ai_provider`), API keys.
 - `Project`: Workspace container.
 - `Favorite`: Denormalized label metadata (`set_id`, `ndc`, `brand_name`).
-- `ProjectAeReport`: Background task state (`progress`, `status`).
+- `SystemTask`: Unified task state (`progress`, `status`, `task_type`, `user_id`, `project_id`, `result_data`).
 - `MeddraMDHIER`: MedDRA hierarchy (SOC -> HLT -> PT).
+
+### `backend/dashboard/services/task_service.py`
+**AI Purpose:** **Task Orchestration**. Use this for background execution and status tracking.
+- `create_task()`: Initializes a new `SystemTask`.
+- `update_task()`: Updates progress, message, and status.
+- `start_background_task()`: Thread-safe wrapper with app context.
 
 ### `backend/dashboard/services/ai_handler.py`
 **AI Purpose:** **LLM Orchestration**. Use this to modify how the app talks to AI.
 - `AIClientFactory`: Logic for switching between **Gemini**, **Llama**, and **Elsa**.
-- `call_llm()`: Unified wrapper. Implements **Model Fallback** (e.g., Gemini 2.5 Flash -> 2.0 Flash on quota hit).
+- `call_llm()`: Unified wrapper. Implements **Model Fallback**.
 - `chat_with_document()`: Prompt engineering for RAG-style chat with verbatim citation rules.
 
 ### `backend/dashboard/services/fda_client.py`
@@ -64,7 +72,7 @@ This document is designed for high-speed indexing by AI agents. It maps technica
 **AI Purpose:** **NDJSON Streaming**. Orchestrates the real-time agent output.
 - `search_agentic_stream()`: Spawns a background thread to run the agent controller and streams logs to the frontend.
 
-### `backend/search/scripts/search_v2_core/`
+### `backend/search/scripts/semantic_core/`
 **AI Purpose:** **Agent Brain**.
 - `controller.py`: The main loop (`run_controller`) that iterates through Planner -> Executor -> Composer.
 - `agents/answer_composer.py`: Final clinical answer generation logic.
@@ -76,7 +84,7 @@ This document is designed for high-speed indexing by AI agents. It maps technica
 
 ### `frontend/app/context/UserContext.tsx`
 **AI Purpose:** **Global State Hub**.
-- `activeTasks`: Array of ongoing AE reports being polled every 5s from `/api/dashboard/ae_report/active_tasks`.
+- `activeTasks`: Array of ongoing reports and background jobs being polled every 30s from `/api/dashboard/tasks/active`.
 - `refreshSession()`: Handles re-authentication and preference syncing.
 
 ### `frontend/app/dashboard/page.tsx`
@@ -92,11 +100,11 @@ This document is designed for high-speed indexing by AI agents. It maps technica
 ## 🛰️ Data Flow Map (Internal AI Context)
 
 1. **User Query** -> `frontend/.../search/page.tsx` -> POST `/api/search/search_agentic_stream`
-2. **Backend Entry** -> `backend/search/blueprint.py` -> `run_controller` (`search_v2.py`)
+2. **Backend Entry** -> `backend/search/blueprint.py` -> `run_controller` (`semantic_core/controller.py`)
 3. **Planning** -> AI uses `SEARCH_HELPER_PROMPT` to build SQL or API query.
 4. **Data Retrieval** -> `fdalabel_db.py` (Internal) OR `fda_client.py` (External).
 5. **Answer Generation** -> `answer_composer.py` streams tokens via `ai_handler.py`.
-6. **Background Tasks** -> `run_ae_report_generation` (`api.py`) updates `ProjectAeReport` in DB -> UI polls via `UserContext.tsx`.
+6. **Background Tasks** -> `TaskService` updates `SystemTask` in DB -> UI polls via `UserContext.tsx` from `/api/dashboard/tasks/active`.
 
 ---
 

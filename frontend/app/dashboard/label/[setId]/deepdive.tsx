@@ -54,6 +54,10 @@ interface TieredResults {
   peer_count: number;
   peers_metadata: { [setId: string]: PeerMeta };
   target_set_id: string;
+  _stats?: {
+    cache_hits: number;
+    cache_misses: number;
+  };
 }
 
 export default function DeepDiveView({ 
@@ -264,8 +268,44 @@ export default function DeepDiveView({
 
       {results && !analyzing && (
         <div className="animate-fade-in">
-          
+
+          {/* DEV LOG: Cache Statistics */}
+          <div style={{
+            backgroundColor: 'transparent',
+            color: '#64748b',
+            padding: '8px 0',
+            fontSize: '0.85rem',
+            marginBottom: '16px',
+            borderBottom: '1px dashed #e2e8f0',
+            display: 'flex',
+            gap: '20px',
+            alignItems: 'center',
+            fontWeight: 500
+          }}>
+            <span style={{ fontWeight: 800, color: '#94a3b8', fontSize: '0.75rem', letterSpacing: '0.05em' }}>[DEV_LOG]</span>
+            {results._stats ? (
+              <>
+                <span style={{ color: '#475569' }}>Optimization Active:</span>
+                <span>Cache Hits: <strong style={{ color: '#0f172a' }}>{results._stats.cache_hits}</strong></span>
+                <span>New Scans: <strong style={{ color: '#0f172a' }}>{results._stats.cache_misses}</strong></span>
+                <span style={{ 
+                  backgroundColor: '#f0fdf4', 
+                  color: '#16a34a', 
+                  padding: '2px 8px', 
+                  borderRadius: '12px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700
+                }}>
+                  {Math.round((results._stats.cache_hits / (results._stats.cache_hits + results._stats.cache_misses)) * 100)}% Pre-indexed
+                </span>
+              </>
+            ) : (
+              <span>Pre-indexing stats not available.</span>
+            )}
+          </div>
+
           <div style={{ marginBottom: '40px' }}>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.03em' }}>Signal Anomalies</h2>

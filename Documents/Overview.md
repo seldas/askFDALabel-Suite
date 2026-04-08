@@ -40,7 +40,7 @@ The present system is organized as a layered application rather than a collectio
 |---|---|---|
 | Presentation layer | Next.js 16 app-router application under `frontend/app/` | Browser-facing user experience, page routing, client-side state, and API consumption |
 | Application layer | Unified Flask runtime assembled in `backend/app.py` | Hosts shared dashboard services plus additional domain blueprints for search, toxicology, device intelligence, local query, label comparison, and web validation |
-| Shared service layer | `backend/dashboard/services/` plus module-specific services | Encapsulates AI access, XML parsing, label retrieval, MedDRA matching, PGx assessment, deep-dive analysis, and external API calls |
+| Shared service layer | `backend/dashboard/services/` plus module-specific services | Encapsulates AI access, XML parsing, label retrieval, MedDRA matching, PGx assessment, deep-dive analysis, TaskService for background orchestration, and external API calls |
 | Persistence layer | PostgreSQL, `pgvector`, SQLAlchemy models, Alembic migrations | Stores application state, analytical datasets, labeling content, embeddings, and task metadata |
 | File-backed runtime state | `data/`, uploaded files, `spl_storage`, `backend/webtest/history`, `backend/webtest/results` | Supports imports, uploaded SPL material, local storage, validation history, and generated results |
 | Integration layer | openFDA, DailyMed/SPL files, Orange Book, MedDRA, PGx inputs, optional Oracle/internal FDALabel, LLM providers | Supplies external or semi-external data needed for search, enrichment, analysis, and validation |

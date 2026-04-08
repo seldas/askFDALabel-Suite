@@ -1,6 +1,8 @@
 import logging
+import json
+from datetime import datetime
 from flashtext import KeywordProcessor
-from database import db, MeddraPT, MeddraLLT
+from database import db, MeddraPT, MeddraLLT, LabelMeddraProfile
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +73,62 @@ class MeddraMatcher:
         # Deduplicate
         return list(set(found_terms))
 
+    def get_cached_scan(self, set_id, section_loinc):
+        """Retrieves cached MedDRA terms for a specific label section."""
+        try:
+            cache = db.session.query(LabelMeddraProfile).filter_by(
+                set_id=set_id, section_loinc=section_loinc
+            ).first()
+            if cache:
+                return json.loads(cache.terms)
+        except Exception as e:
+            logger.error(f"Error reading MedDRA cache: {e}")
+        return None
+
+    def save_scan_to_cache(self, set_id, section_loinc, terms):
+        """Saves scanned MedDRA terms to the database cache."""
+        try:
+            # Atomic upsert (simplified for SQLAlchemy)
+            existing = db.session.query(LabelMeddraProfile).filter_by(
+                set_id=set_id, section_loinc=section_loinc
+            ).first()
+            if existing:
+                existing.terms = json.dumps(terms)
+                existing.created_at = datetime.utcnow()
+            else:
+                new_cache = LabelMeddraProfile(
+                    set_id=set_id,
+                    section_loinc=section_loinc,
+                    terms=json.dumps(terms)
+                )
+                db.session.add(new_cache)
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Error saving MedDRA cache: {e}")
+            db.session.rollback()
+
 # Global helper
-def scan_label_for_meddra(text):
+def scan_label_for_meddra(text, set_id=None, section_loinc=None, return_stats=False):
     matcher = MeddraMatcher.get_instance()
-    return matcher.scan_text(text)
+    is_hit = False
+    
+    # 1. Check cache if set_id/section provided
+    if set_id and section_loinc:
+        cached_terms = matcher.get_cached_scan(set_id, section_loinc)
+        if cached_terms is not None:
+            is_hit = True
+            if return_stats:
+                return cached_terms, True
+            return cached_terms
+
+    # 2. Perform scan
+    terms = matcher.scan_text(text)
+
+    # 3. Save to cache if applicable
+    if set_id and section_loinc:
+        matcher.save_scan_to_cache(set_id, section_loinc, terms)
+
+    if return_stats:
+        return terms, False
+    return terms
 

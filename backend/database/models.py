@@ -449,3 +449,15 @@ class SystemTask(db.Model):
 
     user = db.relationship('User', backref=db.backref('tasks', lazy=True))
     project = db.relationship('Project', backref=db.backref('tasks', lazy=True))
+
+class LabelMeddraProfile(db.Model):
+    __tablename__ = 'label_meddra_profiles'
+    id = db.Column(db.Integer, primary_key=True)
+    set_id = db.Column(db.String(100), index=True, nullable=False)
+    section_loinc = db.Column(db.String(50), index=True, nullable=False)
+    terms = db.Column(db.Text) # Stored as a comma-separated or JSON string
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('set_id', 'section_loinc', name='_set_section_uc'),
+    )
