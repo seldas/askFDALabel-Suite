@@ -301,7 +301,7 @@ class DeepDiveService:
     @classmethod
     def _get_peer_sample(cls, source, generic_names, epcs, target_format, target_set_id=None):
         """
-        Samples up to 20 peers using local PostgreSQL labeling schema.
+        Samples up to 25 peers using local PostgreSQL labeling schema.
         Prioritizes UNII-based EPC matching, then generic names and EPC expansion.
         """
         if not FDALabelDBService.check_connectivity(): return []
@@ -424,7 +424,7 @@ class DeepDiveService:
             random.shuffle(all_peer_data)
             all_peer_data.sort(key=lambda x: x['score'], reverse=True)
             
-            final_sample = [p['id'] for p in all_peer_data[:20]]
+            final_sample = [p['id'] for p in all_peer_data[:25]]
             logger.info(f"Peer Sampling Result: Collected {len(all_peer_data)} candidates, returning {len(final_sample)} for analysis.")
             return final_sample
 

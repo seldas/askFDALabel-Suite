@@ -490,7 +490,7 @@ def sync_from_storage(storage_dir, num_workers=4, force=False):
                 (m.unii != '' AND m.unii = i.substance_unii) OR 
                 (m.unii = '' AND UPPER(m.substance_name) = UPPER(i.substance_name))
             )
-            WHERE i.indexing_type = 'EPC'
+            WHERE i.indexing_type = 'EPC' AND m.is_active = 1
             ON CONFLICT DO NOTHING;
 
             WITH agg_epc AS (

@@ -16,6 +16,13 @@ sys.path.append(str(backend_dir))
 
 NS = {'ns': 'urn:hl7-org:v3'}
 
+# List of substances that are too common/general to be used for class mapping
+# especially when they appear as secondary parts of a substance
+IGNORED_SUBSTANCES = {
+    'SODIUM CATION', 'POTASSIUM CATION', 'MAGNESIUM CATION', 'CALCIUM CATION',
+    'SULFATE ION', 'CHLORIDE ION', 'PHOSPHATE ION', 'WATER', 'NITROGEN', 'OXYGEN'
+}
+
 def get_el_text(el):
     return "".join(el.itertext()).strip() if el is not None else ""
 
@@ -49,6 +56,7 @@ def parse_indexing_zip(zip_path):
             if inner_sub is None: continue
             
             sub_name = get_el_text(inner_sub.find('ns:name', NS))
+            if sub_name.upper() in IGNORED_SUBSTANCES: continue
             
             # Specialized kinds (Classes)
             for spec in inner_sub.findall('ns:asSpecializedKind/ns:generalizedMaterialKind', NS):
@@ -138,6 +146,7 @@ def main():
         TRUNCATE TABLE labeling.epc_map;
 
         -- Insert into epc_map by matching UNII first, then substance names
+        -- ONLY match against ACTIVE ingredients to avoid tagging by common excipients/ions
         INSERT INTO labeling.epc_map (spl_id, epc_term)
         SELECT DISTINCT m.spl_id, i.indexing_name
         FROM labeling.active_ingredients_map m
@@ -145,8 +154,11 @@ def main():
             (m.unii != '' AND m.unii = i.substance_unii) OR 
             (m.unii = '' AND UPPER(m.substance_name) = UPPER(i.substance_name))
         )
-        WHERE i.indexing_type = 'EPC'
+        WHERE i.indexing_type = 'EPC' AND m.is_active = 1
         ON CONFLICT DO NOTHING;
+
+        -- Clear existing EPC column in sum_spl to remove incorrect/old mappings
+        UPDATE labeling.sum_spl SET epc = '';
 
         -- Update sum_spl EPC column with aggregated terms
         WITH agg_epc AS (
