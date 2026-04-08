@@ -397,8 +397,8 @@ class DrugLabel(db.Model):
 class LabelSection(db.Model):
     __tablename__ = 'spl_sections'
     __table_args__ = {'schema': 'labeling'}
-    
-    id = db.Column(db.Integer, primary_key=True)
+
+    id = db.Column(db.Integer, db.Identity(start=1, cycle=True), primary_key=True)
     spl_id = db.Column(db.String(100), db.ForeignKey('labeling.sum_spl.spl_id', ondelete='CASCADE'), index=True)
     loinc_code = db.Column(db.String(50))
     title = db.Column(db.Text)
@@ -408,12 +408,12 @@ class LabelSection(db.Model):
 class ActiveIngredientMap(db.Model):
     __tablename__ = 'active_ingredients_map'
     __table_args__ = {'schema': 'labeling'}
-    
-    id = db.Column(db.Integer, primary_key=True)
+
+    id = db.Column(db.Integer, db.Identity(start=1, cycle=True), primary_key=True)
     spl_id = db.Column(db.String(100), db.ForeignKey('labeling.sum_spl.spl_id', ondelete='CASCADE'), index=True)
     substance_name = db.Column(db.Text)
+    unii = db.Column(db.Text)
     is_active = db.Column(db.Integer)
-
 class OrangeBook(db.Model):
     __tablename__ = 'orange_book'
     id = db.Column(db.Integer, primary_key=True)
