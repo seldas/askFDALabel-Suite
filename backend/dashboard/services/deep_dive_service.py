@@ -58,13 +58,21 @@ class DeepDiveService:
         target_sections = extract_sections_by_loinc(target_xml)
         target_format = cls._determine_label_format(target_sections)
         
+        # Ensure we have generic_names
+        active_names = generic_names
+        if not active_names or active_names.lower() == 'n/a':
+            meta = get_label_metadata(target_set_id)
+            if meta:
+                active_names = meta.get('generic_name')
+        
         # Borrow EPC if missing from target or provided parameters
         active_epcs = epcs
         if not active_epcs or active_epcs.lower() == 'n/a':
-            active_epcs = cls._borrow_epc(target_set_id, generic_names)
+            active_epcs = cls._borrow_epc(target_set_id, active_names)
             logger.info(f"Borrowed EPC for {target_set_id}: {active_epcs}")
 
-        peer_set_ids = cls._get_peer_sample(source, generic_names, active_epcs, target_format)
+        logger.info(f"Sampling peers for {target_set_id} with names='{active_names}' and epcs='{active_epcs}'")
+        peer_set_ids = cls._get_peer_sample(source, active_names, active_epcs, target_format)
         
         HIERARCHY = {
             '34066-1': {'level': 3, 'code': 'B', 'label': 'Boxed Warning'},

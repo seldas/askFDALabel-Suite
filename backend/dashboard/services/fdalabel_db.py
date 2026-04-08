@@ -327,25 +327,26 @@ class FDALabelDBService:
             cursor = conn.cursor()
             if cls._db_type == 'oracle':
                 if generic_name:
-                    sql = "SELECT COUNT(*) FROM druglabel.DGV_SUM_SPL WHERE UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q)"
+                    sql = "SELECT COUNT(DISTINCT SET_ID) FROM druglabel.DGV_SUM_SPL WHERE UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q)"
                     cursor.execute(sql, {"q": f"%{generic_name}%"})
                     results["generic_count"] = cls._get_count(cursor.fetchone())
                 if epc:
-                    sql = "SELECT COUNT(*) FROM druglabel.DGV_SUM_SPL WHERE UPPER(EPC) LIKE UPPER(:q)"
+                    sql = "SELECT COUNT(DISTINCT SET_ID) FROM druglabel.DGV_SUM_SPL WHERE UPPER(EPC) LIKE UPPER(:q)"
                     cursor.execute(sql, {"q": f"%{epc}%"})
                     results["epc_count"] = cls._get_count(cursor.fetchone())
             else:
                 schema = "labeling."
-                if generic_name:
+                if generic_name and not epc:
                     # Only count labels with XML content
                     sql = f"""
-                        SELECT COUNT(DISTINCT s.spl_id) 
+                        SELECT COUNT(DISTINCT s.set_id) 
                         FROM {schema}sum_spl s
                         JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
                         WHERE s.generic_names ILIKE %(q)s
                     """
                     cursor.execute(sql, {"q": f"%{generic_name}%"})
                     results["generic_count"] = cls._get_count(cursor.fetchone())
+                
                 if epc:
                     # 1. Find all unique generic names under this EPC
                     clean_epc = epc.split('[')[0].strip()
@@ -363,11 +364,16 @@ class FDALabelDBService:
                             for gn in gn_str.split(';'):
                                 if gn.strip(): all_gns.add(gn.strip().upper())
                     
+                    # Force include the provided generic_name if we are counting for its EPC
+                    if generic_name:
+                        for gn in generic_name.split(','):
+                            if gn.strip(): all_gns.add(gn.strip().upper())
+
                     if all_gns:
                         # 2. Count labels with XML content that have ANY of these generic names
                         where_parts = [f"s.generic_names ILIKE %s"] * len(all_gns)
                         sql_count = f"""
-                            SELECT COUNT(DISTINCT s.spl_id) 
+                            SELECT COUNT(DISTINCT s.set_id) 
                             FROM {schema}sum_spl s
                             JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
                             WHERE {' OR '.join(where_parts)}
@@ -377,7 +383,7 @@ class FDALabelDBService:
                     else:
                         # Fallback to direct EPC count with XML join
                         sql = f"""
-                            SELECT COUNT(DISTINCT s.spl_id) 
+                            SELECT COUNT(DISTINCT s.set_id) 
                             FROM {schema}sum_spl s 
                             JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
                             LEFT JOIN {schema}epc_map e ON s.spl_id = e.spl_id 

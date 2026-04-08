@@ -256,14 +256,14 @@ def get_label_counts(generic_name=None, epc=None):
     """
     fda_url = "https://api.fda.gov/drug/label.json"
     results = {"generic_count": 0, "epc_count": 0}
-    
+
     # Base params
     base_params = {}
     if Config.OPENFDA_API_KEY:
         base_params['api_key'] = Config.OPENFDA_API_KEY
 
     # 1. Query for Generic Name
-    if generic_name:
+    if generic_name and not epc:
         # Extract first part of generic name for better search matching
         clean_name = re.split(r'[,;]', generic_name)[0].strip()
         params = base_params.copy()
@@ -279,7 +279,16 @@ def get_label_counts(generic_name=None, epc=None):
     # 2. Query for EPC
     if epc:
         params = base_params.copy()
-        params['search'] = f'openfda.pharm_class_epc:"{epc}"'
+        clean_epc = epc.split('[')[0].strip()
+
+        # We combine EPC search with generic_name if provided to ensure coverage
+        # Use a more flexible search: exact match for EPC or shared generic names
+        search_query = f'openfda.pharm_class_epc:"{clean_epc}"'
+        if generic_name:
+            clean_name = re.split(r'[,;]', generic_name)[0].strip()
+            search_query = f'({search_query}) OR openfda.generic_name:"{clean_name}"'
+
+        params['search'] = search_query
         params['limit'] = 1
         try:
             resp = requests.get(fda_url, params=params, timeout=10)
@@ -289,7 +298,6 @@ def get_label_counts(generic_name=None, epc=None):
             logger.error(f"Error fetching EPC counts from openFDA: {e}")
 
     return results
-
 def get_rich_metadata_by_generic(generic_name):
     """
     Searches openFDA by generic name to find a record that actually contains 
