@@ -219,6 +219,33 @@ def import_labels():
             update_progress(task_id, 100, f"Import complete. Processed: {processed}, Skipped: {skipped}", status='completed')
             print(f"\n[!] Success! Processed: {processed}, Skipped: {skipped}")
 
+            # Final step: Populate EPC column from substance_indexing if available
+            print("  [+] Updating EPC mappings from indexing table...")
+            try:
+                db.session.execute(text("""
+                    INSERT INTO labeling.epc_map (spl_id, epc_term)
+                    SELECT DISTINCT m.spl_id, i.indexing_name
+                    FROM labeling.active_ingredients_map m
+                    JOIN labeling.substance_indexing i ON UPPER(m.substance_name) = UPPER(i.substance_name)
+                    WHERE i.indexing_type = 'EPC'
+                    ON CONFLICT DO NOTHING;
+
+                    WITH agg_epc AS (
+                        SELECT spl_id, string_agg(DISTINCT epc_term, '; ') as epcs
+                        FROM labeling.epc_map
+                        GROUP BY spl_id
+                    )
+                    UPDATE labeling.sum_spl s
+                    SET epc = a.epcs
+                    FROM agg_epc a
+                    WHERE s.spl_id = a.spl_id AND (s.epc IS NULL OR s.epc = '');
+                """))
+                db.session.commit()
+                print("  [+] EPC mappings updated.")
+            except Exception as e:
+                print(f"  [!] Warning: Could not update EPC mappings: {e}")
+                db.session.rollback()
+
         except Exception as e:
             print(f"  [!] Error: {e}")
             if task_id:
