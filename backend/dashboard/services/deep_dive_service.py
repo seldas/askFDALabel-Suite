@@ -134,7 +134,7 @@ class DeepDiveService:
                 'A': round((counts['A'] / total_peers * 100) if total_peers > 0 else 0),
                 'N': round((counts['N'] / total_peers * 100) if total_peers > 0 else 0)
             }
-            consensus_code = counts.most_common(1)[0][0]
+            consensus_code = counts.most_common(1)[0][0] if counts else 'N'
             target_status = target_pt_levels.get(pt, {'level': 0, 'code': 'N', 'soc': 'Unknown', 'originals': []})
             
             LEVEL_MAP = {'B': 3, 'W': 2, 'A': 1, 'N': 0}
@@ -189,7 +189,8 @@ class DeepDiveService:
                     'is_discrepancy': is_discrepancy
                 })
 
-        matrix_rows.sort(key=lambda x: (HIERARCHY.get(f"34066-1" if x['target'] == 'B' else "34071-1" if x['target'] == 'W' else "34084-4", {'level':0})['level'], x['term']), reverse=True)
+        LEVEL_MAP = {'B': 3, 'W': 2, 'A': 1, 'N': 0}
+        matrix_rows.sort(key=lambda x: (LEVEL_MAP.get(x['target'], 0), x['term']), reverse=True)
         for t in tiers: tiers[t].sort(key=lambda x: x['weight'], reverse=True)
 
         return {
@@ -311,8 +312,11 @@ class DeepDiveService:
             cursor.execute(sql, {"q": f"%{generic_name if generic_name else epc}%"})
             rows = cursor.fetchall()
             for r in rows:
-                if isinstance(r, dict): ids.append(r['set_id'])
-                else: ids.append(r[0])
+                if isinstance(r, dict):
+                    sid = r.get('set_id')
+                    if sid: ids.append(sid)
+                elif r and len(r) > 0:
+                    if r[0]: ids.append(r[0])
         except Exception as e:
             logger.error(f"Local ID query error: {e}")
         finally:
