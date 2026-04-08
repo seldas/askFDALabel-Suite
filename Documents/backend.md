@@ -495,9 +495,9 @@ The following items are not necessarily defects in every environment, but they a
 
 The repository includes Alembic migration infrastructure under `backend/migrations/`, but the dashboard factory still calls `db.create_all()` at startup. That creates a mixed migration model in which schema changes may enter through both migration scripts and application boot behavior.
 
-### 14.2 Search route surface is still being rationalized
+### 14.2 Search route surface cleanup
 
-`backend/search/blueprint.py` currently contains overlapping search/chat styles and duplicate `POST /chat` route declarations under the same blueprint. That should be normalized before the search API is treated as stable.
+The `backend/search/blueprint.py` has been cleaned up to remove redundant search/chat styles. Specifically, the duplicate `POST /chat` route declaration has been resolved, leaving `chat_with_ai` as the primary entry point for conversational AI search. Further normalization of the search API surface is ongoing.
 
 ### 14.3 Frontend/backend search contract drift exists
 
