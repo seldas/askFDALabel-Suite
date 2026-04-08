@@ -42,17 +42,19 @@ This includes nearly all `public` schema tables and three `labeling` schema tabl
 
 ### 3.2 Custom SQL-managed labeling objects
 
-`scripts/database/pg_init_labeldb.py` is authoritative for the **full** `labeling` schema bootstrap. It creates:
+`scripts/db_init/db_02_init_labeling_schema.py` is authoritative for the **full** `labeling` schema bootstrap. It creates:
 - `labeling.sum_spl`
 - `labeling.spl_sections`
-- `labeling.active_ingredients_map`
+- `labeling.active_ingredients_map` (including the `unii` column)
 - `labeling.epc_map`
+- `labeling.substance_indexing`
 - `labeling.processed_zips`
 
 It also adds or enforces labeling-specific database objects that are **not fully represented in the ORM**, especially:
 - the generated `search_vector` column on `labeling.spl_sections`
 - the GIN index on `labeling.spl_sections.search_vector`
 - supporting indexes for `sum_spl`, `spl_sections`, `active_ingredients_map`, and `epc_map`
+- `IDENTITY` column properties for primary keys to ensure consistent auto-increment behavior across different machine environments.
 
 This means the ORM alone does **not** fully describe the `labeling` schema.
 
@@ -567,13 +569,15 @@ Because the schema is hybrid-managed, database setup should be understood as a s
 
 ### 7.1 Recommended clean bootstrap order
 
-1. Start PostgreSQL.
-2. Enable `pgvector`.
-3. Initialize the `labeling` schema with `scripts/database/pg_init_labeldb.py`.
-4. Initialize ORM-backed tables with `scripts/database/init_public_schema.py` or by starting the backend application.
-5. Apply Alembic migrations for tracked deltas.
-6. Run data importers for MedDRA, PGx, DrugTox, Orange Book, and SPL content.
-7. Generate label embeddings and apply the HNSW index if semantic retrieval is needed.
+The project uses a numbered sequence of scripts in `scripts/db_init/` to ensure all components are initialized in the correct order. These scripts are idempotent and can be run safely on new or existing environments.
+
+1.  **Enable pgvector**: `python scripts/db_init/db_01_enable_pgvector.py`
+2.  **Initialize Labeling Schema**: `python scripts/db_init/db_02_init_labeling_schema.py`
+3.  **Initialize Public Schema**: `python scripts/db_init/db_03_init_public_schema.py`
+4.  **Import Orange Book**: `python scripts/db_init/db_04_import_orange_book.py`
+5.  **Import EPC Indexing**: `python scripts/db_init/db_05_import_epc_indexing.py`
+6.  **Create Admin User**: `python scripts/db_init/db_06_create_admin.py`
+7.  **Import Labels**: `python scripts/db_init/db_07_import_labels.py` (use `--force` to re-populate UNII/EPC fields)
 
 ### 7.2 Why the order matters
 
@@ -590,16 +594,16 @@ For that reason, `pg_init_labeldb.py` should be treated as the authoritative boo
 ### 8.1 SPL label data
 
 Primary scripts:
-- `scripts/database/pg_import_labels.py`
+- `scripts/db_init/db_07_import_labels.py`
 - `backend/admin/tasks/import_labels.py`
 
 Target tables:
 - `labeling.sum_spl`
 - `labeling.spl_sections`
-- `labeling.active_ingredients_map`
+- `labeling.active_ingredients_map` (populates `unii`)
 - `labeling.processed_zips`
 
-Important note: the standalone `pg_import_labels.py` path is currently the more complete schema-aware flow because it explicitly falls back to `pg_init_labeldb.py`.
+Important note: the standalone `db_07_import_labels.py` path is currently the more complete schema-aware flow because it explicitly falls back to `db_02_init_labeling_schema.py`.
 
 ### 8.2 MedDRA
 
@@ -740,8 +744,8 @@ labeling.sum_spl
 | Object class | Primary source |
 |---|---|
 | Most `public` tables | `backend/database/models.py` |
-| `labeling.sum_spl`, `labeling.spl_sections`, `labeling.active_ingredients_map` | Both ORM and `pg_init_labeldb.py` |
-| `labeling.epc_map`, `labeling.processed_zips` | `scripts/database/pg_init_labeldb.py` only |
-| `labeling.spl_sections.search_vector` and full-text index | `scripts/database/pg_init_labeldb.py` only |
+| `labeling.sum_spl`, `labeling.spl_sections`, `labeling.active_ingredients_map`, `labeling.substance_indexing` | Both ORM and `db_02_init_labeling_schema.py` |
+| `labeling.epc_map`, `labeling.processed_zips` | `scripts/db_init/db_02_init_labeling_schema.py` only |
+| `labeling.spl_sections.search_vector` and full-text index | `scripts/db_init/db_02_init_labeling_schema.py` only |
 | Incremental public-schema changes | `backend/migrations/versions/*` |
-| Vector extension and HNSW index | `scripts/database/enable_pgvector.py`, `scripts/ai/create_vector_index.py` |
+| Vector extension and HNSW index | `scripts/db_init/db_01_enable_pgvector.py`, `scripts/ai/create_vector_index.py` |
