@@ -6,6 +6,17 @@ from datetime import datetime
 
 localquery_bp = Blueprint('localquery', __name__)
 
+@localquery_bp.route('/stats', methods=['GET'])
+def get_stats():
+    """
+    Returns statistics about the local label database.
+    """
+    try:
+        stats = FDALabelDBService.get_stats()
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @localquery_bp.route('/search', methods=['GET'])
 def local_search():
     """

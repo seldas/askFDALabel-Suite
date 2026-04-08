@@ -881,3 +881,33 @@ class FDALabelDBService:
             return results
         except Exception as e: print(f"Error in export: {e}"); return []
         finally: conn.close()
+
+    @classmethod
+    def get_stats(cls):
+        """Returns statistics about the local labeling database."""
+        if not cls.check_connectivity(): return {"total_labels": 0, "last_updated": None}
+        conn = cls.get_connection()
+        if not conn: return {"total_labels": 0, "last_updated": None}
+        try:
+            cursor = conn.cursor()
+            stats = {"total_labels": 0, "last_updated": None}
+            if cls._db_type == 'oracle':
+                cursor.execute("SELECT COUNT(*) FROM druglabel.DGV_SUM_SPL")
+                stats["total_labels"] = cls._get_count(cursor.fetchone())
+            else:
+                schema = "labeling."
+                cursor.execute(f"SELECT COUNT(DISTINCT set_id) FROM {schema}sum_spl")
+                stats["total_labels"] = cls._get_count(cursor.fetchone())
+                try:
+                    cursor.execute(f"SELECT MAX(processed_at) FROM {schema}processed_zips")
+                    res = cursor.fetchone()
+                    if res:
+                        val = res['max'] if isinstance(res, dict) else res[0]
+                        if val:
+                            stats["last_updated"] = val.strftime("%Y-%m-%d %H:%M") if hasattr(val, 'strftime') else str(val)
+                except: pass
+            return stats
+        except Exception as e:
+            print(f"Error in get_stats: {e}")
+            return {"total_labels": 0, "last_updated": None}
+        finally: conn.close()
