@@ -40,7 +40,7 @@ def get_peers_count(set_id):
     If the current set_id is missing EPC data, it searches by Generic Name
     to borrow metadata from a richer peer record.
     """
-    source = request.args.get('source', 'openfda').lower()
+    source = request.args.get('source', 'local').lower()
     
     # 1. Get basic metadata for the current set_id
     meta = get_label_metadata(set_id)
@@ -68,18 +68,27 @@ def get_peers_count(set_id):
 
     # Helper to get detailed counts for each term
     def get_detailed_counts(name_str, epc_str, count_fn):
+        # We use the original generic_name from meta to ensure target is included
+        target_gn = meta.get('generic_name')
+        
         names = [n.strip() for n in (name_str or "").split(',') if n.strip() and n.strip().lower() != 'n/a']
         epcs = [e.strip() for e in (epc_str or "").split(',') if e.strip() and e.strip().lower() != 'n/a']
         
         name_list = []
         for n in names:
             c = count_fn(generic_name=n)
-            name_list.append({"term": n, "count": c.get('generic_count', 0)})
+            # Subtract 1 to show OTHER labels (peers)
+            cnt = max(0, c.get('generic_count', 0) - 1)
+            name_list.append({"term": n, "count": cnt})
             
         epc_list = []
         for e in epcs:
-            c = count_fn(epc=e)
-            epc_list.append({"term": e, "count": c.get('epc_count', 0)})
+            # Pass both to ensure the target drug is included in its own EPC count 
+            # (especially if EPC mappings are missing in local DB)
+            c = count_fn(generic_name=target_gn, epc=e)
+            # Subtract 1 to show OTHER labels in the same class
+            cnt = max(0, c.get('epc_count', 0) - 1)
+            epc_list.append({"term": e, "count": cnt})
             
         return name_list, epc_list
 
@@ -102,7 +111,7 @@ def get_deep_dive_analysis(set_id):
     """
     Runs the Phase 2 statistical analysis (TF-IDF) for the label sections.
     """
-    source = request.args.get('source', 'openfda').lower()
+    source = request.args.get('source', 'local').lower()
     generic_names = request.args.get('generic_names')
     epcs = request.args.get('epcs')
     

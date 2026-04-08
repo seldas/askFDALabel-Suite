@@ -79,6 +79,18 @@ class FDALabelDBService:
         return cls.is_available()
 
     @classmethod
+    def _get_count(cls, res):
+        """Safely extracts a count value from a cursor.fetchone() result."""
+        if res is None:
+            return 0
+        if isinstance(res, (tuple, list)):
+            return res[0]
+        if isinstance(res, dict):
+            # Try common count keys
+            return res.get('count') or res.get('COUNT(*)') or res.get('count(*)') or 0
+        return 0
+
+    @classmethod
     def filter_labels(cls, filters, limit=5000):
         if not cls.check_connectivity(): return [], 0
         conn = cls.get_connection()
@@ -167,11 +179,8 @@ class FDALabelDBService:
             count_where = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
             count_sql = f"SELECT COUNT(*) FROM {schema}{table} {count_where}"
             cursor.execute(count_sql, params)
-            total_count = cursor.fetchone()[0] if not isinstance(cursor.fetchone(), dict) else 0 # Simple fix for RealDictCursor or tuple
-            # Re-execute count because fetchone moves the pointer
-            cursor.execute(count_sql, params)
             res = cursor.fetchone()
-            total_count = res[0] if isinstance(res, (tuple, list)) else res.get('COUNT(*)') or res.get('count') or 0
+            total_count = cls._get_count(res)
             
             if total_count > limit:
                 return [], total_count
@@ -318,23 +327,70 @@ class FDALabelDBService:
             cursor = conn.cursor()
             if cls._db_type == 'oracle':
                 if generic_name:
-                    sql = "SELECT COUNT(*) FROM druglabel.DGV_SUM_SPL WHERE UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q)"
+                    sql = "SELECT COUNT(DISTINCT SET_ID) FROM druglabel.DGV_SUM_SPL WHERE UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q)"
                     cursor.execute(sql, {"q": f"%{generic_name}%"})
-                    results["generic_count"] = cursor.fetchone()[0]
+                    results["generic_count"] = cls._get_count(cursor.fetchone())
                 if epc:
-                    sql = "SELECT COUNT(*) FROM druglabel.DGV_SUM_SPL WHERE UPPER(EPC) LIKE UPPER(:q)"
+                    sql = "SELECT COUNT(DISTINCT SET_ID) FROM druglabel.DGV_SUM_SPL WHERE UPPER(EPC) LIKE UPPER(:q)"
                     cursor.execute(sql, {"q": f"%{epc}%"})
-                    results["epc_count"] = cursor.fetchone()[0]
+                    results["epc_count"] = cls._get_count(cursor.fetchone())
             else:
                 schema = "labeling."
-                if generic_name:
-                    sql = f"SELECT COUNT(*) FROM {schema}sum_spl WHERE generic_names ILIKE %(q)s"
+                if generic_name and not epc:
+                    # Only count labels with XML content
+                    sql = f"""
+                        SELECT COUNT(DISTINCT s.set_id) 
+                        FROM {schema}sum_spl s
+                        JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
+                        WHERE s.generic_names ILIKE %(q)s
+                    """
                     cursor.execute(sql, {"q": f"%{generic_name}%"})
-                    results["generic_count"] = cursor.fetchone()[0]
+                    results["generic_count"] = cls._get_count(cursor.fetchone())
+                
                 if epc:
-                    sql = f"SELECT COUNT(*) FROM {schema}sum_spl WHERE epc ILIKE %(q)s"
-                    cursor.execute(sql, {"q": f"%{epc}%"})
-                    results["epc_count"] = cursor.fetchone()[0]
+                    # 1. Find all unique generic names under this EPC
+                    clean_epc = epc.split('[')[0].strip()
+                    sql_gns = f"""
+                        SELECT DISTINCT generic_names 
+                        FROM {schema}sum_spl s
+                        LEFT JOIN {schema}epc_map e ON s.spl_id = e.spl_id
+                        WHERE s.epc ILIKE %(q)s OR e.epc_term ILIKE %(q)s OR s.epc ILIKE %(cq)s OR e.epc_term ILIKE %(cq)s
+                    """
+                    cursor.execute(sql_gns, {"q": f"%{epc}%", "cq": f"%{clean_epc}%"})
+                    all_gns = set()
+                    for row in cursor.fetchall():
+                        gn_str = row['generic_names'] if isinstance(row, dict) else row[0]
+                        if gn_str:
+                            for gn in gn_str.split(';'):
+                                if gn.strip(): all_gns.add(gn.strip().upper())
+                    
+                    # Force include the provided generic_name if we are counting for its EPC
+                    if generic_name:
+                        for gn in generic_name.split(','):
+                            if gn.strip(): all_gns.add(gn.strip().upper())
+
+                    if all_gns:
+                        # 2. Count labels with XML content that have ANY of these generic names
+                        where_parts = [f"s.generic_names ILIKE %s"] * len(all_gns)
+                        sql_count = f"""
+                            SELECT COUNT(DISTINCT s.set_id) 
+                            FROM {schema}sum_spl s
+                            JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
+                            WHERE {' OR '.join(where_parts)}
+                        """
+                        cursor.execute(sql_count, [f"%{gn}%" for gn in all_gns])
+                        results["epc_count"] = cls._get_count(cursor.fetchone())
+                    else:
+                        # Fallback to direct EPC count with XML join
+                        sql = f"""
+                            SELECT COUNT(DISTINCT s.set_id) 
+                            FROM {schema}sum_spl s 
+                            JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
+                            LEFT JOIN {schema}epc_map e ON s.spl_id = e.spl_id 
+                            WHERE s.epc ILIKE %(q)s OR e.epc_term ILIKE %(q)s
+                        """
+                        cursor.execute(sql, {"q": f"%{epc}%"})
+                        results["epc_count"] = cls._get_count(cursor.fetchone())
         except Exception as e:
             print(f"Error in get_label_counts: {e}")
         finally:

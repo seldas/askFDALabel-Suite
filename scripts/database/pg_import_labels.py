@@ -86,12 +86,20 @@ def parse_spl_zip(zip_path, rld_appl_nos, rs_appl_nos):
                 
             for ingr in prod.findall('ns:ingredient', NS):
                 class_code = ingr.get('classCode')
-                if (subst := ingr.find('ns:ingredientSubstance/ns:name', NS)) is not None:
-                    is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
-                    sub_name = get_el_text(subst)
-                    if is_active:
-                        active_ingredients.append(sub_name)
-                    ingr_map.append((spl_id, sub_name, is_active))
+                subst_el = ingr.find('ns:ingredientSubstance', NS)
+                if subst_el is not None:
+                    name_el = subst_el.find('ns:name', NS)
+                    code_el = subst_el.find('ns:code', NS)
+                    
+                    if name_el is not None:
+                        sub_name = get_el_text(name_el)
+                        # Extract UNII if codeSystem is correct
+                        unii = code_el.get('code') if (code_el is not None and code_el.get('codeSystem') == '2.16.840.1.113883.4.9') else ""
+                        is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
+                        
+                        if is_active:
+                            active_ingredients.append(sub_name)
+                        ingr_map.append((spl_id, sub_name, unii, is_active))
 
             for rel in prod.findall('.//ns:routeCode', NS):
                 routes.append(rel.get('displayName'))
@@ -293,12 +301,20 @@ def parse_spl_zip(zip_path):
                 
             for ingr in prod.findall('ns:ingredient', NS):
                 class_code = ingr.get('classCode')
-                if (subst := ingr.find('ns:ingredientSubstance/ns:name', NS)) is not None:
-                    is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
-                    sub_name = get_el_text(subst)
-                    if is_active:
-                        active_ingredients.append(sub_name)
-                    ingr_map.append((spl_id, sub_name, is_active))
+                subst_el = ingr.find('ns:ingredientSubstance', NS)
+                if subst_el is not None:
+                    name_el = subst_el.find('ns:name', NS)
+                    code_el = subst_el.find('ns:code', NS)
+                    
+                    if name_el is not None:
+                        sub_name = get_el_text(name_el)
+                        # Extract UNII if codeSystem is correct
+                        unii = code_el.get('code') if (code_el is not None and code_el.get('codeSystem') == '2.16.840.1.113883.4.9') else ""
+                        is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
+                        
+                        if is_active:
+                            active_ingredients.append(sub_name)
+                        ingr_map.append((spl_id, sub_name, unii, is_active))
 
             for rel in prod.findall('.//ns:routeCode', NS):
                 routes.append(rel.get('displayName'))
@@ -345,7 +361,7 @@ def parse_spl_zip(zip_path):
     except Exception:
         return None
 
-def sync_from_storage(storage_dir, num_workers=4):
+def sync_from_storage(storage_dir, num_workers=4, force=False):
     root_dir = Path(__file__).resolve().parent.parent.parent
     storage_path = root_dir / storage_dir
     zip_files = sorted(glob.glob(str(storage_path / "*.zip")))
@@ -366,12 +382,15 @@ def sync_from_storage(storage_dir, num_workers=4):
 
     # Get existing records
     existing = set()
-    try:
-        results = PGUtils.execute_query("SELECT set_id, revised_date FROM labeling.sum_spl", fetch=True)
-        existing = { (r['set_id'], r['revised_date']) for r in results }
-        print(f"Skipping {len(existing)} records already in database.")
-    except Exception:
-        pass
+    if not force:
+        try:
+            results = PGUtils.execute_query("SELECT set_id, revised_date FROM labeling.sum_spl", fetch=True)
+            existing = { (r['set_id'], r['revised_date']) for r in results }
+            print(f"Skipping {len(existing)} records already in database.")
+        except Exception:
+            pass
+    else:
+        print("Force mode enabled: Re-processing all labels.")
 
     batch_size = 500
     meta_batch, ingr_batch, sect_batch, spl_id_batch = [], [], [], []
@@ -426,8 +445,9 @@ def sync_from_storage(storage_dir, num_workers=4):
                             # 3. Insert Ingredients
                             if ingr_batch:
                                 ingr_table = sql.Identifier('labeling', 'active_ingredients_map')
-                                ingr_cols = [sql.Identifier(c) for c in ['spl_id', 'substance_name', 'is_active']]
+                                ingr_cols = [sql.Identifier(c) for c in ['spl_id', 'substance_name', 'unii', 'is_active']]
                                 ingr_query = sql.SQL("INSERT INTO {table} ({cols}) VALUES %s").format(
+
                                     table=ingr_table,
                                     cols=sql.SQL(', ').join(ingr_cols)
                                 )
@@ -459,6 +479,34 @@ def sync_from_storage(storage_dir, num_workers=4):
 
     print(f"\nFinished Sync. Processed: {processed}, Skipped: {skipped}")
 
+    # Final step: Populate EPC column from substance_indexing if available
+    print("Updating EPC mappings from indexing table...")
+    try:
+        PGUtils.execute_query("""
+            INSERT INTO labeling.epc_map (spl_id, epc_term)
+            SELECT DISTINCT m.spl_id, i.indexing_name
+            FROM labeling.active_ingredients_map m
+            JOIN labeling.substance_indexing i ON (
+                (m.unii != '' AND m.unii = i.substance_unii) OR 
+                (m.unii = '' AND UPPER(m.substance_name) = UPPER(i.substance_name))
+            )
+            WHERE i.indexing_type = 'EPC'
+            ON CONFLICT DO NOTHING;
+
+            WITH agg_epc AS (
+                SELECT spl_id, string_agg(DISTINCT epc_term, '; ') as epcs
+                FROM labeling.epc_map
+                GROUP BY spl_id
+            )
+            UPDATE labeling.sum_spl s
+            SET epc = a.epcs
+            FROM agg_epc a
+            WHERE s.spl_id = a.spl_id AND (s.epc IS NULL OR s.epc = '');
+        """)
+        print("EPC mappings updated.")
+    except Exception as e:
+        print(f"Warning: Could not update EPC mappings: {e}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="DailyMed to PostgreSQL Sync Pipeline.")
@@ -467,6 +515,7 @@ def main():
     parser.add_argument("--filter", choices=['prescription', 'human', 'all'], default='human', help="Unpacking filter")
     parser.add_argument("--skip-unpack", action="store_true", help="Skip the unpacking phase")
     parser.add_argument("--workers", type=int, default=4, help="Number of worker processes (default: 4)")
+    parser.add_argument("--force", action="store_true", help="Force re-processing of already imported labels")
     
     args = parser.parse_args()
 
@@ -477,7 +526,7 @@ def main():
         print("Unpacking phase skipped.")
 
     print("\n=== Phase 2: Syncing to PostgreSQL ===")
-    sync_from_storage(args.storage_dir, num_workers=args.workers)
+    sync_from_storage(args.storage_dir, num_workers=args.workers, force=args.force)
 
 if __name__ == "__main__":
     main()
