@@ -70,7 +70,7 @@ export default function DeepDiveView({
   const [loadingCounts, setLoadingCounts] = useState(false);
   const [countsData, setCountsData] = useState<PeerCounts | null>(null);
   const [countsError, setCountsError] = useState<string | null>(null);
-  const [source, setSource] = useState<'local' | 'oracle' | 'openfda'>('openfda');
+  const [source, setSource] = useState<'local' | 'oracle' | 'openfda'>('local');
 
   // Analysis State
   const [analyzing, setAnalyzing] = useState(false);

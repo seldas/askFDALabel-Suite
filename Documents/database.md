@@ -644,7 +644,24 @@ Primary scripts:
 Target table:
 - `label_embeddings`
 
-## 9. Current architectural observations and caveats
+## 9. Label Metadata and EPC Borrowing Logic
+
+The application implements a "borrowing" strategy for clinical metadata, particularly the Established Pharmacologic Class (EPC), which is often missing from specific manufacturer labels.
+
+### 9.1 EPC Borrowing Strategy
+
+When a label's `epc` field is empty or 'N/A', the system attempts to find a related label to "borrow" the EPC from. This is critical for comparative analytical features like the "Deep Dive" peer analysis.
+
+The borrowing sequence is:
+1.  **Search by Application Number (`appr_num`):** The system looks for other labels in `labeling.sum_spl` with the exact same application number that have a populated `epc` field. This is the highest-confidence match (e.g., matching a generic to its RLD or other generics in the same approval).
+2.  **Search by Generic Name (`generic_names`):** If no match is found by application number, the system searches for other labels with a matching generic name (using `ILIKE` on `generic_names`) that have a populated `epc` field.
+
+### 9.2 Implementation in Services
+
+-   **`DeepDiveService._borrow_epc`**: Implements the logic described above for statistical peer sampling.
+-   **`api_bp` (Dashboard Routes)**: Utilizes `get_rich_metadata_by_generic` as a fallback when initial metadata is sparse.
+
+## 10. Current architectural observations and caveats
 
 ### 9.1 Schema management is partially fragmented
 

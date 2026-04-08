@@ -51,14 +51,20 @@ class DeepDiveService:
         return 'OTC'
 
     @classmethod
-    def get_comparison_analysis(cls, target_set_id, source='openfda', generic_names=None, epcs=None):
-        """Builds a Compliance Matrix with Traceability and Peer References."""
+    def get_comparison_analysis(cls, target_set_id, source='local', generic_names=None, epcs=None):
+        """Builds a Compliance Matrix with Traceability and Peer References using local DB."""
         target_xml = get_label_xml(target_set_id)
         if not target_xml: return {"error": "Target XML not found"}
         target_sections = extract_sections_by_loinc(target_xml)
         target_format = cls._determine_label_format(target_sections)
         
-        peer_set_ids = cls._get_peer_sample(source, generic_names, epcs, target_format)
+        # Borrow EPC if missing from target or provided parameters
+        active_epcs = epcs
+        if not active_epcs or active_epcs.lower() == 'n/a':
+            active_epcs = cls._borrow_epc(target_set_id, generic_names)
+            logger.info(f"Borrowed EPC for {target_set_id}: {active_epcs}")
+
+        peer_set_ids = cls._get_peer_sample(source, generic_names, active_epcs, target_format)
         
         HIERARCHY = {
             '34066-1': {'level': 3, 'code': 'B', 'label': 'Boxed Warning'},
@@ -210,127 +216,126 @@ class DeepDiveService:
             'peer_count': total_peers,
             'peers_metadata': peers_meta,
             'target_set_id': target_set_id,
+            'borrowed_epc': active_epcs,
             '_stats': analysis_stats
         }
 
     @classmethod
-    def _get_peer_sample(cls, source, generic_names, epcs, target_format):
-        """
-        Samples up to 20 peers, prioritizing RLDs and matching label format.
-        """
-        all_peer_data = [] # List of {set_id, is_rld, format}
-        name_list = [n.strip() for n in (generic_names or "").split(',') if n.strip() and n.strip().lower() != 'n/a']
-        epc_list = [e.strip() for e in (epcs or "").split(',') if e.strip() and e.strip().lower() != 'n/a']
+    def _borrow_epc(cls, set_id, generic_names):
+        """Attempts to find an EPC for the given set_id or generic names from other labels."""
+        if not FDALabelDBService.check_connectivity(): return None
+        
+        conn = FDALabelDBService.get_connection()
+        if not conn: return None
         
         try:
-            # 1. Gather pool of candidates
-            raw_candidates = []
-            if source == 'openfda':
-                fda_url = "https://api.fda.gov/drug/label.json"
-                for n in name_list[:2]:
-                    params = {'search': f'openfda.generic_name:"{n}"', 'limit': 100}
-                    if Config.OPENFDA_API_KEY: params['api_key'] = Config.OPENFDA_API_KEY
-                    resp = requests.get(fda_url, params=params, timeout=10)
-                    if resp.status_code == 200:
-                        raw_candidates.extend(resp.json().get('results', []))
-                for e in epc_list[:2]:
-                    params = {'search': f'openfda.pharm_class_epc:"{e}"', 'limit': 100}
-                    if Config.OPENFDA_API_KEY: params['api_key'] = Config.OPENFDA_API_KEY
-                    resp = requests.get(fda_url, params=params, timeout=10)
-                    if resp.status_code == 200:
-                        raw_candidates.extend(resp.json().get('results', []))
-            else:
-                # Local/Oracle query
-                for n in name_list[:2]:
-                    raw_candidates.extend(cls._query_local_full_meta(generic_name=n))
-                for e in epc_list[:2]:
-                    raw_candidates.extend(cls._query_local_full_meta(epc=e))
+            cursor = conn.cursor()
+            schema = "labeling."
+            
+            # 1. Try by appr_num first
+            cursor.execute(f"SELECT appr_num FROM {schema}sum_spl WHERE set_id = %s", (set_id,))
+            res = cursor.fetchone()
+            appr_num = res['appr_num'] if res else None
+            
+            if appr_num and appr_num != 'N/A':
+                cursor.execute(f"SELECT epc FROM {schema}sum_spl WHERE appr_num = %s AND epc IS NOT NULL AND epc != '' AND epc != 'N/A' LIMIT 1", (appr_num,))
+                res = cursor.fetchone()
+                if res and res['epc']:
+                    return res['epc']
 
-            # 2. Enrich candidates with RLD status and Format
-            unique_set_ids = set()
-            for c in raw_candidates:
-                sid = c.get('set_id')
-                if not sid or sid in unique_set_ids: continue
-                unique_set_ids.add(sid)
+            # 2. Try by generic_names
+            gn_list = [n.strip().upper() for n in (generic_names or "").split(',') if n.strip() and n.strip().lower() != 'n/a']
+            if not gn_list:
+                # Get gn from DB if not provided
+                cursor.execute(f"SELECT generic_names FROM {schema}sum_spl WHERE set_id = %s", (set_id,))
+                res = cursor.fetchone()
+                if res and res['generic_names']:
+                    gn_list = [n.strip().upper() for n in res['generic_names'].split(';') if n.strip()]
 
-                # Determine Format
-                # OpenFDA returns effective_time and sections in slightly different ways
-                # We can try to use LOINC codes if available in 'effective_time' (wrong place)
-                # Better: check section headers or common PLR section names
-                # For simplicity, we use the _determine_label_format logic if sections are available
-                fmt = 'Unknown'
-                if 'effective_time' in c and isinstance(c.get('effective_time'), dict):
-                    # This happens when sections are returned instead of just metadata
-                    fmt = cls._determine_label_format(c)
-                else:
-                    # Fallback metadata check
-                    if 'warnings_and_precautions' in c: fmt = 'PLR'
-                    elif 'adverse_reactions' in c: fmt = 'non-PLR'
-                    else: fmt = 'OTC'
+            for gn in gn_list:
+                cursor.execute(f"SELECT epc FROM {schema}sum_spl WHERE generic_names ILIKE %s AND epc IS NOT NULL AND epc != '' AND epc != 'N/A' LIMIT 1", (f"%{gn}%",))
+                res = cursor.fetchone()
+                if res and res['epc']:
+                    return res['epc']
+                    
+        except Exception as e:
+            logger.error(f"Error borrowing EPC: {e}")
+        finally:
+            conn.close()
+        return None
 
-                # Determine RLD status from local Orange Book
-                is_rld = False
-                app_no = c.get('application_number')
-                if app_no:
-                    # Application numbers in OpenFDA often have prefixes like NDA, ANDA
-                    # Extract numeric part
-                    match = re.search(r'\d+', app_no)
-                    if match:
-                        clean_app_no = match.group(0).zfill(6) # Orange book often pads to 6
-                        rld_check = db.session.query(OrangeBook).filter(
-                            OrangeBook.appl_no.like(f"%{clean_app_no}%"),
-                            OrangeBook.rld == 'Yes'
-                        ).first()
-                        if rld_check: is_rld = True
+    @classmethod
+    def _get_peer_sample(cls, source, generic_names, epcs, target_format):
+        """
+        Samples up to 20 peers using local PostgreSQL labeling schema.
+        Prioritizes RLDs and matching label format.
+        """
+        if not FDALabelDBService.check_connectivity(): return []
+        
+        conn = FDALabelDBService.get_connection()
+        if not conn: return []
+        
+        all_peer_data = [] # List of {id, is_rld, format, score}
+        unique_set_ids = set()
+        
+        name_list = [n.strip() for n in (generic_names or "").split(',') if n.strip() and n.strip().lower() != 'n/a']
+        epc_list = [e.strip() for e in (epcs or "").split(',') if e.strip() and e.strip().lower() != 'n/a']
 
-                all_peer_data.append({
-                    'id': sid,
-                    'is_rld': is_rld,
-                    'format': fmt,
-                    'score': (2 if is_rld else 0) + (1 if fmt == target_format else 0)
-                })
+        try:
+            cursor = conn.cursor()
+            schema = "labeling."
+            
+            # 1. Gather by Generic Names
+            for gn in name_list[:3]:
+                cursor.execute(f"SELECT set_id, is_rld, doc_type FROM {schema}sum_spl WHERE generic_names ILIKE %s LIMIT 100", (f"%{gn}%",))
+                for row in cursor.fetchall():
+                    sid = row['set_id']
+                    if sid not in unique_set_ids:
+                        unique_set_ids.add(sid)
+                        fmt = 'PLR' if 'PRESCRIPTION' in (row['doc_type'] or '').upper() else 'OTC'
+                        all_peer_data.append({
+                            'id': sid,
+                            'is_rld': bool(row['is_rld']),
+                            'format': fmt,
+                            'score': (5 if row['is_rld'] else 0) + (2 if fmt == target_format else 0)
+                        })
+
+            # 2. Gather by EPCs
+            for epc in epc_list[:3]:
+                # Remove common suffixes like [EPC] if present for searching
+                clean_epc = epc.split('[')[0].strip()
+                cursor.execute(f"SELECT set_id, is_rld, doc_type FROM {schema}sum_spl WHERE epc ILIKE %s OR epc ILIKE %s LIMIT 100", (f"%{epc}%", f"%{clean_epc}%"))
+                for row in cursor.fetchall():
+                    sid = row['set_id']
+                    if sid not in unique_set_ids:
+                        unique_set_ids.add(sid)
+                        fmt = 'PLR' if 'PRESCRIPTION' in (row['doc_type'] or '').upper() else 'OTC'
+                        all_peer_data.append({
+                            'id': sid,
+                            'is_rld': bool(row['is_rld']),
+                            'format': fmt,
+                            'score': (3 if row['is_rld'] else 0) + (1 if fmt == target_format else 0)
+                        })
 
             # 3. Sort and Sample
-            # Primary: score (RLD + Format Match), Secondary: random to avoid same generic pool every time
+            # We want a diverse sample but high quality
             random.shuffle(all_peer_data)
             all_peer_data.sort(key=lambda x: x['score'], reverse=True)
             
             return [p['id'] for p in all_peer_data[:20]]
 
         except Exception as e:
-            logger.error(f"Error sampling peers: {e}")
+            logger.error(f"Error sampling peers locally: {e}")
             return []
+        finally:
+            conn.close()
 
     @staticmethod
     def _query_local_full_meta(generic_name=None, epc=None):
-        """Mock-like or basic query for local metadata to match sampling logic."""
-        # For brevity, reusing _query_local_ids but wrapping in dict format
-        ids = DeepDiveService._query_local_ids(generic_name, epc)
-        return [{'set_id': i} for i in ids]
+        """Deprecated: Replaced by optimized local sampling."""
+        return []
 
     @staticmethod
     def _query_local_ids(generic_name=None, epc=None):
-        if not FDALabelDBService.check_connectivity(): return []
-        conn = FDALabelDBService.get_connection()
-        if not conn: return []
-        ids = []
-        try:
-            cursor = conn.cursor()
-            schema = "labeling."
-            if generic_name:
-                sql = f"SELECT set_id FROM {schema}sum_spl WHERE generic_names ILIKE %(q)s LIMIT 100"
-            else:
-                sql = f"SELECT set_id FROM {schema}sum_spl WHERE epc ILIKE %(q)s LIMIT 100"
-            cursor.execute(sql, {"q": f"%{generic_name if generic_name else epc}%"})
-            rows = cursor.fetchall()
-            for r in rows:
-                if isinstance(r, dict):
-                    sid = r.get('set_id')
-                    if sid: ids.append(sid)
-                elif r and len(r) > 0:
-                    if r[0]: ids.append(r[0])
-        except Exception as e:
-            logger.error(f"Local ID query error: {e}")
-        finally:
-            conn.close()
-        return ids
+        """Deprecated: Replaced by optimized local sampling."""
+        return []
