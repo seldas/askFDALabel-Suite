@@ -4,6 +4,7 @@ import sys
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from database import db, User, SystemTask
+from dashboard.services.task_service import TaskService
 from functools import wraps
 
 admin_bp = Blueprint('admin', __name__)
@@ -103,13 +104,12 @@ def trigger_db_update():
         return jsonify({'success': False, 'error': 'Invalid database type'}), 400
 
     # Create a new SystemTask
-    new_task = SystemTask(
+    new_task = TaskService.create_task(
         task_type=db_type,
-        status='processing',
-        progress=0,
+        user_id=current_user.id,
         message=f'Starting {db_type} update...'
     )
-    db.session.add(new_task)
+    new_task.status = 'processing'
     db.session.commit()
 
     script_path = scripts[db_type]

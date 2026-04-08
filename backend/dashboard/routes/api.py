@@ -12,9 +12,10 @@ from database import (
     db, User, Project, Favorite, FavoriteComparison, Annotation, 
     LabelAnnotation, DiliAssessment, DictAssessment, DiriAssessment, ToxAgent, ComparisonSummary,
     MeddraPT, MeddraMDHIER, MeddraSOC, MeddraHLT, MeddraLLT,
-    ProjectAeReport, ProjectAeReportDetail, AeAiAssessment
+    ProjectAeReport, ProjectAeReportDetail, AeAiAssessment, SystemTask
 )
 import threading
+from dashboard.services.task_service import TaskService
 from dashboard.services.fda_client import get_label_metadata, get_label_xml, get_faers_data, find_labels, find_labels_by_set_ids, get_label_counts, get_rich_metadata_by_generic
 from dashboard.services.ai_handler import chat_with_document, summarize_comparison, generate_assessment, get_search_helper_response
 from dashboard.services.xml_handler import extract_metadata_from_xml
@@ -1174,191 +1175,195 @@ def extract_ngram(text, target, n_prev=5, n_after=5):
     ngram = f"{context_pre} {actual_match} {context_post}".strip()
     return ngram
 
-def run_ae_report_generation(app, report_id, project_id, target_pt):
-    with app.app_context():
-        report = ProjectAeReport.query.get(report_id)
-        if not report:
+def run_ae_report_generation(task_id, report_id, project_id, target_pt):
+    # This function is now called by TaskService.start_background_task
+    # which provides the app_context.
+    report = ProjectAeReport.query.get(report_id)
+    if not report:
+        return
+
+    try:
+        report.status = 'processing'
+        db.session.commit()
+        TaskService.update_task(task_id, progress=0, message=f"Starting AE report for {target_pt}...")
+
+        # 1. Get all labels in project
+        favorites = Favorite.query.filter_by(project_id=project_id).all()
+        total_favs = len(favorites)
+        report.total_labels = total_favs
+        db.session.commit()
+
+        if total_favs == 0:
+            report.status = 'completed'
+            report.progress = 100
+            report.completed_at = datetime.utcnow()
+            db.session.commit()
+            TaskService.update_task(task_id, progress=100, status='completed', message="Completed (no labels in project)")
             return
 
-        try:
-            report.status = 'processing'
-            db.session.commit()
+        # Target sections for scan
+        target_sections = {
+            '34066-1': 'Boxed Warning',
+            '34070-3': 'Contraindications',
+            '34071-1': 'Warnings and Precautions',
+            '43685-7': 'Warnings and Precautions',
+            '34084-4': 'Adverse Reactions'
+        }
 
-            # 1. Get all labels in project
-            favorites = Favorite.query.filter_by(project_id=project_id).all()
-            total_favs = len(favorites)
-            report.total_labels = total_favs
-            db.session.commit()
+        details_map = [] # List of dicts to store detail data before saving
+        unique_drugs = {} # name -> list of indices in details_map
 
-            if total_favs == 0:
-                report.status = 'completed'
-                report.progress = 100
-                report.completed_at = datetime.utcnow()
-                db.session.commit()
+        # --- PHASE 1: Labeling Scan (0-50%) ---
+        for i, fav in enumerate(favorites):
+            db.session.refresh(report)
+            if report.status != 'processing':
                 return
 
-            # Target sections for scan
-            target_sections = {
-                '34066-1': 'Boxed Warning',
-                '34070-3': 'Contraindications',
-                '34071-1': 'Warnings and Precautions',
-                '43685-7': 'Warnings and Precautions',
-                '34084-4': 'Adverse Reactions'
-            }
-
-            details_map = [] # List of dicts to store detail data before saving
-            unique_drugs = {} # name -> list of indices in details_map
-
-            # --- PHASE 1: Labeling Scan (0-50%) ---
-            for i, fav in enumerate(favorites):
-                db.session.refresh(report)
-                if report.status != 'processing':
-                    return
-
-                # A. Text Matching
-                xml_content = get_label_xml(fav.set_id)
-                found_sections = []
-                is_labeled = False
-                
-                if xml_content:
-                    try:
-                        ns = {'v3': 'urn:hl7-org:v3'}
-                        root = ET.fromstring(xml_content.encode('ascii', 'ignore').decode('ascii'))
-                        
-                        for section in root.findall(".//v3:section", ns):
-                            code_el = section.find("v3:code", ns)
-                            if code_el is not None:
-                                code_val = code_el.get('code')
-                                if code_val in target_sections:
-                                    section_name = target_sections[code_val]
-                                    text_content = "".join(section.itertext()).strip()
-                                    
-                                    matches = re.finditer(re.escape(target_pt), text_content, re.IGNORECASE)
-                                    for m in matches:
-                                        idx = m.start()
-                                        start = max(0, idx - 400)
-                                        end = min(len(text_content), idx + len(target_pt) + 400)
-                                        window_text = text_content[start:end]
-                                        ngram = extract_ngram(window_text, target_pt, n_prev=5, n_after=5)
-                                        
-                                        if ngram:
-                                            is_dup = any(s['snippet'] == ngram for s in found_sections)
-                                            if not is_dup:
-                                                is_labeled = True
-                                                found_sections.append({'section': section_name, 'snippet': ngram})
-                    except Exception as e:
-                        logger.error(f"Error parsing XML for report {report_id}, label {fav.set_id}: {e}")
-
-                drug_name = (fav.generic_name or fav.brand_name or "").split(',')[0].strip()
-                if not drug_name or drug_name == 'N/A':
-                    drug_name = "Unknown"
-
-                detail_data = {
-                    'set_id': fav.set_id,
-                    'brand_name': fav.brand_name,
-                    'generic_name': fav.generic_name,
-                    'is_labeled': is_labeled,
-                    'found_sections': json.dumps(found_sections),
-                    'drug_name_for_api': drug_name
-                }
-                details_map.append(detail_data)
-                
-                if drug_name != "Unknown":
-                    if drug_name not in unique_drugs:
-                        unique_drugs[drug_name] = []
-                    unique_drugs[drug_name].append(len(details_map) - 1)
-
-                # Update progress (0-50%)
-                report.progress = int(((i + 1) / total_favs) * 50)
-                db.session.commit()
-
-            # --- PHASE 2: openFDA Scan (51-100%) ---
-            unique_drug_names = [d for d in unique_drugs.keys() if d != "Unknown"]
-            total_unique = len(unique_drug_names)
+            # A. Text Matching
+            xml_content = get_label_xml(fav.set_id)
+            found_sections = []
+            is_labeled = False
             
-            # Prepare date ranges
-            now = datetime.now()
-            date_today = now.strftime('%Y%m%d')
-            date_1yr_ago = (now - timedelta(days=365)).strftime('%Y%m%d')
-            date_5yr_ago = (now - timedelta(days=365*5)).strftime('%Y%m%d')
-
-            for i, drug_name in enumerate(unique_drug_names):
-                db.session.refresh(report)
-                if report.status != 'processing':
-                    return
-
-                counts = {'all': 0, '1yr': 0, '5yr': 0}
+            if xml_content:
                 try:
-                    base_url = "https://api.fda.gov/drug/event.json"
-                    search_base = f'(patient.drug.openfda.brand_name:"{drug_name}" OR patient.drug.openfda.generic_name:"{drug_name}") AND patient.reaction.reactionmeddrapt.exact:"{target_pt}"'
+                    ns = {'v3': 'urn:hl7-org:v3'}
+                    root = ET.fromstring(xml_content.encode('ascii', 'ignore').decode('ascii'))
                     
-                    # 1. All counts
-                    params = {'search': search_base}
-                    if Config.OPENFDA_API_KEY: params['api_key'] = Config.OPENFDA_API_KEY
-                    resp = requests.get(base_url, params=params)
-                    if resp.status_code == 200:
-                        counts['all'] = resp.json().get('meta', {}).get('results', {}).get('total', 0)
-                    
-                    if counts['all'] > 0:
-                        # 2. Last 1 year
-                        params_1y = {'search': f"{search_base} AND receivedate:[{date_1yr_ago} TO {date_today}]"}
-                        if Config.OPENFDA_API_KEY: params_1y['api_key'] = Config.OPENFDA_API_KEY
-                        resp_1y = requests.get(base_url, params=params_1y)
-                        if resp_1y.status_code == 200:
-                            counts['1yr'] = resp_1y.json().get('meta', {}).get('results', {}).get('total', 0)
-                            
-                        # 3. Last 5 years
-                        params_5y = {'search': f"{search_base} AND receivedate:[{date_5yr_ago} TO {date_today}]"}
-                        if Config.OPENFDA_API_KEY: params_5y['api_key'] = Config.OPENFDA_API_KEY
-                        resp_5y = requests.get(base_url, params=params_5y)
-                        if resp_5y.status_code == 200:
-                            counts['5yr'] = resp_5y.json().get('meta', {}).get('results', {}).get('total', 0)
-
+                    for section in root.findall(".//v3:section", ns):
+                        code_el = section.find("v3:code", ns)
+                        if code_el is not None:
+                            code_val = code_el.get('code')
+                            if code_val in target_sections:
+                                section_name = target_sections[code_val]
+                                text_content = "".join(section.itertext()).strip()
+                                
+                                matches = re.finditer(re.escape(target_pt), text_content, re.IGNORECASE)
+                                for m in matches:
+                                    idx = m.start()
+                                    start = max(0, idx - 400)
+                                    end = min(len(text_content), idx + len(target_pt) + 400)
+                                    window_text = text_content[start:end]
+                                    ngram = extract_ngram(window_text, target_pt, n_prev=5, n_after=5)
+                                    
+                                    if ngram:
+                                        is_dup = any(s['snippet'] == ngram for s in found_sections)
+                                        if not is_dup:
+                                            is_labeled = True
+                                            found_sections.append({'section': section_name, 'snippet': ngram})
                 except Exception as e:
-                    logger.error(f"FAERS error for report {report_id}, drug {drug_name}: {e}")
+                    logger.error(f"Error parsing XML for report {report_id}, label {fav.set_id}: {e}")
 
-                # Map back to all details sharing this drug name
-                for idx in unique_drugs[drug_name]:
-                    details_map[idx]['faers_count'] = counts['all']
-                    details_map[idx]['faers_1yr_count'] = counts['1yr']
-                    details_map[idx]['faers_5yr_count'] = counts['5yr']
+            drug_name = (fav.generic_name or fav.brand_name or "").split(',')[0].strip()
+            if not drug_name or drug_name == 'N/A':
+                drug_name = "Unknown"
 
-                # Update progress (51-100%)
-                if total_unique > 0:
-                    report.progress = 50 + int(((i + 1) / total_unique) * 50)
-                else:
-                    report.progress = 100
-                db.session.commit()
+            detail_data = {
+                'set_id': fav.set_id,
+                'brand_name': fav.brand_name,
+                'generic_name': fav.generic_name,
+                'is_labeled': is_labeled,
+                'found_sections': json.dumps(found_sections),
+                'drug_name_for_api': drug_name
+            }
+            details_map.append(detail_data)
+            
+            if drug_name != "Unknown":
+                if drug_name not in unique_drugs:
+                    unique_drugs[drug_name] = []
+                unique_drugs[drug_name].append(len(details_map) - 1)
 
-            # Final Save to DB
-            for d_data in details_map:
-                detail = ProjectAeReportDetail(
-                    report_id=report_id,
-                    set_id=d_data['set_id'],
-                    brand_name=d_data['brand_name'],
-                    generic_name=d_data['generic_name'],
-                    is_labeled=d_data['is_labeled'],
-                    found_sections=d_data['found_sections'],
-                    faers_count=d_data.get('faers_count', 0),
-                    faers_1yr_count=d_data.get('faers_1yr_count', 0),
-                    faers_5yr_count=d_data.get('faers_5yr_count', 0)
-                )
-                db.session.add(detail)
-
-            report.status = 'completed'
-            report.completed_at = datetime.utcnow()
-            report.progress = 100
+            # Update progress (0-50%)
+            prog = int(((i + 1) / total_favs) * 50)
+            report.progress = prog
             db.session.commit()
+            TaskService.update_task(task_id, progress=prog, message=f"Scanning labels: {i+1}/{total_favs}")
 
-        except Exception as e:
-            logger.error(f"AE Report Generation Failed: {e}")
-            report.status = 'failed'
-            db.session.commit()
+        # --- PHASE 2: openFDA Scan (51-100%) ---
+        unique_drug_names = [d for d in unique_drugs.keys() if d != "Unknown"]
+        total_unique = len(unique_drug_names)
+        
+        # Prepare date ranges
+        now = datetime.now()
+        date_today = now.strftime('%Y%m%d')
+        date_1yr_ago = (now - timedelta(days=365)).strftime('%Y%m%d')
+        date_5yr_ago = (now - timedelta(days=365*5)).strftime('%Y%m%d')
 
-        except Exception as e:
-            logger.error(f"AE Report Generation Failed: {e}")
-            report.status = 'failed'
+        for i, drug_name in enumerate(unique_drug_names):
+            db.session.refresh(report)
+            if report.status != 'processing':
+                return
+
+            counts = {'all': 0, '1yr': 0, '5yr': 0}
+            try:
+                base_url = "https://api.fda.gov/drug/event.json"
+                search_base = f'(patient.drug.openfda.brand_name:"{drug_name}" OR patient.drug.openfda.generic_name:"{drug_name}") AND patient.reaction.reactionmeddrapt.exact:"{target_pt}"'
+                
+                # 1. All counts
+                params = {'search': search_base}
+                if Config.OPENFDA_API_KEY: params['api_key'] = Config.OPENFDA_API_KEY
+                resp = requests.get(base_url, params=params)
+                if resp.status_code == 200:
+                    counts['all'] = resp.json().get('meta', {}).get('results', {}).get('total', 0)
+                
+                if counts['all'] > 0:
+                    # 2. Last 1 year
+                    params_1y = {'search': f"{search_base} AND receivedate:[{date_1yr_ago} TO {date_today}]"}
+                    if Config.OPENFDA_API_KEY: params_1y['api_key'] = Config.OPENFDA_API_KEY
+                    resp_1y = requests.get(base_url, params=params_1y)
+                    if resp_1y.status_code == 200:
+                        counts['1yr'] = resp_1y.json().get('meta', {}).get('results', {}).get('total', 0)
+                        
+                    # 3. Last 5 years
+                    params_5y = {'search': f"{search_base} AND receivedate:[{date_5yr_ago} TO {date_today}]"}
+                    if Config.OPENFDA_API_KEY: params_5y['api_key'] = Config.OPENFDA_API_KEY
+                    resp_5y = requests.get(base_url, params=params_5y)
+                    if resp_5y.status_code == 200:
+                        counts['5yr'] = resp_5y.json().get('meta', {}).get('results', {}).get('total', 0)
+
+            except Exception as e:
+                logger.error(f"FAERS error for report {report_id}, drug {drug_name}: {e}")
+
+            # Map back to all details sharing this drug name
+            for idx in unique_drugs[drug_name]:
+                details_map[idx]['faers_count'] = counts['all']
+                details_map[idx]['faers_1yr_count'] = counts['1yr']
+                details_map[idx]['faers_5yr_count'] = counts['5yr']
+
+            # Update progress (51-100%)
+            if total_unique > 0:
+                prog = 50 + int(((i + 1) / total_unique) * 50)
+            else:
+                prog = 100
+            report.progress = prog
             db.session.commit()
+            TaskService.update_task(task_id, progress=prog, message=f"Checking safety data: {i+1}/{total_unique}")
+
+        # Final Save to DB
+        for d_data in details_map:
+            detail = ProjectAeReportDetail(
+                report_id=report_id,
+                set_id=d_data['set_id'],
+                brand_name=d_data['brand_name'],
+                generic_name=d_data['generic_name'],
+                is_labeled=d_data['is_labeled'],
+                found_sections=d_data['found_sections'],
+                faers_count=d_data.get('faers_count', 0),
+                faers_1yr_count=d_data.get('faers_1yr_count', 0),
+                faers_5yr_count=d_data.get('faers_5yr_count', 0)
+            )
+            db.session.add(detail)
+
+        report.status = 'completed'
+        report.completed_at = datetime.utcnow()
+        report.progress = 100
+        db.session.commit()
+        TaskService.update_task(task_id, progress=100, status='completed', message=f"AE report generation complete for {target_pt}")
+
+    except Exception as e:
+        logger.error(f"AE Report Generation Failed: {e}")
+        report.status = 'failed'
+        db.session.commit()
+        TaskService.update_task(task_id, status='failed', error_details=str(e), message="Generation failed")
 
 @api_bp.route('/ae_report/generate', methods=['POST'])
 @login_required
@@ -1383,13 +1388,23 @@ def generate_ae_report():
     db.session.add(new_report)
     db.session.commit()
 
+    # Create SystemTask entry
+    task = TaskService.create_task(
+        task_type='ae_report',
+        user_id=current_user.id,
+        project_id=project_id,
+        message=f"Generating AE report for {target_pt}"
+    )
+
     # Start background task
     from flask import current_app
     app = current_app._get_current_object()
-    thread = threading.Thread(target=run_ae_report_generation, args=(app, new_report.id, project_id, target_pt))
-    thread.start()
+    TaskService.start_background_task(
+        app, task.id, run_ae_report_generation, 
+        new_report.id, project_id, target_pt
+    )
 
-    return jsonify({'success': True, 'report_id': new_report.id})
+    return jsonify({'success': True, 'report_id': new_report.id, 'task_id': task.id})
 
 @api_bp.route('/ae_report/reanalyze/<int:report_id>', methods=['POST'])
 @login_required
@@ -1412,13 +1427,23 @@ def reanalyze_ae_report(report_id):
         db.session.commit()
         logger.info(f"Re-analyzing report {report_id} for project {report.project_id}")
 
+        # Create SystemTask entry
+        task = TaskService.create_task(
+            task_type='ae_report',
+            user_id=current_user.id,
+            project_id=report.project_id,
+            message=f"Re-analyzing AE report for {report.target_pt}"
+        )
+
         # Restart background task
         from flask import current_app
         app = current_app._get_current_object()
-        thread = threading.Thread(target=run_ae_report_generation, args=(app, report.id, report.project_id, report.target_pt))
-        thread.start()
+        TaskService.start_background_task(
+            app, task.id, run_ae_report_generation, 
+            report.id, report.project_id, report.target_pt
+        )
 
-        return jsonify({'success': True, 'report_id': report.id})
+        return jsonify({'success': True, 'report_id': report.id, 'task_id': task.id})
     except Exception as e:
         logger.error(f"Error in reanalyze_ae_report: {e}")
         db.session.rollback()
@@ -1464,6 +1489,26 @@ def get_active_ae_tasks():
         'progress': r.progress,
         'status': r.status
     } for r in active_reports])
+
+@api_bp.route('/tasks/active')
+@login_required
+def get_active_tasks():
+    # Get all active SystemTasks for the current user
+    active_tasks = SystemTask.query.filter(
+        SystemTask.user_id == current_user.id,
+        SystemTask.status.in_(['processing', 'pending'])
+    ).order_by(SystemTask.created_at.desc()).all()
+    
+    return jsonify([{
+        'id': t.id,
+        'type': t.task_type,
+        'status': t.status,
+        'progress': t.progress,
+        'message': t.message,
+        'project_id': t.project_id,
+        'project_title': t.project.title if t.project else None,
+        'created_at': t.created_at.isoformat()
+    } for t in active_tasks])
 
 @api_bp.route('/ae_report/list/<int:project_id>')
 @login_required

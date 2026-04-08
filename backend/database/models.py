@@ -435,11 +435,17 @@ class OrangeBook(db.Model):
 class SystemTask(db.Model):
     __tablename__ = 'system_tasks'
     id = db.Column(db.Integer, primary_key=True)
-    task_type = db.Column(db.String(50), nullable=False) # 'labeling', 'orangebook', etc.
+    task_type = db.Column(db.String(50), nullable=False) # 'labeling', 'ae_report', etc.
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=True)
     status = db.Column(db.String(20), default='pending') # pending, processing, completed, failed
     progress = db.Column(db.Integer, default=0) # 0 to 100
     message = db.Column(db.String(255))
     error_details = db.Column(db.Text)
+    result_data = db.Column(db.Text) # JSON string for any task-specific output
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
+
+    user = db.relationship('User', backref=db.backref('tasks', lazy=True))
+    project = db.relationship('Project', backref=db.backref('tasks', lazy=True))

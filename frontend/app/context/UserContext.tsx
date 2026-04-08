@@ -17,9 +17,11 @@ export interface UserSession {
 
 export interface ActiveTask {
   id: number;
-  project_id: number;
-  project_title: string;
-  target_pt: string;
+  type: string;
+  project_id?: number;
+  project_title?: string;
+  target_pt?: string; // Legacy field for AE reports
+  message?: string;
   progress: number;
   status: string;
 }
@@ -66,7 +68,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshTasks = useCallback(async () => {
     if (!session?.is_authenticated) return;
     try {
-      const res = await fetch('/api/dashboard/ae_report/active_tasks');
+      const res = await fetch('/api/dashboard/tasks/active');
       if (res.ok) {
         const data = await res.json();
         setActiveTasks(data);
@@ -80,16 +82,16 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchSession();
   }, [fetchSession]);
 
-  // Task polling effect
+  // Task polling effect - Poll on all pages if authenticated
   useEffect(() => {
-    if (session?.is_authenticated && pathname === '/dashboard') {
+    if (session?.is_authenticated) {
       refreshTasks();
-      const interval = setInterval(refreshTasks, 60000); // Poll every 60 seconds
+      const interval = setInterval(refreshTasks, 30000); // Poll every 30 seconds
       return () => clearInterval(interval);
     } else {
       setActiveTasks([]);
     }
-  }, [session?.is_authenticated, refreshTasks, pathname]);
+  }, [session?.is_authenticated, refreshTasks]);
 
   const updateAiProvider = async (provider: string) => {
     try {

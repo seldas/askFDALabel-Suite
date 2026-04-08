@@ -25,6 +25,7 @@ def update_progress(task_id, progress, message=None, status='processing'):
             if message:
                 task.message = message
             task.status = status
+            task.updated_at = datetime.utcnow()
             if status == 'completed':
                 task.completed_at = datetime.utcnow()
             db.session.commit()
