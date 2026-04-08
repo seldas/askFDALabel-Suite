@@ -72,11 +72,16 @@ def parse_spl_zip(zip_path, rld_nos, rs_nos):
             if (ndc_el := prod.find('ns:code', NS)) is not None: ndc_codes.append(ndc_el.get('code'))
             for ingr in prod.findall('ns:ingredient', NS):
                 class_code = ingr.get('classCode')
-                if (subst := ingr.find('ns:ingredientSubstance/ns:name', NS)) is not None:
-                    is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
-                    sub_name = get_el_text(subst)
-                    if is_active: active_ingredients.append(sub_name)
-                    ingr_map.append({'spl_id': spl_id, 'substance_name': sub_name, 'is_active': is_active})
+                subst_el = ingr.find('ns:ingredientSubstance', NS)
+                if subst_el is not None:
+                    name_el = subst_el.find('ns:name', NS)
+                    code_el = subst_el.find('ns:code', NS)
+                    if name_el is not None:
+                        sub_name = get_el_text(name_el)
+                        unii = code_el.get('code') if (code_el is not None and code_el.get('codeSystem') == '2.16.840.1.113883.4.9') else ""
+                        is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
+                        if is_active: active_ingredients.append(sub_name)
+                        ingr_map.append({'spl_id': spl_id, 'substance_name': sub_name, 'unii': unii, 'is_active': is_active})
             for rel in prod.findall('.//ns:routeCode', NS): routes.append(rel.get('displayName'))
 
         if (appr_el := root.find('.//ns:approval/ns:id', NS)) is not None: appr_nums.append(appr_el.get('extension'))
@@ -226,7 +231,10 @@ def import_labels():
                     INSERT INTO labeling.epc_map (spl_id, epc_term)
                     SELECT DISTINCT m.spl_id, i.indexing_name
                     FROM labeling.active_ingredients_map m
-                    JOIN labeling.substance_indexing i ON UPPER(m.substance_name) = UPPER(i.substance_name)
+                    JOIN labeling.substance_indexing i ON (
+                        (m.unii != '' AND m.unii = i.substance_unii) OR 
+                        (m.unii = '' AND UPPER(m.substance_name) = UPPER(i.substance_name))
+                    )
                     WHERE i.indexing_type = 'EPC'
                     ON CONFLICT DO NOTHING;
 

@@ -72,7 +72,7 @@ class DeepDiveService:
             logger.info(f"Borrowed EPC for {target_set_id}: {active_epcs}")
 
         logger.info(f"Sampling peers for {target_set_id} with names='{active_names}' and epcs='{active_epcs}'")
-        peer_set_ids = cls._get_peer_sample(source, active_names, active_epcs, target_format)
+        peer_set_ids = cls._get_peer_sample(source, active_names, active_epcs, target_format, target_set_id=target_set_id)
         
         HIERARCHY = {
             '34066-1': {'level': 3, 'code': 'B', 'label': 'Boxed Warning'},
@@ -297,11 +297,12 @@ class DeepDiveService:
         finally:
             conn.close()
         return None
+
     @classmethod
-    def _get_peer_sample(cls, source, generic_names, epcs, target_format):
+    def _get_peer_sample(cls, source, generic_names, epcs, target_format, target_set_id=None):
         """
         Samples up to 20 peers using local PostgreSQL labeling schema.
-        Prioritizes RLDs and matching label format.
+        Prioritizes UNII-based EPC matching, then generic names and EPC expansion.
         """
         if not FDALabelDBService.check_connectivity(): return []
         
@@ -310,15 +311,51 @@ class DeepDiveService:
         
         all_peer_data = [] # List of {id, is_rld, format, score}
         unique_set_ids = set()
-        
-        name_list = [n.strip() for n in (generic_names or "").split(',') if n.strip() and n.strip().lower() != 'n/a']
-        epc_list = [e.strip() for e in (epcs or "").split(',') if e.strip() and e.strip().lower() != 'n/a']
+        schema = "labeling."
 
         try:
             cursor = conn.cursor()
-            schema = "labeling."
             
-            # 1. Gather by Generic Names (Direct)
+            # 1. Gather by UNII-based EPC logic (Deepest Link)
+            if target_set_id:
+                try:
+                    # Find all SPL IDs that share the same EPC as the target, linked by UNII
+                    sql_unii = f"""
+                        WITH target_unii AS (
+                            SELECT unii FROM {schema}active_ingredients_map WHERE spl_id = (SELECT spl_id FROM {schema}sum_spl WHERE set_id = %s LIMIT 1) AND unii != ''
+                        ),
+                        target_epc AS (
+                            SELECT DISTINCT indexing_name FROM {schema}substance_indexing WHERE (substance_unii IN (SELECT unii FROM target_unii) OR substance_name IN (SELECT substance_name FROM {schema}active_ingredients_map WHERE spl_id = (SELECT spl_id FROM {schema}sum_spl WHERE set_id = %s LIMIT 1))) AND indexing_type = 'EPC'
+                        ),
+                        related_unii AS (
+                            SELECT DISTINCT substance_unii FROM {schema}substance_indexing WHERE indexing_name IN (SELECT indexing_name FROM target_epc) AND substance_unii != ''
+                        )
+                        SELECT DISTINCT s.set_id, s.is_rld, s.doc_type
+                        FROM {schema}sum_spl s
+                        JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
+                        JOIN {schema}active_ingredients_map m ON s.spl_id = m.spl_id
+                        WHERE m.unii IN (SELECT substance_unii FROM related_unii)
+                        LIMIT 100
+                    """
+                    cursor.execute(sql_unii, (target_set_id, target_set_id))
+                    for row in cursor.fetchall():
+                        sid = row['set_id']
+                        if sid not in unique_set_ids:
+                            unique_set_ids.add(sid)
+                            fmt = 'PLR' if 'PRESCRIPTION' in (row['doc_type'] or '').upper() else 'OTC'
+                            all_peer_data.append({
+                                'id': sid,
+                                'is_rld': bool(row['is_rld']),
+                                'format': fmt,
+                                'score': 10 + (2 if fmt == target_format else 0)
+                            })
+                except Exception as e:
+                    logger.error(f"Error in UNII-based peer sampling: {e}")
+
+            name_list = [n.strip() for n in (generic_names or "").split(',') if n.strip() and n.strip().lower() != 'n/a']
+            epc_list = [e.strip() for e in (epcs or "").split(',') if e.strip() and e.strip().lower() != 'n/a']
+
+            # 2. Gather by Generic Names (Direct)
             for gn in name_list[:3]:
                 # Join with spl_sections to ensure we only pick labels with actual XML content
                 sql = f"""
@@ -337,10 +374,10 @@ class DeepDiveService:
                             'id': sid,
                             'is_rld': bool(row['is_rld']),
                             'format': fmt,
-                            'score': (5 if row['is_rld'] else 0) + (2 if fmt == target_format else 0)
+                            'score': 8 + (2 if fmt == target_format else 0)
                         })
 
-            # 2. Gather by EPCs (Expansion Logic)
+            # 3. Gather by EPCs (Expansion Logic)
             for epc in epc_list[:3]:
                 clean_epc = epc.split('[')[0].strip()
                 # A. Find all unique generic names that share this EPC
@@ -351,44 +388,25 @@ class DeepDiveService:
                     WHERE s.epc ILIKE %s OR e.epc_term ILIKE %s OR s.epc ILIKE %s OR e.epc_term ILIKE %s
                 """
                 cursor.execute(sql_gns, (f"%{epc}%", f"%{epc}%", f"%{clean_epc}%", f"%{clean_epc}%"))
-                expanded_gns = set()
+                all_gns = set()
                 for row in cursor.fetchall():
                     gn_str = row['generic_names']
                     if gn_str:
-                        for gn in gn_str.split(';'):
-                            if gn.strip(): expanded_gns.add(gn.strip().upper())
+                        for g in gn_str.split(';'):
+                            if g.strip(): all_gns.add(g.strip().upper())
                 
-                # B. Find all labels for these generic names (ensuring XML exists)
-                if expanded_gns:
-                    for gn in list(expanded_gns)[:10]: # Limit expansion to top 10 generics to avoid massive results
-                        sql_labels = f"""
-                            SELECT DISTINCT s.set_id, s.is_rld, s.doc_type 
-                            FROM {schema}sum_spl s
-                            JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
-                            WHERE s.generic_names ILIKE %s LIMIT 50
-                        """
-                        cursor.execute(sql_labels, (f"%{gn}%",))
-                        for row in cursor.fetchall():
-                            sid = row['set_id']
-                            if sid not in unique_set_ids:
-                                unique_set_ids.add(sid)
-                                fmt = 'PLR' if 'PRESCRIPTION' in (row['doc_type'] or '').upper() else 'OTC'
-                                all_peer_data.append({
-                                    'id': sid,
-                                    'is_rld': bool(row['is_rld']),
-                                    'format': fmt,
-                                    'score': (3 if row['is_rld'] else 0) + (1 if fmt == target_format else 0)
-                                })
-                else:
-                    # Fallback: Direct EPC search if no generic names expansion worked
-                    sql_fallback = f"""
-                        SELECT DISTINCT s.set_id, s.is_rld, s.doc_type 
+                if all_gns:
+                    # B. Sample labels from these generic names
+                    gns_sample = list(all_gns)[:10]
+                    where_parts = ["s.generic_names ILIKE %s"] * len(gns_sample)
+                    sql_peers = f"""
+                        SELECT DISTINCT s.set_id, s.is_rld, s.doc_type
                         FROM {schema}sum_spl s
                         JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
-                        LEFT JOIN {schema}epc_map e ON s.spl_id = e.spl_id
-                        WHERE s.epc ILIKE %s OR e.epc_term ILIKE %s LIMIT 100
+                        WHERE {' OR '.join(where_parts)}
+                        LIMIT 100
                     """
-                    cursor.execute(sql_fallback, (f"%{epc}%", f"%{epc}%"))
+                    cursor.execute(sql_peers, [f"%{gn}%" for gn in gns_sample])
                     for row in cursor.fetchall():
                         sid = row['set_id']
                         if sid not in unique_set_ids:
@@ -398,10 +416,10 @@ class DeepDiveService:
                                 'id': sid,
                                 'is_rld': bool(row['is_rld']),
                                 'format': fmt,
-                                'score': (3 if row['is_rld'] else 0) + (1 if fmt == target_format else 0)
+                                'score': 5 + (2 if fmt == target_format else 0)
                             })
 
-            # 3. Sort and Sample
+            # 4. Sort and Sample
             # We want a diverse sample but high quality
             random.shuffle(all_peer_data)
             all_peer_data.sort(key=lambda x: x['score'], reverse=True)

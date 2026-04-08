@@ -137,12 +137,16 @@ def main():
         -- Clear old epc_map entries that might be stale
         TRUNCATE TABLE labeling.epc_map;
 
-        -- Insert into epc_map by matching substance names
+        -- Insert into epc_map by matching UNII first, then substance names
         INSERT INTO labeling.epc_map (spl_id, epc_term)
         SELECT DISTINCT m.spl_id, i.indexing_name
         FROM labeling.active_ingredients_map m
-        JOIN labeling.substance_indexing i ON UPPER(m.substance_name) = UPPER(i.substance_name)
-        WHERE i.indexing_type = 'EPC';
+        JOIN labeling.substance_indexing i ON (
+            (m.unii != '' AND m.unii = i.substance_unii) OR 
+            (m.unii = '' AND UPPER(m.substance_name) = UPPER(i.substance_name))
+        )
+        WHERE i.indexing_type = 'EPC'
+        ON CONFLICT DO NOTHING;
 
         -- Update sum_spl EPC column with aggregated terms
         WITH agg_epc AS (

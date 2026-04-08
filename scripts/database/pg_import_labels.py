@@ -86,12 +86,20 @@ def parse_spl_zip(zip_path, rld_appl_nos, rs_appl_nos):
                 
             for ingr in prod.findall('ns:ingredient', NS):
                 class_code = ingr.get('classCode')
-                if (subst := ingr.find('ns:ingredientSubstance/ns:name', NS)) is not None:
-                    is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
-                    sub_name = get_el_text(subst)
-                    if is_active:
-                        active_ingredients.append(sub_name)
-                    ingr_map.append((spl_id, sub_name, is_active))
+                subst_el = ingr.find('ns:ingredientSubstance', NS)
+                if subst_el is not None:
+                    name_el = subst_el.find('ns:name', NS)
+                    code_el = subst_el.find('ns:code', NS)
+                    
+                    if name_el is not None:
+                        sub_name = get_el_text(name_el)
+                        # Extract UNII if codeSystem is correct
+                        unii = code_el.get('code') if (code_el is not None and code_el.get('codeSystem') == '2.16.840.1.113883.4.9') else ""
+                        is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
+                        
+                        if is_active:
+                            active_ingredients.append(sub_name)
+                        ingr_map.append((spl_id, sub_name, unii, is_active))
 
             for rel in prod.findall('.//ns:routeCode', NS):
                 routes.append(rel.get('displayName'))
@@ -293,12 +301,20 @@ def parse_spl_zip(zip_path):
                 
             for ingr in prod.findall('ns:ingredient', NS):
                 class_code = ingr.get('classCode')
-                if (subst := ingr.find('ns:ingredientSubstance/ns:name', NS)) is not None:
-                    is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
-                    sub_name = get_el_text(subst)
-                    if is_active:
-                        active_ingredients.append(sub_name)
-                    ingr_map.append((spl_id, sub_name, is_active))
+                subst_el = ingr.find('ns:ingredientSubstance', NS)
+                if subst_el is not None:
+                    name_el = subst_el.find('ns:name', NS)
+                    code_el = subst_el.find('ns:code', NS)
+                    
+                    if name_el is not None:
+                        sub_name = get_el_text(name_el)
+                        # Extract UNII if codeSystem is correct
+                        unii = code_el.get('code') if (code_el is not None and code_el.get('codeSystem') == '2.16.840.1.113883.4.9') else ""
+                        is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
+                        
+                        if is_active:
+                            active_ingredients.append(sub_name)
+                        ingr_map.append((spl_id, sub_name, unii, is_active))
 
             for rel in prod.findall('.//ns:routeCode', NS):
                 routes.append(rel.get('displayName'))
@@ -426,8 +442,9 @@ def sync_from_storage(storage_dir, num_workers=4):
                             # 3. Insert Ingredients
                             if ingr_batch:
                                 ingr_table = sql.Identifier('labeling', 'active_ingredients_map')
-                                ingr_cols = [sql.Identifier(c) for c in ['spl_id', 'substance_name', 'is_active']]
+                                ingr_cols = [sql.Identifier(c) for c in ['spl_id', 'substance_name', 'unii', 'is_active']]
                                 ingr_query = sql.SQL("INSERT INTO {table} ({cols}) VALUES %s").format(
+
                                     table=ingr_table,
                                     cols=sql.SQL(', ').join(ingr_cols)
                                 )
@@ -466,7 +483,10 @@ def sync_from_storage(storage_dir, num_workers=4):
             INSERT INTO labeling.epc_map (spl_id, epc_term)
             SELECT DISTINCT m.spl_id, i.indexing_name
             FROM labeling.active_ingredients_map m
-            JOIN labeling.substance_indexing i ON UPPER(m.substance_name) = UPPER(i.substance_name)
+            JOIN labeling.substance_indexing i ON (
+                (m.unii != '' AND m.unii = i.substance_unii) OR 
+                (m.unii = '' AND UPPER(m.substance_name) = UPPER(i.substance_name))
+            )
             WHERE i.indexing_type = 'EPC'
             ON CONFLICT DO NOTHING;
 
