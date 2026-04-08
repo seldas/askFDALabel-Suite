@@ -361,7 +361,7 @@ def parse_spl_zip(zip_path):
     except Exception:
         return None
 
-def sync_from_storage(storage_dir, num_workers=4):
+def sync_from_storage(storage_dir, num_workers=4, force=False):
     root_dir = Path(__file__).resolve().parent.parent.parent
     storage_path = root_dir / storage_dir
     zip_files = sorted(glob.glob(str(storage_path / "*.zip")))
@@ -382,12 +382,15 @@ def sync_from_storage(storage_dir, num_workers=4):
 
     # Get existing records
     existing = set()
-    try:
-        results = PGUtils.execute_query("SELECT set_id, revised_date FROM labeling.sum_spl", fetch=True)
-        existing = { (r['set_id'], r['revised_date']) for r in results }
-        print(f"Skipping {len(existing)} records already in database.")
-    except Exception:
-        pass
+    if not force:
+        try:
+            results = PGUtils.execute_query("SELECT set_id, revised_date FROM labeling.sum_spl", fetch=True)
+            existing = { (r['set_id'], r['revised_date']) for r in results }
+            print(f"Skipping {len(existing)} records already in database.")
+        except Exception:
+            pass
+    else:
+        print("Force mode enabled: Re-processing all labels.")
 
     batch_size = 500
     meta_batch, ingr_batch, sect_batch, spl_id_batch = [], [], [], []
@@ -512,6 +515,7 @@ def main():
     parser.add_argument("--filter", choices=['prescription', 'human', 'all'], default='human', help="Unpacking filter")
     parser.add_argument("--skip-unpack", action="store_true", help="Skip the unpacking phase")
     parser.add_argument("--workers", type=int, default=4, help="Number of worker processes (default: 4)")
+    parser.add_argument("--force", action="store_true", help="Force re-processing of already imported labels")
     
     args = parser.parse_args()
 
@@ -522,7 +526,7 @@ def main():
         print("Unpacking phase skipped.")
 
     print("\n=== Phase 2: Syncing to PostgreSQL ===")
-    sync_from_storage(args.storage_dir, num_workers=args.workers)
+    sync_from_storage(args.storage_dir, num_workers=args.workers, force=args.force)
 
 if __name__ == "__main__":
     main()
