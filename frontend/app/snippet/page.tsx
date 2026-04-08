@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useUser } from '../context/UserContext';
 import Link from 'next/link';
 import Header from "../components/Header";
-import { withAppBase } from '../utils/appPaths';
+import { withAppBase, APP_BASE, API_BASE } from '../utils/appPaths';
 
 export default function SnippetPage() {
   const drugBookmarkletRef = useRef<HTMLAnchorElement>(null);

@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { withAppBase } from '../utils/appPaths';
+import { withAppBase } from '../../utils/appPaths';
 
 interface Label {
   set_id: string;
