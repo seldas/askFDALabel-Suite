@@ -232,46 +232,71 @@ class DeepDiveService:
     def _borrow_epc(cls, set_id, generic_names):
         """Attempts to find an EPC for the given set_id or generic names from other labels."""
         if not FDALabelDBService.check_connectivity(): return None
-        
+
         conn = FDALabelDBService.get_connection()
         if not conn: return None
-        
+
         try:
             cursor = conn.cursor()
             schema = "labeling."
-            
-            # 1. Try by appr_num first
+
+            # 1. Try by appr_num first (most specific)
             cursor.execute(f"SELECT appr_num FROM {schema}sum_spl WHERE set_id = %s", (set_id,))
             res = cursor.fetchone()
             appr_num = res['appr_num'] if res else None
-            
+
             if appr_num and appr_num != 'N/A':
                 cursor.execute(f"SELECT epc FROM {schema}sum_spl WHERE appr_num = %s AND epc IS NOT NULL AND epc != '' AND epc != 'N/A' LIMIT 1", (appr_num,))
                 res = cursor.fetchone()
                 if res and res['epc']:
                     return res['epc']
 
-            # 2. Try by generic_names
+            # 2. Try by generic_names in substance_indexing table (high quality)
             gn_list = [n.strip().upper() for n in (generic_names or "").split(',') if n.strip() and n.strip().lower() != 'n/a']
             if not gn_list:
-                # Get gn from DB if not provided
                 cursor.execute(f"SELECT generic_names FROM {schema}sum_spl WHERE set_id = %s", (set_id,))
                 res = cursor.fetchone()
                 if res and res['generic_names']:
                     gn_list = [n.strip().upper() for n in res['generic_names'].split(';') if n.strip()]
 
+            if gn_list:
+                # Search for EPC, MoA, or PE in indexing table
+                # We prioritize EPC [EPC]
+                for gn in gn_list:
+                    cursor.execute(f"""
+                        SELECT indexing_name 
+                        FROM {schema}substance_indexing 
+                        WHERE UPPER(substance_name) = %s 
+                        ORDER BY 
+                            CASE WHEN indexing_type = 'EPC' THEN 1 
+                                 WHEN indexing_type = 'MoA' THEN 2
+                                 WHEN indexing_type = 'PE' THEN 3
+                                 ELSE 4 END
+                        LIMIT 1
+                    """, (gn,))
+                    res = cursor.fetchone()
+                    if res and res['indexing_name']:
+                        return res['indexing_name']
+
+            # 3. Fallback to other labels with same generic name
             for gn in gn_list:
                 cursor.execute(f"SELECT epc FROM {schema}sum_spl WHERE generic_names ILIKE %s AND epc IS NOT NULL AND epc != '' AND epc != 'N/A' LIMIT 1", (f"%{gn}%",))
                 res = cursor.fetchone()
                 if res and res['epc']:
                     return res['epc']
-                    
+
+            # 4. Final fallback to openFDA rich metadata
+            if gn_list:
+                from dashboard.services.fda_client import get_rich_metadata_by_generic
+                rich_meta = get_rich_metadata_by_generic(gn_list[0])
+                if rich_meta and rich_meta.get('epc'):
+                    return rich_meta['epc']
+
         except Exception as e:
             logger.error(f"Error borrowing EPC: {e}")
         finally:
             conn.close()
         return None
-
     @classmethod
     def _get_peer_sample(cls, source, generic_names, epcs, target_format):
         """
