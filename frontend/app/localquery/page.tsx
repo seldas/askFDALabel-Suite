@@ -28,6 +28,23 @@ const LocalQueryPage = () => {
     const [hasSearched, setHasSearched] = useState(false);
     const [humanRxOnly, setHumanRxOnly] = useState(false);
     const [rldOnly, setRldOnly] = useState(false);
+    const [dbStats, setDbStats] = useState<{ total_labels: number, last_updated: string | null } | null>(null);
+
+    // Fetch DB Stats on mount
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const res = await fetch('/api/localquery/stats');
+                const data = await res.json();
+                if (data && !data.error) {
+                    setDbStats(data);
+                }
+            } catch (err) {
+                console.error("Stats fetch error", err);
+            }
+        };
+        fetchStats();
+    }, []);
 
     // Debounced Autocomplete
     useEffect(() => {
@@ -121,23 +138,32 @@ const LocalQueryPage = () => {
                     <h1 style={{ fontSize: '2.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '10px' }}>
                         Label Archive
                     </h1>
-                    <div style={{ 
-                        maxWidth: '800px', 
-                        margin: '0 auto', 
-                        padding: '15px 25px', 
-                        backgroundColor: '#fffbeb', 
-                        border: '1px solid #fef3c7', 
+                    <div style={{
+                        maxWidth: '800px',
+                        margin: '0 auto',
+                        padding: '12px 20px',
+                        backgroundColor: '#f1f5f9',
+                        border: '1px solid #e2e8f0',
                         borderRadius: '12px',
-                        color: '#92400e',
-                        fontSize: '0.95rem',
-                        lineHeight: '1.5'
+                        color: '#475569',
+                        fontSize: '0.9rem',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        gap: '24px'
                     }}>
-                        <p style={{ fontWeight: 700, marginBottom: '5px' }}>⚠️ Development Use Only</p>
-                        <p>
-                            This is a <strong>static labeling repository</strong> intended for rapid local testing and development.
-                            It contains a snapshot of FDA labeling data last updated on <strong>February 27, 2026</strong>.
-                            Newer updates published after this date are not reflected in this local index.
-                        </p>                    </div>
+                        {dbStats ? (
+                            <>
+                                <span><strong>Repository Statistics:</strong></span>
+                                <span>Total Labels: <strong>{dbStats.total_labels.toLocaleString()}</strong></span>
+                                {dbStats.last_updated && (
+                                    <span>Last Data Sync: <strong>{dbStats.last_updated}</strong></span>
+                                )}
+                            </>
+                        ) : (
+                            <span>Loading repository statistics...</span>
+                        )}
+                    </div>
+
                 </div>
 
                 <div style={{ 

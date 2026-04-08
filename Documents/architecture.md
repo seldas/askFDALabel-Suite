@@ -164,13 +164,14 @@ This is not a thin application metadata database. It is the platform’s core kn
 
 The `labeling` schema forms the structured-label substrate used across multiple features.
 
-| Table/model | Role |
-|---|---|
 | `labeling.sum_spl` / `DrugLabel` | Label-level metadata and indexing fields |
 | `labeling.spl_sections` / `LabelSection` | Section-level SPL content |
-| `labeling.active_ingredients_map` / `ActiveIngredientMap` | Active/inactive ingredient mapping |
+| `labeling.active_ingredients_map` / `ActiveIngredientMap` | Active/inactive ingredient mapping including UNII |
+| `labeling.epc_map` | High-quality link between labels and pharmacologic classes |
+| `labeling.substance_indexing` | Master mapping between substances (UNII/Name) and EPC/MoA |
 
-This schema is used by local query, dashboard retrieval, comparison, and semantic search preparation. It is also the source of full-text and vector-search supporting operations.
+This schema is used by local query, dashboard retrieval, comparison, and semantic search preparation.
+ It is also the source of full-text and vector-search supporting operations.
 
 ### 6.3 Vector-search domain
 
@@ -201,6 +202,16 @@ The backend service layer is concentrated under `backend/dashboard/services/` an
 | `pgx_handler.py` | PGx-specific assessment and biomarker matching logic |
 | `meddra_matcher.py` | Label-to-MedDRA scanning support |
 | `task_service.py` | Centralized task creation, status tracking, and background thread orchestration |
+
+### 7.1 Deep Dive Peer Sampling Logic
+
+The "Deep Dive" feature (implemented in `deep_dive_service.py`) utilizes a multi-tier sampling strategy to identify relevant peer labels for signal anomaly analysis. The sampling logic prioritizes high-confidence links:
+
+1.  **UNII-based Class Expansion (Deep Link):** The system maps the target label's active ingredient UNIIs to Established Pharmacologic Classes (EPC) using the `substance_indexing` table. It then identifies all other substances sharing those EPCs and finds labels containing them. This is the highest-confidence method for identifying pharmacological peers.
+2.  **Generic Name Matching:** Direct matches on the generic drug names.
+3.  **EPC String Matching:** Broad substring matching on the EPC text fields in the label metadata.
+
+The sampling process collects up to 25 unique labels, prioritizing RLDs and matching label formats (e.g., PLR vs non-PLR) to ensure a statistically relevant and balanced peer group.
 
 This layer is one of the most important architectural stabilizers in the codebase. Even though features are spread across several blueprints, they converge on a smaller set of shared services.
 
@@ -367,12 +378,10 @@ The `scripts/` directory and `backend/admin/tasks/` folder show that maintenance
 
 Key architectural responsibilities outside the request path include:
 
-- initializing and inspecting PostgreSQL schemas
-- importing SPL label data into the `labeling` schema
-- importing MedDRA, PGx, DrugTox, and Orange Book data
-- generating and indexing embeddings
-- updating toxicity-agent state
-- validating environment capabilities such as `pgvector`
+- **Database Initialization and Maintenance:** Centralized in `scripts/db_init/` with a sequential, idempotent bootstrap flow (db_01 through db_07).
+- **Label Data Ingestion:** Handled by `scripts/db_init/db_07_import_labels.py` and the admin label import task.
+- **Enrichment Ingestion:** Importing MedDRA, PGx, DrugTox, Orange Book, and EPC Indexing metadata.
+- **AI Readiness:** Generating and indexing embeddings for semantic search.
 
 This broader operational surface is why later documentation should treat operations and data refresh as first-class technical topics rather than as appendices.
 
@@ -403,6 +412,10 @@ The system now consistently supports multiple pathing strategies through standar
 ### 14.6 Mixed maturity in the search workspace
 
 The backend includes a substantial semantic agent pipeline with trace, reasoning, and streaming support, while the checked-in search page still appears primarily wired to the simpler `/api/search/chat` path. This suggests that the search subsystem is in a transitional state between a simpler conversational mode and a richer streamed agentic mode.
+
+### 14.7 Consolidation of Database Management Scripts
+
+The project is transitioning from a fragmented collection of database scripts in `scripts/database/` to a consolidated, sequential, and idempotent initialization flow in `scripts/db_init/`. While some historical scripts remain in the old location for reference, `scripts/db_init/` should be considered the authoritative source for environment setup and schema maintenance.
 
 ## 15. Boundaries for companion documentation
 

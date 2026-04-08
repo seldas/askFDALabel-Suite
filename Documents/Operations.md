@@ -248,20 +248,22 @@ docker compose up -d
 cd deploy/nginx
 docker compose up -d
 cd ../..
-
 # 4) Initialize database capabilities and schema helpers
-python scripts/database/enable_pgvector.py
-python scripts/database/init_public_schema.py
-python scripts/database/pg_init_labeldb.py
+python scripts/db_init/db_01_enable_pgvector.py
+python scripts/db_init/db_02_init_labeling_schema.py
+python scripts/db_init/db_03_init_public_schema.py
 
 # 5) Import reference datasets
-python scripts/database/import_orange_book.py --force
+python scripts/db_init/db_04_import_orange_book.py --force
+python scripts/db_init/db_05_import_epc_indexing.py
 python scripts/migration/01_import_meddra.py --force
 python scripts/migration/02_import_pgx.py
-python scripts/migration/03_import_drugtox.py --force
+python scripts/migration/03_import_drugtox.py
 
-# 6) Import label snapshots after data/spl_storage is populated
-python scripts/database/pg_import_labels.py
+# 6) Final preparation
+python scripts/db_init/db_06_create_admin.py
+python scripts/db_init/db_07_import_labels.py
+
 
 # 7) Optional semantic-search preparation
 python scripts/ai/check_pg_vector.py
@@ -399,18 +401,20 @@ This design works for moderate, manually triggered jobs, but it is still an in-p
 
 Not all maintenance is exposed through the admin UI. Important manual scripts include:
 
-| Script | Operational role |
+| Script | Purpose |
 |---|---|
-| `scripts/database/create_admin.py` | Creates or resets the admin user |
+| `scripts/db_init/db_06_create_admin.py` | Creates or resets the admin user |
 | `scripts/database/list_tables_pg.py` | Lists tables and row counts by schema |
 | `scripts/database/check_schema.py` | Checks vector-column dimensional metadata |
-| `scripts/database/enable_pgvector.py` | Ensures `vector` extension exists |
-| `scripts/database/pg_init_labeldb.py` | Initializes `labeling` schema objects |
-| `scripts/database/pg_import_labels.py` | Bulk imports local SPL ZIPs |
-| `scripts/database/import_orange_book.py` | Imports Orange Book dataset |
+| `scripts/db_init/db_01_enable_pgvector.py` | Ensures `vector` extension exists |
+| `scripts/db_init/db_02_init_labeling_schema.py` | Initializes `labeling` schema objects |
+| `scripts/db_init/db_07_import_labels.py` | Bulk imports local SPL ZIPs |
+| `scripts/db_init/db_04_import_orange_book.py` | Imports Orange Book dataset |
+| `scripts/db_init/db_05_import_epc_indexing.py` | Imports Pharmacologic Class Indexing data |
 | `scripts/migration/01_import_meddra.py` | Imports MedDRA release files |
 | `scripts/migration/02_import_pgx.py` | Imports PGx biomarker workbook |
 | `scripts/migration/03_import_drugtox.py` | Imports DrugTox workbook |
+
 | `scripts/ai/check_pg_vector.py` | Verifies vector extension and table presence |
 | `scripts/ai/create_vector_index.py` | Builds HNSW vector index |
 | `scripts/labels/download_dailymed.py` | Downloads DailyMed bulk release ZIPs |
