@@ -81,6 +81,19 @@ def init_labeling_schema():
             )
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_active_ingr_spl_id ON labeling.active_ingredients_map(spl_id);")
+            
+            # Ensure 'unii' column exists on existing tables
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_schema = 'labeling' 
+                AND table_name = 'active_ingredients_map' 
+                AND column_name = 'unii'
+            """)
+            if not cursor.fetchone():
+                print("Adding 'unii' column to existing 'active_ingredients_map' table...")
+                cursor.execute("ALTER TABLE labeling.active_ingredients_map ADD COLUMN unii TEXT;")
+
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_active_ingr_unii ON labeling.active_ingredients_map(unii);")
 
             cursor.execute("""
