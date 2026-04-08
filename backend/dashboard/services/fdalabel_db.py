@@ -79,6 +79,18 @@ class FDALabelDBService:
         return cls.is_available()
 
     @classmethod
+    def _get_count(cls, res):
+        """Safely extracts a count value from a cursor.fetchone() result."""
+        if res is None:
+            return 0
+        if isinstance(res, (tuple, list)):
+            return res[0]
+        if isinstance(res, dict):
+            # Try common count keys
+            return res.get('count') or res.get('COUNT(*)') or res.get('count(*)') or 0
+        return 0
+
+    @classmethod
     def filter_labels(cls, filters, limit=5000):
         if not cls.check_connectivity(): return [], 0
         conn = cls.get_connection()
@@ -167,11 +179,8 @@ class FDALabelDBService:
             count_where = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
             count_sql = f"SELECT COUNT(*) FROM {schema}{table} {count_where}"
             cursor.execute(count_sql, params)
-            total_count = cursor.fetchone()[0] if not isinstance(cursor.fetchone(), dict) else 0 # Simple fix for RealDictCursor or tuple
-            # Re-execute count because fetchone moves the pointer
-            cursor.execute(count_sql, params)
             res = cursor.fetchone()
-            total_count = res[0] if isinstance(res, (tuple, list)) else res.get('COUNT(*)') or res.get('count') or 0
+            total_count = cls._get_count(res)
             
             if total_count > limit:
                 return [], total_count
@@ -320,21 +329,21 @@ class FDALabelDBService:
                 if generic_name:
                     sql = "SELECT COUNT(*) FROM druglabel.DGV_SUM_SPL WHERE UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q)"
                     cursor.execute(sql, {"q": f"%{generic_name}%"})
-                    results["generic_count"] = cursor.fetchone()[0]
+                    results["generic_count"] = cls._get_count(cursor.fetchone())
                 if epc:
                     sql = "SELECT COUNT(*) FROM druglabel.DGV_SUM_SPL WHERE UPPER(EPC) LIKE UPPER(:q)"
                     cursor.execute(sql, {"q": f"%{epc}%"})
-                    results["epc_count"] = cursor.fetchone()[0]
+                    results["epc_count"] = cls._get_count(cursor.fetchone())
             else:
                 schema = "labeling."
                 if generic_name:
                     sql = f"SELECT COUNT(*) FROM {schema}sum_spl WHERE generic_names ILIKE %(q)s"
                     cursor.execute(sql, {"q": f"%{generic_name}%"})
-                    results["generic_count"] = cursor.fetchone()[0]
+                    results["generic_count"] = cls._get_count(cursor.fetchone())
                 if epc:
                     sql = f"SELECT COUNT(*) FROM {schema}sum_spl WHERE epc ILIKE %(q)s"
                     cursor.execute(sql, {"q": f"%{epc}%"})
-                    results["epc_count"] = cursor.fetchone()[0]
+                    results["epc_count"] = cls._get_count(cursor.fetchone())
         except Exception as e:
             print(f"Error in get_label_counts: {e}")
         finally:
