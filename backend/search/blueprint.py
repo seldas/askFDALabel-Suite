@@ -325,44 +325,6 @@ def search_agentic_stream():
 
     return Response(stream_with_context(generate()), mimetype="application/x-ndjson")
 
-# --- Chat with Labels ---
-@search_bp.route("/chat", methods=["POST"])
-def chat():
-    try:
-        chatHistory = json.loads(request.form.get("chatHistory", "[]"))
-        documents = request.form.get("documents", "")
-        doc_type = request.form.get("doc_type", "")
-        
-        # For chat, we reuse the semantic answering logic but with direct context
-        user_obj = current_user._get_current_object() if current_user.is_authenticated else None
-        
-        def chat_stream():
-            # Minimal wrapper for streaming chat
-            system_prompt = "You are a helpful FDA Labeling assistant. Answer based on the provided documents."
-            user_msg = f"Context: {documents}\n\nUser Question: {chatHistory[-1]['content'] if chatHistory else 'Hello'}"
-            
-            stream = unified_call_llm(
-                user=user_obj,
-                system_prompt=system_prompt,
-                user_message=user_msg,
-                history=chatHistory[:-1],
-                stream=True
-            )
-            for chunk in stream:
-                text = ""
-                if hasattr(chunk, 'choices'):
-                    if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                        text = chunk.choices[0].delta.content
-                elif isinstance(chunk, str):
-                    text = chunk
-                if text:
-                    yield json.dumps({"summary_chunk": text}) + "\n"
-
-        return Response(stream_with_context(chat_stream()), content_type="application/json")
-    except Exception as e:
-        logger.error(f"Chat error: {e}")
-        return jsonify({"error": str(e)}), 500
-
 # --- Helper Routes (Metadata, Exports) ---
 @search_bp.route("/get_metadata", methods=["POST"])
 def get_metadata():
