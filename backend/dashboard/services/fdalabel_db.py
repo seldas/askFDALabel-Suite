@@ -337,13 +337,54 @@ class FDALabelDBService:
             else:
                 schema = "labeling."
                 if generic_name:
-                    sql = f"SELECT COUNT(*) FROM {schema}sum_spl WHERE generic_names ILIKE %(q)s"
+                    # Only count labels with XML content
+                    sql = f"""
+                        SELECT COUNT(DISTINCT s.spl_id) 
+                        FROM {schema}sum_spl s
+                        JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
+                        WHERE s.generic_names ILIKE %(q)s
+                    """
                     cursor.execute(sql, {"q": f"%{generic_name}%"})
                     results["generic_count"] = cls._get_count(cursor.fetchone())
                 if epc:
-                    sql = f"SELECT COUNT(*) FROM {schema}sum_spl WHERE epc ILIKE %(q)s"
-                    cursor.execute(sql, {"q": f"%{epc}%"})
-                    results["epc_count"] = cls._get_count(cursor.fetchone())
+                    # 1. Find all unique generic names under this EPC
+                    clean_epc = epc.split('[')[0].strip()
+                    sql_gns = f"""
+                        SELECT DISTINCT generic_names 
+                        FROM {schema}sum_spl s
+                        LEFT JOIN {schema}epc_map e ON s.spl_id = e.spl_id
+                        WHERE s.epc ILIKE %(q)s OR e.epc_term ILIKE %(q)s OR s.epc ILIKE %(cq)s OR e.epc_term ILIKE %(cq)s
+                    """
+                    cursor.execute(sql_gns, {"q": f"%{epc}%", "cq": f"%{clean_epc}%"})
+                    all_gns = set()
+                    for row in cursor.fetchall():
+                        gn_str = row['generic_names'] if isinstance(row, dict) else row[0]
+                        if gn_str:
+                            for gn in gn_str.split(';'):
+                                if gn.strip(): all_gns.add(gn.strip().upper())
+                    
+                    if all_gns:
+                        # 2. Count labels with XML content that have ANY of these generic names
+                        where_parts = [f"s.generic_names ILIKE %s"] * len(all_gns)
+                        sql_count = f"""
+                            SELECT COUNT(DISTINCT s.spl_id) 
+                            FROM {schema}sum_spl s
+                            JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
+                            WHERE {' OR '.join(where_parts)}
+                        """
+                        cursor.execute(sql_count, [f"%{gn}%" for gn in all_gns])
+                        results["epc_count"] = cls._get_count(cursor.fetchone())
+                    else:
+                        # Fallback to direct EPC count with XML join
+                        sql = f"""
+                            SELECT COUNT(DISTINCT s.spl_id) 
+                            FROM {schema}sum_spl s 
+                            JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
+                            LEFT JOIN {schema}epc_map e ON s.spl_id = e.spl_id 
+                            WHERE s.epc ILIKE %(q)s OR e.epc_term ILIKE %(q)s
+                        """
+                        cursor.execute(sql, {"q": f"%{epc}%"})
+                        results["epc_count"] = cls._get_count(cursor.fetchone())
         except Exception as e:
             print(f"Error in get_label_counts: {e}")
         finally:

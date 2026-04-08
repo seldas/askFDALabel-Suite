@@ -285,9 +285,16 @@ class DeepDiveService:
             cursor = conn.cursor()
             schema = "labeling."
             
-            # 1. Gather by Generic Names
+            # 1. Gather by Generic Names (Direct)
             for gn in name_list[:3]:
-                cursor.execute(f"SELECT set_id, is_rld, doc_type FROM {schema}sum_spl WHERE generic_names ILIKE %s LIMIT 100", (f"%{gn}%",))
+                # Join with spl_sections to ensure we only pick labels with actual XML content
+                sql = f"""
+                    SELECT DISTINCT s.set_id, s.is_rld, s.doc_type 
+                    FROM {schema}sum_spl s
+                    JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
+                    WHERE s.generic_names ILIKE %s LIMIT 100
+                """
+                cursor.execute(sql, (f"%{gn}%",))
                 for row in cursor.fetchall():
                     sid = row['set_id']
                     if sid not in unique_set_ids:
@@ -300,29 +307,75 @@ class DeepDiveService:
                             'score': (5 if row['is_rld'] else 0) + (2 if fmt == target_format else 0)
                         })
 
-            # 2. Gather by EPCs
+            # 2. Gather by EPCs (Expansion Logic)
             for epc in epc_list[:3]:
-                # Remove common suffixes like [EPC] if present for searching
                 clean_epc = epc.split('[')[0].strip()
-                cursor.execute(f"SELECT set_id, is_rld, doc_type FROM {schema}sum_spl WHERE epc ILIKE %s OR epc ILIKE %s LIMIT 100", (f"%{epc}%", f"%{clean_epc}%"))
+                # A. Find all unique generic names that share this EPC
+                sql_gns = f"""
+                    SELECT DISTINCT generic_names 
+                    FROM {schema}sum_spl s
+                    LEFT JOIN {schema}epc_map e ON s.spl_id = e.spl_id
+                    WHERE s.epc ILIKE %s OR e.epc_term ILIKE %s OR s.epc ILIKE %s OR e.epc_term ILIKE %s
+                """
+                cursor.execute(sql_gns, (f"%{epc}%", f"%{epc}%", f"%{clean_epc}%", f"%{clean_epc}%"))
+                expanded_gns = set()
                 for row in cursor.fetchall():
-                    sid = row['set_id']
-                    if sid not in unique_set_ids:
-                        unique_set_ids.add(sid)
-                        fmt = 'PLR' if 'PRESCRIPTION' in (row['doc_type'] or '').upper() else 'OTC'
-                        all_peer_data.append({
-                            'id': sid,
-                            'is_rld': bool(row['is_rld']),
-                            'format': fmt,
-                            'score': (3 if row['is_rld'] else 0) + (1 if fmt == target_format else 0)
-                        })
+                    gn_str = row['generic_names']
+                    if gn_str:
+                        for gn in gn_str.split(';'):
+                            if gn.strip(): expanded_gns.add(gn.strip().upper())
+                
+                # B. Find all labels for these generic names (ensuring XML exists)
+                if expanded_gns:
+                    for gn in list(expanded_gns)[:10]: # Limit expansion to top 10 generics to avoid massive results
+                        sql_labels = f"""
+                            SELECT DISTINCT s.set_id, s.is_rld, s.doc_type 
+                            FROM {schema}sum_spl s
+                            JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
+                            WHERE s.generic_names ILIKE %s LIMIT 50
+                        """
+                        cursor.execute(sql_labels, (f"%{gn}%",))
+                        for row in cursor.fetchall():
+                            sid = row['set_id']
+                            if sid not in unique_set_ids:
+                                unique_set_ids.add(sid)
+                                fmt = 'PLR' if 'PRESCRIPTION' in (row['doc_type'] or '').upper() else 'OTC'
+                                all_peer_data.append({
+                                    'id': sid,
+                                    'is_rld': bool(row['is_rld']),
+                                    'format': fmt,
+                                    'score': (3 if row['is_rld'] else 0) + (1 if fmt == target_format else 0)
+                                })
+                else:
+                    # Fallback: Direct EPC search if no generic names expansion worked
+                    sql_fallback = f"""
+                        SELECT DISTINCT s.set_id, s.is_rld, s.doc_type 
+                        FROM {schema}sum_spl s
+                        JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
+                        LEFT JOIN {schema}epc_map e ON s.spl_id = e.spl_id
+                        WHERE s.epc ILIKE %s OR e.epc_term ILIKE %s LIMIT 100
+                    """
+                    cursor.execute(sql_fallback, (f"%{epc}%", f"%{epc}%"))
+                    for row in cursor.fetchall():
+                        sid = row['set_id']
+                        if sid not in unique_set_ids:
+                            unique_set_ids.add(sid)
+                            fmt = 'PLR' if 'PRESCRIPTION' in (row['doc_type'] or '').upper() else 'OTC'
+                            all_peer_data.append({
+                                'id': sid,
+                                'is_rld': bool(row['is_rld']),
+                                'format': fmt,
+                                'score': (3 if row['is_rld'] else 0) + (1 if fmt == target_format else 0)
+                            })
 
             # 3. Sort and Sample
             # We want a diverse sample but high quality
             random.shuffle(all_peer_data)
             all_peer_data.sort(key=lambda x: x['score'], reverse=True)
             
-            return [p['id'] for p in all_peer_data[:20]]
+            final_sample = [p['id'] for p in all_peer_data[:20]]
+            logger.info(f"Peer Sampling Result: Collected {len(all_peer_data)} candidates, returning {len(final_sample)} for analysis.")
+            return final_sample
 
         except Exception as e:
             logger.error(f"Error sampling peers locally: {e}")
