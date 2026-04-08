@@ -287,6 +287,43 @@ Backend health check:
 http://localhost:8842/health
 ```
 
+## Database Initialization and Maintenance
+
+The application uses a two-schema layout in PostgreSQL (`public` and `labeling`). Follow these steps to initialize a **new** system or update an **existing** one. All scripts are idempotent and will safely update schema/columns if the database already exists.
+
+### Step-by-Step Initialization
+Run these from the repo root with your virtual environment activated:
+
+1. **Enable pgvector**: Required for AI search.
+   ```bash
+   python scripts/db_init/db_01_enable_pgvector.py
+   ```
+2. **Initialize Labeling Schema**: Creates the `labeling` tables and optimized search indexes.
+   ```bash
+   python scripts/db_init/db_02_init_labeling_schema.py
+   ```
+3. **Initialize Public Schema**: Creates application tables (users, projects, etc.) via SQLAlchemy.
+   ```bash
+   python scripts/db_init/db_03_init_public_schema.py
+   ```
+4. **Import Orange Book**: Essential for identifying RLD/RS labels.
+   ```bash
+   python scripts/db_init/db_04_import_orange_book.py
+   ```
+5. **Import EPC Indexing**: Required for the Deep Dive "Pharmacologic Class" analysis.
+   ```bash
+   python scripts/db_init/db_05_import_epc_indexing.py
+   ```
+6. **Create Admin User**: Sets up the initial login (default: admin / 1986414).
+   ```bash
+   python scripts/db_init/db_06_create_admin.py
+   ```
+7. **Import Labels**: Syncs SPL files from storage to the database.
+   ```bash
+   # Add --force to re-process and update UNII/EPC for existing labels
+   python scripts/db_init/db_07_import_labels.py --force --skip-unpack
+   ```
+
 ## Data and maintenance workflows
 
 ### Label data ingestion
@@ -294,19 +331,15 @@ Relevant paths and scripts:
 - SPL ZIP storage: `data/spl_storage/`
 - uploads and temporary imports: `data/uploads/`
 - DailyMed downloader: `scripts/labels/download_dailymed.py`
-- admin label import task: `backend/admin/tasks/import_labels.py`
-- PostgreSQL initialization helpers: `scripts/database/pg_init_labeldb.py`, `scripts/database/init_public_schema.py`
-
-The label importer populates the `labeling` schema, including:
-- `labeling.sum_spl`
-- `labeling.spl_sections`
-- `labeling.active_ingredients_map`
+- PostgreSQL initialization: `scripts/db_init/` (See Step-by-Step above)
+- Main importer: `scripts/db_init/db_07_import_labels.py`
 
 ### Reference and enrichment datasets
-- Orange Book import: `backend/admin/tasks/import_orangebook.py` and `scripts/database/import_orange_book.py`
+- Orange Book import: `scripts/db_init/db_04_import_orange_book.py`
 - MedDRA import: `backend/admin/tasks/import_meddra.py` and `scripts/migration/01_import_meddra.py`
 - PGx import: `scripts/migration/02_import_pgx.py`
 - DrugTox import: `backend/admin/tasks/import_drugtox.py` and `scripts/migration/03_import_drugtox.py`
+- EPC Indexing: `scripts/db_init/db_05_import_epc_indexing.py`
 
 ### Embeddings and semantic search maintenance
 - embedding sync: `scripts/ai/sync_label_embeddings.py`
