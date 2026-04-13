@@ -820,7 +820,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                                                         {activeIngredients.map((ingr, iIdx) => (
                                                                             <div key={iIdx} className="active-ingredient-item">
                                                                                 <span className="active-ingredient-name">{ingr.name}</span>
-                                                                                <span className="active-ingredient-strength">{ingr.strength}</span>
+                                                                                {ingr.strength && <span className="active-ingredient-strength">{ingr.strength}</span>}
                                                                             </div>
                                                                         ))}
                                                                     </div>
@@ -831,7 +831,10 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                                                     <span className="ingredient-group-title">Inactive Ingredients</span>
                                                                     <div className="inactive-ingredients-flow">
                                                                         {inactiveIngredients.map((ingr, iIdx) => (
-                                                                            <span key={iIdx} className="inactive-ingredient-item">{ingr.name}</span>
+                                                                            <span key={iIdx} className="inactive-ingredient-item">
+                                                                                {ingr.name}
+                                                                                {ingr.strength && <span className="inactive-ingredient-strength">({ingr.strength})</span>}
+                                                                            </span>
                                                                         ))}
                                                                     </div>
                                                                 </div>

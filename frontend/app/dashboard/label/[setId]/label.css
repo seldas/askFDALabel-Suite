@@ -1255,6 +1255,15 @@ html {
     font-size: 0.75rem;
     color: #475569;
     font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.inactive-ingredient-strength {
+    color: #94a3b8;
+    font-size: 0.7rem;
+    font-family: ui-monospace, monospace;
 }
 
 .inactive-ingredient-item::after {
