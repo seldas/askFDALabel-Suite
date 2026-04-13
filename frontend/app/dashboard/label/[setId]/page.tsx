@@ -819,7 +819,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                                                     <div className="active-ingredients-list">
                                                                         {activeIngredients.map((ingr, iIdx) => (
                                                                             <div key={iIdx} className="active-ingredient-item">
-                                                                                <span className="active-ingredient-name">{ingr.name}</span>
+                                                                                <span className="active-ingredient-name">{ingr.name.toLowerCase()}</span>
                                                                                 {ingr.strength && <span className="active-ingredient-strength">{ingr.strength}</span>}
                                                                             </div>
                                                                         ))}
@@ -828,11 +828,11 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                                             )}
                                                             {inactiveIngredients.length > 0 && (
                                                                 <div className="ingredient-group" style={{ marginTop: activeIngredients.length > 0 ? '10px' : '0' }}>
-                                                                    <span className="ingredient-group-title">Inactive Ingredients</span>
+                                                                    <span className="ingredient-group-title">Ingredients</span>
                                                                     <div className="inactive-ingredients-flow">
                                                                         {inactiveIngredients.map((ingr, iIdx) => (
                                                                             <span key={iIdx} className="inactive-ingredient-item">
-                                                                                {ingr.name}
+                                                                                {ingr.name.toLowerCase()}
                                                                                 {ingr.strength && <span className="inactive-ingredient-strength">({ingr.strength})</span>}
                                                                             </span>
                                                                         ))}
