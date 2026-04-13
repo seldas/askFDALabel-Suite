@@ -805,7 +805,13 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                                             return (
                                                 <tr key={pIdx} className="tech-spec-row">
                                                     <td className="tech-spec-td">
-                                                        <span className="ndc-badge">{prod.ndc}</span>
+                                                        <div className="ndc-container">
+                                                            {(prod.ndc || '').split(/[\n,;]+/).map((code, i) => {
+                                                                const trimmed = code.trim();
+                                                                if (!trimmed) return null;
+                                                                return <span key={i} className="ndc-badge">{trimmed}</span>;
+                                                            })}
+                                                        </div>
                                                     </td>
                                                     <td className="tech-spec-td">
                                                         <div className="product-name">{prod.name}</div>
@@ -973,12 +979,9 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
             </div>
             <div style={{ padding: '16px', overflow: 'auto' }}>
               {ndcList.length > 0 ? (
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+                <div className="ndc-container" style={{ maxWidth: '100%', padding: '8px' }}>
                   {ndcList.map((code, i) => (
-                    <div key={i} style={{ padding: '10px 12px', display: 'flex', gap: '12px', borderTop: i === 0 ? 'none' : '1px solid #f1f5f9', background: i % 2 === 0 ? '#ffffff' : '#fbfdff' }}>
-                      <div style={{ minWidth: '44px', fontSize: '0.75rem', color: '#94a3b8', fontWeight: 800 }}>#{i + 1}</div>
-                      <div style={{ fontFamily: 'ui-monospace, monospace', color: '#0f172a', fontSize: '0.95rem' }}>{code}</div>
-                    </div>
+                    <span key={i} className="ndc-badge" style={{ padding: '6px 12px', fontSize: '0.9rem' }}>{code}</span>
                   ))}
                 </div>
               ) : <div style={{ color: '#64748b' }}>No NDC codes available.</div>}
