@@ -158,15 +158,15 @@ export default function Header({
                   className={cx('ai-option-card', session?.ai_provider === 'llama' && 'selected')}
                   onClick={() => { updateAiProvider('llama'); setIsAiModalOpen(false); }}
                 >
-                  <div style={{ fontWeight: 800 }}>LLAMA 3.3</div>
-                  <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Internal secure reasoning</div>
+                  <div style={{ fontWeight: 800 }}>LLAMA 4 - NCTR</div>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Internal Research LLMs</div>
                 </button>
                 <button 
                   className={cx('ai-option-card', session?.ai_provider === 'elsa' && 'selected')}
                   onClick={() => { updateAiProvider('elsa'); setIsAiModalOpen(false); }}
                 >
-                  <div style={{ fontWeight: 800 }}>ELSA Specialized</div>
-                  <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Fine-tuned for FDA label data</div>
+                  <div style={{ fontWeight: 800 }}>ELSA</div>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>FDA Enterprise AI</div>
                 </button>
               </>
             )}

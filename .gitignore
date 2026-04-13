@@ -45,3 +45,5 @@ backend/webtest/history/
 data/
 backend/data/uploads/
 *.db
+
+deepdive_outputs/
