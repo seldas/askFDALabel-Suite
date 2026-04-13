@@ -12,7 +12,7 @@ import LabelView from './label';
 import FaersView from './faers';
 import AgentView from './agent';
 import DeepDiveView from './deepdive';
-import './label_view.css';
+import './label.css';
 
 // Shared Types
 import { TOCItem, LabelData } from './types';
@@ -789,39 +789,58 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
                       {techDetailsOpen && (
                         <div style={{ marginTop: '16px', background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)' }}>
                             <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                                    <thead>
-                                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #f1f5f9' }}>
-                                            <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>NDC Identifier</th>
-                                            <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Name & Dosage Form</th>
-                                            <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Composition Analysis</th>
+                                <table className="tech-spec-table">
+                                    <thead className="tech-spec-header">
+                                        <tr>
+                                            <th className="tech-spec-th" style={{ width: '150px' }}>NDC Identifier</th>
+                                            <th className="tech-spec-th" style={{ width: '250px' }}>Product & Dosage Form</th>
+                                            <th className="tech-spec-th">Composition Analysis</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {data.product_data.map((prod, pIdx) => (
-                                            <tr key={pIdx} style={{ borderBottom: pIdx < data.product_data.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                                                <td style={{ padding: '16px 20px', verticalAlign: 'top' }}><span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 700, color: '#0f172a', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem' }}>{prod.ndc}</span></td>
-                                                <td style={{ padding: '16px 20px', verticalAlign: 'top' }}>
-                                                    <div style={{ fontWeight: 700, color: '#334155', fontSize: '0.9rem' }}>{prod.name}</div>
-                                                    <div style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '4px', fontWeight: 500 }}>{prod.form}</div>
-                                                </td>
-                                                <td style={{ padding: '16px 20px', verticalAlign: 'top' }}>
-                                                    <div style={{ background: '#f9fafb', borderRadius: '10px', padding: '12px', border: '1px solid #f1f5f9' }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                            {prod.ingredients.map((ingr, iIdx) => (
-                                                                <div key={iIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px' }}>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                        <span style={{ fontSize: '0.6rem', fontWeight: 900, background: ingr.type === 'active' ? '#fee2e2' : '#f1f5f9', color: ingr.type === 'active' ? '#991b1b' : '#64748b', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>{ingr.type === 'active' ? 'ACT' : 'INC'}</span>
-                                                                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1e293b' }}>{ingr.name}</span>
+                                        {data.product_data.map((prod, pIdx) => {
+                                            const activeIngredients = prod.ingredients.filter(i => i.type === 'active');
+                                            const inactiveIngredients = prod.ingredients.filter(i => i.type !== 'active');
+                                            
+                                            return (
+                                                <tr key={pIdx} className="tech-spec-row">
+                                                    <td className="tech-spec-td">
+                                                        <span className="ndc-badge">{prod.ndc}</span>
+                                                    </td>
+                                                    <td className="tech-spec-td">
+                                                        <div className="product-name">{prod.name}</div>
+                                                        <div className="product-form">{prod.form}</div>
+                                                    </td>
+                                                    <td className="tech-spec-td">
+                                                        <div className="composition-container">
+                                                            {activeIngredients.length > 0 && (
+                                                                <div className="ingredient-group">
+                                                                    <span className="ingredient-group-title">Active Ingredients</span>
+                                                                    <div className="active-ingredients-list">
+                                                                        {activeIngredients.map((ingr, iIdx) => (
+                                                                            <div key={iIdx} className="active-ingredient-item">
+                                                                                <span className="active-ingredient-name">{ingr.name}</span>
+                                                                                <span className="active-ingredient-strength">{ingr.strength}</span>
+                                                                            </div>
+                                                                        ))}
                                                                     </div>
-                                                                    <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700, fontFamily: 'ui-monospace, monospace' }}>{ingr.strength}</span>
                                                                 </div>
-                                                            ))}
+                                                            )}
+                                                            {inactiveIngredients.length > 0 && (
+                                                                <div className="ingredient-group" style={{ marginTop: activeIngredients.length > 0 ? '10px' : '0' }}>
+                                                                    <span className="ingredient-group-title">Inactive Ingredients</span>
+                                                                    <div className="inactive-ingredients-flow">
+                                                                        {inactiveIngredients.map((ingr, iIdx) => (
+                                                                            <span key={iIdx} className="inactive-ingredient-item">{ingr.name}</span>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
