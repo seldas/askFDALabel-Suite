@@ -1110,12 +1110,18 @@ html {
 .meddra-term-base {
     background-color: transparent; 
     border-bottom: 2px dashed #d0bfff !important; /* Light Purple Dashed */
-    cursor: default;
+    cursor: pointer;
     display: inline;
     transition: all 0.2s ease;
 }
 .meddra-term-base:hover {
     background-color: #f3f0ff !important; /* Very Light Purple on hover */
+}
+
+.meddra-soc-highlight {
+    background-color: #e7f5ff !important;
+    border-bottom: 2px solid #339af0 !important;
+    border-radius: 4px;
 }
 
 /* Active Highlight from Stats Window - Vivid Pink/Purple */

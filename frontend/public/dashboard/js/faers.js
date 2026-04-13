@@ -813,11 +813,31 @@ window.initFaers = function() {
                 if (details) {
                     // Store Metadata
                     span.setAttribute('data-term', details.term);
-                    span.setAttribute('data-soc', details.soc_abbrev || details.soc || 'Unknown');
+                    const soc = details.soc_abbrev || details.soc || 'Unknown';
+                    span.setAttribute('data-soc', soc);
                     
                     // Always use base MedDRA style
                     span.className = 'meddra-term-base';
-                    span.title = `MedDRA Term: ${details.term} (${details.soc_abbrev || details.soc})`; 
+                    // Tooltip removed per user request
+                    
+                    span.onclick = (e) => {
+                        e.stopPropagation();
+                        const targetSoc = span.getAttribute('data-soc');
+                        const allMeddra = document.querySelectorAll('.meddra-term-base');
+                        
+                        // If already highlighted, just clear everything (toggle behavior)
+                        const isCurrentlyHighlighted = span.classList.contains('meddra-soc-highlight');
+                        
+                        allMeddra.forEach(el => el.classList.remove('meddra-soc-highlight'));
+                        
+                        if (!isCurrentlyHighlighted && targetSoc !== 'Unknown') {
+                            allMeddra.forEach(el => {
+                                if (el.getAttribute('data-soc') === targetSoc) {
+                                    el.classList.add('meddra-soc-highlight');
+                                }
+                            });
+                        }
+                    };
                 }
                 
                 fragment.appendChild(span);
@@ -1495,6 +1515,15 @@ window.initFaers = function() {
     }
 
     // --- Statistics Logic ---
+    // Clear MedDRA SOC highlights on outside click
+    document.addEventListener('click', (e) => {
+        if (!e.target.classList || !e.target.classList.contains('meddra-term-base')) {
+            document.querySelectorAll('.meddra-term-base').forEach(el => {
+                el.classList.remove('meddra-soc-highlight');
+            });
+        }
+    });
+
     window.loadMeddraStatistics = function() {
         const modalBody = document.getElementById('meddra-stats-body');
         const exportBtn = document.getElementById('export-meddra-json');
