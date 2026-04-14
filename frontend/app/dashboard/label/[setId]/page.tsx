@@ -917,7 +917,7 @@ function LabelContent({ params }: { params: Promise<{ setId: string }> }) {
       <Script src={withAppBase("/dashboard/js/session_manager.js")} strategy="afterInteractive" />
       <Script src={withAppBase("/dashboard/js/chat.js?v=20260218_1")} strategy="afterInteractive" />
       <Script src={withAppBase("/dashboard/js/annotations.js")} strategy="afterInteractive" />
-      <Script src={withAppBase("/dashboard/js/faers.js")} strategy="afterInteractive" />
+      <Script src={withAppBase("/dashboard/js/faers.js?v=20260413_1")} strategy="afterInteractive" />
       <Script src={withAppBase("/dashboard/js/tox.js")} strategy="afterInteractive" />
 
       {/* Modals placeholders */}

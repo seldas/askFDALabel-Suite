@@ -811,33 +811,14 @@ window.initFaers = function() {
                 span.textContent = matchedText;
                 
                 if (details) {
-                    // Store Metadata
+                    // Store Metadata for delegated click handler
                     span.setAttribute('data-term', details.term);
                     const soc = details.soc_abbrev || details.soc || 'Unknown';
                     span.setAttribute('data-soc', soc);
                     
-                    // Always use base MedDRA style
+                    // Always use base MedDRA style (Blue Dashed via CSS)
                     span.className = 'meddra-term-base';
-                    // Tooltip removed per user request
-                    
-                    span.onclick = (e) => {
-                        e.stopPropagation();
-                        const targetSoc = span.getAttribute('data-soc');
-                        const allMeddra = document.querySelectorAll('.meddra-term-base');
-                        
-                        // If already highlighted, just clear everything (toggle behavior)
-                        const isCurrentlyHighlighted = span.classList.contains('meddra-soc-highlight');
-                        
-                        allMeddra.forEach(el => el.classList.remove('meddra-soc-highlight'));
-                        
-                        if (!isCurrentlyHighlighted && targetSoc !== 'Unknown') {
-                            allMeddra.forEach(el => {
-                                if (el.getAttribute('data-soc') === targetSoc) {
-                                    el.classList.add('meddra-soc-highlight');
-                                }
-                            });
-                        }
-                    };
+                    // NO tooltip (title attribute) per user request
                 }
                 
                 fragment.appendChild(span);
@@ -1396,13 +1377,39 @@ window.initFaers = function() {
         }
     }
 
-    // --- Statistics Logic ---
-    // Clear MedDRA SOC highlights on outside click
+    // --- MedDRA SOC Highlighting Logic (Delegated) ---
     document.addEventListener('click', (e) => {
-        if (!e.target.classList || !e.target.classList.contains('meddra-term-base')) {
-            document.querySelectorAll('.meddra-term-base').forEach(el => {
-                el.classList.remove('meddra-soc-highlight');
-            });
+        const target = e.target;
+        
+        // 1. Check if we clicked a MedDRA term
+        if (target && target.classList && target.classList.contains('meddra-term-base')) {
+            e.stopPropagation();
+            
+            const targetSoc = target.getAttribute('data-soc');
+            const allMeddra = document.querySelectorAll('.meddra-term-base');
+            
+            // Toggle behavior: if this one is already highlighted as part of a SOC group, clear all
+            const wasHighlighted = target.classList.contains('meddra-soc-highlight');
+            
+            // Always clear first
+            allMeddra.forEach(el => el.classList.remove('meddra-soc-highlight'));
+            
+            // If it wasn't highlighted, and we have a valid SOC, highlight the group
+            if (!wasHighlighted && targetSoc && targetSoc !== 'Unknown') {
+                console.log(`Highlighting MedDRA SOC group: ${targetSoc}`);
+                allMeddra.forEach(el => {
+                    if (el.getAttribute('data-soc') === targetSoc) {
+                        el.classList.add('meddra-soc-highlight');
+                    }
+                });
+            }
+            return;
+        }
+
+        // 2. Clicked outside: Clear all MedDRA SOC highlights
+        const activeHighlights = document.querySelectorAll('.meddra-soc-highlight');
+        if (activeHighlights.length > 0) {
+            activeHighlights.forEach(el => el.classList.remove('meddra-soc-highlight'));
         }
     });
 
