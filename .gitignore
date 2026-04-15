@@ -47,3 +47,5 @@ backend/data/uploads/
 *.db
 
 deepdive_outputs/
+scripts/evaluation/emerging_ae/cache/
+scripts/evaluation/emerging_ae/archived/
