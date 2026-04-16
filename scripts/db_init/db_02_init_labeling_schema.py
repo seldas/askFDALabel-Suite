@@ -31,6 +31,23 @@ def init_labeling_schema():
                 local_path TEXT
             )
             """)
+
+            cursor.execute("""
+                ALTER TABLE labeling.sum_spl
+                ADD COLUMN IF NOT EXISTS effective_time_raw TEXT;
+
+                ALTER TABLE labeling.sum_spl
+                ADD COLUMN IF NOT EXISTS imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+                ALTER TABLE labeling.sum_spl
+                ADD COLUMN IF NOT EXISTS is_latest BOOLEAN DEFAULT FALSE;
+
+                ALTER TABLE labeling.sum_spl
+                ADD COLUMN IF NOT EXISTS version_number INTEGER;
+
+                ALTER TABLE labeling.sum_spl
+                ADD COLUMN IF NOT EXISTS parent_spl_id TEXT;
+            """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_sum_spl_set_id ON labeling.sum_spl(set_id);")
 
             # 2. Section Content Table

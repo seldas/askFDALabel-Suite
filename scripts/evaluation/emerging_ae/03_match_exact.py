@@ -5,7 +5,6 @@ import re
 import json
 import html
 import zipfile
-import tempfile
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Tuple, Any
 
@@ -34,7 +33,6 @@ OUTPUT_PAIR_SUMMARY = "scripts/evaluation/emerging_ae/03_label_pair_section_summ
 
 CHECKPOINT_EVERY = 200
 
-# Target section families
 TARGET_SECTION_GROUPS = {
     "contraindications": {
         "codes": {"34070-3"},
@@ -42,9 +40,13 @@ TARGET_SECTION_GROUPS = {
         "display_name": "Contraindications",
     },
     "warnings_and_precautions": {
-        "codes": {"43685-7"},
+        "codes": {"43685-7", "34071-1", "42232-9", "34072-9"},
         "title_variants": [
             "warnings and precautions",
+            "warning and precautions",
+            "warnings",
+            "precautions",
+            "general precautions",
         ],
         "display_name": "Warnings and Precautions",
     },
@@ -68,8 +70,6 @@ TARGET_SECTION_GROUPS = {
 }
 
 PLR_REQUIRED_GROUP = "warnings_and_precautions"
-
-# SPL XML namespace
 NS = {"hl7": "urn:hl7-org:v3"}
 
 
@@ -150,37 +150,30 @@ def resolve_local_zip_path(local_path: Optional[str]) -> Optional[str]:
 
     path = os.path.expanduser(str(local_path).strip())
 
-    # 1. exact path as stored
     if os.path.exists(path):
         return path
 
-    # 2. absolute version of stored path
     abs_path = os.path.abspath(path)
     if os.path.exists(abs_path):
         return abs_path
 
-    # 3. under data/spl_storage
     spl_base = os.getenv("SPL_STORAGE_DIR", "data/spl_storage")
     candidate = os.path.join(spl_base, path)
     if os.path.exists(candidate):
         return candidate
 
-    # 4. basename under data/spl_storage
     candidate2 = os.path.join(spl_base, os.path.basename(path))
     if os.path.exists(candidate2):
         return candidate2
 
     return None
 
+
 def find_xml_member_in_zip(zf: zipfile.ZipFile) -> Optional[str]:
     names = zf.namelist()
-
-    # Prefer .xml files that are not metadata-ish
     xml_names = [n for n in names if n.lower().endswith(".xml")]
     if not xml_names:
         return None
-
-    # Heuristic: prefer the longest/primary XML over tiny metadata docs
     xml_names.sort(key=lambda x: ("/" in x, len(x)), reverse=True)
     return xml_names[0]
 
@@ -190,13 +183,11 @@ def load_xml_root_from_dailymed_zip(zip_path: str) -> ET.Element:
         xml_member = find_xml_member_in_zip(zf)
         if not xml_member:
             raise ValueError(f"No XML file found in ZIP: {zip_path}")
-
         xml_bytes = zf.read(xml_member)
 
     try:
         return ET.fromstring(xml_bytes)
     except Exception:
-        # Try decoding and re-parsing more forgivingly
         text = xml_bytes.decode("utf-8", errors="ignore")
         return ET.fromstring(text.encode("utf-8", errors="ignore"))
 
@@ -206,17 +197,12 @@ def load_xml_root_from_dailymed_zip(zip_path: str) -> ET.Element:
 # ==============================
 
 def get_effective_code(node: ET.Element) -> Optional[str]:
-    """
-    Look for section/document code values.
-    """
     candidates = []
 
-    # direct code
     code_el = node.find("./hl7:code", NS)
     if code_el is not None and code_el.get("code"):
         candidates.append(code_el.get("code"))
 
-    # nested code
     code_els = node.findall(".//hl7:code", NS)
     for el in code_els[:5]:
         if el.get("code"):
@@ -236,14 +222,12 @@ def extract_node_title(node: ET.Element) -> str:
         if text:
             return normalize_space(text)
 
-    # fallback to first text in node
     text = " ".join(node.itertext()).strip()
     return normalize_space(text[:200]) if text else ""
 
 
 def extract_node_text(node: ET.Element) -> str:
-    text = " ".join(node.itertext())
-    return normalize_space(text)
+    return normalize_space(" ".join(node.itertext()))
 
 
 def node_matches_group(node: ET.Element, group_name: str) -> bool:
@@ -261,29 +245,20 @@ def node_matches_group(node: ET.Element, group_name: str) -> bool:
 
 
 def collect_section_nodes(root: ET.Element, group_name: str) -> List[Dict[str, Any]]:
-    """
-    Collect full section/subsection nodes from the SPL XML.
-    """
     out = []
-
-    # SPL sections are typically under component/section recursively
     nodes = root.findall(".//hl7:section", NS)
+
     for idx, node in enumerate(nodes):
         if node_matches_group(node, group_name):
-            title = extract_node_title(node)
-            text = extract_node_text(node)
-            code = get_effective_code(node)
-
             out.append(
                 {
                     "section_id": idx,
-                    "loinc_code": code,
-                    "title": title,
-                    "section_text": text,
+                    "loinc_code": get_effective_code(node),
+                    "title": extract_node_title(node),
+                    "section_text": extract_node_text(node),
                 }
             )
 
-    # Deduplicate by (code, title, text prefix)
     deduped = []
     seen = set()
     for item in out:
@@ -557,7 +532,6 @@ def main():
 
     pair_summary_rows = []
     kept_rows = []
-    ai_rows = []
 
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -578,7 +552,6 @@ def main():
                 if not prior_spl_id or not latest_spl_id:
                     continue
 
-                # Build prior section map from ZIP/XML
                 if prior_spl_id not in section_map_cache:
                     prior_zip = resolve_local_zip_path(local_path_cache.get(prior_spl_id))
                     if not prior_zip:
@@ -586,7 +559,6 @@ def main():
                     prior_root = load_xml_root_from_dailymed_zip(prior_zip)
                     section_map_cache[prior_spl_id] = build_target_section_map_from_xml(prior_root)
 
-                # Build latest section map from ZIP/XML
                 if latest_spl_id not in section_map_cache:
                     latest_zip = resolve_local_zip_path(local_path_cache.get(latest_spl_id))
                     if not latest_zip:
@@ -641,119 +613,173 @@ def main():
                 else:
                     exact_status = "matched_neither_exact"
 
-                long_row = {
-                    "input_set_id": input_set_id,
+                kept_rows.append(
+                    {
+                        "input_set_id": input_set_id,
 
-                    "latest_spl_id": latest_spl_id,
-                    "latest_set_id": getattr(row, "latest_set_id", None),
-                    "latest_generic_names": getattr(row, "latest_generic_names", None),
-                    "latest_revised_date": getattr(row, "latest_revised_date", None),
-                    "latest_is_plr": getattr(row, "latest_is_plr", None),
-                    "latest_local_path": local_path_cache.get(latest_spl_id),
+                        "latest_spl_id": latest_spl_id,
+                        "latest_set_id": getattr(row, "latest_set_id", None),
+                        "latest_generic_names": getattr(row, "latest_generic_names", None),
+                        "latest_revised_date": getattr(row, "latest_revised_date", None),
+                        "latest_is_plr": getattr(row, "latest_is_plr", None),
+                        "latest_local_path": local_path_cache.get(latest_spl_id),
 
-                    "prior_spl_id": prior_spl_id,
-                    "prior_set_id": getattr(row, "prior_set_id", None),
-                    "prior_generic_names": getattr(row, "prior_generic_names", None),
-                    "prior_revised_date": getattr(row, "prior_revised_date", None),
-                    "prior_is_plr": getattr(row, "prior_is_plr", None),
-                    "prior_local_path": local_path_cache.get(prior_spl_id),
+                        "prior_spl_id": prior_spl_id,
+                        "prior_set_id": getattr(row, "prior_set_id", None),
+                        "prior_generic_names": getattr(row, "prior_generic_names", None),
+                        "prior_revised_date": getattr(row, "prior_revised_date", None),
+                        "prior_is_plr": getattr(row, "prior_is_plr", None),
+                        "prior_local_path": local_path_cache.get(prior_spl_id),
 
-                    "both_are_plr": getattr(row, "both_are_plr", None),
+                        "both_are_plr": getattr(row, "both_are_plr", None),
 
-                    "faers_query_generic": getattr(row, "faers_query_generic", None),
-                    "first_faers_report_date": getattr(row, "first_faers_report_date", None),
-                    "has_prebaseline_history": getattr(row, "has_prebaseline_history", None),
+                        "faers_query_generic": getattr(row, "faers_query_generic", None),
+                        "first_faers_report_date": getattr(row, "first_faers_report_date", None),
+                        "has_prebaseline_history": getattr(row, "has_prebaseline_history", None),
 
-                    "baseline_start": getattr(row, "baseline_start", None),
-                    "baseline_end": getattr(row, "baseline_end", None),
-                    "recent_start": getattr(row, "recent_start", None),
-                    "recent_end": getattr(row, "recent_end", None),
+                        "baseline_start": getattr(row, "baseline_start", None),
+                        "baseline_end": getattr(row, "baseline_end", None),
+                        "recent_start": getattr(row, "recent_start", None),
+                        "recent_end": getattr(row, "recent_end", None),
 
-                    "meddra_pt": meddra_pt,
-                    "baseline_count": getattr(row, "baseline_count", None),
-                    "recent_count": getattr(row, "recent_count", None),
+                        "meddra_pt": meddra_pt,
+                        "baseline_count": getattr(row, "baseline_count", None),
+                        "recent_count": getattr(row, "recent_count", None),
 
-                    "searched_section_groups": json.dumps(list(TARGET_SECTION_GROUPS.keys())),
-                    "searched_loinc_codes": json.dumps({
-                        k: sorted(list(v["codes"])) for k, v in TARGET_SECTION_GROUPS.items()
-                    }),
+                        "searched_section_groups": json.dumps(list(TARGET_SECTION_GROUPS.keys())),
+                        "searched_loinc_codes": json.dumps({
+                            k: sorted(list(v["codes"])) for k, v in TARGET_SECTION_GROUPS.items()
+                        }),
 
-                    "matched_in_prior_exact": matched_in_prior_exact,
-                    "prior_match_method": prior_result["method"],
-                    "prior_match_groups": prior_result["matched_groups_json"],
-                    "prior_match_loinc_codes": prior_result["matched_loinc_codes_json"],
-                    "prior_match_sections": prior_result["section_titles_json"],
-                    "prior_match_snippets": prior_result["snippets_json"],
+                        "matched_in_prior_exact": matched_in_prior_exact,
+                        "prior_match_method": prior_result["method"],
+                        "prior_match_groups": prior_result["matched_groups_json"],
+                        "prior_match_loinc_codes": prior_result["matched_loinc_codes_json"],
+                        "prior_match_sections": prior_result["section_titles_json"],
+                        "prior_match_snippets": prior_result["snippets_json"],
 
-                    "matched_in_latest_exact": matched_in_latest_exact,
-                    "latest_match_method": latest_result["method"],
-                    "latest_match_groups": latest_result["matched_groups_json"],
-                    "latest_match_loinc_codes": latest_result["matched_loinc_codes_json"],
-                    "latest_match_sections": latest_result["section_titles_json"],
-                    "latest_match_snippets": latest_result["snippets_json"],
+                        "matched_in_latest_exact": matched_in_latest_exact,
+                        "latest_match_method": latest_result["method"],
+                        "latest_match_groups": latest_result["matched_groups_json"],
+                        "latest_match_loinc_codes": latest_result["matched_loinc_codes_json"],
+                        "latest_match_sections": latest_result["section_titles_json"],
+                        "latest_match_snippets": latest_result["snippets_json"],
 
-                    "needs_ai_rematch": (not matched_in_prior_exact) and (not matched_in_latest_exact),
-                    "exact_status": exact_status,
-                }
-                kept_rows.append(long_row)
-
-                if (not matched_in_prior_exact) and (not matched_in_latest_exact):
-                    ai_rows.append(
-                        {
-                            "input_set_id": input_set_id,
-
-                            "prior_spl_id": prior_spl_id,
-                            "prior_set_id": getattr(row, "prior_set_id", None),
-                            "prior_drug_name": getattr(row, "prior_generic_names", None),
-                            "prior_local_path": local_path_cache.get(prior_spl_id),
-
-                            "latest_spl_id": latest_spl_id,
-                            "latest_set_id": getattr(row, "latest_set_id", None),
-                            "latest_drug_name": getattr(row, "latest_generic_names", None),
-                            "latest_local_path": local_path_cache.get(latest_spl_id),
-
-                            "faers_query_generic": getattr(row, "faers_query_generic", None),
-                            "first_faers_report_date": getattr(row, "first_faers_report_date", None),
-                            "has_prebaseline_history": getattr(row, "has_prebaseline_history", None),
-
-                            "baseline_start": getattr(row, "baseline_start", None),
-                            "baseline_end": getattr(row, "baseline_end", None),
-                            "recent_start": getattr(row, "recent_start", None),
-                            "recent_end": getattr(row, "recent_end", None),
-
-                            "meddra_pt": meddra_pt,
-                            "recent_count": getattr(row, "recent_count", None),
-                            "baseline_count": getattr(row, "baseline_count", None),
-
-                            "target_section_groups": json.dumps(list(TARGET_SECTION_GROUPS.keys())),
-                            "target_loinc_codes": json.dumps({
-                                k: sorted(list(v["codes"])) for k, v in TARGET_SECTION_GROUPS.items()
-                            }),
-                            "prior_section_text": flatten_section_map_text(prior_section_map),
-                            "latest_section_text": flatten_section_map_text(latest_section_map),
-                        }
-                    )
+                        "needs_ai_rematch": (not matched_in_prior_exact) and (not matched_in_latest_exact),
+                        "exact_status": exact_status,
+                    }
+                )
 
                 if idx % CHECKPOINT_EVERY == 0 or idx == total:
                     pd.DataFrame(kept_rows).to_csv(OUTPUT_LONG, index=False)
-                    pd.DataFrame(ai_rows).to_csv(OUTPUT_FOR_AI, index=False)
                     pd.DataFrame(pair_summary_rows).drop_duplicates(
                         subset=["input_set_id", "prior_spl_id", "latest_spl_id"]
                     ).to_csv(OUTPUT_PAIR_SUMMARY, index=False)
-                    print(
-                        f"Processed {idx}/{total} | "
-                        f"kept_rows={len(kept_rows)} | "
-                        f"ai_rows={len(ai_rows)}"
-                    )
+                    print(f"Processed {idx}/{total} | kept_rows={len(kept_rows)}")
 
     finally:
         conn.close()
 
     long_df = pd.DataFrame(kept_rows)
-    ai_df = pd.DataFrame(ai_rows)
     pair_df = pd.DataFrame(pair_summary_rows).drop_duplicates(
         subset=["input_set_id", "prior_spl_id", "latest_spl_id"]
     )
+
+    # Build consolidated AI queue: one row per label pair
+    ai_source_df = long_df[long_df["needs_ai_rematch"].apply(safe_bool)].copy()
+
+    ai_group_rows = []
+    if not ai_source_df.empty:
+        grouped = ai_source_df.groupby(
+            ["input_set_id", "prior_spl_id", "latest_spl_id"],
+            dropna=False,
+        )
+
+        for (input_set_id, prior_spl_id, latest_spl_id), g in grouped:
+            prior_set_id = g["prior_set_id"].dropna().iloc[0] if not g["prior_set_id"].dropna().empty else None
+            latest_set_id = g["latest_set_id"].dropna().iloc[0] if not g["latest_set_id"].dropna().empty else None
+            prior_drug_name = g["prior_generic_names"].dropna().iloc[0] if not g["prior_generic_names"].dropna().empty else None
+            latest_drug_name = g["latest_generic_names"].dropna().iloc[0] if not g["latest_generic_names"].dropna().empty else None
+            prior_local_path = g["prior_local_path"].dropna().iloc[0] if not g["prior_local_path"].dropna().empty else None
+            latest_local_path = g["latest_local_path"].dropna().iloc[0] if not g["latest_local_path"].dropna().empty else None
+            faers_query_generic = g["faers_query_generic"].dropna().iloc[0] if not g["faers_query_generic"].dropna().empty else None
+            first_faers_report_date = g["first_faers_report_date"].dropna().iloc[0] if not g["first_faers_report_date"].dropna().empty else None
+            has_prebaseline_history = g["has_prebaseline_history"].dropna().iloc[0] if not g["has_prebaseline_history"].dropna().empty else None
+            baseline_start = g["baseline_start"].dropna().iloc[0] if not g["baseline_start"].dropna().empty else None
+            baseline_end = g["baseline_end"].dropna().iloc[0] if not g["baseline_end"].dropna().empty else None
+            recent_start = g["recent_start"].dropna().iloc[0] if not g["recent_start"].dropna().empty else None
+            recent_end = g["recent_end"].dropna().iloc[0] if not g["recent_end"].dropna().empty else None
+            searched_section_groups = g["searched_section_groups"].dropna().iloc[0] if not g["searched_section_groups"].dropna().empty else None
+            searched_loinc_codes = g["searched_loinc_codes"].dropna().iloc[0] if not g["searched_loinc_codes"].dropna().empty else None
+
+            # Rebuild section text once from local paths already captured
+            # Since long_df no longer stores section blobs, recover from caches by rerunning the same extraction logic from file paths would be overkill here.
+            # So create from first matched row context using local paths already processed in main via the existing caches:
+            prior_section_text = None
+            latest_section_text = None
+
+            # Reconstruct from currently available cached maps
+            # These names exist in local scope if script reached this point successfully.
+            # We guard them anyway.
+            if prior_spl_id in section_map_cache:
+                prior_section_text = flatten_section_map_text(section_map_cache[prior_spl_id])
+            if latest_spl_id in section_map_cache:
+                latest_section_text = flatten_section_map_text(section_map_cache[latest_spl_id])
+
+            terms_df = (
+                g[["meddra_pt", "recent_count", "baseline_count"]]
+                .sort_values(["meddra_pt", "recent_count"], ascending=[True, False])
+                .drop_duplicates(subset=["meddra_pt"])
+            )
+
+            terms_list = []
+            for _, r in terms_df.iterrows():
+                terms_list.append(
+                    {
+                        "term": r["meddra_pt"],
+                        "recent_count": None if pd.isna(r["recent_count"]) else int(r["recent_count"]),
+                        "baseline_count": None if pd.isna(r["baseline_count"]) else int(r["baseline_count"]),
+                    }
+                )
+
+            missing_ae_terms_text = "; ".join([str(x["term"]) for x in terms_list])
+
+            ai_group_rows.append(
+                {
+                    "input_set_id": input_set_id,
+
+                    "prior_spl_id": prior_spl_id,
+                    "prior_set_id": prior_set_id,
+                    "prior_drug_name": prior_drug_name,
+                    "prior_local_path": prior_local_path,
+
+                    "latest_spl_id": latest_spl_id,
+                    "latest_set_id": latest_set_id,
+                    "latest_drug_name": latest_drug_name,
+                    "latest_local_path": latest_local_path,
+
+                    "faers_query_generic": faers_query_generic,
+                    "first_faers_report_date": first_faers_report_date,
+                    "has_prebaseline_history": has_prebaseline_history,
+
+                    "baseline_start": baseline_start,
+                    "baseline_end": baseline_end,
+                    "recent_start": recent_start,
+                    "recent_end": recent_end,
+
+                    "target_section_groups": searched_section_groups,
+                    "target_loinc_codes": searched_loinc_codes,
+
+                    "missing_ae_count": len(terms_list),
+                    "missing_ae_terms_json": json.dumps(terms_list, ensure_ascii=False),
+                    "missing_ae_terms_text": missing_ae_terms_text,
+
+                    "prior_section_text": prior_section_text,
+                    "latest_section_text": latest_section_text,
+                }
+            )
+
+    ai_df = pd.DataFrame(ai_group_rows)
 
     os.makedirs(os.path.dirname(OUTPUT_LONG), exist_ok=True)
     long_df.to_csv(OUTPUT_LONG, index=False)
@@ -777,10 +803,10 @@ def main():
         print("\nAI queue preview:")
         preview_cols = [
             "input_set_id",
-            "meddra_pt",
             "prior_spl_id",
             "latest_spl_id",
-            "recent_count",
+            "missing_ae_count",
+            "missing_ae_terms_text",
         ]
         print(ai_df[preview_cols].head(10).to_string(index=False))
 
