@@ -32,7 +32,321 @@ from dashboard.services.meddra_matcher import scan_label_for_meddra
 logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__)
 
-@api_bp.route('/deep_dive/peers_count/<set_id>')
+@api_bp.route('/history/<set_id>')
+@login_required
+def get_label_history(set_id):
+    """
+    Returns the version history (lineage) for a specific set_id from local database.
+    """
+    try:
+        conn = FDALabelDBService.get_connection()
+        if not conn:
+            return jsonify({'error': 'Local database not connected'}), 503
+            
+        cursor = conn.cursor()
+        # Query sum_spl for all versions of this set_id
+        # We also join with history_analysis to see if an analysis already exists
+        sql = """
+            SELECT 
+                s.spl_id, s.set_id, s.product_names, s.generic_names, 
+                s.revised_date, s.version_number, s.is_latest,
+                a.executive_summary, a.is_regulatory_notable, a.last_analyzed_at
+            FROM labeling.sum_spl s
+            LEFT JOIN labeling.history_analysis a ON s.spl_id = a.current_spl_id
+            WHERE s.set_id = %s
+            ORDER BY s.version_number DESC, s.revised_date DESC
+        """
+        cursor.execute(sql, (set_id,))
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        results = []
+        for r in rows:
+            results.append({
+                'spl_id': r['spl_id'],
+                'set_id': r['set_id'],
+                'product_names': r['product_names'],
+                'generic_names': r['generic_names'],
+                'revised_date': r['revised_date'],
+                'version_number': r['version_number'],
+                'is_latest': bool(r['is_latest']),
+                'has_analysis': bool(r['executive_summary']),
+                'executive_summary': r['executive_summary'],
+                'is_regulatory_notable': bool(r['is_regulatory_notable']),
+                'last_analyzed_at': r['last_analyzed_at'].isoformat() if r['last_analyzed_at'] else None
+            })
+            
+        return jsonify({'results': results})
+    except Exception as e:
+        logger.exception(f"Error fetching label history for {set_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+from dashboard.services.xml_handler import parse_spl_xml, flatten_sections, get_aggregate_content
+from dashboard.utils import normalize_text_for_diff, normalize_title_text, extract_numeric_section_id
+from difflib import SequenceMatcher
+
+@api_bp.route('/history/diff/<spl_id1>/<spl_id2>')
+@login_required
+def get_history_diff(spl_id1, spl_id2):
+    """
+    Returns a section-by-section diff between two specific SPL versions.
+    spl_id1: The newer version (Current)
+    spl_id2: The older version (Previous)
+    """
+    try:
+        xml1 = FDALabelDBService.get_full_xml_by_spl_id(spl_id1)
+        xml2 = FDALabelDBService.get_full_xml_by_spl_id(spl_id2)
+        
+        if not xml1 or not xml2:
+            return jsonify({'error': 'Could not retrieve XML for one or both versions'}), 404
+            
+        # Parse both XMLs
+        _, sections1, _, _, _, _ = parse_spl_xml(xml1, spl_id1)
+        _, sections2, _, _, _, _ = parse_spl_xml(xml2, spl_id2)
+        
+        flat1 = flatten_sections(sections1)
+        flat2 = flatten_sections(sections2)
+        
+        # Build maps of sections by normalized title or LOINC code
+        def get_sections_map(flat_list):
+            s_map = {}
+            for s in flat_list:
+                title = s.get('title', 'Unknown Section')
+                code = s.get('code')
+                # Use LOINC as primary key if available, otherwise normalized title
+                key = code if code else normalize_title_text(title)
+                if key:
+                    s_map[key] = {
+                        'title': title,
+                        'content': get_aggregate_content(s) if isinstance(s.get('content'), list) else s.get('content', '')
+                    }
+            return s_map
+            
+        map1 = get_sections_map(flat1)
+        map2 = get_sections_map(flat2)
+        
+        # Word-level diff helper
+        def nuanced_word_diff(text1, text2):
+            if not text1: text1 = ""
+            if not text2: text2 = ""
+            words1 = text1.split()
+            words2 = text2.split()
+            matcher = SequenceMatcher(None, words2, words1) # previous, current
+            html_new, html_old = [], []
+            for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+                if tag == 'equal':
+                    chunk = " ".join(words2[i1:i2])
+                    html_old.append(chunk); html_new.append(chunk)
+                elif tag == 'insert':
+                    chunk = " ".join(words1[j1:j2])
+                    html_new.append(f'<ins class="diff-add">{chunk}</ins>')
+                elif tag == 'delete':
+                    chunk = " ".join(words2[i1:i2])
+                    html_old.append(f'<del class="diff-sub">{chunk}</del>')
+                elif tag == 'replace':
+                    chunk_old, chunk_new = " ".join(words2[i1:i2]), " ".join(words1[j1:j2])
+                    html_old.append(f'<del class="diff-sub">{chunk_old}</del>')
+                    html_new.append(f'<ins class="diff-add">{chunk_new}</ins>')
+            return " ".join(html_new), " ".join(html_old)
+
+        all_keys = sorted(list(set(map1.keys()) | set(map2.keys())))
+        diff_results = []
+        
+        for key in all_keys:
+            s1 = map1.get(key)
+            s2 = map2.get(key)
+            
+            title = s1['title'] if s1 else s2['title']
+            content1 = s1['content'] if s1 else ""
+            content2 = s2['content'] if s2 else ""
+            
+            # Normalize for comparison
+            norm1 = " ".join(normalize_text_for_diff(content1))
+            norm2 = " ".join(normalize_text_for_diff(content2))
+            
+            if norm1 == norm2:
+                continue # No substantive change
+                
+            diff_new, diff_old = nuanced_word_diff(norm1, norm2)
+            
+            diff_results.append({
+                'key': key,
+                'title': title,
+                'diff_new': diff_new,
+                'diff_old': diff_old,
+                'is_addition': not content2 and content1,
+                'is_deletion': not content1 and content2
+            })
+            
+        return jsonify({'diff': diff_results})
+    except Exception as e:
+        logger.exception(f"Error generating history diff: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/history/analyze', methods=['POST'])
+@login_required
+def analyze_history_changes():
+    """
+    Triggers AI analysis of changes between two versions.
+    """
+    data = request.json
+    current_spl_id = data.get('current_spl_id')
+    previous_spl_id = data.get('previous_spl_id')
+    force_refresh = data.get('force_refresh', False)
+    
+    if not current_spl_id or not previous_spl_id:
+        return jsonify({'error': 'Missing spl_ids'}), 400
+        
+    try:
+        # 1. Check if already exists
+        if not force_refresh:
+            conn = FDALabelDBService.get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM labeling.history_analysis WHERE current_spl_id = %s", (current_spl_id,))
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            if row:
+                return jsonify({'success': True, 'cached': True, 'analysis_json': row['analysis_json']})
+
+        # 2. Get Metadata and XML for both
+        xml_new = FDALabelDBService.get_full_xml_by_spl_id(current_spl_id)
+        xml_old = FDALabelDBService.get_full_xml_by_spl_id(previous_spl_id)
+        meta_new = FDALabelDBService.get_metadata_by_spl_id(current_spl_id)
+        
+        if not xml_new or not xml_old:
+            return jsonify({'error': 'Could not retrieve XML for analysis'}), 404
+
+        # 3. Clean and prepare text for AI (simplified text extraction)
+        def get_clean_text(xml_content):
+            try:
+                # Basic tag stripping
+                text = re.sub(r'<[^>]+>', ' ', xml_content)
+                text = " ".join(text.split()) # Normalize whitespace
+                return text[:50000] # Cap to prevent context overflow
+            except:
+                return ""
+
+        text_new = get_clean_text(xml_new)
+        text_old = get_clean_text(xml_old)
+        drug_name = meta_new.get('brand_name', 'Unknown Drug')
+
+        # 4. Prompt AI
+        system_prompt = "You are an expert Regulatory Affairs Specialist and Clinical Pharmacist. Your task is to perform a high-fidelity comparison between two versions of a drug's Structured Product Labeling (SPL)."
+        user_message = f"""
+        Compare the following two versions of the drug label for {drug_name}.
+        
+        **Version A (Old):**
+        {text_old}
+        
+        **Version B (New):**
+        {text_new}
+        
+        **Instructions:**
+        1. Scan the entire content of both versions.
+        2. Identify every clinical, safety, or regulatory change. Ignore minor formatting, white-space, or punctuation changes that do not alter medical meaning.
+        3. For each change, categorize it by its clinical impact (Safety, Efficacy, Administration, or General Metadata).
+        4. Determine if the change introduces a higher level of risk (e.g., a new warning).
+        
+        **Output Format (JSON ONLY):**
+        {{
+          "executive_summary": "A 2-3 sentence overview of the most significant changes in this version update.",
+          "changes": [
+            {{
+              "section_title": "e.g., WARNINGS AND PRECAUTIONS",
+              "change_type": "Addition | Deletion | Modification",
+              "impact_category": "Safety | Efficacy | Administration | Other",
+              "clinical_significance": "Explain WHY this change matters for a doctor or patient.",
+              "risk_level": "High | Medium | Low"
+            }}
+          ],
+          "regulatory_notable": true/false
+        }}
+        """
+
+        user_obj = current_user._get_current_object()
+        from dashboard.services.ai_handler import call_llm
+        ai_response = call_llm(user_obj, system_prompt, user_message)
+        
+        # Parse JSON
+        try:
+            cleaned_json = ai_response.replace('```json', '').replace('```', '').strip()
+            # Find the first { and last }
+            start = cleaned_json.find('{')
+            end = cleaned_json.rfind('}') + 1
+            analysis_data = json.loads(cleaned_json[start:end])
+        except Exception as e:
+            logger.error(f"AI JSON Parse error for history: {e}. Raw: {ai_response}")
+            return jsonify({'error': 'AI failed to return structured data', 'raw': ai_response}), 500
+
+        # 5. Save to DB
+        conn = FDALabelDBService.get_connection()
+        cursor = conn.cursor()
+        
+        # Upsert
+        sql = """
+            INSERT INTO labeling.history_analysis 
+            (set_id, current_spl_id, previous_spl_id, executive_summary, is_regulatory_notable, analysis_json, raw_prompt_version)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (current_spl_id) DO UPDATE SET
+            executive_summary = EXCLUDED.executive_summary,
+            is_regulatory_notable = EXCLUDED.is_regulatory_notable,
+            analysis_json = EXCLUDED.analysis_json,
+            last_analyzed_at = CURRENT_TIMESTAMP
+        """
+        cursor.execute(sql, (
+            meta_new['set_id'],
+            current_spl_id,
+            previous_spl_id,
+            analysis_data.get('executive_summary'),
+            analysis_data.get('regulatory_notable', False),
+            json.dumps(analysis_data),
+            'v1.0'
+        ))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'success': True, 'analysis_json': analysis_data})
+        
+    except Exception as e:
+        logger.exception(f"Error analyzing history: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/history/analysis/<spl_id>')
+@login_required
+def get_history_analysis(spl_id):
+    """
+    Returns the stored AI analysis for a specific SPL version.
+    """
+    try:
+        conn = FDALabelDBService.get_connection()
+        if not conn:
+            return jsonify({'error': 'Local database not connected'}), 503
+            
+        cursor = conn.cursor()
+        sql = "SELECT * FROM labeling.history_analysis WHERE current_spl_id = %s"
+        cursor.execute(sql, (spl_id,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not row:
+            return jsonify({'found': False})
+            
+        return jsonify({
+            'found': True,
+            'analysis': {
+                'executive_summary': row['executive_summary'],
+                'is_regulatory_notable': bool(row['is_regulatory_notable']),
+                'analysis_json': row['analysis_json'],
+                'last_analyzed_at': row['last_analyzed_at'].isoformat() if row['last_analyzed_at'] else None
+            }
+        })
+    except Exception as e:
+        logger.exception(f"Error fetching history analysis for {spl_id}: {e}")
+        return jsonify({'error': str(e)}), 500
 def get_peers_count(set_id):
     """
     Fetches counts of peer labels (same name and same EPC) from various sources.

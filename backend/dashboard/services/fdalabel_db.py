@@ -427,6 +427,52 @@ class FDALabelDBService:
         return None
 
     @classmethod
+    def get_metadata_by_spl_id(cls, spl_id):
+        if not cls.check_connectivity(): return None
+        conn = cls.get_connection()
+        if not conn: return None
+        try:
+            cursor = conn.cursor()
+            schema = "labeling."
+            sql = f"SELECT * FROM {schema}sum_spl WHERE spl_id = %s LIMIT 1"
+            cursor.execute(sql, (spl_id,))
+            r = cursor.fetchone()
+            if r:
+                return {
+                    'set_id': r['set_id'], 
+                    'spl_id': r['spl_id'],
+                    'brand_name': (r['product_names'] or "").replace(';', ', '), 
+                    'generic_name': (r['generic_names'] or "").replace(';', ', '), 
+                    'manufacturer_name': r['manufacturer'] or "", 
+                    'effective_time': r['revised_date'],
+                    'application_number': r['appr_num'] or "",
+                    'doc_type': r['doc_type'],
+                    'version_number': r['version_number']
+                }
+        except Exception as e: print(f"Metadata SPL_ID Error: {e}")
+        finally: conn.close()
+        return None
+
+    @classmethod
+    def get_full_xml_by_spl_id(cls, spl_id):
+        if not cls.check_connectivity(): return None
+        conn = cls.get_connection()
+        if not conn: return None
+        try:
+            cursor = conn.cursor()
+            schema = "labeling."
+            # We reconstruct XML from sections if possible, or if there's a local_path, we read it
+            # But the 'spl_sections' table actually contains the content_xml for each section
+            sql = f"SELECT content_xml FROM {schema}spl_sections WHERE spl_id = %s ORDER BY id ASC"
+            cursor.execute(sql, (spl_id,))
+            rows = cursor.fetchall()
+            if rows:
+                return "\n".join([r['content_xml'] for r in rows if r['content_xml']])
+        except Exception as e: print(f"XML SPL_ID Error: {e}")
+        finally: conn.close()
+        return None
+
+    @classmethod
     def get_full_xml(cls, set_id):
         if not cls.check_connectivity(): return None
         conn = cls.get_connection()
