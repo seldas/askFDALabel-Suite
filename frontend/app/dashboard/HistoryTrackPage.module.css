@@ -1,0 +1,40 @@
+/* HistoryTrackPage.module.css */
+
+/* ADDED TEXT */
+.diffAdd {
+  background-color: #dcfce7;
+  color: #166534;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+/* DELETED TEXT */
+.diffSub {
+  background-color: #fee2e2;
+  color: #991b1b;
+  text-decoration: line-through;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+/* Scope to container */
+.diffContainer ins.diff-add {
+  background-color: #dcfce7;
+  color: #166534;
+  text-decoration: none;
+}
+
+.diffContainer del.diff-sub {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.diffContainer :global(ins.diff-add) {
+  background-color: #dcfce7;
+  border-bottom: 2px solid #16a34a;
+}
+
+.diffContainer :global(del.diff-sub) {
+  background-color: #fee2e2;
+  border-bottom: 2px solid #dc2626;
+}

@@ -58,7 +58,7 @@ def get_comparison_summary(user, set_ids, comparison_data, label_names, force_re
                 total_chars += sum(len(c) for c in c_list)
 
     if not differing_sections:
-        return "<p>No comparison has been performed yet.</p>"
+        return "<p>No substantive differences were identified between the labels for comparison.</p>"
 
     # 3. Handle data volume limit
     if total_chars > MAX_CHARS_FOR_AI:

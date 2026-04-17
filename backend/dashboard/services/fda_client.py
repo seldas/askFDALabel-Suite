@@ -218,20 +218,26 @@ def get_label_metadata(set_id, import_id=None):
     return None
 
 def get_label_xml(set_id):
-    if not set_id: return None
+    if not set_id:
+        return None
+
     try:
         db_xml = FDALabelDBService.get_full_xml(set_id)
-        if db_xml: return db_xml
+        if db_xml:
+            logger.info(f"Loaded XML from local DB/ZIP for set_id={set_id}, length={len(db_xml)}")
+            return db_xml
     except Exception as e:
-        logger.error(f"Error reading local XML: {e}")
+        logger.error(f"Error reading local XML for {set_id}: {e}")
 
     dailymed_url = f"https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/{set_id}.xml"
     try:
         response = requests.get(dailymed_url, timeout=10)
         response.raise_for_status()
+        logger.info(f"Loaded XML from DailyMed for set_id={set_id}, length={len(response.text)}")
         return response.text
     except Exception as e:
-        logger.error(f"Error fetching from DailyMed: {e}")
+        logger.error(f"Error fetching from DailyMed for {set_id}: {e}")
+
     return None
 
 def get_faers_data(drug_name, limit=20):

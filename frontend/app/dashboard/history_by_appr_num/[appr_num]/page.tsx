@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
 import '../../../globals.css';
+import styles from '../../HistoryTrackPage.module.css';
 import { withAppBase, withApiBase } from '../../../utils/appPaths';
 
 interface HistoryRecord {
@@ -340,7 +341,7 @@ const HistoryTrackPage = () => {
                                 </p>
                                 {previousRecord && (
                                     <a 
-                                        href={withAppBase(`/labelcomp?set_ids=${activeRecord?.set_id}&set_ids=${previousRecord?.set_id}`)} 
+                                        href={withAppBase(`/labelcomp?set_ids=${previousRecord?.set_id}&set_ids=${activeRecord?.set_id}`)} 
                                         target="_blank" 
                                         rel="noopener noreferrer"
                                         style={{
@@ -356,7 +357,7 @@ const HistoryTrackPage = () => {
                                             textDecoration: 'none'
                                         }}
                                     >
-                                        Compare Labels ↗
+                                        View in LabelComp ↗
                                     </a>
                                 )}
                             </div>
@@ -378,8 +379,8 @@ const HistoryTrackPage = () => {
                             <div style={{ textAlign: 'center', padding: '100px 0', color: '#64748b' }}>
                                 {activeRecord?.has_analysis && activeRecord.executive_summary ? null : (
                                     <>
-                                        <h3 style={{ fontSize: '1.1rem' }}>No Substantive Changes Detected</h3>
-                                        <p>This version update appears to be purely administrative or formatting-related.</p>
+                                        <h3 style={{ fontSize: '1.1rem' }}>No comparison has been performed yet</h3>
+                                        <p>please run the "Analyze Changes" on the top right.</p>
                                     </>
                                 )}
                             </div>
@@ -414,7 +415,7 @@ const HistoryTrackPage = () => {
                                             }}>
                                                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: '8px', fontWeight: 700 }}>PREVIOUS (v{previousRecord?.version_number})</div>
                                                 <div 
-                                                    className="diff-content diff-old"
+                                                    className={`iff-content diff-old ${styles.diffContainer}`}
                                                     dangerouslySetInnerHTML={{ __html: item.diff_old || '<i style="color: #cbd5e1">Section did not exist</i>' }}
                                                 />
                                             </div>
@@ -428,7 +429,7 @@ const HistoryTrackPage = () => {
                                             }}>
                                                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: '8px', fontWeight: 700 }}>CURRENT (v{activeRecord?.version_number})</div>
                                                 <div 
-                                                    className="diff-content diff-new"
+                                                    className={`iff-content diff-new ${styles.diffContainer}`}
                                                     dangerouslySetInnerHTML={{ __html: item.diff_new || '<i style="color: #cbd5e1">Section removed</i>' }}
                                                 />
                                             </div>

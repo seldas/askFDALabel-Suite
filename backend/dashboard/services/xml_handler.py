@@ -279,6 +279,12 @@ def _build_recursive_toc(sections, prefix=""):
 
 # --- 4. THE MAIN DISPATCHER ---
 
+def detect_multiple_xml_roots(xml_text: str) -> bool:
+    if not xml_text:
+        return False
+    matches = re.findall(r'<\?xml\b|<document\b', xml_text, flags=re.IGNORECASE)
+    return len(matches) > 1
+
 def parse_spl_xml(xml_string, set_id=None):
     if not xml_string: 
         return "Error", [], None, None, [], []
@@ -286,6 +292,9 @@ def parse_spl_xml(xml_string, set_id=None):
     try:
         # Cleanup
         xml_cleaned = ''.join(c for c in xml_string if c.isprintable() or c in '\n\r\t')
+        if detect_multiple_xml_roots(xml_cleaned):
+            logger.warning("Possible multiple XML roots detected for set_id=%s", set_id)
+
         root = ET.fromstring(xml_cleaned.strip())
         
         # Identify Format

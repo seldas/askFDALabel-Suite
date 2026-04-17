@@ -144,91 +144,118 @@ def get_history_diff(spl_id1, spl_id2):
     spl_id2: The older version (Previous)
     """
     try:
-        xml1 = FDALabelDBService.get_full_xml_by_spl_id(spl_id1)
-        xml2 = FDALabelDBService.get_full_xml_by_spl_id(spl_id2)
-        
-        if not xml1 or not xml2:
-            return jsonify({'error': 'Could not retrieve XML for one or both versions'}), 404
-            
-        # Parse both XMLs
-        _, sections1, _, _, _, _ = parse_spl_xml(xml1, spl_id1)
-        _, sections2, _, _, _, _ = parse_spl_xml(xml2, spl_id2)
-        
-        flat1 = flatten_sections(sections1)
-        flat2 = flatten_sections(sections2)
-        
-        # Build maps of sections by normalized title or LOINC code
-        def get_sections_map(flat_list):
+        sections1 = FDALabelDBService.get_structured_sections_by_spl_id(spl_id1)
+        sections2 = FDALabelDBService.get_structured_sections_by_spl_id(spl_id2)
+
+        if not sections1 or not sections2:
+            return jsonify({'error': 'Could not retrieve sections for one or both versions'}), 404
+
+        def build_sections_map(rows):
+            """
+            Build a stable section map keyed by section_code if present,
+            otherwise normalized section_title.
+            """
             s_map = {}
-            for s in flat_list:
-                title = s.get('title', 'Unknown Section')
-                code = s.get('code')
-                # Use LOINC as primary key if available, otherwise normalized title
+
+            for row in rows:
+                title = (
+                    row.get('section_title')
+                    or row.get('title')
+                    or 'Unknown Section'
+                ).strip()
+
+                code = (
+                    row.get('section_code')
+                    or row.get('code')
+                    or ''
+                ).strip()
+
+                content = (
+                    row.get('content')
+                    or row.get('content_xml')
+                    or ''
+                )
+
                 key = code if code else normalize_title_text(title)
-                if key:
+                if not key:
+                    continue
+
+                # If duplicates occur, keep the longest content
+                if key not in s_map or len(content) > len(s_map[key]['content']):
                     s_map[key] = {
                         'title': title,
-                        'content': get_aggregate_content(s) if isinstance(s.get('content'), list) else s.get('content', '')
+                        'content': content
                     }
+
             return s_map
-            
-        map1 = get_sections_map(flat1)
-        map2 = get_sections_map(flat2)
-        
-        # Word-level diff helper
-        def nuanced_word_diff(text1, text2):
-            if not text1: text1 = ""
-            if not text2: text2 = ""
-            words1 = text1.split()
-            words2 = text2.split()
-            matcher = SequenceMatcher(None, words2, words1) # previous, current
+
+        map1 = build_sections_map(sections1)  # newer/current
+        map2 = build_sections_map(sections2)  # older/previous
+
+        def nuanced_word_diff(text_new, text_old):
+            """
+            Returns (diff_new, diff_old)
+            text_new = current/newer content
+            text_old = previous/older content
+            """
+            text_new = text_new or ""
+            text_old = text_old or ""
+
+            words_new = text_new.split()
+            words_old = text_old.split()
+
+            matcher = SequenceMatcher(None, words_old, words_new)
             html_new, html_old = [], []
+
             for tag, i1, i2, j1, j2 in matcher.get_opcodes():
                 if tag == 'equal':
-                    chunk = " ".join(words2[i1:i2])
-                    html_old.append(chunk); html_new.append(chunk)
+                    chunk = " ".join(words_old[i1:i2])
+                    html_old.append(chunk)
+                    html_new.append(chunk)
                 elif tag == 'insert':
-                    chunk = " ".join(words1[j1:j2])
+                    chunk = " ".join(words_new[j1:j2])
                     html_new.append(f'<ins class="diff-add">{chunk}</ins>')
                 elif tag == 'delete':
-                    chunk = " ".join(words2[i1:i2])
+                    chunk = " ".join(words_old[i1:i2])
                     html_old.append(f'<del class="diff-sub">{chunk}</del>')
                 elif tag == 'replace':
-                    chunk_old, chunk_new = " ".join(words2[i1:i2]), " ".join(words1[j1:j2])
+                    chunk_old = " ".join(words_old[i1:i2])
+                    chunk_new = " ".join(words_new[j1:j2])
                     html_old.append(f'<del class="diff-sub">{chunk_old}</del>')
                     html_new.append(f'<ins class="diff-add">{chunk_new}</ins>')
+
             return " ".join(html_new), " ".join(html_old)
 
-        all_keys = sorted(list(set(map1.keys()) | set(map2.keys())))
+        all_keys = sorted(set(map1.keys()) | set(map2.keys()))
         diff_results = []
-        
+
         for key in all_keys:
-            s1 = map1.get(key)
-            s2 = map2.get(key)
-            
+            s1 = map1.get(key)  # newer/current
+            s2 = map2.get(key)  # older/previous
+
             title = s1['title'] if s1 else s2['title']
             content1 = s1['content'] if s1 else ""
             content2 = s2['content'] if s2 else ""
-            
-            # Normalize for comparison
+
             norm1 = " ".join(normalize_text_for_diff(content1))
             norm2 = " ".join(normalize_text_for_diff(content2))
-            
+
             if norm1 == norm2:
-                continue # No substantive change
-                
+                continue
+
             diff_new, diff_old = nuanced_word_diff(norm1, norm2)
-            
+
             diff_results.append({
                 'key': key,
                 'title': title,
                 'diff_new': diff_new,
                 'diff_old': diff_old,
-                'is_addition': not content2 and content1,
-                'is_deletion': not content1 and content2
+                'is_addition': bool(content1 and not content2),
+                'is_deletion': bool(content2 and not content1)
             })
-            
+
         return jsonify({'diff': diff_results})
+
     except Exception as e:
         logger.exception(f"Error generating history diff: {e}")
         return jsonify({'error': str(e)}), 500
@@ -237,111 +264,213 @@ def get_history_diff(spl_id1, spl_id2):
 @login_required
 def analyze_history_changes():
     """
-    Triggers AI analysis of changes between two versions.
+    Triggers AI analysis of changes between two SPL versions.
     """
-    data = request.json
+    data = request.json or {}
     current_spl_id = data.get('current_spl_id')
     previous_spl_id = data.get('previous_spl_id')
     force_refresh = data.get('force_refresh', False)
-    
+
     if not current_spl_id or not previous_spl_id:
         return jsonify({'error': 'Missing spl_ids'}), 400
-        
+
     try:
-        # 1. Check if already exists
+        # 1. Cache check
         if not force_refresh:
             conn = FDALabelDBService.get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM labeling.history_analysis WHERE current_spl_id = %s", (current_spl_id,))
+            cursor.execute(
+                "SELECT * FROM labeling.history_analysis WHERE current_spl_id = %s",
+                (current_spl_id,)
+            )
             row = cursor.fetchone()
             cursor.close()
             conn.close()
+
             if row:
-                return jsonify({'success': True, 'cached': True, 'analysis_json': row['analysis_json']})
+                return jsonify({
+                    'success': True,
+                    'cached': True,
+                    'analysis_json': row['analysis_json']
+                })
 
-        # 2. Get Metadata and XML for both
-        xml_new = FDALabelDBService.get_full_xml_by_spl_id(current_spl_id)
-        xml_old = FDALabelDBService.get_full_xml_by_spl_id(previous_spl_id)
+        # 2. Get structured sections and metadata
+        sections_new = FDALabelDBService.get_structured_sections_by_spl_id(current_spl_id)
+        sections_old = FDALabelDBService.get_structured_sections_by_spl_id(previous_spl_id)
         meta_new = FDALabelDBService.get_metadata_by_spl_id(current_spl_id)
-        
-        if not xml_new or not xml_old:
-            return jsonify({'error': 'Could not retrieve XML for analysis'}), 404
 
-        # 3. Clean and prepare text for AI (simplified text extraction)
-        def get_clean_text(xml_content):
-            try:
-                # Basic tag stripping
-                text = re.sub(r'<[^>]+>', ' ', xml_content)
-                text = " ".join(text.split()) # Normalize whitespace
-                return text[:50000] # Cap to prevent context overflow
-            except:
+        if not sections_new or not sections_old:
+            return jsonify({'error': 'Could not retrieve sections for analysis'}), 404
+
+        if not meta_new:
+            return jsonify({'error': 'Could not retrieve metadata for current version'}), 404
+
+        def build_sections_map(rows):
+            section_map = {}
+            for row in rows:
+                title = (
+                    row.get('section_title')
+                    or row.get('title')
+                    or 'Unknown Section'
+                ).strip()
+
+                code = (
+                    row.get('section_code')
+                    or row.get('code')
+                    or ''
+                ).strip()
+
+                content = (
+                    row.get('content')
+                    or row.get('content_xml')
+                    or ''
+                )
+
+                key = code if code else normalize_title_text(title)
+                if not key:
+                    continue
+
+                if key not in section_map or len(content) > len(section_map[key]['content']):
+                    section_map[key] = {
+                        'title': title,
+                        'content': content
+                    }
+            return section_map
+
+        def clean_section_text(text):
+            if not text:
                 return ""
+            text = re.sub(r'<[^>]+>', ' ', text)
+            text = " ".join(text.split())
+            return text
 
-        text_new = get_clean_text(xml_new)
-        text_old = get_clean_text(xml_old)
+        map_new = build_sections_map(sections_new)
+        map_old = build_sections_map(sections_old)
+
+        all_keys = sorted(set(map_new.keys()) | set(map_old.keys()))
+        changed_sections = []
+
+        total_chars = 0
+        MAX_TOTAL_CHARS = 80000
+
+        for key in all_keys:
+            sec_new = map_new.get(key)
+            sec_old = map_old.get(key)
+
+            title = sec_new['title'] if sec_new else sec_old['title']
+            text_new = clean_section_text(sec_new['content'] if sec_new else "")
+            text_old = clean_section_text(sec_old['content'] if sec_old else "")
+
+            norm_new = " ".join(normalize_text_for_diff(text_new))
+            norm_old = " ".join(normalize_text_for_diff(text_old))
+
+            if norm_new == norm_old:
+                continue
+
+            block = {
+                'section_title': title,
+                'old_text': text_old[:12000],
+                'new_text': text_new[:12000],
+                'change_type': (
+                    'Addition' if (text_new and not text_old)
+                    else 'Deletion' if (text_old and not text_new)
+                    else 'Modification'
+                )
+            }
+
+            block_size = len(block['section_title']) + len(block['old_text']) + len(block['new_text'])
+            if total_chars + block_size > MAX_TOTAL_CHARS:
+                break
+
+            changed_sections.append(block)
+            total_chars += block_size
+
+        if not changed_sections:
+            analysis_data = {
+                "executive_summary": "No substantive section-level changes were identified between the selected SPL versions.",
+                "changes": [],
+                "regulatory_notable": False
+            }
+
+            return jsonify({'success': True, 'analysis_json': analysis_data})
+
         drug_name = meta_new.get('brand_name', 'Unknown Drug')
 
-        # 4. Prompt AI
-        system_prompt = "You are an expert Regulatory Affairs Specialist and Clinical Pharmacist. Your task is to perform a high-fidelity comparison between two versions of a drug's Structured Product Labeling (SPL)."
+        # 3. Prompt AI
+        system_prompt = (
+            "You are an expert Regulatory Affairs Specialist and Clinical Pharmacist. "
+            "Your task is to perform a high-fidelity comparison between two versions of a drug's Structured Product Labeling (SPL)."
+        )
+
+        comparison_payload = {
+            "drug_name": drug_name,
+            "current_spl_id": current_spl_id,
+            "previous_spl_id": previous_spl_id,
+            "changed_sections": changed_sections
+        }
+
         user_message = f"""
-        Compare the following two versions of the drug label for {drug_name}.
-        
-        **Version A (Old):**
-        {text_old}
-        
-        **Version B (New):**
-        {text_new}
-        
-        **Instructions:**
-        1. Scan the entire content of both versions.
-        2. Identify every clinical, safety, or regulatory change. Ignore minor formatting, white-space, or punctuation changes that do not alter medical meaning.
-        3. For each change, categorize it by its clinical impact (Safety, Efficacy, Administration, or General Metadata).
-        4. Determine if the change introduces a higher level of risk (e.g., a new warning).
-        
-        **Output Format (JSON ONLY):**
-        {{
-          "executive_summary": "A 2-3 sentence overview of the most significant changes in this version update.",
-          "changes": [
-            {{
-              "section_title": "e.g., WARNINGS AND PRECAUTIONS",
-              "change_type": "Addition | Deletion | Modification",
-              "impact_category": "Safety | Efficacy | Administration | Other",
-              "clinical_significance": "Explain WHY this change matters for a doctor or patient.",
-              "risk_level": "High | Medium | Low"
-            }}
-          ],
-          "regulatory_notable": true/false
-        }}
-        """
+Compare the following two versions of the drug label for {drug_name}.
+
+I am providing only the sections that materially changed between the previous and current SPL versions.
+
+DATA:
+{json.dumps(comparison_payload, indent=2)}
+
+Instructions:
+1. Review all changed sections.
+2. Identify every clinical, safety, or regulatory change.
+3. Ignore formatting-only or punctuation-only changes that do not alter meaning.
+4. For each change, categorize it by clinical impact (Safety, Efficacy, Administration, or Other).
+5. Determine whether the update is regulatory notable overall.
+
+Output Format (JSON ONLY):
+{{
+  "executive_summary": "A 2-3 sentence overview of the most significant changes in this version update.",
+  "changes": [
+    {{
+      "section_title": "e.g., WARNINGS AND PRECAUTIONS",
+      "change_type": "Addition | Deletion | Modification",
+      "impact_category": "Safety | Efficacy | Administration | Other",
+      "clinical_significance": "Explain why this change matters for a doctor or patient.",
+      "risk_level": "High | Medium | Low"
+    }}
+  ],
+  "regulatory_notable": true
+}}
+""".strip()
 
         user_obj = current_user._get_current_object()
         from dashboard.services.ai_handler import call_llm
         ai_response = call_llm(user_obj, system_prompt, user_message)
-        
-        # Parse JSON
+
+        # 4. Parse JSON
         try:
             cleaned_json = ai_response.replace('```json', '').replace('```', '').strip()
-            # Find the first { and last }
             start = cleaned_json.find('{')
             end = cleaned_json.rfind('}') + 1
             analysis_data = json.loads(cleaned_json[start:end])
         except Exception as e:
             logger.error(f"AI JSON Parse error for history: {e}. Raw: {ai_response}")
-            return jsonify({'error': 'AI failed to return structured data', 'raw': ai_response}), 500
+            return jsonify({
+                'error': 'AI failed to return structured data',
+                'raw': ai_response
+            }), 500
 
         # 5. Save to DB
         conn = FDALabelDBService.get_connection()
         cursor = conn.cursor()
-        
-        # Upsert
+
         sql = """
-            INSERT INTO labeling.history_analysis 
+            INSERT INTO labeling.history_analysis
             (set_id, current_spl_id, previous_spl_id, executive_summary, is_regulatory_notable, analysis_json, raw_prompt_version)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (current_spl_id) DO UPDATE SET
+            previous_spl_id = EXCLUDED.previous_spl_id,
             executive_summary = EXCLUDED.executive_summary,
             is_regulatory_notable = EXCLUDED.is_regulatory_notable,
             analysis_json = EXCLUDED.analysis_json,
+            raw_prompt_version = EXCLUDED.raw_prompt_version,
             last_analyzed_at = CURRENT_TIMESTAMP
         """
         cursor.execute(sql, (
@@ -351,14 +480,14 @@ def analyze_history_changes():
             analysis_data.get('executive_summary'),
             analysis_data.get('regulatory_notable', False),
             json.dumps(analysis_data),
-            'v1.0'
+            'v2.0'
         ))
         conn.commit()
         cursor.close()
         conn.close()
 
         return jsonify({'success': True, 'analysis_json': analysis_data})
-        
+
     except Exception as e:
         logger.exception(f"Error analyzing history: {e}")
         return jsonify({'error': str(e)}), 500
