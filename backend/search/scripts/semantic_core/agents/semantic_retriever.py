@@ -137,7 +137,7 @@ def run_semantic_retriever(state):
             r.set_id,
             r.spl_id
         FROM ranked r
-        JOIN labeling.sum_spl s ON r.set_id = s.set_id
+        JOIN labeling.sum_spl s ON r.spl_id = s.spl_id
         WHERE r.rn <= %(per_label_k)s
         ORDER BY r.dist ASC
         LIMIT %(top_k)s

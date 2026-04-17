@@ -16,6 +16,7 @@ interface LocalQueryResult {
     market_category: string;
     doc_type: string;
     source: string;
+    has_history?: boolean;
 }
 
 const LocalQueryPage = () => {
@@ -385,32 +386,97 @@ const LocalQueryPage = () => {
                                         {results.map((r, idx) => (
                                             <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                                 <td style={{ padding: '16px 20px' }}>
-                                                    <div style={{ fontWeight: 700, color: '#1e40af' }}>{r.brand_name}</div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <div style={{ fontWeight: 700, color: '#1e40af' }}>{r.brand_name}</div>
+                                                        {r.has_history && (
+                                                            <div 
+                                                                title="This label has historical versions available"
+                                                                style={{ 
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    width: '18px',
+                                                                    height: '18px',
+                                                                    borderRadius: '50%',
+                                                                    backgroundColor: '#fef3c7',
+                                                                    color: '#d97706',
+                                                                    cursor: 'help'
+                                                                }}
+                                                            >
+                                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <path d="M12 8v4l3 3"></path>
+                                                                    <circle cx="12" cy="12" r="10"></circle>
+                                                                </svg>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                     <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{r.generic_name}</div>
                                                 </td>
                                                 <td style={{ padding: '16px 20px' }}>{r.manufacturer}</td>
                                                 <td style={{ padding: '16px 20px' }}>
-                                                    <div>{r.appr_num}</div>
+                                                    <div style={{ fontWeight: 600 }}>{r.appr_num}</div>
                                                     <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{r.ndc}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px', fontStyle: 'italic' }}>SetID: {r.set_id}</div>
                                                 </td>
                                                 <td style={{ padding: '16px 20px' }}>{r.revised_date}</td>
                                                 <td style={{ padding: '16px 20px' }}>
-                                                    <a 
-                                                        href={withAppBase(`/dashboard/label/${r.set_id}`)} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer"
-                                                        style={{ 
-                                                            color: '#2563eb', 
-                                                            textDecoration: 'none', 
-                                                            fontWeight: 600,
-                                                            padding: '6px 12px',
-                                                            borderRadius: '6px',
-                                                            backgroundColor: '#eff6ff',
-                                                            display: 'inline-block'
-                                                        }}
-                                                    >
-                                                        View Analysis ↗
-                                                    </a>
+                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                        <a 
+                                                            href={withAppBase(`/dashboard/label/${r.set_id}`)} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer"
+                                                            style={{ 
+                                                                color: '#2563eb', 
+                                                                textDecoration: 'none', 
+                                                                fontWeight: 600,
+                                                                padding: '6px 12px',
+                                                                borderRadius: '6px',
+                                                                backgroundColor: '#eff6ff',
+                                                                display: 'inline-block',
+                                                                fontSize: '0.85rem'
+                                                            }}
+                                                        >
+                                                            View Analysis ↗
+                                                        </a>
+                                                        {r.has_history ? (
+                                                            <a 
+                                                                href={withAppBase(`/dashboard/history/${r.set_id}`)} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                style={{ 
+                                                                    color: '#0f172a', 
+                                                                    textDecoration: 'none', 
+                                                                    fontWeight: 600,
+                                                                    padding: '6px 12px',
+                                                                    borderRadius: '6px',
+                                                                    backgroundColor: '#f1f5f9',
+                                                                    display: 'inline-block',
+                                                                    fontSize: '0.85rem',
+                                                                    border: '1px solid #e2e8f0'
+                                                                }}
+                                                            >
+                                                                History Track 🕒
+                                                            </a>
+                                                        ) : (
+                                                            <span 
+                                                                title="No historical versions found in archive"
+                                                                style={{ 
+                                                                    color: '#94a3b8', 
+                                                                    fontWeight: 600,
+                                                                    padding: '6px 12px',
+                                                                    borderRadius: '6px',
+                                                                    backgroundColor: '#f8fafc',
+                                                                    display: 'inline-block',
+                                                                    fontSize: '0.85rem',
+                                                                    border: '1px solid #f1f5f9',
+                                                                    cursor: 'not-allowed',
+                                                                    opacity: 0.6
+                                                                }}
+                                                            >
+                                                                History Track 🕒
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}

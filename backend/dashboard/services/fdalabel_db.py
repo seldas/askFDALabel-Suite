@@ -175,6 +175,9 @@ class FDALabelDBService:
                     # RLD check for Oracle (using subquery check as seen in select logic)
                     where_clauses.append(f"EXISTS (SELECT 1 FROM druglabel.sum_spl_rld rld WHERE rld.SPL_ID = {schema}{table}.SPL_ID)")
 
+            if is_pg:
+                where_clauses.append("is_latest = TRUE")
+
             # Count first
             count_where = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
             count_sql = f"SELECT COUNT(*) FROM {schema}{table} {count_where}"
@@ -295,7 +298,8 @@ class FDALabelDBService:
                     SELECT set_id, product_names, generic_names, manufacturer, market_categories, appr_num,
                            ndc_codes, revised_date, active_ingredients, doc_type, dosage_forms, routes, epc, is_rld, is_rs
                     FROM {schema}sum_spl
-                    WHERE product_names ILIKE %(q)s OR generic_names ILIKE %(q)s OR ndc_codes LIKE %(q_exact)s OR set_id = %(q_exact_id)s
+                    WHERE (product_names ILIKE %(q)s OR generic_names ILIKE %(q)s OR ndc_codes LIKE %(q_exact)s OR set_id = %(q_exact_id)s)
+                    AND is_latest = TRUE
                     LIMIT %(limit)s OFFSET %(skip)s
                 """
                 params = {"q": q, "q_exact": query, "q_exact_id": query, "limit": limit, "skip": skip}
@@ -342,7 +346,7 @@ class FDALabelDBService:
                         SELECT COUNT(DISTINCT s.set_id) 
                         FROM {schema}sum_spl s
                         JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
-                        WHERE s.generic_names ILIKE %(q)s
+                        WHERE s.generic_names ILIKE %(q)s AND s.is_latest = TRUE
                     """
                     cursor.execute(sql, {"q": f"%{generic_name}%"})
                     results["generic_count"] = cls._get_count(cursor.fetchone())
@@ -354,7 +358,8 @@ class FDALabelDBService:
                         SELECT DISTINCT generic_names 
                         FROM {schema}sum_spl s
                         LEFT JOIN {schema}epc_map e ON s.spl_id = e.spl_id
-                        WHERE s.epc ILIKE %(q)s OR e.epc_term ILIKE %(q)s OR s.epc ILIKE %(cq)s OR e.epc_term ILIKE %(cq)s
+                        WHERE (s.epc ILIKE %(q)s OR e.epc_term ILIKE %(q)s OR s.epc ILIKE %(cq)s OR e.epc_term ILIKE %(cq)s)
+                        AND s.is_latest = TRUE
                     """
                     cursor.execute(sql_gns, {"q": f"%{epc}%", "cq": f"%{clean_epc}%"})
                     all_gns = set()
@@ -376,7 +381,7 @@ class FDALabelDBService:
                             SELECT COUNT(DISTINCT s.set_id) 
                             FROM {schema}sum_spl s
                             JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
-                            WHERE {' OR '.join(where_parts)}
+                            WHERE ({' OR '.join(where_parts)}) AND s.is_latest = TRUE
                         """
                         cursor.execute(sql_count, [f"%{gn}%" for gn in all_gns])
                         results["epc_count"] = cls._get_count(cursor.fetchone())
@@ -387,7 +392,7 @@ class FDALabelDBService:
                             FROM {schema}sum_spl s 
                             JOIN {schema}spl_sections sec ON s.spl_id = sec.spl_id
                             LEFT JOIN {schema}epc_map e ON s.spl_id = e.spl_id 
-                            WHERE s.epc ILIKE %(q)s OR e.epc_term ILIKE %(q)s
+                            WHERE (s.epc ILIKE %(q)s OR e.epc_term ILIKE %(q)s) AND s.is_latest = TRUE
                         """
                         cursor.execute(sql, {"q": f"%{epc}%"})
                         results["epc_count"] = cls._get_count(cursor.fetchone())
@@ -412,7 +417,7 @@ class FDALabelDBService:
                     return {'set_id': r[0], 'brand_name': (r[1] or "").replace(';', ', '), 'generic_name': (r[2] or "").replace(';', ', '), 'manufacturer_name': r[3], 'effective_time': r[7], 'label_format': 'FDALabel', 'application_number': r[5], 'market_category': r[4], 'ndc': r[6], 'active_ingredients': r[8], 'labeling_type': r[9], 'dosage_forms': r[10], 'routes': r[11], 'epc': r[12], 'is_rld': bool(r[13]), 'is_rs': False}
             else:
                 schema = "labeling."
-                sql = f"SELECT * FROM {schema}sum_spl WHERE set_id = %s LIMIT 1"
+                sql = f"SELECT * FROM {schema}sum_spl WHERE set_id = %s AND is_latest = TRUE LIMIT 1"
                 cursor.execute(sql, (set_id,))
                 r = cursor.fetchone()
                 if r:
@@ -429,7 +434,7 @@ class FDALabelDBService:
         try:
             cursor = conn.cursor()
             schema = "labeling."
-            sql = f"SELECT local_path FROM {schema}sum_spl WHERE set_id = %s"
+            sql = f"SELECT local_path FROM {schema}sum_spl WHERE set_id = %s AND is_latest = TRUE"
             cursor.execute(sql, (set_id,))
             r = cursor.fetchone()
             if r and r['local_path']:
@@ -460,11 +465,21 @@ class FDALabelDBService:
                 cursor.execute(sql, params)
             else:
                 schema = "labeling."
-                where = ["(product_names ILIKE %(q)s OR generic_names ILIKE %(q)s OR set_id = %(sid)s OR appr_num ILIKE %(q)s)"]
+                where = ["(product_names ILIKE %(q)s OR generic_names ILIKE %(q)s OR set_id = %(sid)s OR appr_num ILIKE %(q)s)", "is_latest = TRUE"]
                 params = {"q": q, "sid": query_term, "limit": limit, "offset": skip}
                 if human_rx_only: where.append("(doc_type ILIKE '%%HUMAN PRESCRIPTION%%' OR doc_type IN ('34391-3', '48401-4', '48402-2'))")
                 if rld_only: where.append("(is_rld = 1 OR is_rs = 1)")
-                sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, local_path FROM {schema}sum_spl WHERE {' AND '.join(where)} ORDER BY revised_date DESC LIMIT %(limit)s OFFSET %(offset)s"
+                
+                # Join with a subquery to detect if other versions exist for the same set_id
+                sql = f"""
+                    SELECT s.set_id, s.product_names, s.generic_names, s.manufacturer, s.appr_num, 
+                           s.ndc_codes, s.revised_date, s.market_categories, s.doc_type, s.local_path,
+                           (SELECT COUNT(*) > 1 FROM {schema}sum_spl h WHERE h.set_id = s.set_id) as has_history
+                    FROM {schema}sum_spl s 
+                    WHERE {' AND '.join(where)} 
+                    ORDER BY s.revised_date DESC 
+                    LIMIT %(limit)s OFFSET %(offset)s
+                """
                 cursor.execute(sql, params)
             
             rows = cursor.fetchall()
@@ -473,7 +488,20 @@ class FDALabelDBService:
                 if cls._db_type == 'oracle':
                     results.append({'set_id': r[0], 'brand_name': (r[1] or "").replace(';', ', '), 'generic_name': (r[2] or "").replace(';', ', '), 'manufacturer': r[3], 'appr_num': r[4], 'ndc': r[5], 'revised_date': r[6], 'market_category': r[7], 'doc_type': r[8], 'source': 'Oracle'})
                 else:
-                    results.append({'set_id': r['set_id'], 'brand_name': (r['product_names'] or "").replace(';', ', '), 'generic_name': (r['generic_names'] or "").replace(';', ', '), 'manufacturer': r['manufacturer'], 'appr_num': r['appr_num'], 'ndc': r['ndc_codes'], 'revised_date': r['revised_date'], 'market_category': r['market_categories'], 'doc_type': r['doc_type'], 'local_path': r['local_path'], 'source': 'Local Postgres'})
+                    results.append({
+                        'set_id': r['set_id'], 
+                        'brand_name': (r['product_names'] or "").replace(';', ', '), 
+                        'generic_name': (r['generic_names'] or "").replace(';', ', '), 
+                        'manufacturer': r['manufacturer'], 
+                        'appr_num': r['appr_num'], 
+                        'ndc': r['ndc_codes'], 
+                        'revised_date': r['revised_date'], 
+                        'market_category': r['market_categories'], 
+                        'doc_type': r['doc_type'], 
+                        'local_path': r['local_path'], 
+                        'source': 'Local Postgres',
+                        'has_history': r.get('has_history', False)
+                    })
             return results
         finally: conn.close()
 
@@ -493,7 +521,7 @@ class FDALabelDBService:
                 cursor.execute(sql, {"q": q})
             else:
                 schema = "labeling."
-                where = ["(product_names ILIKE %(q)s OR generic_names ILIKE %(q)s)"]
+                where = ["(product_names ILIKE %(q)s OR generic_names ILIKE %(q)s)", "is_latest = TRUE"]
                 if human_rx_only: where.append("(doc_type ILIKE '%%HUMAN PRESCRIPTION%%' OR doc_type IN ('34391-3', '48401-4', '48402-2'))")
                 if rld_only: where.append("(is_rld = 1 OR is_rs = 1)")
                 sql = f"SELECT DISTINCT product_names, generic_names FROM {schema}sum_spl WHERE {' AND '.join(where)} LIMIT 50"
@@ -529,11 +557,19 @@ class FDALabelDBService:
                 cursor.execute(sql, {"limit": limit})
             else:
                 schema = "labeling."
-                where = []
+                where = ["is_latest = TRUE"]
                 if human_rx_only: where.append("(doc_type ILIKE '%%HUMAN PRESCRIPTION%%' OR doc_type IN ('34391-3', '48401-4', '48402-2'))")
                 if rld_only: where.append("(is_rld = 1 OR is_rs = 1)")
                 w_stmt = f"WHERE {' AND '.join(where)}" if where else ""
-                sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, local_path FROM {schema}sum_spl {w_stmt} ORDER BY RANDOM() LIMIT %(limit)s"
+                sql = f"""
+                    SELECT s.set_id, s.product_names, s.generic_names, s.manufacturer, s.appr_num, 
+                           s.ndc_codes, s.revised_date, s.market_categories, s.doc_type, s.local_path,
+                           (SELECT COUNT(*) > 1 FROM {schema}sum_spl h WHERE h.set_id = s.set_id) as has_history
+                    FROM {schema}sum_spl s
+                    {w_stmt} 
+                    ORDER BY RANDOM() 
+                    LIMIT %(limit)s
+                """
                 cursor.execute(sql, {"limit": limit})
             rows = cursor.fetchall()
             results = []
@@ -541,7 +577,20 @@ class FDALabelDBService:
                 if cls._db_type == 'oracle':
                     results.append({'set_id': r[0], 'brand_name': (r[1] or "").replace(';', ', '), 'generic_name': (r[2] or "").replace(';', ', '), 'manufacturer': r[3], 'appr_num': r[4], 'ndc': r[5], 'revised_date': r[6], 'market_category': r[7], 'doc_type': r[8], 'source': 'Oracle'})
                 else:
-                    results.append({'set_id': r['set_id'], 'brand_name': (r['product_names'] or "").replace(';', ', '), 'generic_name': (r['generic_names'] or "").replace(';', ', '), 'manufacturer': r['manufacturer'], 'appr_num': r['appr_num'], 'ndc': r['ndc_codes'], 'revised_date': r['revised_date'], 'market_category': r['market_categories'], 'doc_type': r['doc_type'], 'local_path': r['local_path'], 'source': 'Local Postgres'})
+                    results.append({
+                        'set_id': r['set_id'], 
+                        'brand_name': (r['product_names'] or "").replace(';', ', '), 
+                        'generic_name': (r['generic_names'] or "").replace(';', ', '), 
+                        'manufacturer': r['manufacturer'], 
+                        'appr_num': r['appr_num'], 
+                        'ndc': r['ndc_codes'], 
+                        'revised_date': r['revised_date'], 
+                        'market_category': r['market_categories'], 
+                        'doc_type': r['doc_type'], 
+                        'local_path': r['local_path'], 
+                        'source': 'Local Postgres',
+                        'has_history': r.get('has_history', False)
+                    })
             return results
         finally: conn.close()
 
@@ -569,7 +618,7 @@ class FDALabelDBService:
             else:
                 schema = "labeling."
                 for chunk in cls._chunk(list(set_ids), n=900):
-                    sql = f"SELECT set_id, spl_id, doc_type FROM {schema}sum_spl WHERE set_id = ANY(%s)"
+                    sql = f"SELECT set_id, spl_id, doc_type FROM {schema}sum_spl WHERE set_id = ANY(%s) AND is_latest = TRUE"
                     cursor.execute(sql, (list(chunk),))
                     for row in cursor.fetchall():
                         out[str(row['set_id'])] = {"spl_id": row['spl_id'], "document_type": row['doc_type'], "document_type_loinc_code": None}
@@ -597,7 +646,7 @@ class FDALabelDBService:
             else:
                 schema = "labeling."
                 for chunk in cls._chunk(list(set_ids), n=900):
-                    sql = f"SELECT set_id, revised_date FROM {schema}sum_spl WHERE set_id = ANY(%s)"
+                    sql = f"SELECT set_id, revised_date FROM {schema}sum_spl WHERE set_id = ANY(%s) AND is_latest = TRUE"
                     cursor.execute(sql, (list(chunk),))
                     for row in cursor.fetchall():
                         out[str(row['set_id'])] = row['revised_date']
@@ -698,6 +747,7 @@ class FDALabelDBService:
                         ON s.spl_id = m.spl_id
                         WHERE s.set_id = ANY(%s)
                         AND UPPER(m.substance_name) = ANY(%s)
+                        AND s.is_latest = TRUE
                     """
                     cursor.execute(sql, (list(chunk), ingredients))
 
@@ -771,7 +821,7 @@ class FDALabelDBService:
             else:
                 schema = "labeling."
                 for chunk in cls._chunk(list(set_ids), n=900):
-                    sql = f"SELECT s.set_id, s.doc_type FROM {schema}sum_spl s WHERE s.set_id = ANY(%s)"
+                    sql = f"SELECT s.set_id, s.doc_type FROM {schema}sum_spl s WHERE s.set_id = ANY(%s) AND s.is_latest = TRUE"
                     cursor.execute(sql, (list(chunk),))
                     for row in cursor.fetchall():
                         seen.add(str(row["set_id"]))
@@ -814,7 +864,7 @@ class FDALabelDBService:
                 if row: return {"set_id": row[0], "appr_num": row[1], "product_name": row[2], "generic_name": row[3], "active_ingredients": row[4], "is_RLD": row[5], "effective_date": row[6]}
             else:
                 schema = "labeling."
-                query = f"SELECT set_id, appr_num, product_names, generic_names, active_ingredients, is_rld, is_rs, revised_date FROM {schema}sum_spl WHERE product_names ILIKE %(dn)s OR generic_names ILIKE %(dn)s OR active_ingredients ILIKE %(dn)s ORDER BY is_rld DESC, is_rs DESC, revised_date DESC LIMIT 1"
+                query = f"SELECT set_id, appr_num, product_names, generic_names, active_ingredients, is_rld, is_rs, revised_date FROM {schema}sum_spl WHERE (product_names ILIKE %(dn)s OR generic_names ILIKE %(dn)s OR active_ingredients ILIKE %(dn)s) AND is_latest = TRUE ORDER BY is_rld DESC, is_rs DESC, revised_date DESC LIMIT 1"
                 cursor.execute(query, {"dn": drug_name})
                 row = cursor.fetchone()
                 if not row: cursor.execute(query, {"dn": f"%{drug_name}%"}); row = cursor.fetchone()
@@ -843,12 +893,12 @@ class FDALabelDBService:
             else:
                 schema = "labeling."
                 for chunk in cls._chunk(list(set_ids), n=900):
-                    sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, routes, dosage_forms, epc, active_ingredients FROM {schema}sum_spl WHERE set_id = ANY(%s)"
+                    sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, routes, dosage_forms, epc, active_ingredients FROM {schema}sum_spl WHERE set_id = ANY(%s) AND is_latest = TRUE"
                     cursor.execute(sql, (list(chunk),))
                     for row in cursor.fetchall():
                         rev_date = row['revised_date'] or ""
                         if len(rev_date) == 8 and rev_date.isdigit(): rev_date = f"{rev_date[0:4]}/{rev_date[4:6]}/{rev_date[6:8]}"
-                        results.append({'SET ID': row['set_id'], 'Trade Name': (row['product_names'] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row['generic_names'] or "").replace(';', ', '), 'Company': row['manufacturer'], 'Application Number(s)': row['appr_num'], 'NDC(s)': row['ndc_codes'], 'SPL Effective Date (YYYY/MM/DD)': rev_date, 'Marketing Category': row['market_categories'], 'Labeling Type': row['doc_type'], 'Route(s) of Administration': row['routes'], 'Dosage Form(s)': row['dosage_forms'], 'Established Pharmacologic Class(es)': row['epc'], 'Active Ingredient(s)': (row['active_ingredients'] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row['set_id']}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row['set_id']}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row['set_id']}"})
+                        results.append({'SET ID': row['set_id'], 'Trade Name': (row['product_names'] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row['generic_names'] or "").replace(';', ', '), 'Company': row['manufacturer'], 'Application Number(s)': row['appr_num'], 'NDC(s)': row['ndc_codes'], 'SPL Effective Date (YYYY/MM/DD)': rev_date, 'Marketing Category': row['market_category'], 'Labeling Type': row['doc_type'], 'Route(s) of Administration': row['routes'], 'Dosage Form(s)': row['dosage_forms'], 'Established Pharmacologic Class(es)': row['epc'], 'Active Ingredient(s)': (row['active_ingredients'] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row['set_id']}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row['set_id']}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row['set_id']}"})
             return results
         except Exception as e: print(f"Error in export: {e}"); return []
         finally: conn.close()
@@ -870,7 +920,7 @@ class FDALabelDBService:
                     results.append({'SET ID': row[0], 'Trade Name': (row[1] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row[2] or "").replace(';', ', '), 'Company': row[3], 'Application Number(s)': row[4], 'NDC(s)': row[5], 'SPL Effective Date (YYYY/MM/DD)': row[6], 'Marketing Category': row[7], 'Labeling Type': row[8], 'Route(s) of Administration': row[9], 'Dosage Form(s)': row[10], 'Established Pharmacologic Class(es)': row[11], 'Active Ingredient(s)': (row[12] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row[0]}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row[0]}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row[0]}"})
             else:
                 schema = "labeling."
-                sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, routes, dosage_forms, epc, active_ingredients FROM {schema}sum_spl WHERE product_names ILIKE %(q)s OR generic_names ILIKE %(q)s OR set_id = %(sid)s OR appr_num ILIKE %(q)s ORDER BY revised_date DESC"
+                sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, routes, dosage_forms, epc, active_ingredients FROM {schema}sum_spl WHERE (product_names ILIKE %(q)s OR generic_names ILIKE %(q)s OR set_id = %(sid)s OR appr_num ILIKE %(q)s) AND is_latest = TRUE ORDER BY revised_date DESC"
                 cursor.execute(sql, {"q": q, "sid": query_term})
                 rows = cursor.fetchall()
                 results = []
@@ -896,7 +946,7 @@ class FDALabelDBService:
                 stats["total_labels"] = cls._get_count(cursor.fetchone())
             else:
                 schema = "labeling."
-                cursor.execute(f"SELECT COUNT(DISTINCT set_id) FROM {schema}sum_spl")
+                cursor.execute(f"SELECT COUNT(DISTINCT set_id) FROM {schema}sum_spl WHERE is_latest = TRUE")
                 stats["total_labels"] = cls._get_count(cursor.fetchone())
                 try:
                     cursor.execute(f"SELECT MAX(processed_at) FROM {schema}processed_zips")

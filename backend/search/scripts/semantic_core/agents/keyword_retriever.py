@@ -69,7 +69,7 @@ def run_keyword_retriever(state):
                     sql = f"""
                         SELECT set_id, spl_id, product_names, generic_names, is_rld
                         FROM labeling.sum_spl
-                        WHERE { ' AND '.join(where_clauses) }
+                        WHERE ({ ' AND '.join(where_clauses) }) AND is_latest = TRUE
                         ORDER BY is_rld DESC
                         LIMIT 20
                     """
@@ -81,7 +81,7 @@ def run_keyword_retriever(state):
                         sql = """
                             SELECT set_id, spl_id, product_names, generic_names, is_rld
                             FROM labeling.sum_spl
-                            WHERE set_id = %s
+                            WHERE set_id = %s AND is_latest = TRUE
                             LIMIT 5
                         """
                         cursor.execute(sql, (query,))
@@ -90,7 +90,7 @@ def run_keyword_retriever(state):
                         sql = """
                             SELECT set_id, spl_id, product_names, generic_names, is_rld
                             FROM labeling.sum_spl
-                            WHERE ndc_codes LIKE %s
+                            WHERE ndc_codes LIKE %s AND is_latest = TRUE
                             LIMIT 5
                         """
                         cursor.execute(sql, (f"%{query}%",))
@@ -98,7 +98,7 @@ def run_keyword_retriever(state):
                         sql = """
                             SELECT set_id, spl_id, product_names, generic_names, is_rld
                             FROM labeling.sum_spl
-                            WHERE appr_num ILIKE %s
+                            WHERE appr_num ILIKE %s AND is_latest = TRUE
                             LIMIT 5
                         """
                         cursor.execute(sql, (f"%{query}%",))
@@ -107,7 +107,7 @@ def run_keyword_retriever(state):
                         sql = """
                             SELECT set_id, spl_id, product_names, generic_names, is_rld
                             FROM labeling.sum_spl
-                            WHERE set_id = %s OR ndc_codes LIKE %s OR appr_num ILIKE %s
+                            WHERE (set_id = %s OR ndc_codes LIKE %s OR appr_num ILIKE %s) AND is_latest = TRUE
                             LIMIT 5
                         """
                         cursor.execute(sql, (query, f"%{query}%", f"%{query}%"))
@@ -117,7 +117,7 @@ def run_keyword_retriever(state):
                     sql = """
                         SELECT set_id, spl_id, product_names, generic_names, is_rld
                         FROM labeling.sum_spl
-                        WHERE product_names ILIKE %s OR generic_names ILIKE %s
+                        WHERE (product_names ILIKE %s OR generic_names ILIKE %s) AND is_latest = TRUE
                         ORDER BY
                             is_rld DESC,
                             CASE WHEN product_names ILIKE %s THEN 1 ELSE 0 END DESC,

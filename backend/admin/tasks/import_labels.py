@@ -221,6 +221,51 @@ def import_labels():
                         update_progress(task_id, prog, f"Processed {i+1}/{total_files} files...")
                         meta_batch, ingr_batch, sect_batch, spl_id_batch = [], [], [], []
 
+            update_progress(task_id, 95, "Refreshing version lineage...")
+            try:
+                db.session.execute(text("""
+                    WITH ranked AS (
+                        SELECT
+                            spl_id,
+                            set_id,
+                            revised_date,
+                            imported_at,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY set_id
+                                ORDER BY revised_date ASC NULLS LAST,
+                                         imported_at ASC,
+                                         spl_id ASC
+                            ) AS version_number,
+                            LAG(spl_id) OVER (
+                                PARTITION BY set_id
+                                ORDER BY revised_date ASC NULLS LAST,
+                                         imported_at ASC,
+                                         spl_id ASC
+                            ) AS parent_spl_id,
+                            CASE
+                                WHEN ROW_NUMBER() OVER (
+                                    PARTITION BY set_id
+                                    ORDER BY revised_date DESC NULLS LAST,
+                                             imported_at DESC,
+                                             spl_id DESC
+                                ) = 1
+                                THEN TRUE ELSE FALSE
+                            END AS is_latest
+                        FROM labeling.sum_spl
+                    )
+                    UPDATE labeling.sum_spl s
+                    SET version_number = r.version_number,
+                        parent_spl_id = r.parent_spl_id,
+                        is_latest = r.is_latest
+                    FROM ranked r
+                    WHERE s.spl_id = r.spl_id
+                """))
+                db.session.commit()
+                print("  [+] Version lineage metadata updated.")
+            except Exception as e:
+                print(f"  [!] Warning: Could not refresh version lineage: {e}")
+                db.session.rollback()
+
             update_progress(task_id, 100, f"Import complete. Processed: {processed}, Skipped: {skipped}", status='completed')
             print(f"\n[!] Success! Processed: {processed}, Skipped: {skipped}")
 
