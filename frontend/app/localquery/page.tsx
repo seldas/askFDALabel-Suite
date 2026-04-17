@@ -414,7 +414,18 @@ const LocalQueryPage = () => {
                                                 </td>
                                                 <td style={{ padding: '16px 20px' }}>{r.manufacturer}</td>
                                                 <td style={{ padding: '16px 20px' }}>
-                                                    <div style={{ fontWeight: 600 }}>{r.appr_num}</div>
+                                                    <a 
+                                                    href={withAppBase(`/dashboard/history_by_appr_num/${r.appr_num}`)} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    style={{ 
+                                                    fontWeight: 600,
+                                                    color: '#2563eb',
+                                                    textDecoration: 'none'
+                                                    }}
+                                                    >
+                                                    {r.appr_num}
+                                                    </a>
                                                     <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{r.ndc}</div>
                                                     <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px', fontStyle: 'italic' }}>SetID: {r.set_id}</div>
                                                 </td>

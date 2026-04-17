@@ -82,6 +82,55 @@ def get_label_history(set_id):
         logger.exception(f"Error fetching label history for {set_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
+@api_bp.route('/history_by_appr_num/<appr_num>')
+@login_required
+def get_label_history_by_appr_num(appr_num):
+    """
+    Returns the version history for all set_ids associated with a specific application number.
+    """
+    try:
+        conn = FDALabelDBService.get_connection()
+        if not conn:
+            return jsonify({'error': 'Local database not connected'}), 503
+            
+        cursor = conn.cursor()
+        
+        sql = """
+            SELECT 
+                s.spl_id, s.set_id, s.product_names, s.generic_names, 
+                s.revised_date, s.version_number, s.is_latest,
+                a.executive_summary, a.is_regulatory_notable, a.last_analyzed_at
+            FROM labeling.sum_spl s
+            LEFT JOIN labeling.history_analysis a ON s.spl_id = a.current_spl_id
+            WHERE s.appr_num = %s
+            ORDER BY s.version_number DESC, s.revised_date DESC
+        """
+        cursor.execute(sql, (appr_num,))
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        results = []
+        for r in rows:
+            results.append({
+                'spl_id': r['spl_id'],
+                'set_id': r['set_id'],
+                'product_names': r['product_names'],
+                'generic_names': r['generic_names'],
+                'revised_date': r['revised_date'],
+                'version_number': r['version_number'],
+                'is_latest': bool(r['is_latest']),
+                'has_analysis': bool(r['executive_summary']),
+                'executive_summary': r['executive_summary'],
+                'is_regulatory_notable': bool(r['is_regulatory_notable']),
+                'last_analyzed_at': r['last_analyzed_at'].isoformat() if r['last_analyzed_at'] else None
+            })
+            
+        return jsonify({'results': results})
+    except Exception as e:
+        logger.exception(f"Error fetching label history for application number {appr_num}: {e}")
+        return jsonify({'error': str(e)}), 500
+
 from dashboard.services.xml_handler import parse_spl_xml, flatten_sections, get_aggregate_content
 from dashboard.utils import normalize_text_for_diff, normalize_title_text, extract_numeric_section_id
 from difflib import SequenceMatcher

@@ -86,7 +86,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (session?.is_authenticated) {
       refreshTasks();
-      const interval = setInterval(refreshTasks, 30000); // Poll every 30 seconds
+      const interval = setInterval(refreshTasks, 3600000); // Poll every 30 seconds
       return () => clearInterval(interval);
     } else {
       setActiveTasks([]);
