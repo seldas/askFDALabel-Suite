@@ -46,7 +46,7 @@ const HistoryTrackPage = () => {
     const fetchHistory = useCallback(async () => {
         setIsLoading(true);
         try {
-            const res = await fetch(withApiBase(`/history/${set_id}`));
+            const res = await fetch(withApiBase(`/api/dashboard/history/${set_id}`));
             const data = await res.json();
             if (data.results) {
                 setHistory(data.results);
@@ -74,7 +74,7 @@ const HistoryTrackPage = () => {
         
         setIsAnalyzing(true);
         try {
-            const res = await fetch(withApiBase('/history/analyze'), {
+            const res = await fetch(withApiBase('/api/dashboard/history/analyze'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -120,7 +120,7 @@ const HistoryTrackPage = () => {
             }
             setIsDiffLoading(true);
             try {
-                const res = await fetch(withApiBase(`/history/diff/${selectedSplId}/${previousRecord.spl_id}`));
+                const res = await fetch(withApiBase(`/api/dashboard/history/diff/${selectedSplId}/${previousRecord.spl_id}`));
                 const data = await res.json();
                 if (data.diff) {
                     setDiffResults(data.diff);
