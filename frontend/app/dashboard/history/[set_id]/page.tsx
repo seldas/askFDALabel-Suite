@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
 import '../../../globals.css';
-import { withAppBase } from '../../../utils/appPaths';
+import { withAppBase, withApiBase } from '../../../utils/appPaths';
 
 interface HistoryRecord {
     spl_id: string;
@@ -46,7 +46,7 @@ const HistoryTrackPage = () => {
     const fetchHistory = useCallback(async () => {
         setIsLoading(true);
         try {
-            const res = await fetch(`/api/history/${set_id}`);
+            const res = await fetch(withApiBase(`/history/${set_id}`));
             const data = await res.json();
             if (data.results) {
                 setHistory(data.results);
@@ -74,7 +74,7 @@ const HistoryTrackPage = () => {
         
         setIsAnalyzing(true);
         try {
-            const res = await fetch('/api/history/analyze', {
+            const res = await fetch(withApiBase('/history/analyze'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -120,7 +120,7 @@ const HistoryTrackPage = () => {
             }
             setIsDiffLoading(true);
             try {
-                const res = await fetch(`/api/history/diff/${selectedSplId}/${previousRecord.spl_id}`);
+                const res = await fetch(withApiBase(`/history/diff/${selectedSplId}/${previousRecord.spl_id}`));
                 const data = await res.json();
                 if (data.diff) {
                     setDiffResults(data.diff);

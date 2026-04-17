@@ -1,0 +1,77 @@
+services:
+  db:
+    image: ankane/pgvector:latest
+    container_name: askfdalabel-db-dev
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: askfdalabel
+      POSTGRES_USER: afd_user
+      POSTGRES_PASSWORD: afd_password
+    shm_size: '1gb'
+    volumes:
+      - ./database/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U afd_user -d askfdalabel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: askfdalabel-backend-dev
+    depends_on:
+      - db
+    ports:
+      - "8842:8842"
+    env_file:
+      - ./.env
+    environment:
+      FLASK_ENV: development
+      FLASK_DEBUG: 1
+      FLASK_APP: app.py
+      DATABASE_URL: postgresql://afd_user:afd_password@db:5432/askfdalabel
+      BACKEND_PORT: 8842
+      HOST: 0.0.0.0
+    volumes:
+      - ./backend:/app
+      - ./data:/data
+      - ./backend/webtest/results:/app/webtest/results
+      - ./backend/webtest/history:/app/webtest/history
+    # Overriding the CMD to use Flask's built-in reloader for dev
+    command: ["flask", "run", "--host=0.0.0.0", "--port=8842", "--reload"]
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: askfdalabel-frontend-dev
+    depends_on:
+      - backend
+    ports:
+      - "8841:8841"
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: development
+      BACKEND_URL: http://backend:8842
+      BACKEND_PORT: 8842
+      HOST: 0.0.0.0
+      FRONTEND_PORT: 8841
+      FRONTEND_BASE_PATH: /askfdalabel
+      WATCHPACK_POLLING: "true" # Important for hot-reload inside Docker on Windows
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    # Overriding to use Next.js dev server for Hot Module Replacement
+    command: ["npm", "run", "dev"]
+    restart: always
+
+networks:
+  default:
+    name: apps-network
