@@ -313,14 +313,37 @@ function LabelCompContent() {
 
   const setIds = useMemo(() => searchParams.getAll('set_ids'), [searchParams]);
 
+  const isBoxedWarningSection = (section: ComparisonSection) => {
+    const title = (section.title || '').trim().toLowerCase();
+    const key = (section.key || '').trim().toLowerCase();
+
+    return (
+      /^boxed warning(s)?$/.test(title) ||
+      /boxed[_\s-]?warning/.test(title) ||
+      /boxed[_\s-]?warning/.test(key)
+    );
+  };
+
   const filteredData = useMemo(() => {
     if (!data) return [];
-    return data.comparison_data.filter(section => {
-      // If severityFilter is on, only show sections with similarity < 0.5 (significant changes)
-      if (severityFilter) {
-        return !section.is_same && !section.is_empty && ((section as any).similarity_ratio < 0.5 || (section as any).is_major_change);
+
+    const sortedData = [...data.comparison_data];
+
+    const boxedWarningsIndex = sortedData.findIndex(isBoxedWarningSection);
+    if (boxedWarningsIndex !== -1) {
+      const boxedWarningsSection = sortedData.splice(boxedWarningsIndex, 1)[0];
+      sortedData.unshift(boxedWarningsSection);
+    }
+
+    return sortedData.filter(section => {
+      const isBoxed = isBoxedWarningSection(section);
+
+      if (severityFilter && !isBoxed) {
+        return !section.is_same && !section.is_empty &&
+          ((section as any).similarity_ratio < 0.5 || (section as any).is_major_change);
       }
-      return true; // Show all sections by default (identical ones are collapsed by style)
+
+      return true;
     });
   }, [data, severityFilter]);
 

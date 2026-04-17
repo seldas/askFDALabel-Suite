@@ -80,7 +80,7 @@ def index():
                     meta['is_rld'] = False
 
             selected_labels_metadata.append(meta)
-            comparison_format = meta.get('label_format', 'PLR')
+            label_format = meta.get('label_format', 'PLR')
 
             sections_by_key = {}
             for s in flat_sections:
@@ -88,14 +88,21 @@ def index():
                     raw_title = s['title']
                     norm_title = normalize_title_text(raw_title)
 
-                    if comparison_format == 'PLR':
-                        key = extract_numeric_section_id(raw_title)
+                    if label_format == 'PLR':
+                        normalized_title = (norm_title or '').strip().lower()
+
+                        if re.search(r'\bboxed warning(s)?\b', normalized_title):
+                            key = '0'
+                        else:
+                            key = extract_numeric_section_id(raw_title)
+
                         if key:
-                            sections_by_key[key] = get_aggregate_content(s)
+                            content = get_aggregate_content(s)
+                            sections_by_key[key] = content
                             if key not in all_section_keys:
                                 all_section_keys[key] = {}
-                            if norm_title not in all_section_keys[key]:
-                                all_section_keys[key][norm_title] = raw_title
+                            if normalized_title not in all_section_keys[key]:
+                                all_section_keys[key][normalized_title] = raw_title
                     else:
                         key = norm_title
                         if key:

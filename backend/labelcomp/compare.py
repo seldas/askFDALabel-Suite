@@ -27,14 +27,16 @@ def get_comparison_summary(user, set_ids, comparison_data, label_names, force_re
     MAX_CHARS_FOR_AI = 100000 # 100k chars limit to prevent timeout
 
     for section in comparison_data:
-        # Check if it's the newer list-based format from frontend
         if 'contents' in section:
+            if section.get('is_same') is True or section.get('is_empty') is True:
+                continue
             contents = [c or 'N/A' for c in section.get('contents', [])]
             differing_sections.append({
                 'title': section.get('title'),
                 'contents': contents
             })
             total_chars += sum(len(c) for c in contents)
+
         # Backward compatibility for content1/content2
         elif 'content1' in section and 'content2' in section:
             c1 = section.get('content1') or 'N/A'
@@ -56,12 +58,12 @@ def get_comparison_summary(user, set_ids, comparison_data, label_names, force_re
                 total_chars += sum(len(c) for c in c_list)
 
     if not differing_sections:
-        return "<p>No substantive differences were identified between the labels for comparison.</p>"
+        return "<p>No comparison has been performed yet.</p>"
 
     # 3. Handle data volume limit
     if total_chars > MAX_CHARS_FOR_AI:
         return f"""
-            <div style="padding: 1.5rem; background-color: #fff7ed; border: 1px solid #fed7aa; borderRadius: 12px; color: #9a3412;">
+            <div style="padding: 1.5rem; background-color: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; color: #9a3412;">
                 <h3 style="margin-top: 0; color: #9a3412;">Comparison Data Too Large</h3>
                 <p>These labeling documents contain a very large amount of differing content ({total_chars:,} characters), which exceeds our automated reasoning limit.</p>
                 <p>To analyze these differences, please use the <strong>Export</strong> button below to download the comparison data as a JSON file, which you can then upload to <strong>ELSA</strong> or other specialized analysis tools.</p>
@@ -74,7 +76,7 @@ def get_comparison_summary(user, set_ids, comparison_data, label_names, force_re
     except Exception as e:
         print(f"AI Summary Error: {str(e)}")
         return f"""
-            <div style="padding: 1.5rem; background-color: #fef2f2; border: 1px solid #fee2e2; borderRadius: 12px; color: #991b1b;">
+            <div style="padding: 1.5rem; background-color: #fef2f2; border: 1px solid #fee2e2; border-radius: 12px; color: #991b1b;">
                 <h3 style="margin-top: 0; color: #991b1b;">AI Analysis Interrupted</h3>
                 <p>We encountered an issue while generating the clinical summary (likely a timeout due to complex content).</p>
                 <p>Please use the <strong>Export</strong> button to download the raw comparison data for review in <strong>ELSA</strong>.</p>
