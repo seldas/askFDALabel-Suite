@@ -43,6 +43,21 @@ def init_labeling_schema():
             cursor.execute("ALTER TABLE labeling.sum_spl ADD COLUMN IF NOT EXISTS parent_spl_id TEXT;")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_sum_spl_set_id ON labeling.sum_spl(set_id);")
 
+            # 1.1 create history table:
+            cursor.execute("""
+            CREATE TABLE labeling.history_analysis (
+                id SERIAL PRIMARY KEY,
+                set_id TEXT NOT NULL,
+                current_spl_id TEXT NOT NULL UNIQUE,
+                previous_spl_id TEXT,
+                executive_summary TEXT, 
+                is_regulatory_notable BOOLEAN DEFAULT FALSE,
+                analysis_json JSONB, 
+                raw_prompt_version TEXT, 
+                last_analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+
             # 2. Section Content Table
             print("Ensuring 'labeling.spl_sections' exists...")
             cursor.execute("""
