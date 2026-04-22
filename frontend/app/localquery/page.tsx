@@ -7,6 +7,7 @@ import { withAppBase, withApiBase } from '../utils/appPaths';
 
 interface LocalQueryResult {
     set_id: string;
+    spl_id: string;
     brand_name: string;
     generic_name: string;
     manufacturer: string;
@@ -126,8 +127,8 @@ const LocalQueryPage = () => {
             alert("No results to export.");
             return;
         }
-        const setIds = results.map(r => r.set_id).join(',');
-        window.location.href = withApiBase(`/api/localquery/export?set_ids=${encodeURIComponent(setIds)}`);
+        const splIds = results.map(r => r.spl_id).join(',');
+        window.location.href = withApiBase(`/api/localquery/export?spl_ids=${encodeURIComponent(splIds)}`);
     };
 
     return (
