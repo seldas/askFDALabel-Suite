@@ -47,26 +47,27 @@ def local_search():
 def export_results():
     """
     Exports searched results as an Excel table importable by the dashboard.
-    Supports exporting by query string or specific list of set_ids.
+    Supports exporting by query string or specific list of spl_ids.
     """
     query = request.args.get('query', '').strip()
-    set_ids = []
+    spl_ids = []
     
-    # Check if set_ids are provided (either in args or JSON body for POST)
+    # Check if spl_ids are provided (either in args or JSON body for POST)
     if request.method == 'POST':
         data = request.get_json() or {}
-        set_ids = data.get('set_ids', [])
+        spl_ids = data.get('spl_ids') or data.get('set_ids', [])
     else:
-        set_ids_raw = request.args.get('set_ids', '')
-        if set_ids_raw:
-            set_ids = [sid.strip() for sid in set_ids_raw.split(',') if sid.strip()]
+        # Prioritize spl_ids parameter
+        spl_ids_raw = request.args.get('spl_ids') or request.args.get('set_ids', '')
+        if spl_ids_raw:
+            spl_ids = [sid.strip() for sid in spl_ids_raw.split(',') if sid.strip()]
 
-    if not query and not set_ids:
-        return jsonify({'error': 'No query or set_ids provided'}), 400
+    if not query and not spl_ids:
+        return jsonify({'error': 'No query or spl_ids provided'}), 400
 
     try:
-        if set_ids:
-            results = FDALabelDBService.get_labels_by_set_ids_for_export(set_ids)
+        if spl_ids:
+            results = FDALabelDBService.get_labels_by_spl_ids_for_export(spl_ids)
         else:
             results = FDALabelDBService.get_labels_for_export(query)
             

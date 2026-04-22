@@ -596,7 +596,7 @@ class FDALabelDBService:
                 params = {"q": q, "sid": query_term}
                 if human_rx_only: where.append("DOCUMENT_TYPE_LOINC_CODE IN ('34391-3', '48401-4', '48402-2')")
                 if rld_only: where.append("EXISTS (SELECT 1 FROM druglabel.sum_spl_rld rld WHERE rld.SPL_ID = druglabel.DGV_SUM_SPL.SPL_ID)")
-                sql = f"SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME, MARKET_CATEGORIES, DOCUMENT_TYPE FROM druglabel.DGV_SUM_SPL WHERE {' AND '.join(where)} ORDER BY EFF_TIME DESC"
+                sql = f"SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME, MARKET_CATEGORIES, DOCUMENT_TYPE, SPL_ID FROM druglabel.DGV_SUM_SPL WHERE {' AND '.join(where)} ORDER BY EFF_TIME DESC"
                 cursor.execute(sql, params)
             else:
                 schema = "labeling."
@@ -608,7 +608,7 @@ class FDALabelDBService:
                 # Join with a subquery to detect if other versions exist for the same set_id
                 sql = f"""
                     SELECT s.set_id, s.product_names, s.generic_names, s.manufacturer, s.appr_num, 
-                           s.ndc_codes, s.revised_date, s.market_categories, s.doc_type, s.local_path,
+                           s.ndc_codes, s.revised_date, s.market_categories, s.doc_type, s.local_path, s.spl_id,
                            (SELECT COUNT(*) > 1 FROM {schema}sum_spl h WHERE h.set_id = s.set_id) as has_history
                     FROM {schema}sum_spl s 
                     WHERE {' AND '.join(where)} 
@@ -621,7 +621,19 @@ class FDALabelDBService:
             results = []
             for r in rows:
                 if cls._db_type == 'oracle':
-                    results.append({'set_id': r[0], 'brand_name': (r[1] or "").replace(';', ', '), 'generic_name': (r[2] or "").replace(';', ', '), 'manufacturer': r[3], 'appr_num': r[4], 'ndc': r[5], 'revised_date': r[6], 'market_category': r[7], 'doc_type': r[8], 'source': 'Oracle'})
+                    results.append({
+                        'set_id': r[0], 
+                        'brand_name': (r[1] or "").replace(';', ', '), 
+                        'generic_name': (r[2] or "").replace(';', ', '), 
+                        'manufacturer': r[3], 
+                        'appr_num': r[4], 
+                        'ndc': r[5], 
+                        'revised_date': r[6], 
+                        'market_category': r[7], 
+                        'doc_type': r[8], 
+                        'spl_id': r[9],
+                        'source': 'Oracle'
+                    })
                 else:
                     results.append({
                         'set_id': r['set_id'], 
@@ -634,6 +646,7 @@ class FDALabelDBService:
                         'market_category': r['market_categories'], 
                         'doc_type': r['doc_type'], 
                         'local_path': r['local_path'], 
+                        'spl_id': r['spl_id'],
                         'source': 'Local Postgres',
                         'has_history': r.get('has_history', False)
                     })
@@ -688,7 +701,7 @@ class FDALabelDBService:
                 if human_rx_only: where.append("DOCUMENT_TYPE_LOINC_CODE IN ('34391-3', '48401-4', '48402-2')")
                 if rld_only: where.append("EXISTS (SELECT 1 FROM druglabel.sum_spl_rld rld WHERE rld.SPL_ID = druglabel.DGV_SUM_SPL.SPL_ID)")
                 w_stmt = f"WHERE {' AND '.join(where)}" if where else ""
-                sql = f"SELECT * FROM (SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME, MARKET_CATEGORIES, DOCUMENT_TYPE FROM druglabel.DGV_SUM_SPL {w_stmt} ORDER BY DBMS_RANDOM.VALUE) WHERE ROWNUM <= :limit"
+                sql = f"SELECT * FROM (SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME, MARKET_CATEGORIES, DOCUMENT_TYPE, SPL_ID FROM druglabel.DGV_SUM_SPL {w_stmt} ORDER BY DBMS_RANDOM.VALUE) WHERE ROWNUM <= :limit"
                 cursor.execute(sql, {"limit": limit})
             else:
                 schema = "labeling."
@@ -698,7 +711,7 @@ class FDALabelDBService:
                 w_stmt = f"WHERE {' AND '.join(where)}" if where else ""
                 sql = f"""
                     SELECT s.set_id, s.product_names, s.generic_names, s.manufacturer, s.appr_num, 
-                           s.ndc_codes, s.revised_date, s.market_categories, s.doc_type, s.local_path,
+                           s.ndc_codes, s.revised_date, s.market_categories, s.doc_type, s.local_path, s.spl_id,
                            (SELECT COUNT(*) > 1 FROM {schema}sum_spl h WHERE h.set_id = s.set_id) as has_history
                     FROM {schema}sum_spl s
                     {w_stmt} 
@@ -710,7 +723,19 @@ class FDALabelDBService:
             results = []
             for r in rows:
                 if cls._db_type == 'oracle':
-                    results.append({'set_id': r[0], 'brand_name': (r[1] or "").replace(';', ', '), 'generic_name': (r[2] or "").replace(';', ', '), 'manufacturer': r[3], 'appr_num': r[4], 'ndc': r[5], 'revised_date': r[6], 'market_category': r[7], 'doc_type': r[8], 'source': 'Oracle'})
+                    results.append({
+                        'set_id': r[0], 
+                        'brand_name': (r[1] or "").replace(';', ', '), 
+                        'generic_name': (r[2] or "").replace(';', ', '), 
+                        'manufacturer': r[3], 
+                        'appr_num': r[4], 
+                        'ndc': r[5], 
+                        'revised_date': r[6], 
+                        'market_category': r[7], 
+                        'doc_type': r[8], 
+                        'spl_id': r[9],
+                        'source': 'Oracle'
+                    })
                 else:
                     results.append({
                         'set_id': r['set_id'], 
@@ -723,6 +748,7 @@ class FDALabelDBService:
                         'market_category': r['market_categories'], 
                         'doc_type': r['doc_type'], 
                         'local_path': r['local_path'], 
+                        'spl_id': r['spl_id'],
                         'source': 'Local Postgres',
                         'has_history': r.get('has_history', False)
                     })
@@ -1010,30 +1036,30 @@ class FDALabelDBService:
         return None
 
     @classmethod
-    def get_labels_by_set_ids_for_export(cls, set_ids):
-        if not set_ids or not cls.check_connectivity(): return []
+    def get_labels_by_spl_ids_for_export(cls, spl_ids):
+        if not spl_ids or not cls.check_connectivity(): return []
         conn = cls.get_connection()
         if not conn: return []
         try:
             cursor = conn.cursor()
             results = []
             if cls._db_type == 'oracle':
-                for chunk in cls._chunk(list(set_ids), n=900):
+                for chunk in cls._chunk(list(spl_ids), n=900):
                     binds = {f"sid{i}": v for i, v in enumerate(chunk)}
                     in_clause = ", ".join([f":sid{i}" for i in range(len(chunk))])
-                    sql = f"SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME, MARKET_CATEGORIES, DOCUMENT_TYPE, ROUTES, DOSAGE_FORMS, EPC, ACT_INGR_NAMES FROM druglabel.DGV_SUM_SPL WHERE SET_ID IN ({in_clause})"
+                    sql = f"SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME, MARKET_CATEGORIES, DOCUMENT_TYPE, ROUTES, DOSAGE_FORMS, EPC, ACT_INGR_NAMES, SPL_ID FROM druglabel.DGV_SUM_SPL WHERE SPL_ID IN ({in_clause})"
                     cursor.execute(sql, binds)
                     for row in cursor.fetchall():
-                        results.append({'SET ID': row[0], 'Trade Name': (row[1] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row[2] or "").replace(';', ', '), 'Company': row[3], 'Application Number(s)': row[4], 'NDC(s)': row[5], 'SPL Effective Date (YYYY/MM/DD)': row[6], 'Marketing Category': row[7], 'Labeling Type': row[8], 'Route(s) of Administration': row[9], 'Dosage Form(s)': row[10], 'Established Pharmacologic Class(es)': row[11], 'Active Ingredient(s)': (row[12] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row[0]}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row[0]}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row[0]}"})
+                        results.append({'SET ID': row[0], 'Trade Name': (row[1] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row[2] or "").replace(';', ', '), 'Company': row[3], 'Application Number(s)': row[4], 'NDC(s)': row[5], 'SPL Effective Date (YYYY/MM/DD)': row[6], 'Marketing Category': row[7], 'Labeling Type': row[8], 'Route(s) of Administration': row[9], 'Dosage Form(s)': row[10], 'Established Pharmacologic Class(es)': row[11], 'Active Ingredient(s)': (row[12] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row[0]}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row[0]}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row[0]}", 'SPL ID': row[13]})
             else:
                 schema = "labeling."
-                for chunk in cls._chunk(list(set_ids), n=900):
-                    sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, routes, dosage_forms, epc, active_ingredients FROM {schema}sum_spl WHERE set_id = ANY(%s) AND is_latest = TRUE"
+                for chunk in cls._chunk(list(spl_ids), n=900):
+                    sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, routes, dosage_forms, epc, active_ingredients, spl_id FROM {schema}sum_spl WHERE spl_id = ANY(%s)"
                     cursor.execute(sql, (list(chunk),))
                     for row in cursor.fetchall():
                         rev_date = row['revised_date'] or ""
                         if len(rev_date) == 8 and rev_date.isdigit(): rev_date = f"{rev_date[0:4]}/{rev_date[4:6]}/{rev_date[6:8]}"
-                        results.append({'SET ID': row['set_id'], 'Trade Name': (row['product_names'] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row['generic_names'] or "").replace(';', ', '), 'Company': row['manufacturer'], 'Application Number(s)': row['appr_num'], 'NDC(s)': row['ndc_codes'], 'SPL Effective Date (YYYY/MM/DD)': rev_date, 'Marketing Category': row['market_category'], 'Labeling Type': row['doc_type'], 'Route(s) of Administration': row['routes'], 'Dosage Form(s)': row['dosage_forms'], 'Established Pharmacologic Class(es)': row['epc'], 'Active Ingredient(s)': (row['active_ingredients'] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row['set_id']}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row['set_id']}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row['set_id']}"})
+                        results.append({'SET ID': row['set_id'], 'Trade Name': (row['product_names'] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row['generic_names'] or "").replace(';', ', '), 'Company': row['manufacturer'], 'Application Number(s)': row['appr_num'], 'NDC(s)': row['ndc_codes'], 'SPL Effective Date (YYYY/MM/DD)': rev_date, 'Marketing Category': row['market_categories'], 'Labeling Type': row['doc_type'], 'Route(s) of Administration': row['routes'], 'Dosage Form(s)': row['dosage_forms'], 'Established Pharmacologic Class(es)': row['epc'], 'Active Ingredient(s)': (row['active_ingredients'] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row['set_id']}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row['set_id']}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row['set_id']}", 'SPL ID': row['spl_id']})
             return results
         except Exception as e: print(f"Error in export: {e}"); return []
         finally: conn.close()
@@ -1047,22 +1073,22 @@ class FDALabelDBService:
             cursor = conn.cursor()
             q = f"%{query_term}%"
             if cls._db_type == 'oracle':
-                sql = "SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME, MARKET_CATEGORIES, DOCUMENT_TYPE, ROUTES, DOSAGE_FORMS, EPC, ACT_INGR_NAMES FROM druglabel.DGV_SUM_SPL WHERE UPPER(PRODUCT_NAMES) LIKE UPPER(:q) OR UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q) OR UPPER(SET_ID) = UPPER(:sid) OR UPPER(APPR_NUM) LIKE UPPER(:q) ORDER BY EFF_TIME DESC"
+                sql = "SELECT SET_ID, PRODUCT_NAMES, PRODUCT_NORMD_GENERIC_NAMES, AUTHOR_ORG_NORMD_NAME, APPR_NUM, NDC_CODES, EFF_TIME, MARKET_CATEGORIES, DOCUMENT_TYPE, ROUTES, DOSAGE_FORMS, EPC, ACT_INGR_NAMES, SPL_ID FROM druglabel.DGV_SUM_SPL WHERE UPPER(PRODUCT_NAMES) LIKE UPPER(:q) OR UPPER(PRODUCT_NORMD_GENERIC_NAMES) LIKE UPPER(:q) OR UPPER(SET_ID) = UPPER(:sid) OR UPPER(APPR_NUM) LIKE UPPER(:q) ORDER BY EFF_TIME DESC"
                 cursor.execute(sql, {"q": q, "sid": query_term})
                 rows = cursor.fetchall()
                 results = []
                 for row in rows:
-                    results.append({'SET ID': row[0], 'Trade Name': (row[1] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row[2] or "").replace(';', ', '), 'Company': row[3], 'Application Number(s)': row[4], 'NDC(s)': row[5], 'SPL Effective Date (YYYY/MM/DD)': row[6], 'Marketing Category': row[7], 'Labeling Type': row[8], 'Route(s) of Administration': row[9], 'Dosage Form(s)': row[10], 'Established Pharmacologic Class(es)': row[11], 'Active Ingredient(s)': (row[12] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row[0]}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row[0]}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row[0]}"})
+                    results.append({'SET ID': row[0], 'Trade Name': (row[1] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row[2] or "").replace(';', ', '), 'Company': row[3], 'Application Number(s)': row[4], 'NDC(s)': row[5], 'SPL Effective Date (YYYY/MM/DD)': row[6], 'Marketing Category': row[7], 'Labeling Type': row[8], 'Route(s) of Administration': row[9], 'Dosage Form(s)': row[10], 'Established Pharmacologic Class(es)': row[11], 'Active Ingredient(s)': (row[12] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row[0]}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row[0]}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row[0]}", 'SPL ID': row[13]})
             else:
                 schema = "labeling."
-                sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, routes, dosage_forms, epc, active_ingredients FROM {schema}sum_spl WHERE (product_names ILIKE %(q)s OR generic_names ILIKE %(q)s OR set_id = %(sid)s OR appr_num ILIKE %(q)s) AND is_latest = TRUE ORDER BY revised_date DESC"
+                sql = f"SELECT set_id, product_names, generic_names, manufacturer, appr_num, ndc_codes, revised_date, market_categories, doc_type, routes, dosage_forms, epc, active_ingredients, spl_id FROM {schema}sum_spl WHERE (product_names ILIKE %(q)s OR generic_names ILIKE %(q)s OR set_id = %(sid)s OR appr_num ILIKE %(q)s) AND is_latest = TRUE ORDER BY revised_date DESC"
                 cursor.execute(sql, {"q": q, "sid": query_term})
                 rows = cursor.fetchall()
                 results = []
                 for row in rows:
                     rev_date = row['revised_date'] or ""
                     if len(rev_date) == 8 and rev_date.isdigit(): rev_date = f"{rev_date[0:4]}/{rev_date[4:6]}/{rev_date[6:8]}"
-                    results.append({'SET ID': row['set_id'], 'Trade Name': (row['product_names'] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row['generic_names'] or "").replace(';', ', '), 'Company': row['manufacturer'], 'Application Number(s)': row['appr_num'], 'NDC(s)': row['ndc_codes'], 'SPL Effective Date (YYYY/MM/DD)': rev_date, 'Marketing Category': row['market_categories'], 'Labeling Type': row['doc_type'], 'Route(s) of Administration': row['routes'], 'Dosage Form(s)': row['dosage_forms'], 'Established Pharmacologic Class(es)': row['epc'], 'Active Ingredient(s)': (row['active_ingredients'] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row['set_id']}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row['set_id']}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row['set_id']}"})
+                    results.append({'SET ID': row['set_id'], 'Trade Name': (row['product_names'] or "").replace(';', ', '), 'Generic/Proper Name(s)': (row['generic_names'] or "").replace(';', ', '), 'Company': row['manufacturer'], 'Application Number(s)': row['appr_num'], 'NDC(s)': row['ndc_codes'], 'SPL Effective Date (YYYY/MM/DD)': rev_date, 'Marketing Category': row['market_categories'], 'Labeling Type': row['doc_type'], 'Route(s) of Administration': row['routes'], 'Dosage Form(s)': row['dosage_forms'], 'Established Pharmacologic Class(es)': row['epc'], 'Active Ingredient(s)': (row['active_ingredients'] or "").replace(';', ', '), 'FDALabel Link': f"https://nctr-crs.fda.gov/fdalabel/ui/search/spl/{row['set_id']}", 'DailyMed SPL Link': f"https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid={row['set_id']}", 'DailyMed PDF Link': f"https://dailymed.nlm.nih.gov/dailymed/getpdf.cfm?setid={row['set_id']}", 'SPL ID': row['spl_id']})
             return results
         except Exception as e: print(f"Error in export: {e}"); return []
         finally: conn.close()
