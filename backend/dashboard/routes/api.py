@@ -525,6 +525,8 @@ def get_history_analysis(spl_id):
     except Exception as e:
         logger.exception(f"Error fetching history analysis for {spl_id}: {e}")
         return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/deep_dive/peers_count/<set_id>')
 def get_peers_count(set_id):
     """
     Fetches counts of peer labels (same name and same EPC) from various sources.

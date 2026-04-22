@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { withDashboardBase } from '../../../utils/appPaths';
+import { withDashboardBase, withApiBase } from '../../../utils/appPaths';
 
 interface PeerItem {
   term: string;
@@ -146,7 +146,9 @@ export default function DeepDiveView({
     setLoadingCounts(true);
     setCountsError(null);
     try {
-      const resp = await fetch(`/api/dashboard/deep_dive/peers_count/${setId}?source=${currentSource}`);
+      const resp = await fetch(
+        withApiBase(`/api/dashboard/deep_dive/peers_count/${setId}?source=${currentSource}`)
+      );
       if (!resp.ok) throw new Error('Failed to fetch peer counts');
       const json = await resp.json();
       setCountsData(json);
@@ -164,7 +166,9 @@ export default function DeepDiveView({
     setSelectedSignals(new Set());
     try {
       const params = new URLSearchParams({ source, [type === 'name' ? 'generic_names' : 'epcs']: term });
-      const resp = await fetch(`/api/dashboard/deep_dive/analysis/${setId}?${params.toString()}`);
+      const resp = await fetch(
+        withApiBase(`/api/dashboard/deep_dive/analysis/${setId}?${params.toString()}`)
+      );  
       if (!resp.ok) throw new Error('Analysis failed');
       const data = await resp.json();
       setResults(data);

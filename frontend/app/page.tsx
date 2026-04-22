@@ -129,17 +129,17 @@ export default function HomePage() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ color: '#3b82f6', fontSize: '1.1rem' }}>📊</span>
-                <span>157,513 Structured Labels</span>
+                <span>Over 150,000 Structured Labels</span>
               </div>
               <div style={{ width: '1px', height: '16px', background: '#e2e8f0', alignSelf: 'center' }}></div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ color: '#10b981', fontSize: '1.1rem' }}>🧬</span>
-                <span>MedDRA v28.0 Integrated</span>
+                <span>MedDRA v29.0 Integrated</span>
               </div>
               <div style={{ width: '1px', height: '16px', background: '#e2e8f0', alignSelf: 'center' }}></div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ color: '#f59e0b', fontSize: '1.1rem' }}>🛡️</span>
-                <span>Grounded Regulatory AI</span>
+                <span>Powered by Enterprise AI</span>
               </div>
             </div>
           </div>
