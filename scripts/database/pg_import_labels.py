@@ -243,8 +243,6 @@ def parse_spl_zip(zip_path):
             xml_files = [f for f in z.namelist() if f.endswith('.xml')]
             if not xml_files:
                 return None
-            # Only read first 10MB of XML for metadata if it's a monster file? 
-            # Actually we need full XML for sections, so we must read it.
             with z.open(xml_files[0]) as f:
                 xml_content = f.read()
         
@@ -275,14 +273,13 @@ def parse_spl_zip(zip_path):
 
         # Manufacturer
         manufacturer = ""
-        # Faster lookup than recursive //
         author_path = 'ns:author/ns:assignedEntity/ns:representedOrganization/ns:name'
         author_org = root.find(author_path, NS)
         if author_org is not None:
             manufacturer = author_org.text if author_org.text else ""
 
         # 2. Product Information
-        product_names, generic_names, active_ingredients, dosage_forms, ndc_codes, routes, appr_nums = [], [], [], [], [], [], []
+        product_names, generic_names, active_ingredients, dosage_forms, ndc_codes, routes, appr_nums, market_cats = [], [], [], [], [], [], [], []
         ingr_map = [] # (spl_id, substance_name, is_active)
         
         products = root.findall('.//ns:manufacturedProduct/ns:manufacturedProduct', NS)
@@ -308,7 +305,6 @@ def parse_spl_zip(zip_path):
                     
                     if name_el is not None:
                         sub_name = get_el_text(name_el)
-                        # Extract UNII if codeSystem is correct
                         unii = code_el.get('code') if (code_el is not None and code_el.get('codeSystem') == '2.16.840.1.113883.4.9') else ""
                         is_active = 1 if class_code in ['ACTIM', 'ACTIB'] else 0
                         
@@ -316,15 +312,20 @@ def parse_spl_zip(zip_path):
                             active_ingredients.append(sub_name)
                         ingr_map.append((spl_id, sub_name, unii, is_active))
 
+            # Routes of Administration
             for rel in prod.findall('.//ns:routeCode', NS):
                 routes.append(rel.get('displayName'))
 
-        if (appr_el := root.find('.//ns:approval/ns:id', NS)) is not None:
-            appr_nums.append(appr_el.get('extension'))
+            # Approval / Application Number
+            for appr in prod.findall('.//ns:approval', NS):
+                if (appr_id := appr.find('ns:id', NS)) is not None:
+                    appr_nums.append(appr_id.get('extension'))
+                if (appr_code := appr.find('ns:code', NS)) is not None:
+                    market_cats.append(appr_code.get('displayName'))
 
         # RLD / RS Logic
         is_rld, is_rs = 0, 0
-        all_appr = "; ".join(set(appr_nums))
+        all_appr = "; ".join(set(filter(None, appr_nums)))
         if all_appr:
             digits = re.findall(r'\d+', all_appr)
             for d in digits:
@@ -340,16 +341,15 @@ def parse_spl_zip(zip_path):
             sec_title_el = sec.find('ns:title', NS)
             title = get_el_text(sec_title_el)
             if (text_el := sec.find('ns:text', NS)) is not None:
-                # Optimized tostring
                 raw_xml = ET.tostring(text_el, encoding='unicode').strip()
                 sections_db.append((spl_id, loinc, title, raw_xml))
 
         return {
             'metadata': (
-                spl_id, set_id, "; ".join(set(product_names)), "; ".join(set(generic_names)),
-                manufacturer, all_appr, "; ".join(set(active_ingredients)), "",
-                doc_type, "; ".join(set(routes)), "; ".join(set(dosage_forms)), "",
-                "; ".join(set(ndc_codes)), revised_date, initial_approval_year,
+                spl_id, set_id, "; ".join(set(filter(None, product_names))), "; ".join(set(filter(None, generic_names))),
+                manufacturer, all_appr, "; ".join(set(filter(None, active_ingredients))), "; ".join(set(filter(None, market_cats))),
+                doc_type, "; ".join(set(filter(None, routes))), "; ".join(set(filter(None, dosage_forms))), "",
+                "; ".join(set(filter(None, ndc_codes))), revised_date, initial_approval_year,
                 is_rld, is_rs, os.path.basename(zip_path)
             ),
             'ingr_map': ingr_map,
