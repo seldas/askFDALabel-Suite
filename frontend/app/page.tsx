@@ -112,7 +112,7 @@ export default function HomePage() {
               src="/askFDALabel_hero.png" 
               alt="AskFDALabel"
               style={{
-                maxWidth: '100%',
+                maxWidth: '75%',
                 height: 'auto',
                 marginBottom: '0.5rem'
               }}
