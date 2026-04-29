@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__)
 
 @api_bp.route('/history/<set_id>')
-@login_required
 def get_label_history(set_id):
     """
     Returns the version history (lineage) for a specific set_id from local database.
@@ -83,7 +82,6 @@ def get_label_history(set_id):
         return jsonify({'error': str(e)}), 500
 
 @api_bp.route('/history_by_appr_num/<appr_num>')
-@login_required
 def get_label_history_by_appr_num(appr_num):
     """
     Returns the version history for all set_ids associated with a specific application number.
@@ -136,7 +134,6 @@ from dashboard.utils import normalize_text_for_diff, normalize_title_text, extra
 from difflib import SequenceMatcher
 
 @api_bp.route('/history/diff/<spl_id1>/<spl_id2>')
-@login_required
 def get_history_diff(spl_id1, spl_id2):
     """
     Returns a section-by-section diff between two specific SPL versions.
@@ -261,7 +258,6 @@ def get_history_diff(spl_id1, spl_id2):
         return jsonify({'error': str(e)}), 500
 
 @api_bp.route('/history/analyze', methods=['POST'])
-@login_required
 def analyze_history_changes():
     """
     Triggers AI analysis of changes between two SPL versions.
@@ -493,7 +489,6 @@ Output Format (JSON ONLY):
         return jsonify({'error': str(e)}), 500
 
 @api_bp.route('/history/analysis/<spl_id>')
-@login_required
 def get_history_analysis(spl_id):
     """
     Returns the stored AI analysis for a specific SPL version.

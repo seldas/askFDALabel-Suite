@@ -108,14 +108,15 @@ export default function HomePage() {
         {/* Hero Section with AI Search */}
         <section style={{ textAlign: 'center', marginBottom: '3rem' }}>
           <div style={{ marginBottom: '1.5rem' }}>
-            <h1 className="hero-title-animated" style={{ 
-              fontSize: 'clamp(2.5rem, 8vw, 4.5rem)', 
-              fontWeight: 900, 
-              letterSpacing: '-0.02em',
-              marginBottom: '0.5rem'
-            }}>
-              AskFDALabel
-            </h1>
+            <img 
+              src="/askFDALabel_hero.png" 
+              alt="AskFDALabel"
+              style={{
+                maxWidth: '100%',
+                height: 'auto',
+                marginBottom: '0.5rem'
+              }}
+            />
 
             {/* Database Stats Row */}
             <div style={{ 
@@ -129,7 +130,7 @@ export default function HomePage() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ color: '#3b82f6', fontSize: '1.1rem' }}>📊</span>
-                <span>Over 150,000 Structured Labels</span>
+                <span>Over 130,000 Human Drug Labels</span>
               </div>
               <div style={{ width: '1px', height: '16px', background: '#e2e8f0', alignSelf: 'center' }}></div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
