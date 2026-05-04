@@ -204,7 +204,12 @@ export default function Header({
         </Link>
 
         <h1 className="header-title">
-          AskFDALabel
+          <a
+            href="/"
+            style={{ color: "inherit", textDecoration: "none" }}
+          >
+            AskFDALabel
+          </a>
         </h1>
 
         <div className="custom-dropdown" onClick={(e) => e.stopPropagation()}>
@@ -295,146 +300,7 @@ export default function Header({
 
       {/* Center: Main Navigation */}
       <nav className={cx('header-nav', mobileMenuOpen && 'open')}>
-        {/* Search Dropdown (Drug & Device) */}
-        <div
-          className="hp-nav-dropdown"
-          onMouseEnter={() => setActiveDropdown('nav')}
-          onMouseLeave={() => setActiveDropdown(null)}
-        >
-          <button
-            className={cx('hp-nav-item', (resolvedActiveApp === 'fdalabel' || resolvedActiveApp === 'device' || resolvedActiveApp === 'localquery') && 'is-active')}
-            aria-current={(resolvedActiveApp === 'fdalabel' || resolvedActiveApp === 'device' || resolvedActiveApp === 'localquery') ? 'page' : undefined}
-            onClick={(e) => e.preventDefault()}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            Official Database <span className="dropdown-caret">▼</span>
-          </button>
-
-          <div className={cx('hp-dropdown-content', activeDropdown === 'nav' && 'visible')} style={{ minWidth: '240px' }}>
-            {/* Drug Search Section */}
-            <div className="dropdown-section-label" style={{ padding: '8px 12px 4px', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
-              Drug (FDALabel)
-            </div>
-            
-            {allowLocalQuery && (
-              <Link
-                href="/localquery"
-                className={cx('hp-dropdown-item', resolvedActiveApp === 'localquery' && 'is-active')}
-                onClick={closeMobile}
-              >
-                <span className="hp-dropdown-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-                  </svg>
-                </span>
-                <div>
-                  <div className="dropdown-title">Label Archive</div>
-                  <div className="dropdown-subtitle">Local Metadata Search</div>
-                </div>
-
-              </Link>
-            )}
-
-            {(fdaAccessible || cderAccessible) ? (
-              <>
-                {fdaAccessible && (
-                  <a
-                    href="https://fdalabel.fda.gov/fdalabel/ui/search"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hp-dropdown-item"
-                    onClick={closeMobile}
-                  >
-                    <span className="hp-dropdown-icon">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 21h18"></path>
-                        <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path>
-                        <path d="M5 21V10.85"></path>
-                        <path d="M19 21V10.85"></path>
-                        <path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path>
-                      </svg>
-                    </span>
-                    <div>
-                      <div className="dropdown-title">FDA version</div>
-                      <div className="dropdown-subtitle">FDA-wide Interface</div>
-                    </div>
-                  </a>
-                )}
-
-                {cderAccessible && (
-                  <a
-                    href="https://fdalabel.fda.gov/fdalabel-r/ui/search"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hp-dropdown-item"
-                    onClick={closeMobile}
-                  >
-                    <span className="hp-dropdown-icon">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                      </svg>
-                    </span>
-                    <div>
-                      <div className="dropdown-title">CDER-CBER version</div>
-                      <div className="dropdown-subtitle">Specific for PLR Labeling</div>
-                    </div>
-                  </a>
-                )}
-              </>
-            ) : (
-              <a
-                href="https://nctr-crs.fda.gov/fdalabel/ui/search"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hp-dropdown-item"
-                onClick={closeMobile}
-              >
-                <span className="hp-dropdown-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 21h18"></path>
-                    <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path>
-                    <path d="M5 21V10.85"></path>
-                    <path d="M19 21V10.85"></path>
-                    <path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path>
-                  </svg>
-                </span>
-                <div>
-                  <div className="dropdown-title">Public FDALabel</div>
-                  <div className="dropdown-subtitle">NCTR-CRS Public Access</div>
-                </div>
-              </a>
-            )}
-
-            <div className="dropdown-divider" style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }} />
-            
-            {/* Device Search Section */}
-            <div className="dropdown-section-label" style={{ padding: '8px 12px 4px', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
-              Device (MAUDE/GUDID)
-            </div>
-
-            <Link
-              href="/device"
-              className={cx('hp-dropdown-item', resolvedActiveApp === 'device' && 'is-active')}
-              onClick={closeMobile}
-            >
-              <span className="hp-dropdown-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.77 3.77Z"></path>
-                </svg>
-              </span>
-              <div>
-                <div className="dropdown-title">Device Search</div>
-                <div className="dropdown-subtitle">Safety & Labeling Data</div>
-              </div>
-            </Link>
-          </div>
-        </div>
-
+        
         {/* Dashboard */}
         <Link
           href="/dashboard"
@@ -485,21 +351,168 @@ export default function Header({
           DrugTox
         </Link>
 
-        {/* ELSA Widget */}
-        <Link
-          href="/snippet"
-          className={cx('hp-nav-item', resolvedActiveApp === 'snippet' && 'is-active')}
-          aria-current={resolvedActiveApp === 'snippet' ? 'page' : undefined}
-          onClick={closeMobile}
+        {/* Search Dropdown (Drug & Device) */}
+        <div
+          className="hp-nav-dropdown"
+          onMouseEnter={() => setActiveDropdown('nav')}
+          onMouseLeave={() => setActiveDropdown(null)}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 7h-9"></path>
-            <path d="M14 17H5"></path>
-            <circle cx="17" cy="17" r="3"></circle>
-            <circle cx="7" cy="7" r="3"></circle>
-          </svg>
-          ELSA Widget
-        </Link>
+          <button
+            className={cx('hp-nav-item', (resolvedActiveApp === 'fdalabel' || resolvedActiveApp === 'device' || resolvedActiveApp === 'localquery') && 'is-active')}
+            aria-current={(resolvedActiveApp === 'fdalabel' || resolvedActiveApp === 'device' || resolvedActiveApp === 'localquery') ? 'page' : undefined}
+            onClick={(e) => e.preventDefault()}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            Resources <span className="dropdown-caret">▼</span>
+          </button>
+
+          <div className={cx('hp-dropdown-content', activeDropdown === 'nav' && 'visible')} style={{ minWidth: '240px' }}>
+            {/* Drug Search Section */}
+            <div className="dropdown-section-label" style={{ padding: '8px 12px 4px', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+              Drug Labeling
+            </div>
+            
+            {allowLocalQuery && (
+              <Link
+                href="/localquery"
+                className={cx('hp-dropdown-item', resolvedActiveApp === 'localquery' && 'is-active')}
+                onClick={closeMobile}
+              >
+                <span className="hp-dropdown-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                  </svg>
+                </span>
+                <div>
+                  <div className="dropdown-title">Search</div>
+                  <div className="dropdown-subtitle">Local Database Search</div>
+                </div>
+
+              </Link>
+            )}
+
+            {(fdaAccessible || cderAccessible) ? (
+              <>
+                {fdaAccessible && (
+                  <a
+                    href="https://fdalabel.fda.gov/fdalabel/ui/search"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hp-dropdown-item"
+                    onClick={closeMobile}
+                  >
+                    <span className="hp-dropdown-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 21h18"></path>
+                        <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path>
+                        <path d="M5 21V10.85"></path>
+                        <path d="M19 21V10.85"></path>
+                        <path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path>
+                      </svg>
+                    </span>
+                    <div>
+                      <div className="dropdown-title">FDALabel</div>
+                      <div className="dropdown-subtitle">FDA Internal Version</div>
+                    </div>
+                  </a>
+                )}
+
+                {cderAccessible && (
+                  <a
+                    href="https://fdalabel.fda.gov/fdalabel-r/ui/search"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hp-dropdown-item"
+                    onClick={closeMobile}
+                  >
+                    <span className="hp-dropdown-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                      </svg>
+                    </span>
+                    <div>
+                      <div className="dropdown-title">FDALabel CDER-CBER</div>
+                      <div className="dropdown-subtitle">Specific for CDER-CBER functions</div>
+                    </div>
+                  </a>
+                )}
+              </>
+            ) : (
+              <a
+                href="https://nctr-crs.fda.gov/fdalabel/ui/search"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hp-dropdown-item"
+                onClick={closeMobile}
+              >
+                <span className="hp-dropdown-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 21h18"></path>
+                    <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"></path>
+                    <path d="M5 21V10.85"></path>
+                    <path d="M19 21V10.85"></path>
+                    <path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path>
+                  </svg>
+                </span>
+                <div>
+                  <div className="dropdown-title">Public FDALabel</div>
+                  <div className="dropdown-subtitle">Public FDALabel Search</div>
+                </div>
+              </a>
+            )}
+
+            {/* Device Search Section */}
+            <div className="dropdown-section-label" style={{ padding: '8px 12px 4px', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+              Device (MAUDE/GUDID)
+            </div>
+
+            <Link
+              href="/device"
+              className={cx('hp-dropdown-item', resolvedActiveApp === 'device' && 'is-active')}
+              onClick={closeMobile}
+            >
+              <span className="hp-dropdown-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.77 3.77Z"></path>
+                </svg>
+              </span>
+              <div>
+                <div className="dropdown-title">Device Search</div>
+                <div className="dropdown-subtitle">Safety & Labeling Data</div>
+              </div>
+            </Link> 
+
+            {/* ELSA Support widgets */}
+            <div className="dropdown-section-label" style={{ padding: '8px 12px 4px', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+              Others
+            </div>
+
+            {/* ELSA Widget */}
+            <Link
+              href="/snippet"
+              className={cx('hp-dropdown-item', resolvedActiveApp === 'snippet' && 'is-active')}
+              onClick={closeMobile}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 7h-9"></path>
+                <path d="M14 17H5"></path>
+                <circle cx="17" cy="17" r="3"></circle>
+                <circle cx="7" cy="7" r="3"></circle>
+              </svg>
+              <div>
+                <div className="dropdown-title">ELSA Widget</div>
+                <div className="dropdown-subtitle">Enhance ELSA Experiences</div>
+              </div>
+            </Link>
+
+          </div>
+        </div>
+
       </nav>
 
       {/* Right: User Controls */}
