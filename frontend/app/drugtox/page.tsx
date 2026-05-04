@@ -201,6 +201,9 @@ export default function DrugToxPage() {
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
   const [rldOnly, setRldOnly] = useState(false);
 
+  // Export Dialog State
+  const [showExportDialog, setShowExportDialog] = useState(false);
+
   // Drawer Resizing State
   const [drawerWidth, setDrawerWidth] = useState(800);
   const isResizing = useRef(false);
@@ -695,6 +698,23 @@ export default function DrugToxPage() {
                           </Box>
                         );
                       })}
+                      
+                      <Button 
+                        variant="contained" 
+                        size="small"
+                        startIcon={<AssignmentIcon />}
+                        sx={{ 
+                          height: '40px',
+                          fontWeight: 800,
+                          textTransform: 'none',
+                          borderRadius: '8px',
+                          fontSize: '0.75rem',
+                          ml: 2
+                        }}
+                        onClick={() => setShowExportDialog(true)}
+                      >
+                        Export to Excel
+                      </Button>
                     </Stack>
                   </Box>
                 </CardContent>
@@ -1430,6 +1450,48 @@ export default function DrugToxPage() {
           </Box>
         ) : null}
       </Drawer>
+
+      {/* Export Dialog */}
+      <Dialog 
+        open={showExportDialog} 
+        onClose={() => setShowExportDialog(false)} 
+        maxWidth="sm" 
+        fullWidth 
+        PaperProps={{ sx: { borderRadius: '16px !important', p: 2 } }}
+      >
+        <DialogTitle sx={{ pb: 1, fontWeight: 900, color: '#1a237e' }}>
+          Export {toxType} Data to Excel
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Export {toxType} data grouped by drug generic names, including total labeling count, category counts, majority vote, and severity vote.
+          </Typography>
+          <Button 
+            variant="contained" 
+            onClick={async () => {
+              try {
+                const response = await axios.get(`${DRUGTOX_API_PREFIX}/export`, {
+                  params: { tox_type: toxType },
+                  responseType: 'blob'
+                });
+                
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', response.headers['content-disposition'].split('filename=')[1]);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+              } catch (error) {
+                console.error('Error exporting data:', error);
+              }
+            }}
+            sx={{ fontWeight: 800, textTransform: 'none' }}
+          >
+            Export
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!selectedCompany} onClose={() => setSelectedCompany(null)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: '16px !important' } }}>
         <DialogTitle

@@ -13,6 +13,10 @@ from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import text
 from collections import defaultdict
 from database.extensions import db
+from openpyxl import Workbook
+import tempfile
+from flask import send_file
+from datetime import datetime
 
 drugtox_bp = Blueprint("drugtox", __name__)
 
@@ -574,3 +578,84 @@ def get_company_portfolio(company_name):
     """)
     rows = sess.execute(query, {"company": company_name, "tox": tox_type}).fetchall()
     return jsonify(rowdicts(rows))
+
+@drugtox_bp.route("/export")
+def export_data():
+    tox_type = request.args.get("tox_type", "DILI")
+    sess = get_db_session()
+
+    query = text(f"""
+        SELECT {qname("Generic_Proper_Names")} AS {qname("Generic_Proper_Names")},
+               {qname("Toxicity_Class")} AS {qname("Toxicity_Class")},
+               COUNT(*) AS count
+        FROM {fq_table("drug_toxicity")}
+        WHERE {qname("Tox_Type")} = :tox
+          AND {qname("is_historical")} = 0
+        GROUP BY {qname("Generic_Proper_Names")}, {qname("Toxicity_Class")}
+    """)
+    rows = sess.execute(query, {"tox": tox_type}).fetchall()
+
+    TOX_ORDER: dict[str, int] = {
+        'Most': 5,
+        'Less': 4,
+        'Precaution': 3,
+        'No': 2,
+        'Unknown': 1,
+    }
+
+    # Process data for export
+    export_data = {}
+    for row in rows:
+        generic_name = row[0]
+        toxicity_class = row[1]
+        count = row[2]
+
+        if generic_name not in export_data:
+            export_data[generic_name] = {
+                "total_count": 0,
+                "class_counts": defaultdict(int),
+                "majority_vote": None,
+                "severity_vote": None
+            }
+
+        export_data[generic_name]["total_count"] += count
+        export_data[generic_name]["class_counts"][toxicity_class] += count
+
+    # Determine majority and severity votes
+    for generic_name, data in export_data.items():
+        class_counts = data["class_counts"]
+        data["majority_vote"] = max(class_counts, key=class_counts.get)
+        data["severity_vote"] = max(class_counts, key=lambda x: TOX_ORDER.get(x, 99))
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"{tox_type} Toxicity Data"
+
+    # Header row
+    headers = ["Generic Name", "Total Count", "Most", "Less", "No", "Precaution", "Unknown", "Majority Vote", "Severity Vote"]
+    ws.append(headers)
+
+    # Data rows
+    for generic_name, data in export_data.items():
+        row = [
+            generic_name,
+            data["total_count"],
+            data["class_counts"]["Most"],
+            data["class_counts"]["Less"],
+            data["class_counts"]["No"],
+            data["class_counts"]["Precaution"],
+            data["class_counts"]["Unknown"],
+            data["majority_vote"],
+            data["severity_vote"]
+        ]
+        ws.append(row)
+
+    # Save Excel file to a temporary location
+    temp_file = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+    wb.save(temp_file.name)
+    temp_file.close()
+
+    # Return the Excel file
+    return send_file(temp_file.name, as_attachment=True, download_name=f"{tox_type}_toxicity_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+
+    
