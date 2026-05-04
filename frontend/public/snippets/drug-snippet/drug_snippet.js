@@ -5,7 +5,7 @@ var DRUG_SNIPPET_DATA = {"rld": {"d": {"a": {"w": {"n": {"z": {"e": {"r": {"a": 
     window.DRUG_SNIPPET_LOADED = true;
 
     console.log("Drug Snippet: Initializing...");
-const SNIPPET_ORIGIN = window.ASKFDALABEL_ORIGIN || 'https://ncshpcgpu01';
+const SNIPPET_ORIGIN = window.ASKFDALABEL_ORIGIN || 'https://ncshpcgpu01.fda.gov';
 const SNIPPET_APP_BASE = window.ASKFDALABEL_APP_BASE || '/askfdalabel';
 const SNIPPET_API_BASE = window.ASKFDALABEL_API_BASE || '/askfdalabel_api';
 
