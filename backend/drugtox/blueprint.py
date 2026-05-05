@@ -581,81 +581,162 @@ def get_company_portfolio(company_name):
 
 @drugtox_bp.route("/export")
 def export_data():
+    TOX_ORDER = {
+        "Most": 5,
+        "Less": 4,
+        "Precaution": 3,
+        "No": 2,
+        "Unknown": 1,
+    }
+
     tox_type = request.args.get("tox_type", "DILI")
     sess = get_db_session()
 
     query = text(f"""
-        SELECT {qname("Generic_Proper_Names")} AS {qname("Generic_Proper_Names")},
-               {qname("Toxicity_Class")} AS {qname("Toxicity_Class")},
-               COUNT(*) AS count
-        FROM {fq_table("drug_toxicity")}
-        WHERE {qname("Tox_Type")} = :tox
-          AND {qname("is_historical")} = 0
-        GROUP BY {qname("Generic_Proper_Names")}, {qname("Toxicity_Class")}
+        SELECT
+            dt.{qname("SETID")} AS {qname("SETID")},
+            dt.{qname("Generic_Proper_Names")} AS {qname("Generic_Proper_Names")},
+            dt.{qname("Trade_Name")} AS {qname("Trade_Name")},
+            dt.{qname("Author_Organization")} AS {qname("Author_Organization")},
+            dt.{qname("Toxicity_Class")} AS {qname("Toxicity_Class")},
+            s.{qname("appr_num")} AS {qname("Application_Number")},
+            s.{qname("routes")} AS {qname("Route")},
+            s.{qname("dosage_forms")} AS {qname("Dosage_Form")},
+            s.{qname("active_ingredients")} AS {qname("Active_Ingredient")}
+        FROM {fq_table("drug_toxicity")} dt
+        LEFT JOIN {fq_table("sum_spl", schema="labeling")} s
+          ON s.{qname("set_id")} = dt.{qname("SETID")}
+        WHERE dt.{qname("Tox_Type")} = :tox
+          AND dt.{qname("is_historical")} = 0
     """)
+
     rows = sess.execute(query, {"tox": tox_type}).fetchall()
 
-    TOX_ORDER: dict[str, int] = {
-        'Most': 5,
-        'Less': 4,
-        'Precaution': 3,
-        'No': 2,
-        'Unknown': 1,
-    }
+    grouped = {}
 
-    # Process data for export
-    export_data = {}
     for row in rows:
-        generic_name = row[0]
-        toxicity_class = row[1]
-        count = row[2]
+        m = dict(row._mapping)
 
-        if generic_name not in export_data:
-            export_data[generic_name] = {
+        application_number = (m.get("Application_Number") or "").strip()
+        active_ingredient = (m.get("Active_Ingredient") or "").strip()
+        dosage_form = (m.get("Dosage_Form") or "").strip()
+        generic_name = (m.get("Generic_Proper_Names") or "").strip()
+
+        if application_number:
+            group_key = f"APP::{application_number}"
+            display_group = application_number
+            group_basis = "Application Number"
+        elif active_ingredient or dosage_form:
+            group_key = f"ING_DF::{active_ingredient.lower()}::{dosage_form.lower()}"
+            display_group = f"{active_ingredient} | {dosage_form}".strip(" |")
+            group_basis = "Active Ingredient + Dosage Form"
+        elif generic_name:
+            group_key = f"GENERIC::{generic_name.lower()}"
+            display_group = generic_name
+            group_basis = "Generic Name"
+        else:
+            group_key = "UNKNOWN"
+            display_group = "Unknown"
+            group_basis = "Unknown"
+
+        if group_key not in grouped:
+            grouped[group_key] = {
+                "display_group": display_group,
+                "group_basis": group_basis,
                 "total_count": 0,
                 "class_counts": defaultdict(int),
+                "setids": set(),
+                "generic_names": set(),
+                "trade_names": set(),
+                "author_organizations": set(),
+                "routes": set(),
+                "dosage_forms": set(),
+                "active_ingredients": set(),
                 "majority_vote": None,
-                "severity_vote": None
+                "severity_vote": None,
             }
 
-        export_data[generic_name]["total_count"] += count
-        export_data[generic_name]["class_counts"][toxicity_class] += count
+        g = grouped[group_key]
 
-    # Determine majority and severity votes
-    for generic_name, data in export_data.items():
+        toxicity_class = m.get("Toxicity_Class") or "Unknown"
+
+        g["total_count"] += 1
+        g["class_counts"][toxicity_class] += 1
+
+        if m.get("SETID"):
+            g["setids"].add(m["SETID"])
+        if m.get("Generic_Proper_Names"):
+            g["generic_names"].add(m["Generic_Proper_Names"])
+        if m.get("Trade_Name"):
+            g["trade_names"].add(m["Trade_Name"])
+        if m.get("Author_Organization"):
+            g["author_organizations"].add(m["Author_Organization"])
+        if m.get("Route"):
+            g["routes"].add(str(m["Route"]).strip())
+        if m.get("Dosage_Form"):
+            g["dosage_forms"].add(str(m["Dosage_Form"]).strip())
+        if m.get("Active_Ingredient"):
+            g["active_ingredients"].add(str(m["Active_Ingredient"]).strip())
+
+    for group_key, data in grouped.items():
         class_counts = data["class_counts"]
-        data["majority_vote"] = max(class_counts, key=class_counts.get)
-        data["severity_vote"] = max(class_counts, key=lambda x: TOX_ORDER.get(x, 99))
+
+        if class_counts:
+            data["majority_vote"] = max(class_counts, key=class_counts.get)
+            data["severity_vote"] = max(class_counts, key=lambda x: TOX_ORDER.get(x, 0))
 
     wb = Workbook()
     ws = wb.active
-    ws.title = f"{tox_type} Toxicity Data"
+    ws.title = f"{tox_type} Toxicity Data"[:31]
 
-    # Header row
-    headers = ["Generic Name", "Total Count", "Most", "Less", "No", "Precaution", "Unknown", "Majority Vote", "Severity Vote"]
+    headers = [
+        "Application / Fallback Group",
+        "Group Basis",
+        "Total Count",
+        "Generic Name",
+        "Trade Name",
+        "Author Organization",
+        "SETID",
+        "Route",
+        "Dosage Form",
+        "Active Ingredient",
+        "Most",
+        "Less",
+        "No",
+        "Precaution",
+        "Unknown",
+        "Majority Vote",
+        "Severity Vote",
+    ]
     ws.append(headers)
 
-    # Data rows
-    for generic_name, data in export_data.items():
-        row = [
-            generic_name,
+    for group_key, data in sorted(grouped.items(), key=lambda x: x[1]["display_group"]):
+        ws.append([
+            data["display_group"],
+            data["group_basis"],
             data["total_count"],
+            ", ".join(sorted(data["generic_names"])),
+            ", ".join(sorted(data["trade_names"])),
+            ", ".join(sorted(data["author_organizations"])),
+            ", ".join(sorted(data["setids"])),
+            ", ".join(sorted(data["routes"])),
+            ", ".join(sorted(data["dosage_forms"])),
+            ", ".join(sorted(data["active_ingredients"])),
             data["class_counts"]["Most"],
             data["class_counts"]["Less"],
             data["class_counts"]["No"],
             data["class_counts"]["Precaution"],
             data["class_counts"]["Unknown"],
             data["majority_vote"],
-            data["severity_vote"]
-        ]
-        ws.append(row)
+            data["severity_vote"],
+        ])
 
-    # Save Excel file to a temporary location
     temp_file = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
     wb.save(temp_file.name)
     temp_file.close()
 
-    # Return the Excel file
-    return send_file(temp_file.name, as_attachment=True, download_name=f"{tox_type}_toxicity_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
-
-    
+    return send_file(
+        temp_file.name,
+        as_attachment=True,
+        download_name=f"{tox_type}_toxicity_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+    )
